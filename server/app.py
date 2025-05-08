@@ -1,179 +1,123 @@
-from flask import Flask, jsonify, request, render_template, send_file
-from flask_cors import CORS
-import dao.notes_dao as notes_dao
-import services as services
+from flask import Flask, request, jsonify
+from flask_sqlalchemy import SQLAlchemy
+from sqlalchemy import Column, Integer, Text, TIMESTAMP
+from sqlalchemy.sql import func
+from pydantic import BaseModel
+from typing import Optional
+from datetime import datetime
 from dotenv import load_dotenv
 import os
+from functools import wraps
 
+# Load environment variables from .env (optional in tests)
 load_dotenv()
 
-app = Flask(__name__)
-CORS(app)
+db = SQLAlchemy()
 
+# SQLAlchemy Model
+class Note(db.Model):
+    __tablename__ = os.getenv("TABLE_NAME", "notes")  # default for testing
 
-@app.route('/')
-def hello_world():
-    return jsonify({'message': 'Hello, World!, YT Notes Extension Server'})
+    id = Column(Integer, primary_key=True)
+    video_id = Column(Text, nullable=False)
+    video_title = Column(Text)
+    note_timestamp = Column(Text, nullable=False)
+    note = Column(Text, nullable=False)
+    created_at = Column(TIMESTAMP(timezone=True), default=func.now())
+    updated_at = Column(TIMESTAMP(timezone=True), default=func.now(), onupdate=func.now())
 
-@app.route('/saveNotes', methods=['POST'])
-def save_notes():
-    try:
-        data = request.get_json()
+    def __repr__(self):
+        return f"<Note(id={self.id}, video_id='{self.video_id}', timestamp={self.note_timestamp})>"
 
-        url = data.get('url')
-        title = data.get('videoTitle')
-        timestamp = data.get('videoTimestamp')
-        general_notes = data.get('generalNotes')
-        timestamp_notes = data.get('timestampNotes')
+# Pydantic Schemas
+class NoteCreate(BaseModel):
+    video_id: str
+    video_title: Optional[str] = None
+    note_timestamp: str
+    note: str
 
-        url = services.clean_yt_url(url)
+class NoteRead(BaseModel):
+    id: int
+    video_id: str
+    video_title: Optional[str]
+    note_timestamp: str
+    note: str
+    created_at: datetime
+    updated_at: datetime
 
-        # check if the video exists in the database
-        if not notes_dao.check_video_exists(url):
-            video_id = notes_dao.insert_video(url, title)
-        else:
-            video_id = notes_dao.get_video_id(url)
+    class Config:
+        from_attributes = True
 
-        if len(general_notes) == 0:
-            notes_dao.insert_timestamp_note(video_id, timestamp, timestamp_notes)
-        elif len(timestamp_notes) != 0 and len(general_notes) != 0:
-            notes_dao.insert_general_note(video_id, general_notes)
-            notes_dao.insert_timestamp_note(video_id, timestamp, timestamp_notes)
-        else:
-            notes_dao.insert_general_note(video_id, general_notes)
+# Factory function
+def create_app(test_config=None):
+    app = Flask(__name__)
 
-        return jsonify({'task': 'save_notes', 'status': 'success'})
-    except Exception as e:
-        print(e)
-        return jsonify({'task': 'save_notes', 'status': 'failure'})
+    # Default config (production/dev)
+    DB_URL = os.getenv('DB_URL')
+    AUTH_TOKEN = os.getenv('AUTH_TOKEN')
 
+    if not test_config:
+        if not all([DB_URL, AUTH_TOKEN]):
+            raise ValueError("DB_URL and AUTH_TOKEN must be set in the environment variables.")
+        app.config['SQLALCHEMY_DATABASE_URI'] = DB_URL
+        app.config['AUTH_TOKEN'] = AUTH_TOKEN
+    else:
+        # Use test configuration
+        app.config.update(test_config)
 
-@app.route('/viewNotes', methods=['GET'])
-def get_notes():
-    try:
-        url = request.args.get('video_url')
-        password = request.args.get('password')
+    db.init_app(app)
 
-        if password != os.getenv('PASSWORD'):
-            return jsonify({'task': 'save_notes', 'status': 'failure'})
+    # Authentication decorator
+    def token_required(f):
+        @wraps(f)
+        def decorated_function(*args, **kwargs):
+            token = request.headers.get('Authorization')
+            if token is None or token != f"Bearer {app.config['AUTH_TOKEN']}":
+                return jsonify({"error": "Unauthorized"}), 401
+            return f(*args, **kwargs)
+        return decorated_function
 
-        url = services.clean_yt_url(url)
+    # Routes
+    @app.route('/notes', methods=['POST'])
+    @token_required
+    def create_note():
+        try:
+            data = request.json
+            if not data:
+                return jsonify({"error": "Request body must be JSON"}), 400
+            try:
+                note_data = NoteCreate(**data)
+            except Exception as e:
+                return jsonify({"error": f"Invalid data: {str(e)}"}), 400
 
-        video_id = notes_dao.get_video_id(url)
-        notes = notes_dao.get_notes(video_id)
+            new_note = Note(**note_data.model_dump())
+            db.session.add(new_note)
+            db.session.commit()
+            return jsonify(NoteRead.model_validate(new_note).model_dump()), 201
+        except Exception as e:
+            print(f"Error creating note: {e}")
+            db.session.rollback()
+            return jsonify({"error": "Internal Server Error"}), 500
 
-        md_string = services.create_markdown_string(video_id, notes)
-        html_content = services.markdown_to_html(md_string)
+    @app.route('/notes/<video_id>', methods=['GET'])
+    @token_required
+    def get_notes_by_video(video_id):
+        try:
+            if not video_id:
+                return jsonify({"error": "video_id is required"}), 400
+            notes = Note.query.filter_by(video_id=video_id).all()
+            if not notes:
+                return jsonify({"error": "No notes found for the given video_id"}), 404
+            return jsonify([NoteRead.model_validate(note).model_dump() for note in notes]), 200
+        except Exception as e:
+            print(f"Error fetching notes: {e}")
+            return jsonify({"error": "Internal Server Error"}), 500
 
-        return render_template('notes.html', content=html_content)
-    except Exception as e:
-        print(e)
-        return jsonify({'task': 'view_notes', 'status': 'failure'})
+    return app
 
-
-@app.route('/getMD', methods=['GET'])
-def get_md():
-    try:
-        url = request.args.get('video_url')
-        password = request.args.get('password')
-
-        if password != os.getenv('PASSWORD'):
-            return jsonify({'task': 'save_notes', 'status': 'failure'})
-        
-        url = services.clean_yt_url(url)
-
-        video_id = notes_dao.get_video_id(url)
-        notes = notes_dao.get_notes(video_id)
-
-        # check if notes exist
-        if len(notes['general_notes']) == 0 and len(notes['timestamp_notes']) == 0:
-            return jsonify({'task': 'get_MD', 'status': 'failure'})
-
-        md_string = services.create_markdown_string(video_id, notes)
-        filepath = services.create_markdown_file(md_string, video_id)
-
-        return send_file(filepath, as_attachment=True)
-
-    except Exception as e:
-        print(e)
-        return jsonify({'task': 'get_MD', 'status': 'failure'})
-
-
-@app.route('/checkNotesExist', methods=['POST'])
-def check_notes_exist():
-    try:
-        data = request.get_json()
-
-        url = services.clean_yt_url(data.get('url'))
-
-        video_id = notes_dao.get_video_id(url)
-        notes = notes_dao.get_notes(video_id)
-
-        # check if notes exist
-        if len(notes['general_notes']) == 0 and len(notes['timestamp_notes']) == 0:
-            return jsonify({'task': 'get_MD', 'status': 'success', 'exists': False})
-        else:
-            return jsonify({'task': 'get_MD', 'status': 'success', 'exists': True})
-
-    except Exception as e:
-        print(e)
-        return jsonify({'task': 'check_notes_exist', 'status': 'failure'})
-    
-    
-@app.route('/getGeneralNotes', methods=['POST'])
-def fetch_general_notes():
-    try:
-        data = request.get_json()
-        
-        url = services.clean_yt_url(data.get('url'))
-
-        video_id = notes_dao.get_video_id(url)
-        notes = notes_dao.get_notes(video_id)
-
-        general_notes = notes['general_notes']
-        general_notes_strings = [x[1] for x in general_notes]
-        if len(general_notes_strings) == 0:
-            return jsonify({'task': 'get_general_notes', 'status': 'success', 'exists': False})
-        else:
-            return jsonify({'task': 'get_general_notes', 'status': 'success', 'exists': True, 'notes': general_notes_strings})
-    except Exception as e:
-        print(e)
-        return jsonify({'task': 'check_notes_exist', 'status': 'failure', 'exists': False})
-    
-@app.route('/dashboard', methods=['GET', 'POST'])
-def dashboard():
-    try:
-        if request.method == 'GET':
-            return render_template('dashboard.html')
-        else:
-            data = request.get_json()
-            password = data.get('password')
-            if password == os.getenv('PASSWORD'):
-                videos = notes_dao.get_all_videos()
-                return jsonify({'videos': videos})
-            else:
-                return jsonify({'message': 'Invalid password!'})
-    except Exception as e:
-        print(e)
-        return jsonify({'message': 'Error in dashboard'})
-    
-@app.route('/search', methods=['POST'])
-def search():
-    try:
-        data = request.get_json()
-        password = data.get('password')
-
-        if password != os.getenv('PASSWORD'):
-            return jsonify({'task': 'save_notes', 'status': 'failure'})
-
-        search_query = data.get('query')
-        videos = notes_dao.search_videos(search_query)
-        
-        return jsonify({'videos': videos})
-    except Exception as e:
-        print(e)
-        return jsonify({'task': 'search', 'status': 'failure'})
-
-
-if __name__ == "__main__":
-    app.run(host='0.0.0.0', port=5000, debug=True)
+# For local running
+if __name__ == '__main__':
+    app = create_app()
+    with app.app_context():
+        db.create_all()
+    app.run(debug=True)
