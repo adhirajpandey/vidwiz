@@ -10,7 +10,7 @@
     <ol id="notes-content"></ol>
   </body>
   <script>
-    const PASSWORD = localStorage.getItem("notes-token");
+    const TOKEN = localStorage.getItem("notes-token");
 
     function timestampToSeconds(timestamp) {
       // spilt->loop->multiply->add
@@ -55,7 +55,7 @@
       const response = await fetch(`/notes/${currentVideoId}`, {
         method: "GET",
         headers: {
-          Authorization: `Bearer ${PASSWORD}`,
+          Authorization: `Bearer ${TOKEN}`,
         },
       });
       if (!response.ok) {
