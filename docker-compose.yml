@@ -1,5 +1,5 @@
 services:
-  api:
+  app:
     container_name: yt-notes
     build:
       context: .

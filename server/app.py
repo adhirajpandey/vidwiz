@@ -84,6 +84,10 @@ def create_app(test_config=None):
         return decorated_function
 
     # Routes
+    @app.route("/", methods=["GET"])
+    def index():
+        return jsonify({"message": "Welcome to the YT Notes APP!"})
+
     @app.route("/notes", methods=["POST"])
     @token_required
     def create_note():
@@ -169,7 +173,6 @@ def create_app(test_config=None):
 
     return app
 
-
+app = create_app()
 if __name__ == "__main__":
-    app = create_app()
     app.run()
