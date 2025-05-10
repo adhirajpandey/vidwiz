@@ -1,0 +1,70 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Video Notes Page</title>
+  </head>
+  <body>
+    <h2 id="video-title"></h2>
+    <ol id="notes-content"></ol>
+  </body>
+  <script>
+    const TOKEN = localStorage.getItem("notes-token");
+
+    function timestampToSeconds(timestamp) {
+      // spilt->loop->multiply->add
+      const parts = timestamp.split(":").map(Number);
+      let seconds = 0;
+
+      for (let i = 0; i < parts.length; i++) {
+        const value = parts[parts.length - 1 - i];
+        seconds += value * Math.pow(60, i);
+      }
+
+      return seconds;
+    }
+
+    async function populatePage(data) {
+      const videoTitle = document.querySelector("#video-title");
+      videoTitle.textContent = data[0].video_title; // Assuming all notes have the same title
+      const contentDiv = document.querySelector("#notes-content");
+      contentDiv.innerHTML = ""; // Clear existing content
+
+      data.forEach((note) => {
+        const listItem = document.createElement("li");
+
+        const link = document.createElement("a");
+        link.href = `https://www.youtube.com/watch?v=${
+          note.video_id
+        }&t=${timestampToSeconds(note.note_timestamp)}s`;
+        link.textContent = note.note_timestamp;
+        link.target = "_blank";
+
+        listItem.appendChild(link);
+        if (note.note) {
+          listItem.append(` - ${note.note}`);
+        }
+        contentDiv.appendChild(listItem);
+      });
+    }
+
+    async function search() {
+      event.preventDefault();
+      const currentVideoId = window.location.pathname.split("/").pop();
+      const response = await fetch(`/notes/${currentVideoId}`, {
+        method: "GET",
+        headers: {
+          Authorization: `Bearer ${TOKEN}`,
+        },
+      });
+      if (!response.ok) {
+        console.error("Error fetching notes:", response.statusText);
+        return;
+      }
+      const data = await response.json();
+      populatePage(data);
+    }
+    document.addEventListener("DOMContentLoaded", search);
+  </script>
+</html>
