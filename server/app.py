@@ -2,7 +2,7 @@ from flask import Flask, request, jsonify, render_template
 from flask_sqlalchemy import SQLAlchemy
 from sqlalchemy import Column, Integer, Text, TIMESTAMP
 from sqlalchemy.sql import func
-from pydantic import BaseModel
+from pydantic import BaseModel, ValidationError, field_validator
 from typing import Optional
 from datetime import datetime
 from dotenv import load_dotenv
@@ -28,9 +28,6 @@ class Note(db.Model):
         TIMESTAMP(timezone=True), default=func.now(), onupdate=func.now()
     )
 
-    def __repr__(self):
-        return f"<Note(id={self.id}, video_id='{self.video_id}', timestamp={self.note_timestamp})>"
-
 
 # Pydantic Schemas
 class NoteCreate(BaseModel):
@@ -38,6 +35,15 @@ class NoteCreate(BaseModel):
     video_title: Optional[str] = None
     note_timestamp: str
     note: Optional[str] = None
+
+    @field_validator("note_timestamp")
+    @classmethod
+    def timestamp_must_contain_colon(cls, v):
+        if ":" not in v:
+            raise ValueError("note_timestamp must contain at least one ':'")
+        if sum(c.isdigit() for c in v) < 2:
+            raise ValueError("note_timestamp must contain at least two numbers")
+        return v
 
 
 class NoteRead(BaseModel):
@@ -49,6 +55,7 @@ class NoteRead(BaseModel):
     created_at: datetime
     updated_at: datetime
 
+    # to pull data from ORM object attributes, not just from dictionaries
     model_config = {"from_attributes": True}
 
 
@@ -98,7 +105,7 @@ def create_app(test_config=None):
                 return jsonify({"error": "Request body must be JSON"}), 400
             try:
                 note_data = NoteCreate(**data)
-            except Exception as e:
+            except ValidationError as e:
                 return jsonify({"error": f"Invalid data: {str(e)}"}), 400
 
             new_note = Note(**note_data.model_dump())
@@ -172,6 +179,7 @@ def create_app(test_config=None):
             return jsonify({"error": "Internal Server Error"}), 500
 
     return app
+
 
 app = create_app()
 if __name__ == "__main__":

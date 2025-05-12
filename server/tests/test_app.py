@@ -59,6 +59,19 @@ def test_create_note_invalid_data(client):
     assert "Invalid data" in response.get_json()["error"]
 
 
+def test_create_note_invalid_timestamp_data(client):
+    payload = {
+        "video_id": "abc123",
+        "video_title": "Test Video",
+        # as sometimes, macrodroid may not be able to get the correct timestamp
+        "note_timestamp": "{lv=screenContent[com.google.android.youtube:id/time_bar_current_time]}",
+        "note": "This is a test note.",
+    }
+    response = client.post("/notes", json=payload, headers=AUTH_HEADER)
+    assert response.status_code == 400
+    assert "Invalid data" in response.get_json()["error"]
+
+
 def test_get_notes_by_video_success(client):
     note = Note(
         video_id="vid123",
