@@ -161,16 +161,21 @@ def create_app(test_config=None):
                 return jsonify({"error": "Query parameter is required"}), 400
 
             result = (
-                db.session.query(Note.video_id, Note.video_title)
+                db.session.query(Note.video_id, Note.video_title, Note.created_at)
                 .filter(Note.video_title.ilike(f"%{query}%"))
-                .distinct()
+                .distinct(Note.video_id)
                 .all()
             )
+
             if not result:
                 return jsonify({"error": "No videos found matching the query"}), 404
+
+            # Sort by created_at descending - does not guarantee order of video title since arbitary distinct
+            sorted_result = sorted(result, key=lambda x: x.created_at, reverse=True)
+
             all_videos = [
                 {"video_id": video.video_id, "video_title": video.video_title}
-                for video in result
+                for video in sorted_result
             ]
 
             return jsonify(all_videos), 200
