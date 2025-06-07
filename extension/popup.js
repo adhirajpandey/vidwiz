@@ -1,5 +1,5 @@
-const backendEndpoint = "http://127.0.0.1:5000/" //http://192.168.29.181:5010/
-const PASSWORD = localStorage.getItem("notes-token")
+const backendEndpoint = "http://127.0.0.1:5000/"
+const AUTH_TOKEN = localStorage.getItem("notes-token")
 
 function fetchVideoTitle() {
 	if (
@@ -24,9 +24,7 @@ function fetchVideoTimestamp() {
 		window.location.hostname === "www.youtube.com" &&
 		window.location.pathname === "/watch"
 	) {
-		const timestampElement = document.querySelector(
-			"#movie_player > div.ytp-chrome-bottom > div.ytp-chrome-controls > div.ytp-left-controls > div.ytp-time-display.notranslate > span:nth-child(2) > span.ytp-time-current"
-		)
+		const timestampElement = document.querySelector(".ytp-time-current")
 		if (timestampElement) {
 			return timestampElement.textContent
 		} else {
@@ -37,127 +35,168 @@ function fetchVideoTimestamp() {
 	}
 }
 
-function saveNotesToBackend(
-	url,
-	generalNotes,
-	timestampNotes,
-	videoTitle,
-	videoTimestamp
-) {
+function validateTimestamp(timestamp) {
+	if (!timestamp || typeof timestamp !== 'string') {
+		return false
+	}
+	// Check if timestamp contains at least one ':' and two numbers
+	return timestamp.includes(':') && (timestamp.match(/\d/g) || []).length >= 2
+}
+
+function saveNotesToBackend(url, notes, videoTitle, videoTimestamp) {
 	if (videoTitle === "No YouTube video found.") {
 		setMessage("No YouTube video found on this page. Notes not saved.")
 		return
 	}
 
-	const apiEndpoint = backendEndpoint + "saveNotes"
+	// Extract video ID from YouTube URL
+	const videoId = new URL(url).searchParams.get("v")
+	if (!videoId) {
+		setMessage("Invalid YouTube URL. Notes not saved.", "red")
+		return
+	}
 
-	const notesData = {
-		url: url,
-		videoTitle: videoTitle,
-		videoTimestamp: videoTimestamp,
-		generalNotes: generalNotes,
-		timestampNotes: timestampNotes,
+	// Validate timestamp format
+	if (!validateTimestamp(videoTimestamp)) {
+		setMessage("Invalid timestamp format. Notes not saved.", "red")
+		return
+	}
+
+	const apiEndpoint = backendEndpoint + "notes"
+
+	const noteData = {
+		video_id: videoId,
+		video_title: videoTitle,
+		note_timestamp: videoTimestamp,
+		note: notes || null // Ensure note is null if empty
 	}
 
 	fetch(apiEndpoint, {
 		method: "POST",
 		headers: {
 			"Content-Type": "application/json",
+			"Authorization": `Bearer ${AUTH_TOKEN}`
 		},
-		body: JSON.stringify(notesData),
+		body: JSON.stringify(noteData)
 	})
-		.then((response) => response.json())
-		.then((data) => {
-			if (data.status === "success") {
-				setMessage("Notes saved successfully!", "green")
-			} else {
-				setMessage("Failed to save notes.", "red")
+		.then(response => {
+			if (!response.ok) {
+				return response.json().then(err => {
+					let errorMessage = "Error saving notes. ";
+					switch (response.status) {
+						case 401:
+							errorMessage += "Authentication failed. Please check your token.";
+							break;
+						case 403:
+							errorMessage += "Access denied. Please check your permissions.";
+							break;
+						case 404:
+							errorMessage += "Resource not found.";
+							break;
+						case 500:
+							errorMessage += "Server error. Please try again later.";
+							break;
+						default:
+							errorMessage += err.error || `HTTP error! status: ${response.status}`;
+					}
+					throw new Error(errorMessage);
+				})
 			}
+			return response.json()
 		})
-		.catch((error) => {
+		.then(data => {
+			setMessage("Note saved successfully!", "green")
+		})
+		.catch(error => {
 			console.error("Error saving notes:", error)
-			setMessage(
-				"Error saving notes. Unable to communicate with server.",
-				"red"
-			)
+			setMessage(error.message || "Error saving notes. Please check your authentication token.", "red")
 		})
 }
 
 function checkNotesExistence(url) {
-	const apiEndpoint = backendEndpoint + "checkNotesExist"
-
-	const videoData = {
-		url: url,
+	const videoId = new URL(url).searchParams.get("v")
+	if (!videoId) {
+		return Promise.reject("Invalid YouTube URL")
 	}
 
+	const apiEndpoint = backendEndpoint + `notes/${videoId}`
+
 	return fetch(apiEndpoint, {
-		method: "POST",
+		method: "GET",
 		headers: {
-			"Content-Type": "application/json",
-		},
-		body: JSON.stringify(videoData),
+			"Authorization": `Bearer ${AUTH_TOKEN}`
+		}
 	})
-		.then((response) => response.json())
-		.then((data) => {
-			if (data["exists"] === true) {
-				return 1
-			} else {
-				return 0
+		.then(response => {
+			if (response.status === 404) {
+				return false
 			}
+			if (!response.ok) {
+				throw new Error(`HTTP error! status: ${response.status}`)
+			}
+			return response.json()
 		})
-		.catch((error) => {
+		.then(data => {
+			return Array.isArray(data) && data.length > 0
+		})
+		.catch(error => {
 			console.error("Error checking notes:", error)
-			setMessage(
-				"Error checking notes. Unable to communicate with server.",
-				"red"
-			)
+			setMessage("Error checking notes. Please check your authentication token.", "red")
+			return false
 		})
 }
 
 function setMessage(message, color) {
-	document.getElementById("message-area").textContent = message
-	document.getElementById("message-area").style.color = color || "black"
+	document.getElementById("feedback-message").textContent = message
+	document.getElementById("feedback-message").style.color = color || "black"
 }
 
-document.addEventListener("DOMContentLoaded", function () {
-	chrome.tabs.query({ active: true, currentWindow: true }, function (tabs) {
+document.addEventListener("DOMContentLoaded", function() {
+	// Set welcome message
+	setMessage("Welcome to YT Notes!", "black")
+
+	if (!localStorage.getItem("notes-token")) {
+		setMessage("Please set your notes-token in localStorage before using the extension.\nOpen DevTools and run: localStorage.setItem('notes-token', 'YOUR_TOKEN')", "red")
+	}
+
+	chrome.tabs.query({active: true, currentWindow: true}, function(tabs) {
 		const tabId = tabs[0].id
 		const tabURL = tabs[0].url
 
+		// Check if we're on a YouTube video page
+		if (!tabURL.includes("youtube.com/watch")) {
+			setMessage("No YouTube video found on this page.", "red")
+			document.getElementById("video-title").style.display = "none"
+			document.getElementById("current-timestamp").style.display = "none"
+			document.getElementById("notes-textarea").style.display = "none"
+			document.getElementById("saveNotesBtn").style.display = "none"
+			document.getElementById("viewNotes").style.display = "none"
+			return
+		}
+
 		chrome.scripting.executeScript(
 			{
-				target: { tabId: tabId },
+				target: {tabId: tabId},
 				function: fetchVideoTitle,
 			},
-			function (results) {
+			function(results) {
 				if (results && results[0]) {
-					document.getElementById("video-title").textContent =
-						results[0].result
+					document.getElementById("video-title").textContent = results[0].result
 				}
 			}
 		)
 
 		chrome.scripting.executeScript(
 			{
-				target: { tabId: tabId },
+				target: {tabId: tabId},
 				function: fetchVideoTimestamp,
 			},
-			function (results) {
+			function(results) {
 				if (results && results[0]) {
-					document.getElementById("current-timestamp").textContent =
-						results[0].result
+					document.getElementById("current-timestamp").textContent = results[0].result
 				}
 			}
 		)
-
-		var generalNotes = getGeneralNotes(tabURL)
-		generalNotes.then(function (result) {
-			if (result !== -1) {
-				console.log(result)
-				document.getElementById("general-notes-textarea").placeholder =
-					result.join("\n")
-			}
-		})
 	})
 })
 
@@ -177,17 +216,10 @@ document.getElementById("saveNotesBtn").addEventListener("click", function () {
 						function: fetchVideoTimestamp,
 					},
 					function (timestampResults) {
-						const generalNotes = document.getElementById(
-							"general-notes-textarea"
-						).value
-						const timestampNotes = document.getElementById(
-							"timestamp-notes-textarea"
-						).value
-
+						const notes = document.getElementById("notes-textarea").value
 						saveNotesToBackend(
 							tabURL,
-							generalNotes,
-							timestampNotes,
+							notes,
 							titleResults[0].result,
 							timestampResults[0].result
 						)
@@ -198,77 +230,20 @@ document.getElementById("saveNotesBtn").addEventListener("click", function () {
 	})
 })
 
-document.getElementById("viewData").addEventListener("click", function () {
+document.getElementById("viewNotes").addEventListener("click", function(e) {
+	e.preventDefault();
 	chrome.tabs.query({ active: true, currentWindow: true }, function (tabs) {
-		const tabURL = tabs[0].url
-		checkNotesExistence(tabURL)
-			.then((notesExist) => {
-				if (notesExist) {
-					const viewNotesURL =
-						backendEndpoint +
-						"viewNotes?video_url=" +
-						tabURL +
-						"&password=" +
-						PASSWORD
-					chrome.tabs.create({ url: viewNotesURL })
-				} else {
-					setMessage("No notes found for this video.", "red")
-				}
-			})
-			.catch((error) => {
-				console.error("Error:", error)
-				setMessage("Error occurred while checking for notes.", "red")
-			})
-	})
-})
+		const tabURL = tabs[0].url;
+		const videoId = new URL(tabURL).searchParams.get("v");
+		if (videoId) {
+			const viewNotesURL = backendEndpoint + `dashboard/${videoId}`;
+			chrome.tabs.create({ url: viewNotesURL });
+		}
+	});
+});
 
-document.getElementById("downloadMD").addEventListener("click", function () {
-	chrome.tabs.query({ active: true, currentWindow: true }, function (tabs) {
-		const tabURL = tabs[0].url
-		checkNotesExistence(tabURL)
-			.then((notesExist) => {
-				if (notesExist) {
-					const MDFileUrl =
-						backendEndpoint +
-						"getMD?video_url=" +
-						tabURL +
-						"&password=" +
-						PASSWORD
-					chrome.tabs.create({ url: MDFileUrl })
-				} else {
-					setMessage("No notes found for this video.", "red")
-				}
-			})
-			.catch((error) => {
-				console.error("Error:", error)
-				setMessage("Error occurred while checking for notes.", "red")
-			})
-	})
-})
-
-function getGeneralNotes(url) {
-	const apiEndpoint = backendEndpoint + "getGeneralNotes"
-
-	const videoData = {
-		url: url,
-	}
-
-	return fetch(apiEndpoint, {
-		method: "POST",
-		headers: {
-			"Content-Type": "application/json",
-		},
-		body: JSON.stringify(videoData),
-	})
-		.then((response) => response.json())
-		.then((data) => {
-			if (data["exists"] === true) {
-				return data["notes"]
-			} else {
-				return -1
-			}
-		})
-		.catch((error) => {
-			return -1
-		})
-}
+document.getElementById("goDashboard").addEventListener("click", function(e) {
+	e.preventDefault();
+	const dashboardURL = backendEndpoint + "dashboard";
+	chrome.tabs.create({ url: dashboardURL });
+});
