@@ -73,7 +73,5 @@ The extension is built with:
 - `GET /search?query={search_term}`: Search for videos by title
 
 ## Sample
-![ui](https://github.com/adhirajpandey/YT-Notes-Extension/assets/87516052/adbd29ba-78e0-4002-bc6f-69b3a50e8d2a)
-
-
+![extension-ui](https://github.com/user-attachments/assets/175747d3-7ec3-410b-895c-d26ff996b957)
 
