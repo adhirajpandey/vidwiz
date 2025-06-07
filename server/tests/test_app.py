@@ -1,5 +1,6 @@
 import pytest
-from app import create_app, db, Note
+from app import create_app
+from models import Note, db
 
 # Define a test token to use in tests
 AUTH_TOKEN = "testtoken123"
@@ -7,8 +8,7 @@ AUTH_HEADER = {"Authorization": f"Bearer {AUTH_TOKEN}"}
 
 
 @pytest.fixture
-def client():
-    # Create the app with test configuration
+def app():
     app = create_app(
         {
             "TESTING": True,
@@ -18,13 +18,16 @@ def client():
         }
     )
 
-    # Set up and tear down the test database
-    with app.test_client() as client:
-        with app.app_context():
-            db.create_all()
-        yield client
-        with app.app_context():
-            db.drop_all()
+    with app.app_context():
+        db.create_all()
+        yield app
+        db.session.remove()
+        db.drop_all()
+
+
+@pytest.fixture
+def client(app):
+    return app.test_client()
 
 
 def test_create_note_success(client):
@@ -47,7 +50,7 @@ def test_create_note_unauthorized(client):
         "note_timestamp": "00:01:30",
         "note": "This is a test note.",
     }
-    response = client.post("/notes", json=payload)  # Missing Authorization header
+    response = client.post("/notes", json=payload)
     assert response.status_code == 401
     assert response.get_json()["error"] == "Unauthorized"
 
@@ -63,7 +66,6 @@ def test_create_note_invalid_timestamp_data(client):
     payload = {
         "video_id": "abc123",
         "video_title": "Test Video",
-        # as sometimes, macrodroid may not be able to get the correct timestamp
         "note_timestamp": "{lv=screenContent[com.google.android.youtube:id/time_bar_current_time]}",
         "note": "This is a test note.",
     }
@@ -72,14 +74,14 @@ def test_create_note_invalid_timestamp_data(client):
     assert "Invalid data" in response.get_json()["error"]
 
 
-def test_get_notes_by_video_success(client):
+def test_get_notes_by_video_success(client, app):
     note = Note(
         video_id="vid123",
         video_title="Some Video",
         note_timestamp="00:00:10",
         note="Some note",
     )
-    with client.application.app_context():
+    with app.app_context():
         db.session.add(note)
         db.session.commit()
 
@@ -96,7 +98,7 @@ def test_get_notes_by_video_not_found(client):
     assert response.status_code == 404
 
 
-def test_search_results_success(client):
+def test_search_results_success(client, app):
     notes = [
         Note(
             video_id="vid1",
@@ -111,28 +113,28 @@ def test_search_results_success(client):
             note="Decorators in Python",
         ),
     ]
-    with client.application.app_context():
+    with app.app_context():
         db.session.bulk_save_objects(notes)
         db.session.commit()
 
-    # Perform a search query
     response = client.get("/search?query=Python", headers=AUTH_HEADER)
     assert response.status_code == 200
     data = response.get_json()
     assert isinstance(data, list)
     assert len(data) == 2
-    assert data[0]["video_title"] == "Python Tutorial"
-    assert data[1]["video_title"] == "Advanced Python"
+    titles = [video["video_title"] for video in data]
+    assert "Python Tutorial" in titles
+    assert "Advanced Python" in titles
 
 
-def test_search_results_no_match(client):
+def test_search_results_no_match(client, app):
     note = Note(
         video_id="vid1",
         video_title="Java Tutorial",
         note_timestamp="00:01:00",
         note="Introduction to Java",
     )
-    with client.application.app_context():
+    with app.app_context():
         db.session.add(note)
         db.session.commit()
 

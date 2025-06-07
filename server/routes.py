@@ -1,0 +1,98 @@
+from flask import Blueprint, request, jsonify, render_template
+from models import Note, db
+from schemas import NoteCreate, NoteRead
+from pydantic import ValidationError
+from functools import wraps
+
+main_bp = Blueprint("main", __name__)
+
+
+def token_required(f):
+    @wraps(f)
+    def decorated_function(*args, **kwargs):
+        from flask import current_app
+
+        token = request.headers.get("Authorization")
+        if token is None or token != f"Bearer {current_app.config['AUTH_TOKEN']}":
+            return jsonify({"error": "Unauthorized"}), 401
+        return f(*args, **kwargs)
+
+    return decorated_function
+
+
+@main_bp.route("/", methods=["GET"])
+def index():
+    return jsonify({"message": "Welcome to the YT Notes APP!"})
+
+
+@main_bp.route("/notes", methods=["POST"])
+@token_required
+def create_note():
+    try:
+        data = request.json
+        if not data:
+            return jsonify({"error": "Request body must be JSON"}), 400
+        try:
+            note_data = NoteCreate(**data)
+        except ValidationError as e:
+            return jsonify({"error": f"Invalid data: {str(e)}"}), 400
+
+        new_note = Note(**note_data.model_dump())
+        db.session.add(new_note)
+        db.session.commit()
+        return jsonify(NoteRead.model_validate(new_note).model_dump()), 201
+    except Exception as e:
+        db.session.rollback()
+        return jsonify({"error": "Internal Server Error"}), 500
+
+
+@main_bp.route("/notes/<video_id>", methods=["GET"])
+@token_required
+def get_notes_by_video(video_id):
+    try:
+        notes = Note.query.filter_by(video_id=video_id).all()
+        if not notes:
+            return jsonify({"error": "No notes found for the given video_id"}), 404
+        return jsonify(
+            [NoteRead.model_validate(note).model_dump() for note in notes]
+        ), 200
+    except Exception as e:
+        return jsonify({"error": "Internal Server Error"}), 500
+
+
+@main_bp.route("/dashboard", methods=["GET"])
+def get_dashboard_page():
+    return render_template("dashboard.html")
+
+
+@main_bp.route("/dashboard/<video_id>", methods=["GET"])
+def get_video_page(video_id):
+    return render_template("video.html")
+
+
+@main_bp.route("/search", methods=["GET"])
+@token_required
+def get_search_results():
+    try:
+        query = request.args.get("query", None)
+        if query is None:
+            return jsonify({"error": "Query parameter is required"}), 400
+
+        result = (
+            db.session.query(Note.video_id, Note.video_title, Note.created_at)
+            .filter(Note.video_title.ilike(f"%{query}%"))
+            .distinct(Note.video_id)
+            .all()
+        )
+
+        if not result:
+            return jsonify({"error": "No videos found matching the query"}), 404
+
+        sorted_result = sorted(result, key=lambda x: x.created_at, reverse=True)
+        all_videos = [
+            {"video_id": video.video_id, "video_title": video.video_title}
+            for video in sorted_result
+        ]
+        return jsonify(all_videos), 200
+    except Exception as e:
+        return jsonify({"error": "Internal Server Error"}), 500
