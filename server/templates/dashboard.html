@@ -4,7 +4,7 @@
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <script src="https://cdn.tailwindcss.com"></script>
-    <title>Dashboard</title>
+    <title>YT Notes Dashboard</title>
     <link rel="icon" type="image/png" href="/static/favicon.png">
   </head>
   <body>
@@ -66,6 +66,13 @@
     <div class="mx-auto max-w-7xl" id="video-list"></div>
   </body>
   <script>
+    if (!localStorage.getItem("notes-token")) {
+      const token = prompt("Enter your notes-token:");
+      if (token) {
+        localStorage.setItem("notes-token", token);
+        location.reload();
+      }
+    }
     const TOKEN = localStorage.getItem("notes-token");
 
     async function populateDashboard(videos) {
