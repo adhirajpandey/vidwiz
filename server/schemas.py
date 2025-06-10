@@ -5,7 +5,7 @@ from datetime import datetime
 
 class NoteCreate(BaseModel):
     video_id: str
-    video_title: Optional[str] = None
+    video_title: str
     note_timestamp: str
     note: Optional[str] = None
 
@@ -22,7 +22,7 @@ class NoteCreate(BaseModel):
 class NoteRead(BaseModel):
     id: int
     video_id: str
-    video_title: Optional[str]
+    video_title: str
     note_timestamp: str
     note: Optional[str]
     created_at: datetime
