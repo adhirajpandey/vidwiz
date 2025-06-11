@@ -11,9 +11,10 @@ class Note(db.Model):
 
     id = Column(Integer, primary_key=True)
     video_id = Column(Text, nullable=False)
-    video_title = Column(Text)
+    video_title = Column(Text, nullable=False)
     note_timestamp = Column(Text, nullable=False)
     note = Column(Text)
+    ai_note = Column(Text)
     created_at = Column(TIMESTAMP(timezone=True), default=func.now())
     updated_at = Column(
         TIMESTAMP(timezone=True), default=func.now(), onupdate=func.now()

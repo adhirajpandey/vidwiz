@@ -42,6 +42,7 @@ def test_create_note_success(client):
     data = response.get_json()
     assert data["video_id"] == payload["video_id"]
     assert data["note"] == payload["note"]
+    assert data["ai_note"] is None
 
 
 def test_create_note_unauthorized(client):
@@ -62,6 +63,18 @@ def test_create_note_invalid_data(client):
     assert "Invalid data" in response.get_json()["error"]
 
 
+def test_create_note_empty_video_title(client):
+    payload = {
+        "video_id": "abc123",
+        "video_title": "",
+        "note_timestamp": "00:01:30",
+        "note": "This is a test note.",
+    }
+    response = client.post("/notes", json=payload, headers=AUTH_HEADER)
+    assert response.status_code == 400
+    assert "video_title cannot be empty" in response.get_json()["error"]
+
+
 def test_create_note_invalid_timestamp_data(client):
     payload = {
         "video_id": "abc123",
@@ -80,6 +93,7 @@ def test_get_notes_by_video_success(client, app):
         video_title="Some Video",
         note_timestamp="00:00:10",
         note="Some note",
+        ai_note=None
     )
     with app.app_context():
         db.session.add(note)
@@ -91,6 +105,28 @@ def test_get_notes_by_video_success(client, app):
     assert isinstance(data, list)
     assert data[0]["video_id"] == "vid123"
     assert data[0]["note"] == "Some note"
+    assert data[0]["ai_note"] is None
+
+
+def test_get_notes_by_video_with_ai_note(client, app):
+    note = Note(
+        video_id="vid123",
+        video_title="Some Video",
+        note_timestamp="00:00:10",
+        note=None,
+        ai_note="AI generated note"
+    )
+    with app.app_context():
+        db.session.add(note)
+        db.session.commit()
+
+    response = client.get("/notes/vid123", headers=AUTH_HEADER)
+    assert response.status_code == 200
+    data = response.get_json()
+    assert isinstance(data, list)
+    assert data[0]["video_id"] == "vid123"
+    assert data[0]["note"] is None
+    assert data[0]["ai_note"] == "AI generated note"
 
 
 def test_get_notes_by_video_not_found(client):
@@ -105,12 +141,14 @@ def test_search_results_success(client, app):
             video_title="Python Tutorial",
             note_timestamp="00:01:00",
             note="Introduction to Python",
+            ai_note=None
         ),
         Note(
             video_id="vid2",
             video_title="Advanced Python",
             note_timestamp="00:02:00",
             note="Decorators in Python",
+            ai_note=None
         ),
     ]
     with app.app_context():

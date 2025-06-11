@@ -88,6 +88,11 @@
         leftSection.appendChild(timestampLink);
         if (note.note) {
           leftSection.appendChild(noteText);
+        } else if (note.ai_note) {
+          const aiNoteText = document.createElement("div");
+          aiNoteText.className = "text-gray-600 text-sm mt-1 italic";
+          aiNoteText.textContent = `AI: ${note.ai_note}`;
+          leftSection.appendChild(aiNoteText);
         }
 
         const openButton = document.createElement("a");

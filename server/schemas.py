@@ -18,6 +18,13 @@ class NoteCreate(BaseModel):
             raise ValueError("note_timestamp must contain at least two numbers")
         return v
 
+    @field_validator("video_title")
+    @classmethod
+    def video_title_cannot_be_empty(cls, v):
+        if not v or not v.strip():
+            raise ValueError("video_title cannot be empty")
+        return v.strip()
+
 
 class NoteRead(BaseModel):
     id: int
@@ -25,6 +32,7 @@ class NoteRead(BaseModel):
     video_title: str
     note_timestamp: str
     note: Optional[str]
+    ai_note: Optional[str]
     created_at: datetime
     updated_at: datetime
 
