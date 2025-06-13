@@ -3,7 +3,7 @@
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>Video Notes</title>
+    <title>Notes</title>
     <link rel="icon" type="image/png" href="/static/favicon.png">
     <script src="https://cdn.tailwindcss.com"></script>
   </head>
@@ -33,7 +33,7 @@
       </div>
       
       <div class="bg-white rounded-lg shadow-md p-3 md:p-6">
-        <h3 class="text-lg md:text-xl font-semibold text-gray-700 mb-3 md:mb-4">Notes</h3>
+        <h3 class="text-xl font-semibold text-gray-700 mb-3 md:mb-4">Your Notes</h3>
         <ol id="notes-content" class="space-y-1 md:space-y-2">
           
         </ol>
@@ -93,18 +93,20 @@
           noteContentContainer.appendChild(noteText);
         } else if (note.ai_note) {
           const aiNoteText = document.createElement("div");
-          aiNoteText.className = "text-gray-600 italic text-sm md:text-base flex items-center";
+          aiNoteText.className = "text-gray-600 italic text-sm md:text-base";
           aiNoteText.textContent = `${note.ai_note}`;
-
-          const aiMark = document.createElement("span");
-          aiMark.className = "ml-2 px-1.5 py-0.5 text-bold rounded-full not-italic";
-          aiMark.textContent = "🤖";
-
-          aiNoteText.appendChild(aiMark);
           noteContentContainer.appendChild(aiNoteText);
         }
 
         listItem.appendChild(noteContentContainer); 
+
+        if (note.ai_note) {
+          const aiMark = document.createElement("span");
+          aiMark.className = "px-1.5 py-0.5 text-bold rounded-full not-italic mr-2";
+          aiMark.textContent = "🤖";
+          aiMark.title = "AI Generated";
+          listItem.appendChild(aiMark);
+        }
 
         const openButton = document.createElement("a");
         openButton.href = `https://www.youtube.com/watch?v=${note.video_id}&t=${timestampToSeconds(note.note_timestamp)}s`;
