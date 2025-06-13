@@ -7,7 +7,7 @@
     <title>YT Notes Dashboard</title>
     <link rel="icon" type="image/png" href="/static/favicon.png">
   </head>
-  <body>
+  <body class="bg-gray-100">
     <div class="fixed top-0 left-0 w-full z-50 bg-red-600">
       <div class="mx-auto max-w md:max-w-7xl px-2 md:px-6">
         <div class="relative flex h-16 justify-between items-center">
@@ -21,49 +21,29 @@
         </div>
       </div>
     </div>
-    <form class="max-w-md mx-auto mt-20 max-w-7xl m-2">
-      <label
-        for="default-search"
-        class="mb-2 text-sm font-medium text-white sr-only"
-        >Search</label
-      >
-      <div class="relative m-2">
-        <div
-          class="absolute inset-y-0 start-0 flex items-center ps-3 pointer-events-none"
-        >
-          <svg
-            class="w-4 h-4 text-gray-500 dark:text-gray-400"
-            aria-hidden="true"
-            xmlns="http://www.w3.org/2000/svg"
-            fill="none"
-            viewBox="0 0 20 20"
-          >
-            <path
-              stroke="currentColor"
-              stroke-linecap="round"
-              stroke-linejoin="round"
-              stroke-width="2"
-              d="m19 19-4-4m0-7A7 7 0 1 1 1 8a7 7 0 0 1 14 0Z"
-            />
-          </svg>
-        </div>
-        <input
-          type="search"
-          id="default-search"
-          class="block w-full p-4 ps-10 text-sm text-gray-900 border border-gray-300 rounded-lg bg-gray-50 bg-gray-200"
-          placeholder="Search Videos..."
-          required
-        />
-        <button
-          id="search-btn"
-          type="submit"
-          class="text-white absolute end-2.5 bottom-2.5 bg-red-700 hover:bg-red-600 font-medium rounded-lg text-sm px-4 py-2"
-        >
-          Search
-        </button>
+
+    <div class="max-w-4xl mx-auto mt-20 p-2 md:p-4">
+      <div class="bg-white rounded-lg shadow-md p-3 md:p-6 mb-4 md:mb-6">
+        <form class="w-full">
+          <div class="relative">
+            <div class="absolute inset-y-0 start-0 flex items-center ps-2 md:ps-3 pointer-events-none">
+              <svg class="w-4 h-4 text-gray-500" aria-hidden="true" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 20 20">
+                <path stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="m19 19-4-4m0-7A7 7 0 1 1 1 8a7 7 0 0 1 14 0Z"/>
+              </svg>
+            </div>
+            <input type="search" id="default-search" class="block w-full p-3 md:p-4 ps-8 md:ps-10 text-sm text-gray-900 border border-gray-300 rounded-lg bg-gray-50 focus:ring-red-500 focus:border-red-500" placeholder="Search Videos..." required/>
+            <button id="search-btn" type="submit" class="text-white absolute end-1.5 md:end-2.5 bottom-1.5 md:bottom-2.5 bg-red-600 hover:bg-red-700 font-medium rounded-lg text-sm px-3 md:px-4 py-1.5 md:py-2 transition-colors">
+              Search
+            </button>
+          </div>
+        </form>
       </div>
-    </form>
-    <div class="mx-auto max-w-7xl" id="video-list"></div>
+
+      <div class="bg-white rounded-lg shadow-md p-3 md:p-6">
+        <h3 class="text-xl font-semibold text-gray-700 mb-3 md:mb-4">Your Videos</h3>
+        <div id="video-list" class="space-y-1 md:space-y-2"></div>
+      </div>
+    </div>
   </body>
   <script>
     if (!localStorage.getItem("notes-token")) {
@@ -81,44 +61,21 @@
 
       videos.forEach((video) => {
         const videoElem = document.createElement("div");
-        videoElem.classList.add(
-          "max-w",
-          "p-2",
-          "my-2",
-          "border-b",
-          "border-gray-200"
-        );
+        videoElem.className = "flex items-center p-1.5 md:p-2 hover:bg-gray-50 rounded-lg transition-colors px-2 md:px-4 border-b border-gray-100 last:border-b-0";
 
-        const videoAndBtnContainer = document.createElement("div");
-        videoAndBtnContainer.classList.add("flex", "justify-between");
-
-        const clipIdElem = document.createElement("a");
-        clipIdElem.classList.add("text-lg", "font-bold");
-        clipIdElem.href = `https://www.youtube.com/watch?v=${video.video_id}`;
-        clipIdElem.target = "_blank";
-        clipIdElem.innerHTML = video.video_title;
+        const videoTitle = document.createElement("a");
+        videoTitle.className = "text-gray-800 font-medium flex-grow pr-2 md:pr-4 text-sm md:text-base";
+        videoTitle.href = `https://www.youtube.com/watch?v=${video.video_id}`;
+        videoTitle.target = "_blank";
+        videoTitle.textContent = video.video_title;
 
         const viewNotesBtn = document.createElement("a");
-        viewNotesBtn.classList.add(
-          "text-white",
-          "text-sm",
-          "hover:bg-red-600",
-          "inline-flex",
-          "items-center",
-          "justify-center",
-          "rounded-md",
-          "px-2",
-          "py-2",
-          "bg-red-700"
-        );
-
+        viewNotesBtn.className = "inline-flex items-center justify-center w-[50px] md:w-[60px] px-2 md:px-3 py-1 md:py-1.5 text-xs md:text-sm font-medium text-white bg-red-600 rounded-md hover:bg-red-700 transition-colors";
         viewNotesBtn.href = `/dashboard/${video.video_id}`;
-        viewNotesBtn.innerHTML = "Notes";
+        viewNotesBtn.textContent = "Notes";
 
-        videoAndBtnContainer.appendChild(clipIdElem);
-        videoAndBtnContainer.appendChild(viewNotesBtn);
-
-        videoElem.appendChild(videoAndBtnContainer);
+        videoElem.appendChild(videoTitle);
+        videoElem.appendChild(viewNotesBtn);
         videoList.appendChild(videoElem);
       });
     }
