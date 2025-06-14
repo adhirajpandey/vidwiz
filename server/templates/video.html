@@ -3,12 +3,11 @@
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>Video Notes</title>
+    <title>Notes</title>
     <link rel="icon" type="image/png" href="/static/favicon.png">
     <script src="https://cdn.tailwindcss.com"></script>
   </head>
   <body class="bg-gray-100">
-    <!-- Header -->
     <div class="fixed top-0 left-0 w-full z-50 bg-red-600">
       <div class="mx-auto max-w md:max-w-7xl px-2 md:px-6">
         <div class="relative flex h-16 justify-between items-center">
@@ -23,21 +22,20 @@
       </div>
     </div>
 
-    <!-- Main Content -->
-    <div class="max-w-4xl mx-auto mt-20 p-4">
-      <!-- Video Title and Watch Button -->
-      <div class="flex justify-between items-center mb-6">
-        <h2 id="video-title" class="text-2xl font-bold text-gray-800"></h2>
-        <a id="watch-button" href="#" target="_blank" class="inline-flex items-center px-4 py-2 text-sm font-medium text-white bg-red-600 rounded-md hover:bg-red-700 transition-colors">
-          Watch
-        </a>
+    <div class="max-w-4xl mx-auto mt-20 p-2 md:p-4">
+      <div class="bg-white rounded-lg shadow-md p-3 md:p-6 mb-4 md:mb-6">
+        <div class="flex flex-col px-2 md:px-4">
+          <h2 id="video-title" class="text-xl md:text-2xl font-bold text-gray-800 mb-3 md:mb-4"></h2>
+          <a id="watch-button" href="#" target="_blank" class="inline-flex items-center justify-center w-[60px] md:w-[80px] px-2 md:px-4 py-1.5 md:py-2 text-xs md:text-sm font-medium text-white bg-red-600 rounded-md hover:bg-red-700 transition-colors">
+            Watch
+          </a>
+        </div>
       </div>
       
-      <!-- Notes List -->
-      <div class="bg-white rounded-lg shadow-md p-6">
-        <h3 class="text-xl font-semibold text-gray-700 mb-4">Notes</h3>
-        <ol id="notes-content" class="space-y-2">
-          <!-- Notes will be populated here -->
+      <div class="bg-white rounded-lg shadow-md p-3 md:p-6">
+        <h3 class="text-xl font-semibold text-gray-700 mb-3 md:mb-4">Your Notes</h3>
+        <ol id="notes-content" class="space-y-1 md:space-y-2">
+          
         </ol>
       </div>
     </div>
@@ -61,42 +59,61 @@
       const videoTitle = document.querySelector("#video-title");
       videoTitle.textContent = data[0].video_title;
       
-      // Set up Watch button
       const watchButton = document.querySelector("#watch-button");
       watchButton.href = `https://www.youtube.com/watch?v=${data[0].video_id}`;
 
       const contentDiv = document.querySelector("#notes-content");
       contentDiv.innerHTML = "";
 
+      data.sort((a, b) => timestampToSeconds(a.note_timestamp) - timestampToSeconds(b.note_timestamp));
+
       data.forEach((note) => {
         const listItem = document.createElement("li");
-        listItem.className = "flex items-center justify-between p-2 hover:bg-gray-50 rounded-lg transition-colors";
+        listItem.className = "flex items-center p-1.5 md:p-2 hover:bg-gray-50 rounded-lg transition-colors px-2 md:px-4 border-b border-gray-100 last:border-b-0";
 
-        const leftSection = document.createElement("div");
-        leftSection.className = "flex items-center space-x-3";
+        const timestampSection = document.createElement("div");
+        timestampSection.className = "w-[70px] md:w-[85px] flex-shrink-0";
 
         const timestampLink = document.createElement("a");
         timestampLink.href = `https://www.youtube.com/watch?v=${note.video_id}&t=${timestampToSeconds(note.note_timestamp)}s`;
         timestampLink.target = "_blank";
-        timestampLink.className = "font-bold text-gray-800";
+        timestampLink.className = "font-bold text-gray-800 text-sm md:text-base";
         timestampLink.textContent = note.note_timestamp;
 
-        const noteText = document.createElement("span");
-        noteText.className = "text-gray-700";
-        noteText.textContent = note.note || "";
+        timestampSection.appendChild(timestampLink);
+        listItem.appendChild(timestampSection);
 
-        leftSection.appendChild(timestampLink);
+        const noteContentContainer = document.createElement("div");
+        noteContentContainer.className = "flex-grow pr-2 md:pr-4"; 
+
         if (note.note) {
-          leftSection.appendChild(noteText);
+          const noteText = document.createElement("span");
+          noteText.className = "text-gray-700 text-sm md:text-base";
+          noteText.textContent = note.note || "";
+          noteContentContainer.appendChild(noteText);
+        } else if (note.ai_note) {
+          const aiNoteText = document.createElement("div");
+          aiNoteText.className = "text-gray-600 italic text-sm md:text-base";
+          aiNoteText.textContent = `${note.ai_note}`;
+          noteContentContainer.appendChild(aiNoteText);
+        }
+
+        listItem.appendChild(noteContentContainer); 
+
+        if (note.ai_note) {
+          const aiMark = document.createElement("span");
+          aiMark.className = "px-1.5 py-0.5 text-bold rounded-full not-italic mr-2";
+          aiMark.textContent = "🤖";
+          aiMark.title = "AI Generated";
+          listItem.appendChild(aiMark);
         }
 
         const openButton = document.createElement("a");
         openButton.href = `https://www.youtube.com/watch?v=${note.video_id}&t=${timestampToSeconds(note.note_timestamp)}s`;
         openButton.target = "_blank";
-        openButton.className = "inline-flex items-center px-3 py-1 text-sm font-medium text-white bg-red-600 rounded-md hover:bg-red-700 transition-colors";
+        openButton.className = "inline-flex items-center justify-center w-[50px] md:w-[60px] px-2 md:px-3 py-1 md:py-1.5 text-xs md:text-sm font-medium text-white bg-red-600 rounded-md hover:bg-red-700 transition-colors flex-shrink-0";
         openButton.textContent = "Open";
 
-        listItem.appendChild(leftSection);
         listItem.appendChild(openButton);
         contentDiv.appendChild(listItem);
       });
@@ -105,7 +122,7 @@
     async function search() {
       event.preventDefault();
       const currentVideoId = window.location.pathname.split("/").pop();
-      const response = await fetch(`/notes/${currentVideoId}`, {
+      const response = await fetch(`/video-notes/${currentVideoId}`, {
         method: "GET",
         headers: {
           Authorization: `Bearer ${TOKEN}`,

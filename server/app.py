@@ -14,6 +14,7 @@ def create_app(test_config=None):
     app = Flask(__name__)
     DB_URL = os.getenv("DB_URL")
     AUTH_TOKEN = os.getenv("AUTH_TOKEN")
+    LAMBDA_URL = os.getenv("LAMBDA_URL")
 
     if not test_config:
         if not all([DB_URL, AUTH_TOKEN]):
@@ -22,6 +23,7 @@ def create_app(test_config=None):
             )
         app.config["SQLALCHEMY_DATABASE_URI"] = DB_URL
         app.config["AUTH_TOKEN"] = AUTH_TOKEN
+        app.config["LAMBDA_URL"] = LAMBDA_URL
     else:
         app.config.update(test_config)
 
