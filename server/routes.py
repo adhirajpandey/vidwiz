@@ -1,6 +1,6 @@
 from flask import Blueprint, request, jsonify, render_template
 from models import Note, db
-from schemas import NoteCreate, NoteRead
+from schemas import NoteCreate, NoteRead, NoteUpdate
 from pydantic import ValidationError
 from functools import wraps
 
@@ -30,7 +30,7 @@ def index():
 def create_note():
     try:
         data = request.json
-        if not data:
+        if data is None or data == {}:
             return jsonify({"error": "Request body must be JSON"}), 400
         try:
             note_data = NoteCreate(**data)
@@ -60,16 +60,6 @@ def get_notes_by_video(video_id):
         return jsonify({"error": "Internal Server Error"}), 500
 
 
-@main_bp.route("/dashboard", methods=["GET"])
-def get_dashboard_page():
-    return render_template("dashboard.html")
-
-
-@main_bp.route("/dashboard/<video_id>", methods=["GET"])
-def get_video_page(video_id):
-    return render_template("video.html")
-
-
 @main_bp.route("/search", methods=["GET"])
 @token_required
 def get_search_results():
@@ -96,3 +86,43 @@ def get_search_results():
         return jsonify(all_videos), 200
     except Exception as e:
         return jsonify({"error": "Internal Server Error"}), 500
+
+
+@main_bp.route("/notes/<int:note_id>", methods=["PATCH"])
+@token_required
+def update_note(note_id):
+    try:
+        data = request.json
+        if not data:
+            return jsonify({"error": "Request body must be JSON"}), 400
+
+        try:
+            update_data = NoteUpdate(**data)
+        except ValidationError as e:
+            return jsonify({"error": f"Invalid data: {str(e)}"}), 400
+
+        note = Note.query.get(note_id)
+        if not note:
+            return jsonify({"error": "Note not found"}), 404
+
+        # Update note fields if provided
+        if update_data.note is not None:
+            note.note = update_data.note
+        if update_data.ai_note is not None:
+            note.ai_note = update_data.ai_note
+
+        db.session.commit()
+        return jsonify(NoteRead.model_validate(note).model_dump()), 200
+    except Exception as e:
+        db.session.rollback()
+        return jsonify({"error": "Internal Server Error"}), 500
+
+
+@main_bp.route("/dashboard", methods=["GET"])
+def get_dashboard_page():
+    return render_template("dashboard.html")
+
+
+@main_bp.route("/dashboard/<video_id>", methods=["GET"])
+def get_video_page(video_id):
+    return render_template("video.html")

@@ -93,7 +93,7 @@ def test_get_notes_by_video_success(client, app):
         video_title="Some Video",
         note_timestamp="00:00:10",
         note="Some note",
-        ai_note=None
+        ai_note=None,
     )
     with app.app_context():
         db.session.add(note)
@@ -114,7 +114,7 @@ def test_get_notes_by_video_with_ai_note(client, app):
         video_title="Some Video",
         note_timestamp="00:00:10",
         note=None,
-        ai_note="AI generated note"
+        ai_note="AI generated note",
     )
     with app.app_context():
         db.session.add(note)
@@ -141,14 +141,14 @@ def test_search_results_success(client, app):
             video_title="Python Tutorial",
             note_timestamp="00:01:00",
             note="Introduction to Python",
-            ai_note=None
+            ai_note=None,
         ),
         Note(
             video_id="vid2",
             video_title="Advanced Python",
             note_timestamp="00:02:00",
             note="Decorators in Python",
-            ai_note=None
+            ai_note=None,
         ),
     ]
     with app.app_context():
@@ -191,3 +191,149 @@ def test_search_results_unauthorized(client):
     response = client.get("/search?query=Python")
     assert response.status_code == 401
     assert response.get_json()["error"] == "Unauthorized"
+
+
+def test_update_note_success(client, app):
+    # Create a test note first
+    note = Note(
+        video_id="vid123",
+        video_title="Test Video",
+        note_timestamp="00:00:10",
+        note="Original note",
+        ai_note=None,
+    )
+    with app.app_context():
+        db.session.add(note)
+        db.session.commit()
+        note_id = note.id
+
+    # Test updating note
+    payload = {"note": "Updated note"}
+    response = client.patch(f"/notes/{note_id}", json=payload, headers=AUTH_HEADER)
+    assert response.status_code == 200
+    data = response.get_json()
+    assert data["note"] == "Updated note"
+    assert data["ai_note"] is None
+
+    # Test updating ai_note
+    payload = {"ai_note": "AI generated note"}
+    response = client.patch(f"/notes/{note_id}", json=payload, headers=AUTH_HEADER)
+    assert response.status_code == 200
+    data = response.get_json()
+    assert data["note"] == "Updated note"  # Should remain unchanged
+    assert data["ai_note"] == "AI generated note"
+
+    # Test updating both fields
+    payload = {"note": "Final note", "ai_note": "Final AI note"}
+    response = client.patch(f"/notes/{note_id}", json=payload, headers=AUTH_HEADER)
+    assert response.status_code == 200
+    data = response.get_json()
+    assert data["note"] == "Final note"
+    assert data["ai_note"] == "Final AI note"
+
+
+def test_update_note_not_found(client):
+    response = client.patch("/notes/999", json={"note": "Test"}, headers=AUTH_HEADER)
+    assert response.status_code == 404
+    assert "Note not found" in response.get_json()["error"]
+
+
+def test_update_note_no_fields(client, app):
+    # Create a test note first
+    note = Note(
+        video_id="vid123",
+        video_title="Test Video",
+        note_timestamp="00:00:10",
+        note="Original note",
+        ai_note=None,
+    )
+    with app.app_context():
+        db.session.add(note)
+        db.session.commit()
+        note_id = note.id
+
+    # Test with empty JSON
+    response = client.patch(f"/notes/{note_id}", json={}, headers=AUTH_HEADER)
+    assert response.status_code == 400
+    assert "Request body must be JSON" in response.get_json()["error"]
+
+
+def test_update_note_unauthorized(client, app):
+    # Create a test note first
+    note = Note(
+        video_id="vid123",
+        video_title="Test Video",
+        note_timestamp="00:00:10",
+        note="Original note",
+        ai_note=None,
+    )
+    with app.app_context():
+        db.session.add(note)
+        db.session.commit()
+        note_id = note.id
+
+    # Test without auth header
+    response = client.patch(f"/notes/{note_id}", json={"note": "Test"})
+    assert response.status_code == 401
+    assert "Unauthorized" in response.get_json()["error"]
+
+    # Test with invalid token
+    response = client.patch(
+        f"/notes/{note_id}",
+        json={"note": "Test"},
+        headers={"Authorization": "Bearer invalid_token"},
+    )
+    assert response.status_code == 401
+    assert "Unauthorized" in response.get_json()["error"]
+
+
+def test_update_note_invalid_json(client, app):
+    # Create a test note first
+    note = Note(
+        video_id="vid123",
+        video_title="Test Video",
+        note_timestamp="00:00:10",
+        note="Original note",
+        ai_note=None,
+    )
+    with app.app_context():
+        db.session.add(note)
+        db.session.commit()
+        note_id = note.id
+
+    # Test with invalid JSON
+    response = client.patch(
+        f"/notes/{note_id}",
+        data="invalid json",
+        headers=AUTH_HEADER,
+        content_type="application/json",
+    )
+    assert response.status_code == 500
+    assert "Internal Server Error" in response.get_json()["error"]
+
+
+def test_update_note_invalid_fields(client, app):
+    # Create a test note first
+    note = Note(
+        video_id="vid123",
+        video_title="Test Video",
+        note_timestamp="00:00:10",
+        note="Original note",
+        ai_note=None,
+    )
+    with app.app_context():
+        db.session.add(note)
+        db.session.commit()
+        note_id = note.id
+
+    # Test with invalid fields
+    invalid_payloads = [
+        {"abc": 123},  # Unknown field
+        {"note": 123},  # Integer instead of string
+        {"note": None, "ai_note": None},  # Both fields null
+    ]
+
+    for payload in invalid_payloads:
+        response = client.patch(f"/notes/{note_id}", json=payload, headers=AUTH_HEADER)
+        assert response.status_code == 400, f"Expected 400 for payload {payload}"
+        assert "Invalid data" in response.get_json()["error"], f"Expected validation error for payload {payload}"

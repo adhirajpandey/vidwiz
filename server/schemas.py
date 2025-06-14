@@ -37,3 +37,27 @@ class NoteRead(BaseModel):
     updated_at: datetime
 
     model_config = {"from_attributes": True}
+
+
+class NoteUpdate(BaseModel):
+    note: Optional[str] = None
+    ai_note: Optional[str] = None
+
+    @field_validator("*")
+    @classmethod
+    def validate_at_least_one_field(cls, v, info):
+        if info.field_name == "note" and v is None and info.data.get("ai_note") is None:
+            raise ValueError("At least one of 'note' or 'ai_note' must be provided")
+        return v
+
+    @field_validator("note", "ai_note")
+    @classmethod
+    def validate_string_type(cls, v):
+        if v is not None and not isinstance(v, str):
+            raise ValueError("Field must be a string")
+        return v
+
+    model_config = {
+        "from_attributes": True,
+        "extra": "forbid"  # Reject any fields not defined in the model
+    }
