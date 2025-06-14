@@ -81,5 +81,19 @@ The extension is built with:
 - `GET /search?query={search_term}`: Search for videos by title
 
 ## Sample
-![extension-ui](https://github.com/user-attachments/assets/175747d3-7ec3-410b-895c-d26ff996b957)
+
+### Dashboard
+   ![dashboard-UI](https://github.com/user-attachments/assets/9f2e2942-e0af-4db4-87f5-dc6c7f83a80a)
+
+### Video Notes
+   ![notes-ui](https://github.com/user-attachments/assets/b27b5a30-b087-4ce2-b962-b8eea6ee568d)
+
+### Extension
+   ![extension-ui](https://github.com/user-attachments/assets/175747d3-7ec3-410b-895c-d26ff996b957)
+   
+### Mobile View
+   ![mobile-ui](https://github.com/user-attachments/assets/fd9133c1-8237-4b3f-94d9-a140154e0345)
+
+
+
 
