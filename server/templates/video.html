@@ -122,7 +122,7 @@
     async function search() {
       event.preventDefault();
       const currentVideoId = window.location.pathname.split("/").pop();
-      const response = await fetch(`/notes/${currentVideoId}`, {
+      const response = await fetch(`/video-notes/${currentVideoId}`, {
         method: "GET",
         headers: {
           Authorization: `Bearer ${TOKEN}`,

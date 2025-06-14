@@ -99,7 +99,7 @@ def test_get_notes_by_video_success(client, app):
         db.session.add(note)
         db.session.commit()
 
-    response = client.get("/notes/vid123", headers=AUTH_HEADER)
+    response = client.get("/video-notes/vid123", headers=AUTH_HEADER)
     assert response.status_code == 200
     data = response.get_json()
     assert isinstance(data, list)
@@ -120,7 +120,7 @@ def test_get_notes_by_video_with_ai_note(client, app):
         db.session.add(note)
         db.session.commit()
 
-    response = client.get("/notes/vid123", headers=AUTH_HEADER)
+    response = client.get("/video-notes/vid123", headers=AUTH_HEADER)
     assert response.status_code == 200
     data = response.get_json()
     assert isinstance(data, list)
@@ -130,7 +130,7 @@ def test_get_notes_by_video_with_ai_note(client, app):
 
 
 def test_get_notes_by_video_not_found(client):
-    response = client.get("/notes/nonexistent", headers=AUTH_HEADER)
+    response = client.get("/video-notes/nonexistent", headers=AUTH_HEADER)
     assert response.status_code == 404
 
 

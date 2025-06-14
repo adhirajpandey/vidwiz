@@ -46,7 +46,7 @@ def create_note():
         return jsonify({"error": "Internal Server Error"}), 500
 
 
-@main_bp.route("/notes/<video_id>", methods=["GET"])
+@main_bp.route("/video-notes/<video_id>", methods=["GET"])
 @token_required
 def get_notes_by_video(video_id):
     try:

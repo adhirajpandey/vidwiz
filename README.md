@@ -67,7 +67,7 @@ The extension is built with:
 
 ## API Endpoints
 - `POST /notes`: Create a new note
-- `GET /notes/{video_id}`: Get all notes for a specific video
+- `GET /video-notes/{video_id}`: Get all notes for a specific video
 - `GET /dashboard`: View the dashboard page
 - `GET /dashboard/{video_id}`: View notes for a specific video
 - `GET /search?query={search_term}`: Search for videos by title
