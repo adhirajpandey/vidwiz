@@ -1,10 +1,26 @@
-from flask import Blueprint, request, jsonify, render_template
+from flask import Blueprint, current_app, request, jsonify, render_template
 from models import Note, db
 from schemas import NoteCreate, NoteRead, NoteUpdate
 from pydantic import ValidationError
 from functools import wraps
+import requests
 
 main_bp = Blueprint("main", __name__)
+
+
+def send_request_to_ainote_lambda(payload: dict) -> None:
+    """
+    Helper function to send a request to the AI note generation Lambda function.
+    """
+    try:
+        headers = {
+            "Content-Type": "application/json",
+            "Authorization": f"Bearer {current_app.config['AUTH_TOKEN']}",
+        }
+        requests.post(current_app.config["LAMBDA_URL"], json=payload, headers=headers)
+    except requests.RequestException as e:
+        print(f"Error sending request to Lambda: {e}")
+        return None
 
 
 def token_required(f):
@@ -35,13 +51,25 @@ def create_note():
         try:
             note_data = NoteCreate(**data)
         except ValidationError as e:
+            print(f"Validation error in create_note: {e}")
             return jsonify({"error": f"Invalid data: {str(e)}"}), 400
 
         new_note = Note(**note_data.model_dump())
         db.session.add(new_note)
         db.session.commit()
+        # if created note does not have note, send to lambda to generate AI note
+        if not new_note.note:
+            payload = {
+                "id": new_note.id,
+                "video_id": new_note.video_id,
+                "video_title": new_note.video_title,
+                "note_timestamp": new_note.note_timestamp,
+            }
+            send_request_to_ainote_lambda(payload)
+
         return jsonify(NoteRead.model_validate(new_note).model_dump()), 201
     except Exception as e:
+        print(f"Unexpected error in create_note: {e}")
         db.session.rollback()
         return jsonify({"error": "Internal Server Error"}), 500
 
@@ -57,6 +85,7 @@ def get_notes_by_video(video_id):
             [NoteRead.model_validate(note).model_dump() for note in notes]
         ), 200
     except Exception as e:
+        print(f"Unexpected error in get_notes_by_video: {e}")
         return jsonify({"error": "Internal Server Error"}), 500
 
 
@@ -85,6 +114,7 @@ def get_search_results():
         ]
         return jsonify(all_videos), 200
     except Exception as e:
+        print(f"Unexpected error in get_search_results: {e}")
         return jsonify({"error": "Internal Server Error"}), 500
 
 
@@ -99,6 +129,7 @@ def update_note(note_id):
         try:
             update_data = NoteUpdate(**data)
         except ValidationError as e:
+            print(f"Validation error in update_note: {e}")
             return jsonify({"error": f"Invalid data: {str(e)}"}), 400
 
         note = Note.query.get(note_id)
@@ -114,6 +145,7 @@ def update_note(note_id):
         db.session.commit()
         return jsonify(NoteRead.model_validate(note).model_dump()), 200
     except Exception as e:
+        print(f"Unexpected error in update_note: {e}")
         db.session.rollback()
         return jsonify({"error": "Internal Server Error"}), 500
 
