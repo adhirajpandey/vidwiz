@@ -12,9 +12,10 @@ PREFERRED_PROVIDER = os.getenv("PREFERRED_PROVIDER", "gemini")
 OPENAI_API_KEY = os.getenv("OPENAI_API_KEY")
 GEMINI_API_KEY = os.getenv("GEMINI_API_KEY")
 RAPIDAPI_KEY = os.getenv("RAPIDAPI_KEY")
-OPENAI_ENDPOINT = "https://api.openai.com/v1/chat/completions"
-GEMINI_ENDPOINT = "https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent"
 OPENAI_MODEL = os.getenv("OPENAI_MODEL", "gpt-4o-mini")
+GEMINI_MODEL = os.getenv("GEMINI_MODEL", "gemini-2.0-flash")
+OPENAI_ENDPOINT = "https://api.openai.com/v1/chat/completions"
+GEMINI_ENDPOINT = f"https://generativelanguage.googleapis.com/v1beta/models/{GEMINI_MODEL}:generateContent"
 print(f"Environment loaded. Preferred provider: {PREFERRED_PROVIDER}")
 
 
@@ -48,7 +49,8 @@ def get_transcript(video_id: str):
 
     try:
         url = f"{url}?videoId={video_id}"
-        response = requests.get(url, headers=headers, timeout=120)
+        response = requests.get(url, headers=headers, timeout=10)
+        print(f"Transcript API response status: {response.status_code}")
         response.raise_for_status()
         response_data = response.json()
         print(response_data)
@@ -136,13 +138,15 @@ def openai_api_call(prompt: str) -> Optional[str]:
             {"role": "user", "content": prompt},
         ],
     }
-
+    print(f"Payload: {payload}")
     try:
         response = requests.post(
-            OPENAI_ENDPOINT, json=payload, headers=headers, timeout=120
+            OPENAI_ENDPOINT, json=payload, headers=headers, timeout=10
         )
+        print(f"Response status code: {response.status_code}")
         response.raise_for_status()
         response_data = response.json()
+        print(response_data)
         if "error" in response_data:
             print(f"OpenAI API error: {response_data['error']}")
             return None
@@ -162,7 +166,7 @@ def gemini_api_call(prompt: str) -> Optional[str]:
 
     try:
         response = requests.post(
-            GEMINI_ENDPOINT, json=payload, headers=headers, timeout=120
+            GEMINI_ENDPOINT, json=payload, headers=headers, timeout=10
         )
         response.raise_for_status()
         response_data = response.json()
@@ -314,8 +318,12 @@ def lambda_handler(event, context):
         update_url = f"{BASE_URL}/notes/{note_id}"
         print(f"Updating note at URL: {update_url}")
         try:
+            headers = {
+                "Content-Type": "application/json",
+                "Authorization": f"Bearer {AUTH_TOKEN}",
+            }
             response = requests.patch(
-                update_url, json={"ai_note": ai_note}, timeout=120
+                update_url, headers=headers, json={"ai_note": ai_note}, timeout=10
             )
             response.raise_for_status()
             update_response = response.json()

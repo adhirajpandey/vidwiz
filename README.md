@@ -1,12 +1,15 @@
 # YT-Notes-Extension
 
 ## Description
-YT-Notes is designed to enhance your YouTube learning and note-taking experience. It allows you to capture and organize your thoughts while watching YouTube videos/lecture/video essays, with a special focus on timestamp-based note-taking. The extension integrates seamlessly with YouTube's interface, making it easy to save notes at specific moments/timestamps in videos.
+YT-Notes is designed to enhance your YouTube learning and note-taking experience. It allows you to capture and organize your thoughts while watching YouTube videos/lectures/video essays, with a special focus on timestamp-based note-taking. The extension integrates seamlessly with YouTube's interface, making it easy to save notes at specific moments/timestamps in videos.
+
+Additionally, it leverages AI to automatically generate comprehensive notes for any timestamp, providing intelligent summaries and insights from the video content at that specific moment.
 
 The extension is built with:
 - Frontend: HTML5, CSS3, and vanilla JavaScript for extension
 - Backend: Flask (Python) for REST API
 - Database: PostgreSQL for data storage
+- LLM: OpenAI/Gemini models for intelligent note generation
 
 ## Features
 1. **Video Detection & Timestamped Notes**
@@ -14,17 +17,22 @@ The extension is built with:
    - Disables note-taking features on non-YouTube pages
    - View all notes for a specific video with timestamps
 
-2. **User-Friendly Interface**
+2. **AI-Powered Note Generation**
+   - Generate comprehensive notes from video content using AI
+   - Get smart summaries of your saved timestamps
+   - Support for multiple AI providers (OpenAI, Gemini) with provider-specific optimizations
+   
+3. **User-Friendly Interface**
    - Clean, modern popup design
    - Real-time feedback messages
    - Quick access to dashboard
 
-3. **Dashboard Integration**
+4. **Dashboard Integration**
    - View all your notes in one place
    - Search functionality for finding specific notes
    - Video-specific note collections
 
-4. **Security & Privacy**
+5. **Security & Privacy**
    - Self-hosted backend
    - Token-based authentication
    - No third-party data sharing
