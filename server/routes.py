@@ -150,6 +150,23 @@ def update_note(note_id):
         return jsonify({"error": "Internal Server Error"}), 500
 
 
+@main_bp.route("/notes/<int:note_id>", methods=["DELETE"])
+@token_required
+def delete_note(note_id):
+    try:
+        note = Note.query.get(note_id)
+        if not note:
+            return jsonify({"error": "Note not found"}), 404
+
+        db.session.delete(note)
+        db.session.commit()
+        return jsonify({"message": "Note deleted successfully"}), 200
+    except Exception as e:
+        print(f"Unexpected error in delete_note: {e}")
+        db.session.rollback()
+        return jsonify({"error": "Internal Server Error"}), 500
+
+
 @main_bp.route("/dashboard", methods=["GET"])
 def get_dashboard_page():
     return render_template("dashboard.html")
