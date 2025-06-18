@@ -4,20 +4,23 @@ from schemas import NoteCreate, NoteRead, NoteUpdate
 from pydantic import ValidationError
 from functools import wraps
 import requests
+import threading
 
 main_bp = Blueprint("main", __name__)
 
 
-def send_request_to_ainote_lambda(payload: dict) -> None:
+def send_request_to_ainote_lambda(
+    payload: dict, lambda_url: str, auth_token: str
+) -> None:
     """
     Helper function to send a request to the AI note generation Lambda function.
     """
     try:
         headers = {
             "Content-Type": "application/json",
-            "Authorization": f"Bearer {current_app.config['AUTH_TOKEN']}",
+            "Authorization": f"Bearer {auth_token}",
         }
-        requests.post(current_app.config["LAMBDA_URL"], json=payload, headers=headers)
+        requests.post(lambda_url, json=payload, headers=headers)
     except requests.RequestException as e:
         print(f"Error sending request to Lambda: {e}")
         return None
@@ -57,7 +60,8 @@ def create_note():
         new_note = Note(**note_data.model_dump())
         db.session.add(new_note)
         db.session.commit()
-        # if created note does not have note, send to lambda to generate AI note
+
+        # if created note does not have note, send to lambda to generate AI note (fire-and-forget)
         if not new_note.note:
             payload = {
                 "id": new_note.id,
@@ -65,7 +69,16 @@ def create_note():
                 "video_title": new_note.video_title,
                 "note_timestamp": new_note.note_timestamp,
             }
-            send_request_to_ainote_lambda(payload)
+
+            # Pass config values to avoid application context issues - fire-and-forget
+            lambda_url = current_app.config["LAMBDA_URL"]
+            auth_token = current_app.config["AUTH_TOKEN"]
+            thread = threading.Thread(
+                target=send_request_to_ainote_lambda,
+                args=(payload, lambda_url, auth_token),
+            )
+            thread.daemon = True
+            thread.start()
 
         return jsonify(NoteRead.model_validate(new_note).model_dump()), 201
     except Exception as e:
