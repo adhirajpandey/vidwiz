@@ -81,16 +81,20 @@ The extension is built with:
 ## Sample
 
 ### Dashboard
-   ![dashboard-UI](https://github.com/user-attachments/assets/9f2e2942-e0af-4db4-87f5-dc6c7f83a80a)
+   ![dashboard-UI](https://github.com/user-attachments/assets/4136d26d-9a08-48ad-a1bd-d3c794fd37f6)
 
 ### Video Notes
-   ![notes-ui](https://github.com/user-attachments/assets/b27b5a30-b087-4ce2-b962-b8eea6ee568d)
+   ![notes-ui](https://github.com/user-attachments/assets/b6a9efb8-c69a-4406-91b3-bfe6cbce160b)
 
 ### Extension
-   ![extension-ui](https://github.com/user-attachments/assets/175747d3-7ec3-410b-895c-d26ff996b957)
+   ![extension-ui](https://github.com/user-attachments/assets/7d4f24ec-0acb-4a19-861c-4c4be093668b)
    
 ### Mobile View
-   ![mobile-ui](https://github.com/user-attachments/assets/fd9133c1-8237-4b3f-94d9-a140154e0345)
+   ![mobile-ui](https://github.com/user-attachments/assets/f9b21644-a718-49e3-ab3e-666bc1bf7e4c)
+
+
+
+
 
 
 
