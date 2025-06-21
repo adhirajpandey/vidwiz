@@ -7,7 +7,7 @@ db = SQLAlchemy()
 
 
 class Note(db.Model):
-    __tablename__ = os.getenv("TABLE_NAME", "ytnotes")
+    __tablename__ = os.getenv("TABLE_NAME", "vidwiz")
 
     id = Column(Integer, primary_key=True)
     video_id = Column(Text, nullable=False)

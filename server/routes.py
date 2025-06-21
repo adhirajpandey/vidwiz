@@ -41,7 +41,7 @@ def token_required(f):
 
 @main_bp.route("/", methods=["GET"])
 def index():
-    return jsonify({"message": "Welcome to the YT Notes APP!"})
+    return jsonify({"message": "Welcome to the VidWiz APP!"})
 
 
 @main_bp.route("/notes", methods=["POST"])
