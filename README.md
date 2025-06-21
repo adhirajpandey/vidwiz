@@ -78,6 +78,14 @@ The extension is built with:
 - `GET /dashboard/{video_id}`: View notes for a specific video
 - `GET /search?query={search_term}`: Search for videos by title
 
+## Roadmap
+- [x] Better UI/UX for Dashboard
+- [x] Improve note CRUD functionality
+- [x] AI generated note
+- [ ] Lambda workflow optimization
+- [ ] Refine self-hosted setup
+- [ ] Cloud Hosted Offering - Subscription model
+
 ## Sample
 
 ### Dashboard
