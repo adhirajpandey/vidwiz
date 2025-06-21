@@ -61,8 +61,8 @@ def create_note():
         db.session.add(new_note)
         db.session.commit()
 
-        # if created note does not have note, send to lambda to generate AI note (fire-and-forget)
-        if not new_note.note:
+        # if created note does not have note, gen note using AI if AI_NOTE_TOGGLE is enabled
+        if not new_note.note and current_app.config.get("AI_NOTE_TOGGLE", False):
             payload = {
                 "id": new_note.id,
                 "video_id": new_note.video_id,
