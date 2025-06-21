@@ -1,8 +1,8 @@
 {
   "manifest_version": 3,
-  "name": "YT Notes Extension",
+  "name": "VidWiz Extension",
   "version": "1.0",
-  "description": "Save your YT Videos Notes",
+  "description": "Save your video notes with timestamps",
   "icons": {
     "16": "icons/icon16.png",
     "48": "icons/icon48.png",

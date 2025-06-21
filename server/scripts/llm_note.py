@@ -1,3 +1,15 @@
+# llm_note.py
+# This script is a one-time utility designed to generate concise, AI-powered notes for YouTube videos based on their transcripts and user-provided timestamps. It is not actively maintained and was created to fulfill a specific use case.
+# Features:
+# - Connects to a PostgreSQL database to fetch notes that lack AI-generated content.
+# - Retrieves YouTube video transcripts using the youtube_transcript_api.
+# - Extracts relevant transcript segments based on provided timestamps.
+# - Utilizes multiple(chosen) LLM providers (OpenAI, Gemini, OpenRouter) to generate concise, one-line notes in English, focusing on the transcript context.
+# - Updates the database with the generated AI notes.
+# - Handles configuration via environment variables and supports retry logic for note generation.
+# Note:
+# This script is not intended for long-term use or production deployment. It was written for a specific batch-processing task and is not actively maintained.
+
 import json
 from typing import Optional, List, Dict, Any
 from youtube_transcript_api import YouTubeTranscriptApi

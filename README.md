@@ -1,7 +1,7 @@
-# YT-Notes-Extension
+# VidWiz
 
 ## Description
-YT-Notes is designed to enhance your YouTube learning and note-taking experience. It allows you to capture and organize your thoughts while watching YouTube videos/lectures/video essays, with a special focus on timestamp-based note-taking. The extension integrates seamlessly with YouTube's interface, making it easy to save notes at specific moments/timestamps in videos.
+VidWiz is designed to enhance your YouTube learning and note-taking experience. It allows you to capture and organize your thoughts while watching YouTube videos/lectures/video essays, with a special focus on timestamp-based note-taking. The extension integrates seamlessly with YouTube's interface, making it easy to save notes at specific moments/timestamps in videos.
 
 Additionally, it leverages AI to automatically generate comprehensive notes for any timestamp, providing intelligent summaries and insights from the video content at that specific moment.
 
@@ -47,7 +47,7 @@ The extension is built with:
 - Chrome/Chromium based browser
 
 ### To Setup Backend
-1. Clone the project to your local system using: `git clone https://github.com/adhirajpandey/YT-Notes`
+1. Clone the project to your local system using: `git clone https://github.com/adhirajpandey/vidwiz`
 
 2. Create a `.env` file in the server directory with the following variables:
    ```
@@ -56,9 +56,9 @@ The extension is built with:
    TABLE_NAME=your_table_name
    ```
 
-3. Build Backend server image using: `docker build -t yt_notes .`
+3. Build Backend server image using: `docker build -t vidwiz .`
 
-4. Setup Docker container using: `docker run -d -p 5000:5000 --name yt-notes-server yt_notes`
+4. Setup Docker container using: `docker run -d -p 5000:5000 --name vidwiz-server vidwiz`
 
 ### To Setup Chrome Extension in Browser
 1. Open Chrome on your machine and navigate to: `chrome://extensions/`

@@ -1,5 +1,5 @@
 // const backendEndpoint = "http://127.0.0.1:5000/"
-const backendEndpoint = "https://ytnotes.adhirajpandey.tech/"
+const backendEndpoint = "https://vidwiz.adhirajpandey.tech/"
 const AUTH_TOKEN = localStorage.getItem("notes-token")
 
 function fetchVideoTitle() {
@@ -154,7 +154,7 @@ function setMessage(message, color) {
 
 document.addEventListener("DOMContentLoaded", function() {
 	// Set welcome message
-	setMessage("Welcome to YT Notes!", "black")
+	setMessage("Welcome to VidWiz!", "black")
 
 	if (!localStorage.getItem("notes-token")) {
 		setMessage("Please set your notes-token in localStorage before using the extension.\nOpen DevTools and run: localStorage.setItem('notes-token', 'YOUR_TOKEN')", "red")
