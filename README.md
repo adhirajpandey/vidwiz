@@ -12,30 +12,26 @@ The extension is built with:
 - LLM: OpenAI/Gemini models for intelligent note generation
 
 ## Features
-1. **Video Detection & Timestamped Notes**
-   - Automatically detects YouTube videos and captures current video title and timestamp
-   - Disables note-taking features on non-YouTube pages
-   - View all notes for a specific video with timestamps
+1. **Multi-Client Support**
+   - Use the extension with any Chromium-based browser.
+   - Use with Android devices via Macrodroid macros.
+   - Use with iOS devices via Shortcuts automation.
 
-2. **AI-Powered Note Generation**
-   - Generate comprehensive notes from video content using AI
-   - Get smart summaries of your saved timestamps
-   - Support for multiple AI providers (OpenAI, Gemini) with provider-specific optimizations
-   
-3. **User-Friendly Interface**
-   - Clean, modern popup design
-   - Real-time feedback messages
-   - Quick access to dashboard
+2. **Interactive Dashboard**
+   - A modern UI with a consolidated view of all your notes.
+   - Search for videos.
+   - Open videos directly at the note's timestamp.
+   - Edit and delete notes with ease.
 
-4. **Dashboard Integration**
-   - View all your notes in one place
-   - Search functionality for finding specific notes
-   - Video-specific note collections
+3. **AI Magic**
+   - Automatically generate accurate notes for any timestamp using LLMs.
+   - Set your custom AI provider and API key.
+   - Toggle the AI generation feature on or off.
 
-5. **Security & Privacy**
-   - Self-hosted backend
-   - Token-based authentication
-   - No third-party data sharing
+4. **Self-Hosted**
+   - Full privacy with a self-hosted backend.
+   - Enhanced security over your data.
+   - No third-party data sharing.
 
 
 
@@ -54,6 +50,8 @@ The extension is built with:
    DB_URL=postgresql://username:password@localhost:5432/postgres
    AUTH_TOKEN=your_secret_token_here
    TABLE_NAME=your_table_name
+
+   LAMBDA_URL=your_lambda_url
    ```
 
 3. Build Backend server image using: `docker build -t vidwiz .`
