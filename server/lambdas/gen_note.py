@@ -2,6 +2,7 @@ import json
 import os
 import requests
 from typing import Dict, Any, Optional, List
+import boto3
 
 
 # Environment variables
@@ -12,11 +13,13 @@ PREFERRED_PROVIDER = os.getenv("PREFERRED_PROVIDER", "gemini")
 OPENAI_API_KEY = os.getenv("OPENAI_API_KEY")
 GEMINI_API_KEY = os.getenv("GEMINI_API_KEY")
 RAPIDAPI_KEY = os.getenv("RAPIDAPI_KEY")
-OPENAI_MODEL = os.getenv("OPENAI_MODEL", "gpt-4o-mini")
-GEMINI_MODEL = os.getenv("GEMINI_MODEL", "gemini-2.0-flash")
+S3_BUCKET_NAME = os.getenv("S3_BUCKET_NAME", "vidwiz")
 OPENAI_ENDPOINT = "https://api.openai.com/v1/chat/completions"
-GEMINI_ENDPOINT = f"https://generativelanguage.googleapis.com/v1beta/models/{GEMINI_MODEL}:generateContent"
+GEMINI_ENDPOINT = "https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent"
+OPENAI_MODEL = os.getenv("OPENAI_MODEL", "gpt-4o-mini")
 print(f"Environment loaded. Preferred provider: {PREFERRED_PROVIDER}")
+
+s3_client = boto3.client("s3")
 
 
 def check_authorization(headers: Dict[str, str]) -> bool:
@@ -38,34 +41,92 @@ def check_authorization(headers: Dict[str, str]) -> bool:
         return False
 
 
-def get_transcript(video_id: str):
-    """Get transcript for a video using RapidAPI"""
-    print(f"Fetching transcript for video ID: {video_id}")
-    url = "https://youtube-transcript3.p.rapidapi.com/api/transcript"
+def get_transcript_from_s3(video_id: str) -> Optional[List[Dict]]:
+    """Get transcript from S3 cache."""
+    if not S3_BUCKET_NAME:
+        return None
+
+    transcript_key = f"transcripts/{video_id}.json"
+    try:
+        print(f"Checking for transcript in S3: s3://{S3_BUCKET_NAME}/{transcript_key}")
+        response = s3_client.get_object(Bucket=S3_BUCKET_NAME, Key=transcript_key)
+        transcript_data = json.loads(response["Body"].read().decode("utf-8"))
+        print(f"Successfully loaded transcript from S3 for video ID: {video_id}")
+        return transcript_data
+    except Exception as e:
+        print(
+            f"Transcript not found in S3 for video ID: {video_id} (error: {e}). Fetching from API."
+        )
+        return None
+
+
+def get_transcript_from_api(video_id: str) -> Optional[List[Dict]]:
+    """Get transcript from RapidAPI."""
+    print(f"Fetching transcript for video ID: {video_id} from RapidAPI")
+    api_url = "https://youtube-transcript3.p.rapidapi.com/api/transcript"
     headers = {
         "x-rapidapi-key": RAPIDAPI_KEY,
         "x-rapidapi-host": "youtube-transcript3.p.rapidapi.com",
     }
 
     try:
-        url = f"{url}?videoId={video_id}"
+        url = f"{api_url}?videoId={video_id}"
         response = requests.get(url, headers=headers, timeout=10)
         print(f"Transcript API response status: {response.status_code}")
         response.raise_for_status()
         response_data = response.json()
-        print(response_data)
-        if "error" in response_data:
-            print(f"API returned error: {response_data['error']}")
+
+        if "error" in response_data or not response_data.get("success"):
+            print(
+                f"API returned an error or unsuccessful response: {response_data.get('error')}"
+            )
             return None
-        if not response_data.get("success"):
-            print("API returned unsuccessful response")
-            return None
+
         transcript = response_data.get("transcript", [])
-        print(f"Successfully retrieved transcript with {len(transcript)} segments")
+        print(
+            f"Successfully retrieved transcript with {len(transcript)} segments from API"
+        )
         return transcript
     except requests.exceptions.RequestException as e:
-        print(f"Error fetching transcript: {e}")
+        print(f"Error fetching transcript from RapidAPI: {e}")
         return None
+
+
+def store_transcript_in_s3(video_id: str, transcript: List[Dict]):
+    """Store transcript in S3."""
+    if not S3_BUCKET_NAME or not transcript:
+        return
+
+    transcript_key = f"transcripts/{video_id}.json"
+    try:
+        s3_client.put_object(
+            Bucket=S3_BUCKET_NAME,
+            Key=transcript_key,
+            Body=json.dumps(transcript),
+            ContentType="application/json",
+        )
+        print(
+            f"Successfully stored transcript in S3: s3://{S3_BUCKET_NAME}/{transcript_key}"
+        )
+    except Exception as e:
+        print(f"Error storing transcript in S3: {e}")
+
+
+def get_transcript(video_id: str):
+    """
+    Get transcript for a video, trying S3 cache first,
+    then falling back to API.
+    """
+    transcript = get_transcript_from_s3(video_id)
+    if transcript is not None:
+        return transcript
+
+    transcript = get_transcript_from_api(video_id)
+    if transcript is not None:
+        store_transcript_in_s3(video_id, transcript)
+        return transcript
+
+    return None
 
 
 def format_timestamp_in_seconds(timestamp: str) -> int:
