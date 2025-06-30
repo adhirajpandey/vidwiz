@@ -1,11 +1,22 @@
 services:
-  app:
-    container_name: vidwiz
+  application:
+    container_name: vidwiz-app
     build:
       context: .
       dockerfile: Dockerfile
     env_file:
       - .env
+    restart: unless-stopped
     ports:
       - "5000:5000"
+    depends_on:
+      - database
+
+  database:
+    image: postgres:15
+    container_name: vidwiz-db
     restart: unless-stopped
+    env_file:
+      - .env
+    volumes:
+      - ./init:/docker-entrypoint-initdb.d
