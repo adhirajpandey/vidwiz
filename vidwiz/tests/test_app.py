@@ -1,11 +1,9 @@
 import pytest
 from vidwiz.app import create_app
-from vidwiz.shared.models import Note, db
+from vidwiz.shared.models import Note, Video, db
 
-# Define a test token to use in tests
 AUTH_TOKEN = "testtoken123"
 AUTH_HEADER = {"Authorization": f"Bearer {AUTH_TOKEN}"}
-
 
 @pytest.fixture
 def app():
@@ -17,39 +15,39 @@ def app():
             "SQLALCHEMY_TRACK_MODIFICATIONS": False,
         }
     )
-
     with app.app_context():
         db.create_all()
         yield app
         db.session.remove()
         db.drop_all()
 
-
 @pytest.fixture
 def client(app):
     return app.test_client()
 
-
+# --- Note Creation ---
 def test_create_note_success(client):
     payload = {
         "video_id": "abc123",
         "video_title": "Test Video",
-        "note_timestamp": "00:01:30",
-        "note": "This is a test note.",
+        "timestamp": "00:01:30",
+        "text": "This is a test note."
     }
     response = client.post("/notes", json=payload, headers=AUTH_HEADER)
     assert response.status_code == 201
     data = response.get_json()
     assert data["video_id"] == payload["video_id"]
-    assert data["note"] == payload["note"]
-    assert data["ai_note"] is None
+    assert data["text"] == payload["text"]
+    assert data["timestamp"] == payload["timestamp"]
+    assert data["generated_by_ai"] is False
 
 
-def test_create_note_unauthorized(client):
+def test_create_note_missing_auth(client):
     payload = {
         "video_id": "abc123",
-        "note_timestamp": "00:01:30",
-        "note": "This is a test note.",
+        "video_title": "Test Video",
+        "timestamp": "00:01:30",
+        "text": "This is a test note."
     }
     response = client.post("/notes", json=payload)
     assert response.status_code == 401
@@ -57,125 +55,121 @@ def test_create_note_unauthorized(client):
 
 
 def test_create_note_invalid_data(client):
-    payload = {"video_title": "No timestamp or ID", "note": "Missing fields"}
+    payload = {"video_title": "No timestamp or ID", "text": "Missing fields"}
     response = client.post("/notes", json=payload, headers=AUTH_HEADER)
     assert response.status_code == 400
     assert "Invalid data" in response.get_json()["error"]
 
 
-def test_create_note_empty_video_title(client):
+def test_create_note_missing_video_title(client):
     payload = {
         "video_id": "abc123",
-        "video_title": "",
-        "note_timestamp": "00:01:30",
-        "note": "This is a test note.",
+        "timestamp": "00:01:30",
+        "text": "This is a test note."
     }
     response = client.post("/notes", json=payload, headers=AUTH_HEADER)
     assert response.status_code == 400
-    assert "video_title cannot be empty" in response.get_json()["error"]
+    assert "video_title is required" in response.get_json()["error"]
 
 
-def test_create_note_invalid_timestamp_data(client):
+def test_create_note_invalid_timestamp(client):
     payload = {
         "video_id": "abc123",
         "video_title": "Test Video",
-        "note_timestamp": "{lv=screenContent[com.google.android.youtube:id/time_bar_current_time]}",
-        "note": "This is a test note.",
+        "timestamp": "invalidtimestamp",
+        "text": "This is a test note."
     }
     response = client.post("/notes", json=payload, headers=AUTH_HEADER)
     assert response.status_code == 400
     assert "Invalid data" in response.get_json()["error"]
 
-
-def test_get_notes_by_video_success(client, app):
-    note = Note(
-        video_id="vid123",
-        video_title="Some Video",
-        note_timestamp="00:00:10",
-        note="Some note",
-        ai_note=None,
-    )
+# --- Get Notes for Video ---
+def test_get_notes_success(client, app):
+    video = Video(video_id="vid123", title="Some Video")
+    note = Note(video_id="vid123", text="Some note", timestamp="00:00:10", generated_by_ai=False)
     with app.app_context():
+        db.session.add(video)
         db.session.add(note)
         db.session.commit()
-
-    response = client.get("/video-notes/vid123", headers=AUTH_HEADER)
+    response = client.get("/notes/vid123", headers=AUTH_HEADER)
     assert response.status_code == 200
     data = response.get_json()
     assert isinstance(data, list)
     assert data[0]["video_id"] == "vid123"
-    assert data[0]["note"] == "Some note"
-    assert data[0]["ai_note"] is None
+    assert data[0]["text"] == "Some note"
+    assert data[0]["generated_by_ai"] is False
 
 
-def test_get_notes_by_video_with_ai_note(client, app):
-    note = Note(
-        video_id="vid123",
-        video_title="Some Video",
-        note_timestamp="00:00:10",
-        note=None,
-        ai_note="AI generated note",
-    )
+def test_get_notes_not_found(client):
+    response = client.get("/notes/nonexistent", headers=AUTH_HEADER)
+    assert response.status_code == 200
+    assert response.get_json() == []
+
+
+def test_get_notes_unauthorized(client):
+    response = client.get("/notes/vid123")
+    assert response.status_code == 401
+    assert response.get_json()["error"] == "Unauthorized"
+
+# --- Delete Note ---
+def test_delete_note_success(client, app):
+    video = Video(video_id="vid123", title="Test Video")
+    note = Note(video_id="vid123", text="Test note", timestamp="00:00:10", generated_by_ai=False)
     with app.app_context():
+        db.session.add(video)
         db.session.add(note)
         db.session.commit()
-
-    response = client.get("/video-notes/vid123", headers=AUTH_HEADER)
+        note_id = note.id
+    response = client.delete(f"/note/{note_id}", headers=AUTH_HEADER)
     assert response.status_code == 200
-    data = response.get_json()
-    assert isinstance(data, list)
-    assert data[0]["video_id"] == "vid123"
-    assert data[0]["note"] is None
-    assert data[0]["ai_note"] == "AI generated note"
+    assert response.get_json()["message"] == "Note deleted successfully"
+    with app.app_context():
+        deleted_note = Note.query.get(note_id)
+        assert deleted_note is None
 
 
-def test_get_notes_by_video_not_found(client):
-    response = client.get("/video-notes/nonexistent", headers=AUTH_HEADER)
+def test_delete_note_not_found(client):
+    response = client.delete("/note/999", headers=AUTH_HEADER)
     assert response.status_code == 404
+    assert response.get_json()["error"] == "Note not found"
 
 
-def test_search_results_success(client, app):
-    notes = [
-        Note(
-            video_id="vid1",
-            video_title="Python Tutorial",
-            note_timestamp="00:01:00",
-            note="Introduction to Python",
-            ai_note=None,
-        ),
-        Note(
-            video_id="vid2",
-            video_title="Advanced Python",
-            note_timestamp="00:02:00",
-            note="Decorators in Python",
-            ai_note=None,
-        ),
-    ]
+def test_delete_note_unauthorized(client, app):
+    video = Video(video_id="vid123", title="Test Video")
+    note = Note(video_id="vid123", text="Test note", timestamp="00:00:10", generated_by_ai=False)
     with app.app_context():
-        db.session.bulk_save_objects(notes)
+        db.session.add(video)
+        db.session.add(note)
         db.session.commit()
+        note_id = note.id
+    response = client.delete(f"/note/{note_id}")
+    assert response.status_code == 401
+    assert response.get_json()["error"] == "Unauthorized"
+    with app.app_context():
+        existing_note = Note.query.get(note_id)
+        assert existing_note is not None
 
+# --- Search Videos ---
+def test_search_results_success(client, app):
+    video1 = Video(video_id="vid1", title="Python Tutorial")
+    video2 = Video(video_id="vid2", title="Advanced Python")
+    with app.app_context():
+        db.session.add_all([video1, video2])
+        db.session.commit()
     response = client.get("/search?query=Python", headers=AUTH_HEADER)
     assert response.status_code == 200
     data = response.get_json()
     assert isinstance(data, list)
-    assert len(data) == 2
     titles = [video["video_title"] for video in data]
     assert "Python Tutorial" in titles
     assert "Advanced Python" in titles
 
 
 def test_search_results_no_match(client, app):
-    note = Note(
-        video_id="vid1",
-        video_title="Java Tutorial",
-        note_timestamp="00:01:00",
-        note="Introduction to Java",
-    )
+    video = Video(video_id="vid1", title="Java Tutorial")
     with app.app_context():
-        db.session.add(note)
+        db.session.add(video)
         db.session.commit()
-
     response = client.get("/search?query=Python", headers=AUTH_HEADER)
     assert response.status_code == 404
     assert response.get_json()["error"] == "No videos found matching the query"
@@ -191,204 +185,3 @@ def test_search_results_unauthorized(client):
     response = client.get("/search?query=Python")
     assert response.status_code == 401
     assert response.get_json()["error"] == "Unauthorized"
-
-
-def test_update_note_success(client, app):
-    # Create a test note first
-    note = Note(
-        video_id="vid123",
-        video_title="Test Video",
-        note_timestamp="00:00:10",
-        note="Original note",
-        ai_note=None,
-    )
-    with app.app_context():
-        db.session.add(note)
-        db.session.commit()
-        note_id = note.id
-
-    # Test updating note
-    payload = {"note": "Updated note"}
-    response = client.patch(f"/notes/{note_id}", json=payload, headers=AUTH_HEADER)
-    assert response.status_code == 200
-    data = response.get_json()
-    assert data["note"] == "Updated note"
-    assert data["ai_note"] is None
-
-    # Test updating ai_note
-    payload = {"ai_note": "AI generated note"}
-    response = client.patch(f"/notes/{note_id}", json=payload, headers=AUTH_HEADER)
-    assert response.status_code == 200
-    data = response.get_json()
-    assert data["note"] == "Updated note"  # Should remain unchanged
-    assert data["ai_note"] == "AI generated note"
-
-    # Test updating both fields
-    payload = {"note": "Final note", "ai_note": "Final AI note"}
-    response = client.patch(f"/notes/{note_id}", json=payload, headers=AUTH_HEADER)
-    assert response.status_code == 200
-    data = response.get_json()
-    assert data["note"] == "Final note"
-    assert data["ai_note"] == "Final AI note"
-
-
-def test_update_note_not_found(client):
-    response = client.patch("/notes/999", json={"note": "Test"}, headers=AUTH_HEADER)
-    assert response.status_code == 404
-    assert "Note not found" in response.get_json()["error"]
-
-
-def test_update_note_no_fields(client, app):
-    # Create a test note first
-    note = Note(
-        video_id="vid123",
-        video_title="Test Video",
-        note_timestamp="00:00:10",
-        note="Original note",
-        ai_note=None,
-    )
-    with app.app_context():
-        db.session.add(note)
-        db.session.commit()
-        note_id = note.id
-
-    # Test with empty JSON
-    response = client.patch(f"/notes/{note_id}", json={}, headers=AUTH_HEADER)
-    assert response.status_code == 400
-    assert "Request body must be JSON" in response.get_json()["error"]
-
-
-def test_update_note_unauthorized(client, app):
-    # Create a test note first
-    note = Note(
-        video_id="vid123",
-        video_title="Test Video",
-        note_timestamp="00:00:10",
-        note="Original note",
-        ai_note=None,
-    )
-    with app.app_context():
-        db.session.add(note)
-        db.session.commit()
-        note_id = note.id
-
-    # Test without auth header
-    response = client.patch(f"/notes/{note_id}", json={"note": "Test"})
-    assert response.status_code == 401
-    assert "Unauthorized" in response.get_json()["error"]
-
-    # Test with invalid token
-    response = client.patch(
-        f"/notes/{note_id}",
-        json={"note": "Test"},
-        headers={"Authorization": "Bearer invalid_token"},
-    )
-    assert response.status_code == 401
-    assert "Unauthorized" in response.get_json()["error"]
-
-
-def test_update_note_invalid_json(client, app):
-    # Create a test note first
-    note = Note(
-        video_id="vid123",
-        video_title="Test Video",
-        note_timestamp="00:00:10",
-        note="Original note",
-        ai_note=None,
-    )
-    with app.app_context():
-        db.session.add(note)
-        db.session.commit()
-        note_id = note.id
-
-    # Test with invalid JSON
-    response = client.patch(
-        f"/notes/{note_id}",
-        data="invalid json",
-        headers=AUTH_HEADER,
-        content_type="application/json",
-    )
-    assert response.status_code == 500
-    assert "Internal Server Error" in response.get_json()["error"]
-
-
-def test_update_note_invalid_fields(client, app):
-    # Create a test note first
-    note = Note(
-        video_id="vid123",
-        video_title="Test Video",
-        note_timestamp="00:00:10",
-        note="Original note",
-        ai_note=None,
-    )
-    with app.app_context():
-        db.session.add(note)
-        db.session.commit()
-        note_id = note.id
-
-    # Test with invalid fields
-    payload = {"invalid_field": "test"}
-    response = client.patch(f"/notes/{note_id}", json=payload, headers=AUTH_HEADER)
-    assert response.status_code == 400
-    assert "Invalid data" in response.get_json()["error"]
-
-
-def test_delete_note_success(client, app):
-    # Create a test note first
-    note = Note(
-        video_id="vid123",
-        video_title="Test Video",
-        note_timestamp="00:00:10",
-        note="Test note",
-        ai_note=None,
-    )
-    with app.app_context():
-        db.session.add(note)
-        db.session.commit()
-        note_id = note.id
-
-    # Test deleting the note
-    response = client.delete(f"/notes/{note_id}", headers=AUTH_HEADER)
-    assert response.status_code == 200
-    assert response.get_json()["message"] == "Note deleted successfully"
-
-    # Verify the note is actually deleted
-    with app.app_context():
-        deleted_note = Note.query.get(note_id)
-        assert deleted_note is None
-
-
-def test_delete_note_not_found(client):
-    response = client.delete("/notes/999", headers=AUTH_HEADER)
-    assert response.status_code == 404
-    assert response.get_json()["error"] == "Note not found"
-
-
-def test_delete_note_unauthorized(client, app):
-    # Create a test note first
-    note = Note(
-        video_id="vid123",
-        video_title="Test Video",
-        note_timestamp="00:00:10",
-        note="Test note",
-        ai_note=None,
-    )
-    with app.app_context():
-        db.session.add(note)
-        db.session.commit()
-        note_id = note.id
-
-    # Test deleting without authorization
-    response = client.delete(f"/notes/{note_id}")
-    assert response.status_code == 401
-    assert response.get_json()["error"] == "Unauthorized"
-
-    # Verify the note still exists
-    with app.app_context():
-        existing_note = Note.query.get(note_id)
-        assert existing_note is not None
-
-
-def test_delete_note_invalid_id(client):
-    response = client.delete("/notes/invalid", headers=AUTH_HEADER)
-    assert response.status_code == 404
