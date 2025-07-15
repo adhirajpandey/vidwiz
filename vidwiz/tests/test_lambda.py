@@ -3,8 +3,8 @@ from unittest.mock import patch
 import json
 import importlib
 
-from lambdas import gen_note
-from lambdas.gen_note import (
+from vidwiz.lambdas import gen_note
+from vidwiz.lambdas.gen_note import (
     lambda_handler,
     check_authorization,
     format_timestamp_in_seconds,
@@ -71,9 +71,9 @@ def test_get_relevant_transcript():
     assert get_relevant_transcript(transcript, "20:00") is None
 
 
-@patch("lambdas.gen_note.requests.patch")
-@patch("lambdas.gen_note.gemini_api_call")
-@patch("lambdas.gen_note.get_transcript")
+@patch("vidwiz.lambdas.gen_note.requests.patch")
+@patch("vidwiz.lambdas.gen_note.gemini_api_call")
+@patch("vidwiz.lambdas.gen_note.get_transcript")
 def test_lambda_handler_success(
     mock_get_transcript, mock_gemini_call, mock_patch, api_gateway_event, mock_env_vars
 ):
@@ -104,7 +104,7 @@ def test_lambda_handler_unauthorized(api_gateway_event, mock_env_vars):
     assert "Unauthorized" in response["body"]
 
 
-@patch("lambdas.gen_note.check_authorization", return_value=True)
+@patch("vidwiz.lambdas.gen_note.check_authorization", return_value=True)
 def test_lambda_handler_missing_data(_, api_gateway_event, mock_env_vars):
     """Test that the lambda handler returns 400 if the request body is empty."""
     api_gateway_event["body"] = "{}"
@@ -113,8 +113,8 @@ def test_lambda_handler_missing_data(_, api_gateway_event, mock_env_vars):
     assert "No data provided" in response["body"]
 
 
-@patch("lambdas.gen_note.get_transcript")
-@patch("lambdas.gen_note.check_authorization", return_value=True)
+@patch("vidwiz.lambdas.gen_note.get_transcript")
+@patch("vidwiz.lambdas.gen_note.check_authorization", return_value=True)
 def test_lambda_handler_transcript_not_found(
     _, mock_get_transcript, api_gateway_event, mock_env_vars
 ):
@@ -125,8 +125,8 @@ def test_lambda_handler_transcript_not_found(
     assert "Transcript not found" in response["body"]
 
 
-@patch("lambdas.gen_note.get_transcript")
-@patch("lambdas.gen_note.check_authorization", return_value=True)
+@patch("vidwiz.lambdas.gen_note.get_transcript")
+@patch("vidwiz.lambdas.gen_note.check_authorization", return_value=True)
 def test_lambda_handler_no_relevant_transcript(
     _, mock_get_transcript, api_gateway_event, mock_env_vars
 ):
@@ -137,9 +137,9 @@ def test_lambda_handler_no_relevant_transcript(
     assert "No relevant transcript found" in response["body"]
 
 
-@patch("lambdas.gen_note.gemini_api_call")
-@patch("lambdas.gen_note.get_transcript")
-@patch("lambdas.gen_note.check_authorization", return_value=True)
+@patch("vidwiz.lambdas.gen_note.gemini_api_call")
+@patch("vidwiz.lambdas.gen_note.get_transcript")
+@patch("vidwiz.lambdas.gen_note.check_authorization", return_value=True)
 def test_lambda_handler_ai_note_fails(
     _, mock_get_transcript, mock_gemini_call, api_gateway_event, mock_env_vars
 ):
@@ -153,10 +153,10 @@ def test_lambda_handler_ai_note_fails(
     assert "Failed to generate AI note" in response["body"]
 
 
-@patch("lambdas.gen_note.requests.patch")
-@patch("lambdas.gen_note.gemini_api_call")
-@patch("lambdas.gen_note.get_transcript")
-@patch("lambdas.gen_note.check_authorization", return_value=True)
+@patch("vidwiz.lambdas.gen_note.requests.patch")
+@patch("vidwiz.lambdas.gen_note.gemini_api_call")
+@patch("vidwiz.lambdas.gen_note.get_transcript")
+@patch("vidwiz.lambdas.gen_note.check_authorization", return_value=True)
 def test_lambda_handler_update_fails(
     _,
     mock_get_transcript,
