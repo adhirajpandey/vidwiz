@@ -3,8 +3,8 @@ from flask import Flask
 from dotenv import load_dotenv
 import os
 import sys
-from models import db
-from routes import main_bp
+from vidwiz.shared.models import db
+from vidwiz.routes.main_routes import main_bp
 from sqlalchemy import text
 
 load_dotenv()
@@ -51,5 +51,9 @@ with app.app_context():
         print(f"❌ Failed to connect to the database: {e}")
         sys.exit(1)
 
+def main():
+    app = create_app()
+    app.run(debug=True)  # or without debug for production
+
 if __name__ == "__main__":
-    app.run()
+    main()
