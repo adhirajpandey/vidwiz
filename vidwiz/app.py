@@ -4,7 +4,11 @@ from dotenv import load_dotenv
 import os
 import sys
 from vidwiz.shared.models import db
-from vidwiz.routes.main_routes import main_bp
+
+# from vidwiz.routes.main_routes import main_bp
+from vidwiz.routes.video_routes import video_bp
+from vidwiz.routes.notes_routes import notes_bp
+from vidwiz.routes.core_routes import core_bp
 from sqlalchemy import text
 
 load_dotenv()
@@ -35,7 +39,10 @@ def create_app(test_config=None):
         app.config.update(test_config)
 
     db.init_app(app)
-    app.register_blueprint(main_bp)
+    # app.register_blueprint(main_bp)
+    app.register_blueprint(core_bp)
+    app.register_blueprint(video_bp)
+    app.register_blueprint(notes_bp)
 
     return app
 
@@ -51,9 +58,11 @@ with app.app_context():
         print(f"❌ Failed to connect to the database: {e}")
         sys.exit(1)
 
+
 def main():
     app = create_app()
     app.run(debug=True)  # or without debug for production
+
 
 if __name__ == "__main__":
     main()

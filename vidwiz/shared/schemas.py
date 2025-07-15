@@ -3,54 +3,56 @@ from typing import Optional
 from datetime import datetime
 
 
+class VideoCreate(BaseModel):
+    video_id: str
+    title: Optional[str] = None
+    transcript_available: Optional[bool] = False
+
+
+class VideoRead(BaseModel):
+    id: int
+    video_id: str
+    title: Optional[str]
+    transcript_available: bool
+    created_at: datetime
+    updated_at: datetime
+    model_config = {"from_attributes": True}
+
+
 class NoteCreate(BaseModel):
     video_id: str
-    video_title: str
-    note_timestamp: str
-    note: Optional[str] = None
+    video_title: Optional[str] = None
+    timestamp: str
+    text: Optional[str] = None
 
-    @field_validator("note_timestamp")
+    @field_validator("timestamp")
     @classmethod
     def timestamp_must_contain_colon(cls, v):
         if ":" not in v:
-            raise ValueError("note_timestamp must contain at least one ':'")
+            raise ValueError("timestamp must contain at least one ':'")
         if sum(c.isdigit() for c in v) < 2:
-            raise ValueError("note_timestamp must contain at least two numbers")
+            raise ValueError("timestamp must contain at least two numbers")
         return v
-
-    @field_validator("video_title")
-    @classmethod
-    def video_title_cannot_be_empty(cls, v):
-        if not v or not v.strip():
-            raise ValueError("video_title cannot be empty")
-        return v.strip()
 
 
 class NoteRead(BaseModel):
     id: int
     video_id: str
-    video_title: str
-    note_timestamp: str
-    note: Optional[str]
-    ai_note: Optional[str]
+    timestamp: str
+    text: Optional[str]
+    generated_by_ai: bool
     created_at: datetime
     updated_at: datetime
+    video: Optional[VideoRead] = None
 
     model_config = {"from_attributes": True}
 
 
 class NoteUpdate(BaseModel):
-    note: Optional[str] = None
-    ai_note: Optional[str] = None
+    text: Optional[str] = None
+    generated_by_ai: Optional[bool] = None
 
-    @field_validator("*")
-    @classmethod
-    def validate_at_least_one_field(cls, v, info):
-        if info.field_name == "note" and v is None and info.data.get("ai_note") is None:
-            raise ValueError("At least one of 'note' or 'ai_note' must be provided")
-        return v
-
-    @field_validator("note", "ai_note")
+    @field_validator("text")
     @classmethod
     def validate_string_type(cls, v):
         if v is not None and not isinstance(v, str):
@@ -59,5 +61,5 @@ class NoteUpdate(BaseModel):
 
     model_config = {
         "from_attributes": True,
-        "extra": "forbid"  # Reject any fields not defined in the model
-    } 
+        "extra": "forbid",
+    }
