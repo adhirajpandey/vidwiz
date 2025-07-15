@@ -3,7 +3,7 @@ from flask import Flask
 from dotenv import load_dotenv
 import os
 import sys
-from vidwiz.models import db
+from vidwiz.shared.models import db
 from vidwiz.routes.main_routes import main_bp
 from sqlalchemy import text
 

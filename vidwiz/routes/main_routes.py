@@ -1,6 +1,6 @@
 from flask import Blueprint, current_app, request, jsonify, render_template
-from vidwiz.models import Note, db
-from vidwiz.schemas import NoteCreate, NoteRead, NoteUpdate
+from vidwiz.shared.models import Note, db
+from vidwiz.shared.schemas import NoteCreate, NoteRead, NoteUpdate
 from pydantic import ValidationError
 from functools import wraps
 import requests

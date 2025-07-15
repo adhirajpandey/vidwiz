@@ -1,6 +1,6 @@
 import pytest
 from vidwiz.app import create_app
-from vidwiz.models import Note, db
+from vidwiz.shared.models import Note, db
 
 # Define a test token to use in tests
 AUTH_TOKEN = "testtoken123"

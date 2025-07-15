@@ -60,4 +60,4 @@ class NoteUpdate(BaseModel):
     model_config = {
         "from_attributes": True,
         "extra": "forbid"  # Reject any fields not defined in the model
-    }
+    } 
