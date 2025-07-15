@@ -1,0 +1,66 @@
+from flask import Blueprint, request, jsonify
+from vidwiz.shared.models import Note, Video, db
+from vidwiz.shared.schemas import NoteRead, NoteCreate
+from pydantic import ValidationError
+from vidwiz.shared.utils import token_required
+
+notes_bp = Blueprint("notes", __name__)
+
+@notes_bp.route("/notes", methods=["POST"])
+@token_required
+def create_note():
+    try:
+        data = request.json
+        if not data:
+            return jsonify({"error": "Request body must be JSON"}), 400
+        try:
+            note_data = NoteCreate(**data)
+        except ValidationError as e:
+            return jsonify({"error": f"Invalid data: {str(e)}"}), 400
+
+        # Check if video exists
+        video = Video.query.filter_by(video_id=note_data.video_id).first()
+        if not video:
+            if not note_data.video_title:
+                return jsonify({"error": "video_title is required when video does not exist"}), 400
+            video = Video(video_id=note_data.video_id, title=note_data.video_title)
+            db.session.add(video)
+            db.session.commit()
+
+        # Create note
+        note = Note(
+            video_id=note_data.video_id,
+            text=note_data.text,
+            timestamp=note_data.timestamp,
+            generated_by_ai=False,
+        )
+        db.session.add(note)
+        db.session.commit()
+        return jsonify(NoteRead.model_validate(note).model_dump()), 201
+    except Exception as e:
+        db.session.rollback()
+        return jsonify({"error": f"Internal Server Error: {str(e)}"}), 500
+
+@notes_bp.route("/notes/<string:video_id>", methods=["GET"])
+@token_required
+def get_notes(video_id):
+    try:
+        notes = Note.query.filter_by(video_id=video_id).all()
+        return jsonify([NoteRead.model_validate(note).model_dump() for note in notes]), 200
+    except Exception as e:
+        return jsonify({"error": f"Internal Server Error: {str(e)}"}), 500
+
+
+@notes_bp.route("/note/<int:note_id>", methods=["DELETE"])
+@token_required
+def delete_note(note_id):
+    try:
+        note = Note.query.get(note_id)
+        if not note:
+            return jsonify({"error": "Note not found"}), 404
+        db.session.delete(note)
+        db.session.commit()
+        return jsonify({"message": "Note deleted successfully"}), 200
+    except Exception as e:
+        db.session.rollback()
+        return jsonify({"error": f"Internal Server Error: {str(e)}"}), 500 
