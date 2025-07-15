@@ -4,7 +4,7 @@ from dotenv import load_dotenv
 import os
 import sys
 from vidwiz.models import db
-from vidwiz.routes import main_bp
+from vidwiz.routes.main_routes import main_bp
 from sqlalchemy import text
 
 load_dotenv()
