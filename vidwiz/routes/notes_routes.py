@@ -1,6 +1,6 @@
 from flask import Blueprint, request, jsonify
 from vidwiz.shared.models import Note, Video, db
-from vidwiz.shared.schemas import NoteRead, NoteCreate
+from vidwiz.shared.schemas import NoteRead, NoteCreate, NoteUpdate
 from pydantic import ValidationError
 from vidwiz.shared.utils import token_required
 
@@ -51,7 +51,7 @@ def get_notes(video_id):
         return jsonify({"error": f"Internal Server Error: {str(e)}"}), 500
 
 
-@notes_bp.route("/note/<int:note_id>", methods=["DELETE"])
+@notes_bp.route("/notes/<int:note_id>", methods=["DELETE"])
 @token_required
 def delete_note(note_id):
     try:
@@ -61,6 +61,34 @@ def delete_note(note_id):
         db.session.delete(note)
         db.session.commit()
         return jsonify({"message": "Note deleted successfully"}), 200
+    except Exception as e:
+        db.session.rollback()
+        return jsonify({"error": f"Internal Server Error: {str(e)}"}), 500
+
+@notes_bp.route("/notes/<int:note_id>", methods=["PATCH"])
+@token_required
+def update_note(note_id):
+    try:
+        data = request.json
+        if not data:
+            return jsonify({"error": "Request body must be JSON"}), 400
+        try:
+            update_data = NoteUpdate(**data)
+        except ValidationError as e:
+            return jsonify({"error": f"Invalid data: {str(e)}"}), 400
+
+        note = Note.query.get(note_id)
+        if not note:
+            return jsonify({"error": "Note not found"}), 404
+
+        note.text = update_data.text
+        
+        if update_data.generated_by_ai:
+            note.generated_by_ai = True
+        else:
+            note.generated_by_ai = False
+        db.session.commit()
+        return jsonify(NoteRead.model_validate(note).model_dump()), 200
     except Exception as e:
         db.session.rollback()
         return jsonify({"error": f"Internal Server Error: {str(e)}"}), 500 
