@@ -1,6 +1,6 @@
 from flask import Blueprint, jsonify, render_template, request
 from vidwiz.shared.utils import token_required
-from vidwiz.shared.models import Video
+from vidwiz.shared.models import Video, Note
 
 core_bp = Blueprint("core", __name__)
 
@@ -26,8 +26,12 @@ def get_search_results():
     query = request.args.get("query", None)
     if query is None:
         return jsonify({"error": "Query parameter is required"}), 400
+    # Only include videos that have at least one note
     videos = (
-        Video.query.filter(Video.title.ilike(f"%{query}%"))
+        Video.query
+        .filter(Video.title.ilike(f"%{query}%"))
+        .join(Note, Video.video_id == Note.video_id)
+        .group_by(Video.id)
         .order_by(Video.created_at.desc())
         .all()
     )

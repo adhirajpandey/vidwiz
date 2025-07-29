@@ -49,7 +49,7 @@ class NoteRead(BaseModel):
 
 
 class NoteUpdate(BaseModel):
-    text: Optional[str] = None
+    text: str
     generated_by_ai: Optional[bool] = None
 
     @field_validator("text")
