@@ -7,6 +7,7 @@ class VideoCreate(BaseModel):
     video_id: str
     title: Optional[str] = None
     transcript_available: Optional[bool] = False
+    user_id: Optional[int] = None
 
 
 class VideoRead(BaseModel):
@@ -16,6 +17,7 @@ class VideoRead(BaseModel):
     transcript_available: bool
     created_at: datetime
     updated_at: datetime
+    user_id: int
     model_config = {"from_attributes": True}
 
 
@@ -24,6 +26,7 @@ class NoteCreate(BaseModel):
     video_title: Optional[str] = None
     timestamp: str
     text: Optional[str] = None
+    user_id: Optional[int] = None
 
     @field_validator("timestamp")
     @classmethod
@@ -44,7 +47,7 @@ class NoteRead(BaseModel):
     created_at: datetime
     updated_at: datetime
     video: Optional[VideoRead] = None
-
+    user_id: int
     model_config = {"from_attributes": True}
 
 
