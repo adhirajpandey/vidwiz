@@ -1,16 +1,22 @@
-from flask import request, jsonify, current_app
+from flask import request, jsonify, current_app, redirect, url_for
+import jwt
 from functools import wraps
 import requests
 
 
-def token_required(f):
+def jwt_required(f):
     @wraps(f)
     def decorated_function(*args, **kwargs):
-        token = request.headers.get("Authorization")
-        if token is None or token != f"Bearer {current_app.config['AUTH_TOKEN']}":
-            return jsonify({"error": "Unauthorized"}), 401
+        auth_header = request.headers.get("Authorization", "")
+        if not auth_header.startswith("Bearer "):
+            return jsonify({"error": "Missing or invalid Authorization header"}), 401
+        token = auth_header.split(" ", 1)[1]
+        try:
+            payload = jwt.decode(token, current_app.config["SECRET_KEY"], algorithms=["HS256"])
+            request.user_id = payload["user_id"]
+        except Exception:
+            return jsonify({"error": "Invalid or expired token"}), 401
         return f(*args, **kwargs)
-
     return decorated_function
 
 

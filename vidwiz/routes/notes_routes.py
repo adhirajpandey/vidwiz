@@ -2,12 +2,12 @@ from flask import Blueprint, request, jsonify
 from vidwiz.shared.models import Note, Video, db
 from vidwiz.shared.schemas import NoteRead, NoteCreate, NoteUpdate
 from pydantic import ValidationError
-from vidwiz.shared.utils import token_required
+from vidwiz.shared.utils import jwt_required
 
 notes_bp = Blueprint("notes", __name__)
 
 @notes_bp.route("/notes", methods=["POST"])
-@token_required
+@jwt_required
 def create_note():
     try:
         data = request.json
@@ -42,7 +42,7 @@ def create_note():
         return jsonify({"error": f"Internal Server Error: {str(e)}"}), 500
 
 @notes_bp.route("/notes/<string:video_id>", methods=["GET"])
-@token_required
+@jwt_required
 def get_notes(video_id):
     try:
         notes = Note.query.filter_by(video_id=video_id).all()
@@ -52,7 +52,7 @@ def get_notes(video_id):
 
 
 @notes_bp.route("/notes/<int:note_id>", methods=["DELETE"])
-@token_required
+@jwt_required
 def delete_note(note_id):
     try:
         note = Note.query.get(note_id)
@@ -66,7 +66,7 @@ def delete_note(note_id):
         return jsonify({"error": f"Internal Server Error: {str(e)}"}), 500
 
 @notes_bp.route("/notes/<int:note_id>", methods=["PATCH"])
-@token_required
+@jwt_required
 def update_note(note_id):
     try:
         data = request.json

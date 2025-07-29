@@ -35,3 +35,11 @@ class Note(db.Model):
     )
 
     video = relationship("Video", back_populates="notes")
+
+
+class User(db.Model):
+    __tablename__ = "users"
+    id = Column(Integer, primary_key=True)
+    username = Column(Text, unique=True, nullable=False)
+    password_hash = Column(Text, nullable=False)
+    created_at = Column(TIMESTAMP(timezone=True), default=func.now())
