@@ -18,6 +18,21 @@
               </div>
             </a>
           </div>
+          <!-- Profile Icon Dropdown -->
+          <div class="flex items-center">
+            <div class="relative group">
+              <button id="profile-btn" class="flex items-center justify-center w-10 h-10 rounded-full bg-white hover:bg-gray-200 focus:outline-none">
+                <svg class="w-6 h-6 text-red-600" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24" stroke-linecap="round" stroke-linejoin="round">
+                  <circle cx="12" cy="8" r="4" />
+                  <path d="M6 20c0-2.2 3.6-3.4 6-3.4s6 1.2 6 3.4" />
+                </svg>
+              </button>
+              <div id="profile-dropdown" class="hidden absolute right-0 mt-2 w-48 bg-white rounded-md shadow-lg py-2 z-50 border border-gray-200">
+                <div class="px-4 py-2 text-gray-700 text-sm" id="profile-username">Username</div>
+                <button id="logout-btn" class="w-full text-left px-4 py-2 text-red-600 hover:bg-gray-100 text-sm">Logout</button>
+              </div>
+            </div>
+          </div>
         </div>
       </div>
     </div>
@@ -46,14 +61,10 @@
     </div>
   </body>
   <script>
-    if (!localStorage.getItem("notes-token")) {
-      const token = prompt("Enter your notes-token:");
-      if (token) {
-        localStorage.setItem("notes-token", token);
-        location.reload();
-      }
+    const token = localStorage.getItem("vidwiz-token");
+    if (!token) {
+      window.location.href = "/login";
     }
-    const TOKEN = localStorage.getItem("notes-token");
 
     async function populateDashboard(videos) {
       const videoList = document.getElementById("video-list");
@@ -83,11 +94,9 @@
     async function search() {
       event.preventDefault();
       const searchQuery = document.getElementById("default-search").value || "";
+      const token = localStorage.getItem("vidwiz-token");
       const response = await fetch(`/search?query=${searchQuery}`, {
-        method: "GET",
-        headers: {
-          Authorization: `Bearer ${TOKEN}`,
-        },
+        headers: token ? { 'Authorization': `Bearer ${token}` } : {}
       });
       if (!response.ok) {
         console.error("Error fetching videos:", response.statusText);
@@ -99,5 +108,46 @@
 
     document.addEventListener("DOMContentLoaded", search);
     document.getElementById("search-btn").addEventListener("click", search);
+
+    // Profile dropdown logic
+    const profileBtn = document.getElementById("profile-btn");
+    const profileDropdown = document.getElementById("profile-dropdown");
+    profileBtn.addEventListener("click", function (e) {
+      e.stopPropagation();
+      profileDropdown.classList.toggle("hidden");
+    });
+    document.addEventListener("click", function (e) {
+      if (!profileDropdown.classList.contains("hidden")) {
+        profileDropdown.classList.add("hidden");
+      }
+    });
+    profileDropdown.addEventListener("click", function (e) {
+      e.stopPropagation();
+    });
+    // Extract username from JWT
+    function parseJwt (token) {
+      try {
+        const base64Url = token.split('.')[1];
+        const base64 = base64Url.replace(/-/g, '+').replace(/_/g, '/');
+        const jsonPayload = decodeURIComponent(atob(base64).split('').map(function(c) {
+          return '%' + ('00' + c.charCodeAt(0).toString(16)).slice(-2);
+        }).join(''));
+        return JSON.parse(jsonPayload);
+      } catch (e) { return {}; }
+    }
+    const jwtToken = localStorage.getItem("vidwiz-token");
+    if (jwtToken) {
+      const payload = parseJwt(jwtToken);
+      if (payload && payload.username) {
+        document.getElementById("profile-username").textContent = payload.username;
+      } else if (payload && payload.user_id) {
+        document.getElementById("profile-username").textContent = `User #${payload.user_id}`;
+      }
+    }
+    // Logout logic
+    document.getElementById("logout-btn").addEventListener("click", function () {
+      localStorage.removeItem("vidwiz-token");
+      window.location.href = "/login";
+    });
   </script>
 </html>
