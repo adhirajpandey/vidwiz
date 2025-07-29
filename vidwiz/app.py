@@ -23,9 +23,7 @@ def create_app(test_config=None):
 
     if not test_config:
         if not DB_URL:
-            raise ValueError(
-                "DB_URL must be set in the environment variables."
-            )
+            raise ValueError("DB_URL must be set in the environment variables.")
         if AI_NOTE_TOGGLE and not LAMBDA_URL:
             raise ValueError(
                 "LAMBDA_URL must be set in the environment variables when AI_NOTE_TOGGLE is enabled."
