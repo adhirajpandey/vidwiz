@@ -12,7 +12,7 @@ core_bp = Blueprint("core", __name__)
 
 @core_bp.route("/", methods=["GET"])
 def index():
-    return jsonify({"message": "Welcome to the VidWiz APP!"})
+    return render_template("landing.html")
 
 
 @core_bp.route("/dashboard", methods=["GET"])
