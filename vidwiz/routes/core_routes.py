@@ -32,10 +32,10 @@ def get_search_results():
     query = request.args.get("query", None)
     if query is None:
         return jsonify({"error": "Query parameter is required"}), 400
-    # Only include videos that have at least one note
+    # Only include videos that have at least one note, and belong to the current user
     videos = (
         Video.query
-        .filter(Video.title.ilike(f"%{query}%"))
+        .filter(Video.title.ilike(f"%{query}%"), Video.user_id == request.user_id)
         .join(Note, Video.video_id == Note.video_id)
         .group_by(Video.id)
         .order_by(Video.created_at.desc())

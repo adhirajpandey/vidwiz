@@ -17,7 +17,8 @@ class Video(db.Model):
     updated_at = Column(
         TIMESTAMP(timezone=True), default=func.now(), onupdate=func.now()
     )
-
+    user_id = Column(Integer, ForeignKey("users.id"), nullable=False)
+    user = relationship("User", back_populates="videos")
     notes = relationship("Note", back_populates="video", cascade="all, delete-orphan")
 
 
@@ -33,7 +34,8 @@ class Note(db.Model):
     updated_at = Column(
         TIMESTAMP(timezone=True), default=func.now(), onupdate=func.now()
     )
-
+    user_id = Column(Integer, ForeignKey("users.id"), nullable=False)
+    user = relationship("User", back_populates="notes")
     video = relationship("Video", back_populates="notes")
 
 
@@ -43,3 +45,5 @@ class User(db.Model):
     username = Column(Text, unique=True, nullable=False)
     password_hash = Column(Text, nullable=False)
     created_at = Column(TIMESTAMP(timezone=True), default=func.now())
+    notes = relationship("Note", back_populates="user", cascade="all, delete-orphan")
+    videos = relationship("Video", back_populates="user", cascade="all, delete-orphan")
