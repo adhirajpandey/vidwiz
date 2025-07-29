@@ -34,8 +34,9 @@ def get_search_results():
         return jsonify({"error": "Query parameter is required"}), 400
     # Only include videos that have at least one note, and belong to the current user
     videos = (
-        Video.query
-        .filter(Video.title.ilike(f"%{query}%"), Video.user_id == request.user_id)
+        Video.query.filter(
+            Video.title.ilike(f"%{query}%"), Video.user_id == request.user_id
+        )
         .join(Note, Video.video_id == Note.video_id)
         .group_by(Video.id)
         .order_by(Video.created_at.desc())
@@ -55,7 +56,9 @@ def signup():
         username = request.form.get("username")
         password = request.form.get("password")
         if not username or not password:
-            return render_template("signup.html", error="Username and password required.")
+            return render_template(
+                "signup.html", error="Username and password required."
+            )
         if User.query.filter_by(username=username).first():
             return render_template("signup.html", error="Username already exists.")
         user = User(username=username, password_hash=generate_password_hash(password))
@@ -63,6 +66,7 @@ def signup():
         db.session.commit()
         return redirect(url_for("core.login"))
     return render_template("signup.html")
+
 
 @core_bp.route("/login", methods=["GET", "POST"])
 def login():
@@ -76,16 +80,14 @@ def login():
         user = User.query.filter_by(username=username).first()
         if not user or not check_password_hash(user.password_hash, password):
             return jsonify({"error": "Invalid username or password."}), 401
-        token = jwt.encode({
-            "user_id": user.id,
-            "username": user.username,
-            "exp": datetime.now(timezone.utc) + timedelta(hours=24)
-        }, current_app.config["SECRET_KEY"], algorithm="HS256")
+        token = jwt.encode(
+            {
+                "user_id": user.id,
+                "username": user.username,
+                "exp": datetime.now(timezone.utc) + timedelta(hours=24),
+            },
+            current_app.config["SECRET_KEY"],
+            algorithm="HS256",
+        )
         return jsonify({"token": token})
     return render_template("login.html")
-
-@core_bp.route("/logout", methods=["GET"])
-def logout():
-    resp = make_response(redirect(url_for("core.login")))
-    resp.set_cookie("jwt_token", "", expires=0)
-    return resp

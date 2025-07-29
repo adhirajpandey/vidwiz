@@ -12,11 +12,14 @@ def jwt_required(f):
             return jsonify({"error": "Missing or invalid Authorization header"}), 401
         token = auth_header.split(" ", 1)[1]
         try:
-            payload = jwt.decode(token, current_app.config["SECRET_KEY"], algorithms=["HS256"])
+            payload = jwt.decode(
+                token, current_app.config["SECRET_KEY"], algorithms=["HS256"]
+            )
             request.user_id = payload["user_id"]
         except Exception:
             return jsonify({"error": "Invalid or expired token"}), 401
         return f(*args, **kwargs)
+
     return decorated_function
 
 
