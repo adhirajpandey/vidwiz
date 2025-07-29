@@ -68,8 +68,8 @@ function saveNotesToBackend(url, notes, videoTitle, videoTimestamp) {
 	const noteData = {
 		video_id: videoId,
 		video_title: videoTitle,
-		note_timestamp: videoTimestamp,
-		note: notes || null // Ensure note is null if empty
+		timestamp: videoTimestamp,
+		text: notes || null // Ensure text is null if empty
 	}
 
 	fetch(apiEndpoint, {
