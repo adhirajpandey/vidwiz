@@ -93,15 +93,18 @@
     </div>
 
     <script>
+      // --- Constants & Globals ---
       const TOKEN = localStorage.getItem("notes-token");
       let noteToDelete = null;
 
-      // Utility Functions
+      // --- Utility Functions ---
+      // Convert timestamp (e.g., "01:23") to seconds
       function timestampToSeconds(timestamp) {
         const parts = timestamp.split(":").map(Number);
         return parts.reduce((seconds, value, index) => seconds + value * Math.pow(60, parts.length - 1 - index), 0);
       }
 
+      // Show a toast notification
       function showToast(message, type = 'success') {
         const toast = document.getElementById('toast');
         toast.textContent = message;
@@ -109,52 +112,53 @@
         setTimeout(() => toast.className = 'toast', 3000);
       }
 
-      // UI Element Creation Functions
+      // --- UI Element Creation ---
+      // Create a note list item element
       function createNoteElement(note) {
         const listItem = document.createElement("li");
         listItem.className = "flex items-center p-1.5 md:p-2 hover:bg-gray-50 rounded-lg transition-colors px-2 md:px-4 border-b border-gray-100 last:border-b-0";
 
-        // Add timestamp
+        // Timestamp section
         const timestampSection = document.createElement("div");
         timestampSection.className = "px-1 py-0.5 flex-shrink-0";
         const timestampLink = document.createElement("a");
-        timestampLink.href = `https://www.youtube.com/watch?v=${note.video_id}&t=${timestampToSeconds(note.note_timestamp)}s`;
+        timestampLink.href = `https://www.youtube.com/watch?v=${note.video_id}&t=${timestampToSeconds(note.timestamp)}s`;
         timestampLink.target = "_blank";
         timestampLink.className = "font-bold text-gray-800 text-sm md:text-base";
-        timestampLink.textContent = note.note_timestamp;
+        timestampLink.textContent = note.timestamp;
         timestampSection.appendChild(timestampLink);
         listItem.appendChild(timestampSection);
 
-        // Add indicator (AI/Human)
+        // Indicator (AI/Human)
         const indicatorMark = document.createElement("span");
         indicatorMark.className = "px-1 py-0.5 text-bold rounded-full not-italic mr-2";
-        if (note.note) {
-          indicatorMark.textContent = "👤";
-          indicatorMark.title = "Human Note";
-        } else {
+        if (note.generated_by_ai) {
           indicatorMark.textContent = "🤖";
           indicatorMark.title = "AI Generated";
+        } else {
+          indicatorMark.textContent = "👤";
+          indicatorMark.title = "Human Note";
         }
         listItem.appendChild(indicatorMark);
 
-        // Add note content
+        // Note content
         const noteContentContainer = document.createElement("div");
         noteContentContainer.className = "flex-grow pr-2 md:pr-4";
-        const noteText = document.createElement(note.note ? "span" : "div");
-        noteText.className = note.note ? "text-gray-700 text-sm md:text-base" : "text-gray-700 italic text-sm md:text-base";
-        noteText.textContent = note.note || note.ai_note || "";
+        const noteText = document.createElement("span");
+        noteText.className = "text-gray-700 text-sm md:text-base";
+        noteText.textContent = note.text || "";
         noteText.dataset.noteId = note.id;
-        noteText.dataset.originalText = note.note || note.ai_note || "";
+        noteText.dataset.originalText = note.text || "";
         noteContentContainer.appendChild(noteText);
         listItem.appendChild(noteContentContainer);
 
-        // Add action buttons
+        // Action buttons
         const actionsContainer = document.createElement("div");
         actionsContainer.className = "flex items-center space-x-4 text-gray-600";
 
         // Open button
         const openLink = document.createElement("a");
-        openLink.href = `https://www.youtube.com/watch?v=${note.video_id}&t=${timestampToSeconds(note.note_timestamp)}s`;
+        openLink.href = `https://www.youtube.com/watch?v=${note.video_id}&t=${timestampToSeconds(note.timestamp)}s`;
         openLink.target = "_blank";
         openLink.className = "hover:text-red-600 transition-colors";
         openLink.innerHTML = '<i class="fas fa-external-link-alt" title="Open in YouTube"></i>';
@@ -186,11 +190,11 @@
         return listItem;
       }
 
-      // Note Management Functions
+      // --- Note Editing ---
+      // Start editing a note (inline textarea)
       function startEditing(note) {
         const noteElement = document.querySelector(`[data-note-id="${note.id}"]`);
         if (!noteElement) return;
-
         const originalText = noteElement.textContent;
         noteElement.dataset.originalText = originalText;
 
@@ -235,6 +239,7 @@
         textarea.focus();
       }
 
+      // Restore note element after editing
       function restoreNoteElement(container, note, text) {
         const listItem = container.closest('li');
         if (listItem) {
@@ -245,7 +250,6 @@
             indicatorMark.title = "Human Note";
           }
         }
-
         const newNoteElement = document.createElement('span');
         newNoteElement.className = "text-gray-700 text-sm md:text-base";
         newNoteElement.textContent = text;
@@ -255,7 +259,8 @@
         container.appendChild(newNoteElement);
       }
 
-      // API Functions
+      // --- API Functions ---
+      // Save edited note
       async function saveEdit(noteId, newText) {
         try {
           const response = await fetch(`/notes/${noteId}`, {
@@ -264,15 +269,13 @@
               "Content-Type": "application/json",
               Authorization: `Bearer ${TOKEN}`,
             },
-            body: JSON.stringify({ note: newText }),
+            body: JSON.stringify({ text: newText }),
           });
-
           if (!response.ok) throw new Error("Failed to update note");
-
           const textarea = document.querySelector(`textarea[data-note-id="${noteId}"]`);
           if (textarea) {
             const container = textarea.parentElement;
-            const note = { id: noteId, note: newText };
+            const note = { id: noteId, text: newText };
             restoreNoteElement(container, note, newText);
           }
           showToast('Note updated successfully');
@@ -282,16 +285,15 @@
         }
       }
 
+      // Show delete confirmation modal
       function showDeleteConfirmation(noteId) {
         noteToDelete = noteId;
         const modal = document.getElementById('deleteModal');
         modal.classList.add('show');
-
         document.getElementById('cancelDelete').onclick = () => {
           modal.classList.remove('show');
           noteToDelete = null;
         };
-
         document.getElementById('confirmDelete').onclick = () => {
           modal.classList.remove('show');
           if (noteToDelete) {
@@ -301,15 +303,14 @@
         };
       }
 
+      // Delete a note
       async function deleteNote(noteId) {
         try {
           const response = await fetch(`/notes/${noteId}`, {
             method: "DELETE",
             headers: { Authorization: `Bearer ${TOKEN}` },
           });
-
           if (!response.ok) throw new Error("Failed to delete note");
-
           const noteElement = document.querySelector(`[data-note-id="${noteId}"]`);
           if (noteElement) {
             const listItem = noteElement.closest('li');
@@ -322,27 +323,19 @@
         }
       }
 
-      async function search() {
+      // Fetch and display all notes for the current video
+      async function getNotes() {
         try {
           const currentVideoId = window.location.pathname.split("/").pop();
-          const response = await fetch(`/video-notes/${currentVideoId}`, {
+          const response = await fetch(`/notes/${currentVideoId}`, {
             method: "GET",
             headers: { Authorization: `Bearer ${TOKEN}` },
           });
-
           if (!response.ok) throw new Error("Failed to fetch notes");
-
           const data = await response.json();
-          const videoTitle = document.querySelector("#video-title");
-          videoTitle.textContent = data[0].video_title;
-          
-          const watchButton = document.querySelector("#watch-button");
-          watchButton.href = `https://www.youtube.com/watch?v=${data[0].video_id}`;
-
           const contentDiv = document.querySelector("#notes-content");
           contentDiv.innerHTML = "";
-
-          data.sort((a, b) => timestampToSeconds(a.note_timestamp) - timestampToSeconds(b.note_timestamp));
+          data.sort((a, b) => timestampToSeconds(a.timestamp) - timestampToSeconds(b.timestamp));
           data.forEach(note => contentDiv.appendChild(createNoteElement(note)));
         } catch (error) {
           console.error("Error fetching notes:", error);
@@ -350,7 +343,34 @@
         }
       }
 
-      document.addEventListener("DOMContentLoaded", search);
+      // --- Video Details ---
+      // Fetch and display video details (title, watch button)
+      async function fetchVideoDetails() {
+        try {
+          const currentVideoId = window.location.pathname.split("/").pop();
+          const response = await fetch(`/videos/${currentVideoId}`, {
+            method: "GET",
+            headers: { Authorization: `Bearer ${TOKEN}` },
+          });
+          if (!response.ok) throw new Error("Failed to fetch video details");
+          const data = await response.json();
+          // Populate title only
+          const videoTitle = document.querySelector("#video-title");
+          videoTitle.textContent = data.title || "Untitled Video";
+          // Set watch button to YouTube video
+          const watchButton = document.querySelector("#watch-button");
+          watchButton.href = `https://www.youtube.com/watch?v=${data.video_id}`;
+        } catch (error) {
+          console.error("Error fetching video details:", error);
+          showToast('Failed to load video details', 'error');
+        }
+      }
+
+      // --- DOM Ready: Initial fetches ---
+      document.addEventListener("DOMContentLoaded", () => {
+        fetchVideoDetails();
+        getNotes();
+      });
     </script>
   </body>
 </html>
