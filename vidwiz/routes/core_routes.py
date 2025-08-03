@@ -21,7 +21,6 @@ def get_dashboard_page():
 
 
 @core_bp.route("/dashboard/<video_id>", methods=["GET"])
-@jwt_required
 def get_video_page(video_id):
     return render_template("video.html")
 
