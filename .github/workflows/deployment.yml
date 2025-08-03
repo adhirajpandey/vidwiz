@@ -13,24 +13,20 @@ jobs:
       - name: Checkout Code
         uses: actions/checkout@v3
 
-      - name: Build Docker image
-        run: docker build -t ${{ secrets.DOCKERHUB_USERNAME }}/vidwiz:latest .
-
-      - name: Login to Docker Hub
-        run: echo "${{ secrets.DOCKERHUB_PASSWORD }}" | docker login -u "${{ secrets.DOCKERHUB_USERNAME }}" --password-stdin
-
-      - name: Push image to Docker Hub
-        run: docker push ${{ secrets.DOCKERHUB_USERNAME }}/vidwiz:latest
-
       - name: Deploy to Server via SSH
         uses: appleboy/ssh-action@v1.0.0
         with:
-          host: ${{ secrets.EC2_HOST }}
-          username: ${{ secrets.EC2_USER }}
-          key: ${{ secrets.EC2_SSH_KEY }}
+          host: ${{ secrets.RPI_HOST }}
+          username: ${{ secrets.RPI_USER }}
+          password: ${{ secrets.RPI_PASSWORD }}
+          port: 22
+          proxy_host: ${{ secrets.EC2_HOST }}
+          proxy_username: ${{ secrets.EC2_USER }}
+          proxy_key: ${{ secrets.EC2_SSH_KEY }}
           script: |
             cd ${{ secrets.SERVER_REPO_PATH }} && git pull
-            docker pull ${{ secrets.DOCKERHUB_USERNAME }}/vidwiz:latest
-            docker rm -f vidwiz-app || true
-            docker run --env-file ${{ secrets.SERVER_REPO_PATH }}/projects/vidwiz/.env -d --name vidwiz-app -p 5000:5000 ${{ secrets.DOCKERHUB_USERNAME }}/vidwiz:latest
-            docker image prune -f
+            cp ${{ secrets.SERVER_REPO_PATH }}/projects/vidwiz/.env ${{ secrets.VIDWIZ_REPO_PATH }}/.env
+            cd ${{ secrets.VIDWIZ_REPO_PATH }} && git pull
+            docker compose down
+            docker rmi vidwiz_app:latest || true
+            docker compose up -d --build
