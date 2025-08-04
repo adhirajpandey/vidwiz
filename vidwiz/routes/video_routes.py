@@ -11,9 +11,7 @@ video_bp = Blueprint("video", __name__)
 @jwt_required
 def get_video(video_id):
     try:
-        video = Video.query.filter_by(
-            video_id=video_id, user_id=request.user_id
-        ).first()
+        video = Video.query.filter_by(video_id=video_id).first()
         if not video:
             return jsonify({"error": "Video not found"}), 404
         return jsonify(VideoRead.model_validate(video).model_dump()), 200
@@ -34,9 +32,7 @@ def update_video(video_id):
         except ValidationError as e:
             return jsonify({"error": f"Invalid data: {str(e)}"}), 400
 
-        video = Video.query.filter_by(
-            video_id=video_id, user_id=request.user_id
-        ).first()
+        video = Video.query.filter_by(video_id=video_id).first()
         if not video:
             return jsonify({"error": "Video not found"}), 404
 

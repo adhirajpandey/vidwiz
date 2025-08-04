@@ -19,10 +19,8 @@ def create_note():
         except ValidationError as e:
             return jsonify({"error": f"Invalid data: {str(e)}"}), 400
 
-        # Check if video exists for this user
-        video = Video.query.filter_by(
-            video_id=note_data.video_id, user_id=request.user_id
-        ).first()
+        # Check if video exists
+        video = Video.query.filter_by(video_id=note_data.video_id).first()
         if not video:
             if not note_data.video_title:
                 return jsonify(
@@ -31,7 +29,6 @@ def create_note():
             video = Video(
                 video_id=note_data.video_id,
                 title=note_data.video_title,
-                user_id=request.user_id,
             )
             db.session.add(video)
             db.session.commit()
