@@ -291,3 +291,89 @@ class TestSendRequestToAINoteLambda:
 
         # Function should return None when connection error occurs
         assert result is None
+
+    def test_jwt_required_decorator_multiple_bearer_tokens(self, app):
+        """Test JWT decorator with multiple Bearer tokens in header"""
+        with app.app_context():
+
+            @jwt_required
+            def test_route():
+                return {"success": True}
+
+            # Mock request with malformed header containing multiple Bearer tokens
+            with app.test_request_context(
+                "/test", headers={"Authorization": "Bearer token1 Bearer token2"}
+            ):
+                result = test_route()
+                assert result[1] == 401
+                assert result[0].get_json()["error"] == "Invalid or expired token"
+
+    def test_jwt_required_decorator_empty_token(self, app):
+        """Test JWT decorator with empty token after Bearer"""
+        with app.app_context():
+
+            @jwt_required
+            def test_route():
+                return {"success": True}
+
+            # Mock request with empty token
+            with app.test_request_context(
+                "/test", headers={"Authorization": "Bearer "}
+            ):
+                result = test_route()
+                assert result[1] == 401
+                assert result[0].get_json()["error"] == "Invalid or expired token"
+
+    def test_jwt_required_decorator_malformed_jwt(self, app):
+        """Test JWT decorator with malformed JWT token"""
+        with app.app_context():
+
+            @jwt_required
+            def test_route():
+                return {"success": True}
+
+            # Mock request with malformed JWT
+            with app.test_request_context(
+                "/test", headers={"Authorization": "Bearer not.a.valid.jwt"}
+            ):
+                result = test_route()
+                assert result[1] == 401
+                assert result[0].get_json()["error"] == "Invalid or expired token"
+
+    def test_send_request_special_characters_in_payload(self):
+        """Test send request with special characters in payload"""
+        payload = {
+            "text": "Test with special chars: áéíóú ñ 中文 🎥",
+            "video_id": "vid_123_测试",
+        }
+        lambda_url = "https://test-lambda.com/invoke"
+        auth_token = "test_token"
+
+        with patch("vidwiz.shared.utils.requests.post") as mock_post:
+            mock_post.return_value.status_code = 200
+
+            send_request_to_ainote_lambda(payload, lambda_url, auth_token)
+
+            # Should handle unicode characters without issues
+            mock_post.assert_called_once()
+            args, kwargs = mock_post.call_args
+            assert kwargs["json"] == payload
+
+    def test_send_request_large_payload(self):
+        """Test send request with large payload"""
+        payload = {
+            "text": "x" * 10000,  # Large text payload
+            "video_id": "vid_123",
+        }
+        lambda_url = "https://test-lambda.com/invoke"
+        auth_token = "test_token"
+
+        with patch("vidwiz.shared.utils.requests.post") as mock_post:
+            mock_post.return_value.status_code = 200
+
+            send_request_to_ainote_lambda(payload, lambda_url, auth_token)
+
+            # Should handle large payloads
+            mock_post.assert_called_once()
+            args, kwargs = mock_post.call_args
+            assert len(kwargs["json"]["text"]) == 10000

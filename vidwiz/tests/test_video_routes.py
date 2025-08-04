@@ -316,3 +316,74 @@ class TestGetVideoRoute:
         assert data["title"] == "Video with Notes"
         # Note: The current implementation doesn't include notes in the response
         # This test ensures the video can still be retrieved when it has notes
+
+    def test_get_video_very_long_video_id(self, client, auth_headers, sample_data):
+        """Test get video with very long video ID"""
+        with client.application.app_context():
+            long_video_id = "a" * 500  # Very long video ID
+            video = Video(
+                video_id=long_video_id,
+                title="Long ID Video",
+                user_id=1,
+            )
+            db.session.add(video)
+            db.session.commit()
+
+        response = client.get(f"/videos/{long_video_id}", headers=auth_headers)
+        assert response.status_code == 200
+        data = response.get_json()
+        assert data["video_id"] == long_video_id
+
+    def test_get_video_unicode_characters(self, client, auth_headers, sample_data):
+        """Test get video with unicode characters in video ID"""
+        with client.application.app_context():
+            unicode_video_id = "vid_测试_🎥"
+            video = Video(
+                video_id=unicode_video_id,
+                title="Unicode Video",
+                user_id=1,
+            )
+            db.session.add(video)
+            db.session.commit()
+
+        # URL encode the unicode characters
+        import urllib.parse
+
+        encoded_id = urllib.parse.quote(unicode_video_id, safe="")
+
+        response = client.get(f"/videos/{encoded_id}", headers=auth_headers)
+        assert response.status_code == 200
+        data = response.get_json()
+        assert data["video_id"] == unicode_video_id
+
+    def test_get_video_boolean_transcript_flag(self, client, auth_headers, sample_data):
+        """Test that transcript_available boolean is correctly returned"""
+        with client.application.app_context():
+            # Test with transcript available
+            video_with_transcript = Video(
+                video_id="vid_with_transcript",
+                title="Video with Transcript",
+                transcript_available=True,
+                user_id=1,
+            )
+            # Test with transcript not available
+            video_without_transcript = Video(
+                video_id="vid_without_transcript",
+                title="Video without Transcript",
+                transcript_available=False,
+                user_id=1,
+            )
+            db.session.add_all([video_with_transcript, video_without_transcript])
+            db.session.commit()
+
+        # Test video with transcript
+        response = client.get("/videos/vid_with_transcript", headers=auth_headers)
+        assert response.status_code == 200
+        data = response.get_json()
+        assert data["transcript_available"] is True
+
+        # Test video without transcript
+        response = client.get("/videos/vid_without_transcript", headers=auth_headers)
+        assert response.status_code == 200
+        data = response.get_json()
+        assert data["transcript_available"] is False

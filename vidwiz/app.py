@@ -45,21 +45,22 @@ def create_app(test_config=None):
     return app
 
 
-app = create_app()
-
-with app.app_context():
-    try:
-        db.session.execute(text("SELECT 1"))
-        db.create_all()
-        print("✅ Database connected and tables ready.")
-    except Exception as e:
-        print(f"❌ Failed to connect to the database: {e}")
-        sys.exit(1)
+def verify_database_connection(app):
+    """Check DB connectivity; exit if unavailable."""
+    with app.app_context():
+        try:
+            db.session.execute(text("SELECT 1"))
+            db.create_all()
+            print("✅ Database connected and tables ready.")
+        except Exception as e:
+            print(f"❌ Failed to connect to the database: {e}")
+            sys.exit(1)
 
 
 def main():
     app = create_app()
-    app.run(debug=True)  # or without debug for production
+    verify_database_connection(app)
+    app.run(debug=True)
 
 
 if __name__ == "__main__":

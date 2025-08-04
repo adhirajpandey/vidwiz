@@ -447,8 +447,8 @@ class TestDataConsistency:
             db.session.commit()
 
             # Verify notes were cascade deleted
-            assert Note.query.get(note1_id) is None
-            assert Note.query.get(note2_id) is None
+            assert db.session.get(Note, note1_id) is None
+            assert db.session.get(Note, note2_id) is None
 
 
 class TestPerformance:
@@ -506,3 +506,171 @@ class TestPerformance:
         assert response.status_code == 200
         results = response.get_json()
         assert len(results) == 100
+
+
+class TestAPIConsistency:
+    """Test API consistency and data integrity across endpoints"""
+
+    def test_note_creation_and_video_retrieval_consistency(self, client, app):
+        """Test that creating notes and retrieving videos maintains consistency"""
+        with app.app_context():
+            # Create user
+            user = User(username="testuser", password_hash="hashed_password")
+            db.session.add(user)
+            db.session.commit()
+
+            # Create JWT token
+            token = jwt.encode(
+                {
+                    "user_id": user.id,
+                    "username": user.username,
+                    "exp": datetime.now(timezone.utc) + timedelta(hours=1),
+                },
+                app.config["SECRET_KEY"],
+                algorithm="HS256",
+            )
+            auth_headers = {"Authorization": f"Bearer {token}"}
+
+        # Create note (should create video automatically)
+        payload = {
+            "video_id": "vid123",
+            "video_title": "Auto-created Video",
+            "timestamp": "1:23",
+            "text": "Test note",
+        }
+        response = client.post("/notes", json=payload, headers=auth_headers)
+        assert response.status_code == 201
+
+        # Retrieve video via video endpoint
+        response = client.get("/videos/vid123", headers=auth_headers)
+        assert response.status_code == 200
+        video_data = response.get_json()
+        assert video_data["title"] == "Auto-created Video"
+
+        # Retrieve notes via notes endpoint
+        response = client.get("/notes/vid123", headers=auth_headers)
+        assert response.status_code == 200
+        notes_data = response.get_json()
+        assert len(notes_data) == 1
+        assert notes_data[0]["text"] == "Test note"
+
+    def test_cross_endpoint_user_isolation(self, client, app):
+        """Test that user isolation is maintained across all endpoints"""
+        with app.app_context():
+            # Create two users
+            user1 = User(username="user1", password_hash="hash1")
+            user2 = User(username="user2", password_hash="hash2")
+            db.session.add_all([user1, user2])
+            db.session.commit()
+
+            # Create tokens for both users
+            token1 = jwt.encode(
+                {
+                    "user_id": user1.id,
+                    "username": user1.username,
+                    "exp": datetime.now(timezone.utc) + timedelta(hours=1),
+                },
+                app.config["SECRET_KEY"],
+                algorithm="HS256",
+            )
+            token2 = jwt.encode(
+                {
+                    "user_id": user2.id,
+                    "username": user2.username,
+                    "exp": datetime.now(timezone.utc) + timedelta(hours=1),
+                },
+                app.config["SECRET_KEY"],
+                algorithm="HS256",
+            )
+            auth_headers1 = {"Authorization": f"Bearer {token1}"}
+            auth_headers2 = {"Authorization": f"Bearer {token2}"}
+
+        # User 1 creates a note
+        payload = {
+            "video_id": "private_vid",
+            "video_title": "Private Video",
+            "timestamp": "1:23",
+            "text": "Private note",
+        }
+        response = client.post("/notes", json=payload, headers=auth_headers1)
+        assert response.status_code == 201
+        note_id = response.get_json()["id"]
+
+        # User 2 tries to access User 1's video - should fail
+        response = client.get("/videos/private_vid", headers=auth_headers2)
+        assert response.status_code == 404
+
+        # User 2 tries to access User 1's notes - should get empty list
+        response = client.get("/notes/private_vid", headers=auth_headers2)
+        assert response.status_code == 200
+        assert response.get_json() == []
+
+        # User 2 tries to delete User 1's note - should fail
+        response = client.delete(f"/notes/{note_id}", headers=auth_headers2)
+        assert response.status_code == 404
+
+        # User 2 tries to update User 1's note - should fail
+        response = client.patch(
+            f"/notes/{note_id}",
+            json={"text": "Hacked note", "generated_by_ai": False},
+            headers=auth_headers2,
+        )
+        assert response.status_code == 404
+
+    def test_concurrent_operations_data_integrity(self, client, app):
+        """Test data integrity during concurrent-like operations"""
+        with app.app_context():
+            # Create user
+            user = User(username="testuser", password_hash="hashed_password")
+            db.session.add(user)
+            db.session.commit()
+
+            token = jwt.encode(
+                {
+                    "user_id": user.id,
+                    "username": user.username,
+                    "exp": datetime.now(timezone.utc) + timedelta(hours=1),
+                },
+                app.config["SECRET_KEY"],
+                algorithm="HS256",
+            )
+            auth_headers = {"Authorization": f"Bearer {token}"}
+
+        # Create multiple notes for the same video rapidly
+        video_id = "concurrent_vid"
+        note_ids = []
+
+        for i in range(10):
+            payload = {
+                "video_id": video_id,
+                "video_title": f"Video {i}"
+                if i == 0
+                else None,  # Only provide title once
+                "timestamp": f"0:{i:02d}",
+                "text": f"Note {i}",
+            }
+            response = client.post("/notes", json=payload, headers=auth_headers)
+            assert response.status_code == 201
+            note_ids.append(response.get_json()["id"])
+
+        # Verify all notes were created
+        response = client.get(f"/notes/{video_id}", headers=auth_headers)
+        assert response.status_code == 200
+        notes = response.get_json()
+        assert len(notes) == 10
+
+        # Verify video was created only once
+        response = client.get(f"/videos/{video_id}", headers=auth_headers)
+        assert response.status_code == 200
+        video = response.get_json()
+        assert video["title"] == "Video 0"  # Should use title from first note creation
+
+        # Clean up by deleting all notes
+        for note_id in note_ids:
+            response = client.delete(f"/notes/{note_id}", headers=auth_headers)
+            assert response.status_code == 200
+
+        # Verify all notes are deleted
+        response = client.get(f"/notes/{video_id}", headers=auth_headers)
+        assert response.status_code == 200
+        assert response.get_json() == []
