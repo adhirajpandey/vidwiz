@@ -31,12 +31,11 @@ def get_search_results():
     query = request.args.get("query", None)
     if query is None:
         return jsonify({"error": "Query parameter is required"}), 400
-    # Only include videos that have at least one note, and belong to the current user
+    # Only include videos that have at least one note owned by the current user
     videos = (
-        Video.query.filter(
-            Video.title.ilike(f"%{query}%"), Video.user_id == request.user_id
-        )
+        Video.query.filter(Video.title.ilike(f"%{query}%"))
         .join(Note, Video.video_id == Note.video_id)
+        .filter(Note.user_id == request.user_id)
         .group_by(Video.id)
         .order_by(Video.created_at.desc())
         .all()
@@ -57,7 +56,7 @@ def signup():
             data = request.get_json()
         else:
             data = request.form
-            
+
         username = data.get("username")
         password = data.get("password")
 
@@ -65,24 +64,29 @@ def signup():
             if request.is_json:
                 return jsonify({"error": "Username and password required."}), 400
             else:
-                return render_template("signup.html", error="Username and password required"), 200
-                
+                return render_template(
+                    "signup.html", error="Username and password required"
+                ), 200
+
         if User.query.filter_by(username=username).first():
             if request.is_json:
                 return jsonify({"error": "Username already exists."}), 400
             else:
-                return render_template("signup.html", error="Username already exists"), 200
+                return render_template(
+                    "signup.html", error="Username already exists"
+                ), 200
 
         user = User(username=username, password_hash=generate_password_hash(password))
         db.session.add(user)
         db.session.commit()
-        
+
         if request.is_json:
             return jsonify({"message": "User created successfully"}), 201
         else:
             from flask import redirect, url_for
+
             return redirect(url_for("core.login"))
-            
+
     return render_template("signup.html")
 
 
@@ -94,7 +98,7 @@ def login():
             data = request.get_json()
         else:
             data = request.form
-            
+
         username = data.get("username")
         password = data.get("password")
 
@@ -102,15 +106,19 @@ def login():
             if request.is_json:
                 return jsonify({"error": "Username and password required."}), 400
             else:
-                return render_template("login.html", error="Username and password required"), 200
-                
+                return render_template(
+                    "login.html", error="Username and password required"
+                ), 200
+
         user = User.query.filter_by(username=username).first()
         if not user or not check_password_hash(user.password_hash, password):
             if request.is_json:
                 return jsonify({"error": "Invalid username or password."}), 401
             else:
-                return render_template("login.html", error="Invalid username or password"), 200
-                
+                return render_template(
+                    "login.html", error="Invalid username or password"
+                ), 200
+
         token = jwt.encode(
             {
                 "user_id": user.id,
@@ -120,11 +128,12 @@ def login():
             current_app.config["SECRET_KEY"],
             algorithm="HS256",
         )
-        
+
         if request.is_json:
             return jsonify({"token": token})
         else:
             from flask import redirect, url_for
+
             return redirect(url_for("core.get_dashboard_page"))
-            
+
     return render_template("login.html")
