@@ -10,6 +10,7 @@ from vidwiz.routes.video_routes import video_bp
 from vidwiz.routes.notes_routes import notes_bp
 from vidwiz.routes.core_routes import core_bp
 from vidwiz.routes.admin_routes import admin_bp
+from vidwiz.routes.transcript_routes import transcript_bp
 from sqlalchemy import text
 
 load_dotenv()
@@ -43,6 +44,7 @@ def create_app(test_config=None):
     app.register_blueprint(video_bp)
     app.register_blueprint(notes_bp)
     app.register_blueprint(admin_bp)
+    app.register_blueprint(transcript_bp)
 
     return app
 
