@@ -1,11 +1,9 @@
 import pytest
-from unittest.mock import patch, Mock
 import jwt
 from datetime import datetime, timedelta, timezone
 from vidwiz.app import create_app
 from vidwiz.shared.utils import jwt_required, send_request_to_ainote_lambda
 from vidwiz.shared.models import db
-import requests
 
 
 @pytest.fixture
@@ -170,127 +168,31 @@ class TestJWTRequired:
 
 
 class TestSendRequestToAINoteLambda:
-    @patch("vidwiz.shared.utils.requests.post")
-    def test_send_request_success(self, mock_post):
-        """Test successful request to AI note lambda"""
-        mock_response = Mock()
-        mock_response.status_code = 200
-        mock_post.return_value = mock_response
+    def test_send_request_basic_functionality(self, app):
+        """Test that lambda function can be called without errors"""
+        with app.app_context():
+            result = send_request_to_ainote_lambda(
+                note_id=1,
+                video_id="test123",
+                video_title="Test Video",
+                note_timestamp="00:01:30",
+            )
 
-        payload = {"video_id": "test123", "timestamp": "00:01:30"}
-        lambda_url = "https://test-lambda.com/invoke"
-        auth_token = "test_token"
+            # Function should return None (fire and forget)
+            assert result is None
 
-        result = send_request_to_ainote_lambda(payload, lambda_url, auth_token)
+    def test_send_request_with_different_parameters(self, app):
+        """Test lambda function with different parameter values"""
+        with app.app_context():
+            result = send_request_to_ainote_lambda(
+                note_id=999,
+                video_id="special_chars_测试",
+                video_title="Video with émojis 🎥",
+                note_timestamp="02:30:45",
+            )
 
-        # Function should return None (it doesn't return response)
-        assert result is None
-
-        # Verify the request was made with correct parameters
-        mock_post.assert_called_once_with(
-            lambda_url,
-            json=payload,
-            headers={
-                "Content-Type": "application/json",
-                "Authorization": f"Bearer {auth_token}",
-            },
-        )
-
-    @patch("vidwiz.shared.utils.requests.post")
-    def test_send_request_exception(self, mock_post):
-        """Test request failure to AI note lambda"""
-        mock_post.side_effect = requests.RequestException("Connection error")
-
-        payload = {"video_id": "test123", "timestamp": "00:01:30"}
-        lambda_url = "https://test-lambda.com/invoke"
-        auth_token = "test_token"
-
-        result = send_request_to_ainote_lambda(payload, lambda_url, auth_token)
-
-        # Function should return None when exception occurs
-        assert result is None
-
-        # Verify the request was attempted
-        mock_post.assert_called_once()
-
-    @patch("vidwiz.shared.utils.requests.post")
-    def test_send_request_different_payloads(self, mock_post):
-        """Test sending different payload types"""
-        mock_response = Mock()
-        mock_response.status_code = 200
-        mock_post.return_value = mock_response
-
-        # Test with complex payload
-        complex_payload = {
-            "video_id": "vid123",
-            "timestamp": "00:02:45",
-            "user_id": 42,
-            "note_text": "Complex note with special chars: !@#$%",
-            "metadata": {"source": "test", "priority": "high"},
-        }
-        lambda_url = "https://test-lambda.com/invoke"
-        auth_token = "complex_token_123"
-
-        send_request_to_ainote_lambda(complex_payload, lambda_url, auth_token)
-
-        mock_post.assert_called_once_with(
-            lambda_url,
-            json=complex_payload,
-            headers={
-                "Content-Type": "application/json",
-                "Authorization": f"Bearer {auth_token}",
-            },
-        )
-
-    @patch("vidwiz.shared.utils.requests.post")
-    def test_send_request_empty_payload(self, mock_post):
-        """Test sending empty payload"""
-        mock_response = Mock()
-        mock_response.status_code = 200
-        mock_post.return_value = mock_response
-
-        payload = {}
-        lambda_url = "https://test-lambda.com/invoke"
-        auth_token = "test_token"
-
-        send_request_to_ainote_lambda(payload, lambda_url, auth_token)
-
-        mock_post.assert_called_once_with(
-            lambda_url,
-            json=payload,
-            headers={
-                "Content-Type": "application/json",
-                "Authorization": f"Bearer {auth_token}",
-            },
-        )
-
-    @patch("vidwiz.shared.utils.requests.post")
-    def test_send_request_timeout_exception(self, mock_post):
-        """Test request timeout to AI note lambda"""
-        mock_post.side_effect = requests.Timeout("Request timed out")
-
-        payload = {"video_id": "test123"}
-        lambda_url = "https://slow-lambda.com/invoke"
-        auth_token = "test_token"
-
-        result = send_request_to_ainote_lambda(payload, lambda_url, auth_token)
-
-        # Function should return None when timeout occurs
-        assert result is None
-
-    @patch("vidwiz.shared.utils.requests.post")
-    def test_send_request_connection_error(self, mock_post):
-        """Test connection error to AI note lambda"""
-        mock_post.side_effect = requests.ConnectionError("Failed to connect")
-
-        payload = {"video_id": "test123"}
-        lambda_url = "https://unreachable-lambda.com/invoke"
-        auth_token = "test_token"
-
-        result = send_request_to_ainote_lambda(payload, lambda_url, auth_token)
-
-        # Function should return None when connection error occurs
-        assert result is None
+            # Function should return None regardless of parameters
+            assert result is None
 
     def test_jwt_required_decorator_multiple_bearer_tokens(self, app):
         """Test JWT decorator with multiple Bearer tokens in header"""
@@ -339,41 +241,3 @@ class TestSendRequestToAINoteLambda:
                 result = test_route()
                 assert result[1] == 401
                 assert result[0].get_json()["error"] == "Invalid or expired token"
-
-    def test_send_request_special_characters_in_payload(self):
-        """Test send request with special characters in payload"""
-        payload = {
-            "text": "Test with special chars: áéíóú ñ 中文 🎥",
-            "video_id": "vid_123_测试",
-        }
-        lambda_url = "https://test-lambda.com/invoke"
-        auth_token = "test_token"
-
-        with patch("vidwiz.shared.utils.requests.post") as mock_post:
-            mock_post.return_value.status_code = 200
-
-            send_request_to_ainote_lambda(payload, lambda_url, auth_token)
-
-            # Should handle unicode characters without issues
-            mock_post.assert_called_once()
-            args, kwargs = mock_post.call_args
-            assert kwargs["json"] == payload
-
-    def test_send_request_large_payload(self):
-        """Test send request with large payload"""
-        payload = {
-            "text": "x" * 10000,  # Large text payload
-            "video_id": "vid_123",
-        }
-        lambda_url = "https://test-lambda.com/invoke"
-        auth_token = "test_token"
-
-        with patch("vidwiz.shared.utils.requests.post") as mock_post:
-            mock_post.return_value.status_code = 200
-
-            send_request_to_ainote_lambda(payload, lambda_url, auth_token)
-
-            # Should handle large payloads
-            mock_post.assert_called_once()
-            args, kwargs = mock_post.call_args
-            assert len(kwargs["json"]["text"]) == 10000

@@ -2,7 +2,11 @@ from flask import Blueprint, request, jsonify, current_app
 from vidwiz.shared.models import Note, Video, db
 from vidwiz.shared.schemas import NoteRead, NoteCreate, NoteUpdate
 from pydantic import ValidationError
-from vidwiz.shared.utils import jwt_required, send_request_to_ainote_lambda
+from vidwiz.shared.utils import (
+    jwt_required,
+    send_request_to_ainote_lambda,
+    jwt_or_admin_required,
+)
 
 notes_bp = Blueprint("notes", __name__)
 
@@ -94,7 +98,7 @@ def delete_note(note_id):
 
 
 @notes_bp.route("/notes/<int:note_id>", methods=["PATCH"])
-@jwt_required
+@jwt_or_admin_required
 def update_note(note_id):
     try:
         data = request.json
@@ -105,7 +109,14 @@ def update_note(note_id):
         except ValidationError as e:
             return jsonify({"error": f"Invalid data: {str(e)}"}), 400
 
-        note = Note.query.filter_by(id=note_id, user_id=request.user_id).first()
+        # Admin can update any note, regular users can only update their own notes
+        if request.is_admin:
+            # Admin access - can update any note
+            note = Note.query.filter_by(id=note_id).first()
+        else:
+            # Regular user access - can only update their own notes
+            note = Note.query.filter_by(id=note_id, user_id=request.user_id).first()
+
         if not note:
             return jsonify({"error": "Note not found"}), 404
 

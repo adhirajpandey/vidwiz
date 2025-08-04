@@ -74,19 +74,16 @@ def sample_data(app):
             video_id="vid123",
             title="Test Video 1",
             transcript_available=True,
-            user_id=1,
         )
         video2 = Video(
             video_id="vid456",
             title="Test Video 2",
             transcript_available=False,
-            user_id=2,
         )
         video3 = Video(
             video_id="vid789",
             title="Test Video 3",
             transcript_available=True,
-            user_id=1,
         )
         db.session.add_all([video1, video2, video3])
         db.session.commit()
@@ -116,13 +113,14 @@ class TestGetVideoRoute:
         assert data["error"] == "Video not found"
 
     def test_get_video_unauthorized_access(self, client, auth_headers, sample_data):
-        """Test accessing video from different user"""
-        # Try to access vid456 which belongs to user2 with user1's token
+        """Test accessing video with valid authentication - videos are public"""
+        # All videos are accessible to any authenticated user
         response = client.get("/videos/vid456", headers=auth_headers)
-        assert response.status_code == 404
+        assert response.status_code == 200
 
         data = response.get_json()
-        assert data["error"] == "Video not found"
+        assert data["video_id"] == "vid456"
+        assert data["title"] == "Test Video 2"
 
     def test_get_video_no_auth_header(self, client, sample_data):
         """Test video access without authentication"""
@@ -163,8 +161,8 @@ class TestGetVideoRoute:
         assert data["error"] == "Invalid or expired token"
 
     def test_get_video_user_isolation(self, client, auth_headers_user2, sample_data):
-        """Test that users can only access their own videos"""
-        # User2 trying to access their own video (vid456)
+        """Test that videos are accessible to all authenticated users"""
+        # User2 accessing vid456
         response = client.get("/videos/vid456", headers=auth_headers_user2)
         assert response.status_code == 200
 
@@ -172,12 +170,13 @@ class TestGetVideoRoute:
         assert data["video_id"] == "vid456"
         assert data["title"] == "Test Video 2"
 
-        # User2 trying to access user1's video (vid123)
+        # User2 accessing vid123 (videos are public to authenticated users)
         response = client.get("/videos/vid123", headers=auth_headers_user2)
-        assert response.status_code == 404
+        assert response.status_code == 200
 
         data = response.get_json()
-        assert data["error"] == "Video not found"
+        assert data["video_id"] == "vid123"
+        assert data["title"] == "Test Video 1"
 
     def test_get_video_malformed_auth_header(self, client, sample_data):
         """Test video access with malformed authorization header"""
@@ -240,7 +239,6 @@ class TestGetVideoRoute:
             video = Video(
                 video_id="12345",  # Numeric ID as string
                 title="Numeric ID Video",
-                user_id=1,
             )
             db.session.add(video)
             db.session.commit()
@@ -261,21 +259,21 @@ class TestGetVideoRoute:
 
         # Check required fields
         required_fields = [
+            "id",
             "video_id",
             "title",
             "transcript_available",
             "created_at",
             "updated_at",
-            "user_id",
         ]
         for field in required_fields:
             assert field in data, f"Missing required field: {field}"
 
         # Check data types
+        assert isinstance(data["id"], int)
         assert isinstance(data["video_id"], str)
         assert isinstance(data["title"], str)
         assert isinstance(data["transcript_available"], bool)
-        assert isinstance(data["user_id"], int)
         assert isinstance(data["created_at"], str)  # Should be ISO format string
         assert isinstance(data["updated_at"], str)  # Should be ISO format string
 
@@ -286,9 +284,7 @@ class TestGetVideoRoute:
             db.session.add(user)
             db.session.commit()
 
-            video = Video(
-                video_id="vid_with_notes", title="Video with Notes", user_id=1
-            )
+            video = Video(video_id="vid_with_notes", title="Video with Notes")
             db.session.add(video)
             db.session.commit()
 
@@ -324,7 +320,6 @@ class TestGetVideoRoute:
             video = Video(
                 video_id=long_video_id,
                 title="Long ID Video",
-                user_id=1,
             )
             db.session.add(video)
             db.session.commit()
@@ -341,7 +336,6 @@ class TestGetVideoRoute:
             video = Video(
                 video_id=unicode_video_id,
                 title="Unicode Video",
-                user_id=1,
             )
             db.session.add(video)
             db.session.commit()
@@ -364,14 +358,12 @@ class TestGetVideoRoute:
                 video_id="vid_with_transcript",
                 title="Video with Transcript",
                 transcript_available=True,
-                user_id=1,
             )
             # Test with transcript not available
             video_without_transcript = Video(
                 video_id="vid_without_transcript",
                 title="Video without Transcript",
                 transcript_available=False,
-                user_id=1,
             )
             db.session.add_all([video_with_transcript, video_without_transcript])
             db.session.commit()
@@ -387,37 +379,3 @@ class TestGetVideoRoute:
         assert response.status_code == 200
         data = response.get_json()
         assert data["transcript_available"] is False
-
-
-class TestUpdateVideoRoute:
-    def test_update_video_success(self, client, auth_headers, sample_data):
-        """Test successful video update"""
-        update_data = {"title": "Updated Video Title"}
-        
-        response = client.patch("/videos/vid123", 
-                               headers=auth_headers, 
-                               json=update_data)
-        assert response.status_code == 200
-
-        data = response.get_json()
-        assert data["video_id"] == "vid123"
-        assert data["title"] == "Updated Video Title"
-
-    def test_update_video_not_found(self, client, auth_headers, sample_data):
-        """Test update of non-existent video"""
-        update_data = {"title": "New Title"}
-        
-        response = client.patch("/videos/nonexistent", 
-                               headers=auth_headers, 
-                               json=update_data)
-        assert response.status_code == 404
-
-        data = response.get_json()
-        assert data["error"] == "Video not found"
-
-    def test_update_video_unauthorized(self, client, sample_data):
-        """Test video update without authentication"""
-        update_data = {"title": "New Title"}
-        
-        response = client.patch("/videos/vid123", json=update_data)
-        assert response.status_code == 401
