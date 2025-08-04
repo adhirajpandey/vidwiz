@@ -384,7 +384,10 @@ def lambda_handler(event, context):
                 "Authorization": f"Bearer {AUTH_TOKEN}",
             }
             response = requests.patch(
-                update_url, headers=headers, json={"ai_note": ai_note}, timeout=10
+                update_url,
+                headers=headers,
+                json={"text": ai_note, "generated_by_ai": True},
+                timeout=10,
             )
             response.raise_for_status()
             update_response = response.json()
