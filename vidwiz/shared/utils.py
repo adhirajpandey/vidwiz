@@ -46,6 +46,37 @@ def admin_required(f):
     return decorated_function
 
 
+def jwt_or_admin_required(f):
+    @wraps(f)
+    def decorated_function(*args, **kwargs):
+        auth_header = request.headers.get("Authorization", "")
+        if not auth_header.startswith("Bearer "):
+            return jsonify({"error": "Missing or invalid Authorization header"}), 401
+        token = auth_header.split(" ", 1)[1]
+
+        # First check if it's an admin token
+        admin_token = os.getenv("ADMIN_TOKEN")
+        if admin_token and token == admin_token:
+            # Admin token - set a flag to indicate admin access
+            request.is_admin = True
+            request.user_id = None  # Admin doesn't have a specific user_id
+            return f(*args, **kwargs)
+
+        # If not admin token, try to decode as JWT
+        try:
+            payload = jwt.decode(
+                token, current_app.config["SECRET_KEY"], algorithms=["HS256"]
+            )
+            request.user_id = payload["user_id"]
+            request.is_admin = False
+        except Exception:
+            return jsonify({"error": "Invalid or expired token"}), 401
+
+        return f(*args, **kwargs)
+
+    return decorated_function
+
+
 def _send_lambda_request(
     note_id: int,
     video_id: str,
