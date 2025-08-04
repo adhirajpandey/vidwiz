@@ -1,8 +1,8 @@
-from flask import Blueprint, request, jsonify
+from flask import Blueprint, request, jsonify, current_app
 from vidwiz.shared.models import Note, Video, db
 from vidwiz.shared.schemas import NoteRead, NoteCreate, NoteUpdate
 from pydantic import ValidationError
-from vidwiz.shared.utils import jwt_required
+from vidwiz.shared.utils import jwt_required, send_request_to_ainote_lambda
 
 notes_bp = Blueprint("notes", __name__)
 
@@ -46,6 +46,23 @@ def create_note():
         )
         db.session.add(note)
         db.session.commit()
+
+        # Check if we should trigger AI note generation
+        should_trigger_ai = (
+            not note_data.text  # No text provided in payload
+            and video.transcript_available  # Video has transcript available
+            and current_app.config.get("AI_NOTE_TOGGLE", False)
+        )
+
+        if should_trigger_ai:
+            # Send request to lambda function (fire and forget)
+            send_request_to_ainote_lambda(
+                note_id=note.id,
+                video_id=note_data.video_id,
+                video_title=video.title,
+                note_timestamp=note_data.timestamp,
+            )
+
         return jsonify(NoteRead.model_validate(note).model_dump()), 201
     except Exception as e:
         db.session.rollback()

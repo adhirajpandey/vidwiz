@@ -1,7 +1,8 @@
-from flask import request, jsonify, current_app, redirect, url_for
+from flask import request, jsonify, current_app
 import jwt
 from functools import wraps
 import requests
+import threading
 
 
 def jwt_required(f):
@@ -23,18 +24,61 @@ def jwt_required(f):
     return decorated_function
 
 
-def send_request_to_ainote_lambda(
-    payload: dict, lambda_url: str, auth_token: str
-) -> None:
+def _send_lambda_request(
+    note_id: int,
+    video_id: str,
+    video_title: str,
+    note_timestamp: str,
+    lambda_url: str,
+    secret_key: str,
+):
     """
-    Helper function to send a request to the AI note generation Lambda function.
+    Internal function to send the actual request to Lambda.
+    This runs in a separate thread.
     """
     try:
         headers = {
             "Content-Type": "application/json",
-            "Authorization": f"Bearer {auth_token}",
+            "Authorization": f"Bearer {secret_key}",
+        }
+        payload = {
+            "id": note_id,
+            "video_id": video_id,
+            "video_title": video_title,
+            "note_timestamp": note_timestamp,
         }
         requests.post(lambda_url, json=payload, headers=headers)
     except requests.RequestException as e:
         print(f"Error sending request to Lambda: {e}")
-        return None
+
+
+def send_request_to_ainote_lambda(
+    note_id: int, video_id: str, video_title: str, note_timestamp: str
+) -> None:
+    """
+    Helper function to send a request to the AI note generation Lambda function.
+    Uses SECRET_KEY and LAMBDA_URL from app config.
+    Runs in a separate thread for fire-and-forget behavior.
+    """
+    try:
+        # Get config values from app
+        secret_key = current_app.config["SECRET_KEY"]
+        lambda_url = current_app.config["LAMBDA_URL"]
+
+        # Start the request in a separate thread (fire and forget)
+        thread = threading.Thread(
+            target=_send_lambda_request,
+            args=(
+                note_id,
+                video_id,
+                video_title,
+                note_timestamp,
+                lambda_url,
+                secret_key,
+            ),
+            daemon=True,
+        )
+        thread.start()
+        print(f"Lambda request initiated in background for note {note_id}")
+    except Exception as e:
+        print(f"Error initiating Lambda request: {e}")
