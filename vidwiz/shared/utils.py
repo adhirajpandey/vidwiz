@@ -3,6 +3,7 @@ import jwt
 from functools import wraps
 import requests
 import threading
+import os
 
 
 def jwt_required(f):
@@ -19,6 +20,27 @@ def jwt_required(f):
             request.user_id = payload["user_id"]
         except Exception:
             return jsonify({"error": "Invalid or expired token"}), 401
+        return f(*args, **kwargs)
+
+    return decorated_function
+
+
+def admin_required(f):
+    @wraps(f)
+    def decorated_function(*args, **kwargs):
+        auth_header = request.headers.get("Authorization", "")
+        if not auth_header.startswith("Bearer "):
+            return jsonify({"error": "Missing or invalid Authorization header"}), 401
+        token = auth_header.split(" ", 1)[1]
+
+        # Check if token matches ADMIN_TOKEN
+        admin_token = os.getenv("ADMIN_TOKEN")
+        if not admin_token:
+            return jsonify({"error": "Admin access not configured"}), 500
+
+        if token != admin_token:
+            return jsonify({"error": "Invalid admin token"}), 403
+
         return f(*args, **kwargs)
 
     return decorated_function

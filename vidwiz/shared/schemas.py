@@ -5,7 +5,7 @@ from datetime import datetime
 
 class VideoCreate(BaseModel):
     video_id: str
-    title: Optional[str] = None
+    title: str
     transcript_available: Optional[bool] = False
 
 
