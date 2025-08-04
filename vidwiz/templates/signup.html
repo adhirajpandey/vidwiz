@@ -25,9 +25,13 @@
       <div class="bg-white rounded-lg shadow-md p-6">
         <h2 class="text-2xl font-bold mb-4 text-gray-800">Sign Up</h2>
         {% if error %}
-          <div class="mb-4 text-red-600">{{ error }}</div>
+        <div class="mb-4 p-3 bg-red-100 border border-red-400 text-red-700 rounded">
+          {{ error }}
+        </div>
         {% endif %}
-        <form method="POST">
+        <div id="error-message" class="mb-4 text-red-600 hidden"></div>
+        <div id="success-message" class="mb-4 text-green-600 hidden"></div>
+        <form id="signup-form">
           <div class="mb-4">
             <label class="block text-gray-700 mb-2" for="username">Username</label>
             <input class="w-full px-3 py-2 border rounded-lg focus:outline-none focus:ring-2 focus:ring-red-500" type="text" id="username" name="username" required />
@@ -36,7 +40,9 @@
             <label class="block text-gray-700 mb-2" for="password">Password</label>
             <input class="w-full px-3 py-2 border rounded-lg focus:outline-none focus:ring-2 focus:ring-red-500" type="password" id="password" name="password" required />
           </div>
-          <button class="w-full bg-red-600 hover:bg-red-700 text-white font-bold py-2 px-4 rounded-lg transition-colors" type="submit">Sign Up</button>
+          <button id="submit-button" class="w-full bg-red-600 hover:bg-red-700 text-white font-bold py-2 px-4 rounded-lg transition-colors" type="submit">
+            Sign Up
+          </button>
         </form>
         <div class="mt-4 text-center">
           <span class="text-gray-600">Already have an account?</span>
@@ -44,5 +50,63 @@
         </div>
       </div>
     </div>
+
+    <script>
+      document.getElementById('signup-form').addEventListener('submit', async function(e) {
+        e.preventDefault();
+        
+        const username = document.getElementById('username').value;
+        const password = document.getElementById('password').value;
+        const submitButton = document.getElementById('submit-button');
+        const errorDiv = document.getElementById('error-message');
+        const successDiv = document.getElementById('success-message');
+        
+        // Clear previous messages
+        errorDiv.classList.add('hidden');
+        successDiv.classList.add('hidden');
+        
+        // Disable button and show loading state
+        submitButton.disabled = true;
+        submitButton.textContent = 'Signing Up...';
+        
+        try {
+          const response = await fetch('/signup', {
+            method: 'POST',
+            headers: {
+              'Content-Type': 'application/json',
+            },
+            body: JSON.stringify({
+              username: username,
+              password: password
+            })
+          });
+          
+          const data = await response.json();
+          
+          if (response.ok) {
+            // Success - show success message and redirect
+            successDiv.textContent = data.message;
+            successDiv.classList.remove('hidden');
+            
+            // Redirect to login page after a short delay
+            setTimeout(() => {
+              window.location.href = '/login';
+            }, 1500);
+          } else {
+            // Error - show error message
+            errorDiv.textContent = data.error || 'An error occurred during signup';
+            errorDiv.classList.remove('hidden');
+          }
+        } catch (error) {
+          console.error('Signup error:', error);
+          errorDiv.textContent = 'Network error. Please try again.';
+          errorDiv.classList.remove('hidden');
+        } finally {
+          // Re-enable button
+          submitButton.disabled = false;
+          submitButton.textContent = 'Sign Up';
+        }
+      });
+    </script>
   </body>
 </html> 

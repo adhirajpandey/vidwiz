@@ -4,7 +4,7 @@ from vidwiz.shared.models import Video, Note
 from werkzeug.security import generate_password_hash, check_password_hash
 import jwt
 from datetime import datetime, timedelta, timezone
-from flask import current_app, redirect, url_for, make_response
+from flask import current_app
 from vidwiz.shared.models import User, db
 
 core_bp = Blueprint("core", __name__)
@@ -52,33 +52,65 @@ def get_search_results():
 @core_bp.route("/signup", methods=["GET", "POST"])
 def signup():
     if request.method == "POST":
-        username = request.form.get("username")
-        password = request.form.get("password")
+        # Handle both JSON and form data
+        if request.is_json:
+            data = request.get_json()
+        else:
+            data = request.form
+            
+        username = data.get("username")
+        password = data.get("password")
+
         if not username or not password:
-            return render_template(
-                "signup.html", error="Username and password required."
-            )
+            if request.is_json:
+                return jsonify({"error": "Username and password required."}), 400
+            else:
+                return render_template("signup.html", error="Username and password required"), 200
+                
         if User.query.filter_by(username=username).first():
-            return render_template("signup.html", error="Username already exists.")
+            if request.is_json:
+                return jsonify({"error": "Username already exists."}), 400
+            else:
+                return render_template("signup.html", error="Username already exists"), 200
+
         user = User(username=username, password_hash=generate_password_hash(password))
         db.session.add(user)
         db.session.commit()
-        return redirect(url_for("core.login"))
+        
+        if request.is_json:
+            return jsonify({"message": "User created successfully"}), 201
+        else:
+            from flask import redirect, url_for
+            return redirect(url_for("core.login"))
+            
     return render_template("signup.html")
 
 
 @core_bp.route("/login", methods=["GET", "POST"])
 def login():
     if request.method == "POST":
-        data = request.get_json()
+        # Handle both JSON and form data
+        if request.is_json:
+            data = request.get_json()
+        else:
+            data = request.form
+            
         username = data.get("username")
         password = data.get("password")
 
         if not username or not password:
-            return jsonify({"error": "Username and password required."}), 400
+            if request.is_json:
+                return jsonify({"error": "Username and password required."}), 400
+            else:
+                return render_template("login.html", error="Username and password required"), 200
+                
         user = User.query.filter_by(username=username).first()
         if not user or not check_password_hash(user.password_hash, password):
-            return jsonify({"error": "Invalid username or password."}), 401
+            if request.is_json:
+                return jsonify({"error": "Invalid username or password."}), 401
+            else:
+                return render_template("login.html", error="Invalid username or password"), 200
+                
         token = jwt.encode(
             {
                 "user_id": user.id,
@@ -88,5 +120,11 @@ def login():
             current_app.config["SECRET_KEY"],
             algorithm="HS256",
         )
-        return jsonify({"token": token})
+        
+        if request.is_json:
+            return jsonify({"token": token})
+        else:
+            from flask import redirect, url_for
+            return redirect(url_for("core.get_dashboard_page"))
+            
     return render_template("login.html")

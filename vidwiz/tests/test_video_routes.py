@@ -387,3 +387,37 @@ class TestGetVideoRoute:
         assert response.status_code == 200
         data = response.get_json()
         assert data["transcript_available"] is False
+
+
+class TestUpdateVideoRoute:
+    def test_update_video_success(self, client, auth_headers, sample_data):
+        """Test successful video update"""
+        update_data = {"title": "Updated Video Title"}
+        
+        response = client.patch("/videos/vid123", 
+                               headers=auth_headers, 
+                               json=update_data)
+        assert response.status_code == 200
+
+        data = response.get_json()
+        assert data["video_id"] == "vid123"
+        assert data["title"] == "Updated Video Title"
+
+    def test_update_video_not_found(self, client, auth_headers, sample_data):
+        """Test update of non-existent video"""
+        update_data = {"title": "New Title"}
+        
+        response = client.patch("/videos/nonexistent", 
+                               headers=auth_headers, 
+                               json=update_data)
+        assert response.status_code == 404
+
+        data = response.get_json()
+        assert data["error"] == "Video not found"
+
+    def test_update_video_unauthorized(self, client, sample_data):
+        """Test video update without authentication"""
+        update_data = {"title": "New Title"}
+        
+        response = client.patch("/videos/vid123", json=update_data)
+        assert response.status_code == 401

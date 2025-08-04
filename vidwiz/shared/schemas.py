@@ -21,6 +21,16 @@ class VideoRead(BaseModel):
     model_config = {"from_attributes": True}
 
 
+class VideoUpdate(BaseModel):
+    title: Optional[str] = None
+    transcript_available: Optional[bool] = None
+
+    model_config = {
+        "from_attributes": True,
+        "extra": "forbid",
+    }
+
+
 class NoteCreate(BaseModel):
     video_id: str
     video_title: Optional[str] = None
