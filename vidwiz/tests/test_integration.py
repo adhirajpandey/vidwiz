@@ -222,13 +222,13 @@ class TestUserWorkflow:
         assert len(user2_results) == 1
         assert user2_results[0]["video_title"] == "User 2's Video"
 
-        # User 1 tries to access User 2's video - should fail
+        # User 1 tries to access User 2's video - should succeed because videos are public
         response = client.get("/videos/user2_video", headers=auth_headers1)
-        assert response.status_code == 404
+        assert response.status_code == 200
 
-        # User 2 tries to access User 1's video - should fail
+        # User 2 tries to access User 1's video - should succeed because videos are public
         response = client.get("/videos/user1_video", headers=auth_headers2)
-        assert response.status_code == 404
+        assert response.status_code == 200
 
     def test_error_handling_workflow(self, client, app):
         """Test various error scenarios in workflows"""
@@ -426,7 +426,7 @@ class TestDataConsistency:
             db.session.commit()
 
             # Create video and notes
-            video = Video(video_id="delete_test", title="Delete Test Video", user_id=1)
+            video = Video(video_id="delete_test", title="Delete Test Video")
             db.session.add(video)
             db.session.commit()
 
@@ -469,7 +469,6 @@ class TestPerformance:
                 video = Video(
                     video_id=f"perf_video_{i}",
                     title=f"Performance Test Video {i}",
-                    user_id=1,
                 )
                 videos.append(video)
 
@@ -596,9 +595,9 @@ class TestAPIConsistency:
         assert response.status_code == 201
         note_id = response.get_json()["id"]
 
-        # User 2 tries to access User 1's video - should fail
+        # User 2 tries to access User 1's video - should succeed because videos are public
         response = client.get("/videos/private_vid", headers=auth_headers2)
-        assert response.status_code == 404
+        assert response.status_code == 200
 
         # User 2 tries to access User 1's notes - should get empty list
         response = client.get("/notes/private_vid", headers=auth_headers2)

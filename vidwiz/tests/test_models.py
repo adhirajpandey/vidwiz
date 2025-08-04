@@ -56,13 +56,10 @@ class TestUserModel:
             db.session.add(user)
             db.session.commit()
 
-            # Test videos relationship
-            video = Video(video_id="vid123", title="Test Video", user_id=user.id)
+            # Create a video (videos don't belong to users directly)
+            video = Video(video_id="vid123", title="Test Video")
             db.session.add(video)
             db.session.commit()
-
-            assert len(user.videos) == 1
-            assert user.videos[0].title == "Test Video"
 
             # Test notes relationship
             note = Note(
@@ -87,7 +84,6 @@ class TestVideoModel:
                 video_id="vid123",
                 title="Test Video",
                 transcript_available=True,
-                user_id=user.id,
             )
             db.session.add(video)
             db.session.commit()
@@ -96,7 +92,6 @@ class TestVideoModel:
             assert video.video_id == "vid123"
             assert video.title == "Test Video"
             assert video.transcript_available is True
-            assert video.user_id == user.id
             assert video.created_at is not None
             assert video.updated_at is not None
 
@@ -107,8 +102,8 @@ class TestVideoModel:
             db.session.add(user)
             db.session.commit()
 
-            video1 = Video(video_id="vid123", title="Video 1", user_id=user.id)
-            video2 = Video(video_id="vid123", title="Video 2", user_id=user.id)
+            video1 = Video(video_id="vid123", title="Video 1")
+            video2 = Video(video_id="vid123", title="Video 2")
 
             db.session.add(video1)
             db.session.commit()
@@ -124,7 +119,7 @@ class TestVideoModel:
             db.session.add(user)
             db.session.commit()
 
-            video = Video(video_id="vid123", title="Test Video", user_id=user.id)
+            video = Video(video_id="vid123", title="Test Video")
             db.session.add(video)
             db.session.commit()
 
@@ -137,12 +132,9 @@ class TestVideoModel:
             db.session.add(user)
             db.session.commit()
 
-            video = Video(video_id="vid123", title="Test Video", user_id=user.id)
+            video = Video(video_id="vid123", title="Test Video")
             db.session.add(video)
             db.session.commit()
-
-            # Test user relationship
-            assert video.user.username == "testuser"
 
             # Test notes relationship
             note1 = Note(
@@ -166,7 +158,7 @@ class TestNoteModel:
             db.session.add(user)
             db.session.commit()
 
-            video = Video(video_id="vid123", title="Test Video", user_id=user.id)
+            video = Video(video_id="vid123", title="Test Video")
             db.session.add(video)
             db.session.commit()
 
@@ -196,7 +188,7 @@ class TestNoteModel:
             db.session.add(user)
             db.session.commit()
 
-            video = Video(video_id="vid123", title="Test Video", user_id=user.id)
+            video = Video(video_id="vid123", title="Test Video")
             db.session.add(video)
             db.session.commit()
 
@@ -215,7 +207,7 @@ class TestNoteModel:
             db.session.add(user)
             db.session.commit()
 
-            video = Video(video_id="vid123", title="Test Video", user_id=user.id)
+            video = Video(video_id="vid123", title="Test Video")
             db.session.add(video)
             db.session.commit()
 
@@ -238,7 +230,7 @@ class TestNoteModel:
             db.session.add(user)
             db.session.commit()
 
-            video = Video(video_id="vid123", title="Test Video", user_id=user.id)
+            video = Video(video_id="vid123", title="Test Video")
             db.session.add(video)
             db.session.commit()
 
@@ -256,7 +248,7 @@ class TestNoteModel:
             assert db.session.get(Note, note_id) is None
 
             # Re-create for user deletion test
-            video = Video(video_id="vid456", title="Test Video 2", user_id=user.id)
+            video = Video(video_id="vid456", title="Test Video 2")
             db.session.add(video)
             db.session.commit()
 
@@ -266,11 +258,11 @@ class TestNoteModel:
             db.session.add(note)
             db.session.commit()
             note_id = note.id
-            video_id = video.id
 
-            # Delete user should cascade delete videos and notes
+            # Delete user should cascade delete their notes (but not videos)
             db.session.delete(user)
             db.session.commit()
 
             assert db.session.get(Note, note_id) is None
-            assert db.session.get(Video, video_id) is None
+            # Videos remain as they don't belong to users
+            assert db.session.get(Video, video.id) is not None

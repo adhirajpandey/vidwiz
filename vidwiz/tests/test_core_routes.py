@@ -99,7 +99,7 @@ class TestSearchRoute:
             db.session.add(user)
             db.session.commit()
 
-            video = Video(video_id="vid1", title="Python Tutorial", user_id=1)
+            video = Video(video_id="vid1", title="Python Tutorial")
             db.session.add(video)
             db.session.commit()
 
@@ -124,7 +124,7 @@ class TestSearchRoute:
             db.session.add(user)
             db.session.commit()
 
-            video = Video(video_id="vid1", title="Java Tutorial", user_id=1)
+            video = Video(video_id="vid1", title="Java Tutorial")
             db.session.add(video)
             db.session.commit()
 
@@ -154,7 +154,7 @@ class TestSearchRoute:
             db.session.add(user)
             db.session.commit()
 
-            video = Video(video_id="vid1", title="Python Tutorial", user_id=1)
+            video = Video(video_id="vid1", title="Python Tutorial")
             db.session.add(video)
             db.session.commit()
 
@@ -183,9 +183,7 @@ class TestSearchRoute:
             db.session.add(user)
             db.session.commit()
 
-            video = Video(
-                video_id="vid1", title="Advanced Python Programming", user_id=1
-            )
+            video = Video(video_id="vid1", title="Advanced Python Programming")
             db.session.add(video)
             db.session.commit()
 
@@ -209,15 +207,11 @@ class TestSearchRoute:
             db.session.commit()
 
             # Video with notes
-            video_with_notes = Video(
-                video_id="vid1", title="Python Tutorial", user_id=1
-            )
+            video_with_notes = Video(video_id="vid1", title="Python Tutorial")
             db.session.add(video_with_notes)
 
             # Video without notes
-            video_without_notes = Video(
-                video_id="vid2", title="Python Advanced", user_id=1
-            )
+            video_without_notes = Video(video_id="vid2", title="Python Advanced")
             db.session.add(video_without_notes)
 
             db.session.commit()
@@ -245,8 +239,8 @@ class TestSearchRoute:
             db.session.commit()
 
             # Create videos for different users
-            video1 = Video(video_id="vid1", title="Python Tutorial", user_id=1)
-            video2 = Video(video_id="vid2", title="Python Advanced", user_id=2)
+            video1 = Video(video_id="vid1", title="Python Tutorial")
+            video2 = Video(video_id="vid2", title="Python Advanced")
             db.session.add_all([video1, video2])
             db.session.commit()
 
