@@ -4,6 +4,9 @@ from functools import wraps
 import requests
 import threading
 import os
+import boto3
+from vidwiz.shared.config import S3_BUCKET_NAME
+import json
 
 
 def jwt_required(f):
@@ -135,3 +138,39 @@ def send_request_to_ainote_lambda(
         print(f"Lambda request initiated in background for note {note_id}")
     except Exception as e:
         print(f"Error initiating Lambda request: {e}")
+
+
+def store_transcript_in_s3(video_id: str, transcript):
+    """Store transcript in S3."""
+    if not S3_BUCKET_NAME or not transcript:
+        return None
+
+    # Get AWS credentials from environment variables
+    aws_access_key_id = os.getenv("AWS_ACCESS_KEY_ID")
+    aws_secret_access_key = os.getenv("AWS_SECRET_ACCESS_KEY")
+    aws_region = os.getenv("AWS_REGION", "ap-south-1")
+
+    if not aws_access_key_id or not aws_secret_access_key:
+        print("Error: AWS credentials not found in environment variables")
+        return None
+
+    transcript_key = f"transcripts/{video_id}.json"
+    try:
+        s3_client = boto3.client(
+            "s3",
+            aws_access_key_id=aws_access_key_id,
+            aws_secret_access_key=aws_secret_access_key,
+            region_name=aws_region,
+        )
+        s3_client.put_object(
+            Bucket=S3_BUCKET_NAME,
+            Key=transcript_key,
+            Body=json.dumps(transcript),
+            ContentType="application/json",
+        )
+        print(
+            f"Successfully stored transcript in S3: s3://{S3_BUCKET_NAME}/{transcript_key}"
+        )
+    except Exception as e:
+        print(f"Error storing transcript in S3: {e}")
+        return None

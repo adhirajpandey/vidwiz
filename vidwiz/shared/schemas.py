@@ -82,3 +82,24 @@ class NoteUpdate(BaseModel):
         "from_attributes": True,
         "extra": "forbid",
     }
+
+
+class TranscriptResult(BaseModel):
+    task_id: int
+    video_id: str
+    success: bool
+    transcript: Optional[list] = None
+    error_message: Optional[str] = None
+
+    @field_validator("transcript")
+    @classmethod
+    def validate_transcript_format(cls, v):
+        if v is not None:
+            if not isinstance(v, list):
+                raise ValueError("transcript must be a list")
+            for item in v:
+                if not isinstance(item, dict):
+                    raise ValueError("transcript items must be dictionaries")
+                if "text" not in item:
+                    raise ValueError("transcript items must contain 'text' field")
+        return v
