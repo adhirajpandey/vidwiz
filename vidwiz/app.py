@@ -1,17 +1,17 @@
-# app.py
-from flask import Flask
-from dotenv import load_dotenv
 import os
 import sys
-from vidwiz.shared.models import db
+from flask import Flask
 
-# from vidwiz.routes.main_routes import main_bp
 from vidwiz.routes.video_routes import video_bp
 from vidwiz.routes.notes_routes import notes_bp
 from vidwiz.routes.core_routes import core_bp
 from vidwiz.routes.admin_routes import admin_bp
-from vidwiz.routes.transcript_routes import transcript_bp
+from vidwiz.routes.tasks_routes import tasks_bp
+
+from vidwiz.shared.models import db
 from sqlalchemy import text
+
+from dotenv import load_dotenv
 
 load_dotenv()
 
@@ -39,12 +39,12 @@ def create_app(test_config=None):
         app.config.update(test_config)
 
     db.init_app(app)
-    # app.register_blueprint(main_bp)
+
     app.register_blueprint(core_bp)
     app.register_blueprint(video_bp)
     app.register_blueprint(notes_bp)
     app.register_blueprint(admin_bp)
-    app.register_blueprint(transcript_bp)
+    app.register_blueprint(tasks_bp)
 
     return app
 

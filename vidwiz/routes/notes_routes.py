@@ -7,6 +7,7 @@ from vidwiz.shared.utils import (
     send_request_to_ainote_lambda,
     jwt_or_admin_required,
 )
+from vidwiz.shared.tasks import create_transcript_task
 
 notes_bp = Blueprint("notes", __name__)
 
@@ -36,6 +37,8 @@ def create_note():
             )
             db.session.add(video)
             db.session.commit()
+
+            create_transcript_task(note_data.video_id)
 
         # Create note for this user
         note = Note(
@@ -109,7 +112,6 @@ def update_note(note_id):
         except ValidationError as e:
             return jsonify({"error": f"Invalid data: {str(e)}"}), 400
 
-        # Admin can update any note, regular users can only update their own notes
         if request.is_admin:
             # Admin access - can update any note
             note = Note.query.filter_by(id=note_id).first()

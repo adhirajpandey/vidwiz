@@ -3,6 +3,7 @@ from vidwiz.shared.models import Video, db
 from vidwiz.shared.schemas import VideoRead, VideoUpdate, VideoCreate
 from pydantic import ValidationError
 from vidwiz.shared.utils import admin_required
+from vidwiz.shared.tasks import create_transcript_task
 
 admin_bp = Blueprint("admin", __name__, url_prefix="/admin")
 
@@ -34,6 +35,9 @@ def create_video():
 
         db.session.add(video)
         db.session.commit()
+
+        # Create task for the new video
+        create_transcript_task(video_data.video_id)
 
         return jsonify(VideoRead.model_validate(video).model_dump()), 201
     except Exception as e:
