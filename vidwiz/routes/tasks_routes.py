@@ -6,13 +6,13 @@ from vidwiz.shared.config import (
     TRANSCRIPT_TASK_REQUEST_DEFAULT_TIMEOUT,
     TRANSCRIPT_TASK_REQUEST_MAX_TIMEOUT,
     TRANSCRIPT_POLL_INTERVAL,
+    FETCH_TRANSCRIPT_TASK_TYPE,
+    FETCH_TRANSCRIPT_MAX_RETRIES,
+    FETCH_TRANSCRIPT_IN_PROGRESS_TIMEOUT,
 )
 from pydantic import ValidationError
-from datetime import datetime
+from datetime import datetime, timedelta
 import time
-import json
-import boto3
-import os
 from sqlalchemy.orm.attributes import flag_modified
 
 
@@ -34,10 +34,25 @@ def get_transcript_task():
         start_time = time.time()
 
         while time.time() - start_time < timeout:
-            # Look for pending transcript tasks or stale in-progress tasks
+            # Calculate cutoff time for stale in-progress tasks
+            stale_cutoff = datetime.now() - timedelta(
+                seconds=FETCH_TRANSCRIPT_IN_PROGRESS_TIMEOUT
+            )
+
+            # Searching for pending, retryable failed, or stale in-progress transcript tasks
             task = (
-                Task.query.filter(Task.task_type == "fetch_transcript")
-                .filter((Task.status == TaskStatus.PENDING))
+                Task.query.filter(Task.task_type == FETCH_TRANSCRIPT_TASK_TYPE)
+                .filter(
+                    (Task.status == TaskStatus.PENDING)
+                    | (
+                        (Task.status == TaskStatus.FAILED)
+                        & (Task.retry_count < FETCH_TRANSCRIPT_MAX_RETRIES)
+                    )
+                    | (
+                        (Task.status == TaskStatus.IN_PROGRESS)
+                        & (Task.started_at < stale_cutoff)
+                    )
+                )
                 .first()
             )
 
@@ -92,8 +107,6 @@ def submit_transcript_result():
 
         # Find the task
         task = Task.query.get(result_data.task_id)
-        if not task:
-            return jsonify({"error": "Task not found"}), 404
 
         # Verify task belongs to the right video
         if task.task_details.get("video_id") != result_data.video_id:
@@ -131,7 +144,13 @@ def submit_transcript_result():
                     # Don't fail the task just because S3 failed
 
         else:
-            task.status = TaskStatus.FAILED
+            # Check if task has reached max retries
+            if task.retry_count >= FETCH_TRANSCRIPT_MAX_RETRIES:
+                task.status = TaskStatus.FAILED
+            else:
+                # Reset status to PENDING for retry
+                task.status = TaskStatus.PENDING
+                task.started_at = None
 
             # Update worker_details with error information
             if task.worker_details is None:
@@ -140,9 +159,9 @@ def submit_transcript_result():
             task.worker_details["error_message"] = (
                 result_data.error_message or "Unknown error occurred"
             )
+            task.worker_details["retry_attempt"] = task.retry_count
 
             # Mark the attribute as modified to ensure SQLAlchemy detects the change
-
             flag_modified(task, "worker_details")
 
         db.session.commit()

@@ -1,4 +1,9 @@
-def create_transcript_task(video_id: str, task_type: str = "fetch_transcript") -> None:
+from vidwiz.shared.config import FETCH_TRANSCRIPT_TASK_TYPE
+
+
+def create_transcript_task(
+    video_id: str, task_type: str = FETCH_TRANSCRIPT_TASK_TYPE
+) -> None:
     """
     Create a task for a newly created video.
 
