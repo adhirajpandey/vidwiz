@@ -103,3 +103,31 @@ class TranscriptResult(BaseModel):
                 if "text" not in item:
                     raise ValueError("transcript items must contain 'text' field")
         return v
+
+
+class UserProfileRead(BaseModel):
+    id: int
+    username: str
+    ai_notes_enabled: bool
+    token_exists: bool
+    model_config = {"from_attributes": True}
+
+
+class UserProfileUpdate(BaseModel):
+    ai_notes_enabled: bool
+
+    model_config = {
+        "from_attributes": True,
+        "extra": "forbid",
+    }
+
+
+class TokenResponse(BaseModel):
+    message: str
+    token: str
+    model_config = {"from_attributes": True}
+
+
+class TokenRevokeResponse(BaseModel):
+    message: str
+    model_config = {"from_attributes": True}

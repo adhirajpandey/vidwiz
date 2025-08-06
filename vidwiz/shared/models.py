@@ -68,5 +68,7 @@ class User(db.Model):
     id = Column(Integer, primary_key=True)
     username = Column(Text, unique=True, nullable=False)
     password_hash = Column(Text, nullable=False)
+    long_term_token = Column(Text, nullable=True)
+    profile_data = Column(JSON, nullable=True)
     created_at = Column(TIMESTAMP(timezone=True), default=func.now())
     notes = relationship("Note", back_populates="user", cascade="all, delete-orphan")
