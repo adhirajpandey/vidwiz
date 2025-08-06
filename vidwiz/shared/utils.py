@@ -12,18 +12,36 @@ import json
 def jwt_required(f):
     @wraps(f)
     def decorated_function(*args, **kwargs):
+        from vidwiz.shared.models import User  # Import here to avoid circular imports
+
         auth_header = request.headers.get("Authorization", "")
         if not auth_header.startswith("Bearer "):
             return jsonify({"error": "Missing or invalid Authorization header"}), 401
         token = auth_header.split(" ", 1)[1]
+
+        # First try to decode as JWT
         try:
             payload = jwt.decode(
                 token, current_app.config["SECRET_KEY"], algorithms=["HS256"]
             )
             request.user_id = payload["user_id"]
+            return f(*args, **kwargs)
         except Exception:
-            return jsonify({"error": "Invalid or expired token"}), 401
-        return f(*args, **kwargs)
+            # JWT decoding failed, try to check if it's a long term token
+            pass
+
+        # Check if token matches any user's long_term_token
+        try:
+            user = User.query.filter_by(long_term_token=token).first()
+            if user:
+                request.user_id = user.id
+                return f(*args, **kwargs)
+        except Exception:
+            pass
+
+        return jsonify(
+            {"error": "Invalid or expired token or not a long term token"}
+        ), 401
 
     return decorated_function
 
