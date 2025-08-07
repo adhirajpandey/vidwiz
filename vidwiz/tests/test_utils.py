@@ -1,6 +1,6 @@
 import jwt
 from datetime import datetime, timedelta, timezone
-from vidwiz.shared.utils import jwt_required, send_request_to_ainote_lambda
+from vidwiz.shared.utils import jwt_or_lt_token_required, send_request_to_ainote_lambda
 
 # Test constants
 TEST_USER_ID = 1
@@ -24,7 +24,7 @@ class TestJWTRequired:
                 algorithm="HS256",
             )
 
-            @jwt_required
+            @jwt_or_lt_token_required
             def test_route():
                 from flask import request
 
@@ -41,7 +41,7 @@ class TestJWTRequired:
         """Test JWT decorator with missing Authorization header"""
         with app.app_context():
 
-            @jwt_required
+            @jwt_or_lt_token_required
             def test_route():
                 return {"success": True}
 
@@ -59,7 +59,7 @@ class TestJWTRequired:
         """Test JWT decorator with invalid Authorization header format"""
         with app.app_context():
 
-            @jwt_required
+            @jwt_or_lt_token_required
             def test_route():
                 return {"success": True}
 
@@ -88,7 +88,7 @@ class TestJWTRequired:
                 algorithm="HS256",
             )
 
-            @jwt_required
+            @jwt_or_lt_token_required
             def test_route():
                 return {"success": True}
 
@@ -107,7 +107,7 @@ class TestJWTRequired:
         """Test JWT decorator with various invalid token formats"""
         with app.app_context():
 
-            @jwt_required
+            @jwt_or_lt_token_required
             def test_route():
                 return {"success": True}
 
@@ -144,7 +144,7 @@ class TestJWTRequired:
                 algorithm="HS256",
             )
 
-            @jwt_required
+            @jwt_or_lt_token_required
             def test_route():
                 return {"success": True}
 

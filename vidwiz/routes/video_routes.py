@@ -1,13 +1,13 @@
 from flask import Blueprint, jsonify
 from vidwiz.shared.models import Video, Note, User, db
 from vidwiz.shared.schemas import VideoRead, NoteRead
-from vidwiz.shared.utils import jwt_required, admin_required
+from vidwiz.shared.utils import jwt_or_lt_token_required, admin_required
 
 video_bp = Blueprint("video", __name__)
 
 
 @video_bp.route("/videos/<video_id>", methods=["GET"])
-@jwt_required
+@jwt_or_lt_token_required
 def get_video(video_id):
     try:
         video = Video.query.filter_by(video_id=video_id).first()

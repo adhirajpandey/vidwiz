@@ -1,5 +1,5 @@
 from flask import Blueprint, jsonify, render_template, request
-from vidwiz.shared.utils import jwt_required
+from vidwiz.shared.utils import jwt_or_lt_token_required
 from vidwiz.shared.models import Video, Note, User, db
 from vidwiz.shared.schemas import (
     UserProfileRead,
@@ -38,7 +38,7 @@ def get_profile_page():
 
 
 @core_bp.route("/search", methods=["GET"])
-@jwt_required
+@jwt_or_lt_token_required
 def get_search_results():
     query = request.args.get("query", None)
     if query is None:
@@ -152,7 +152,7 @@ def login():
 
 
 @core_bp.route("/user/token", methods=["POST", "DELETE"])
-@jwt_required
+@jwt_or_lt_token_required
 def manage_long_term_token():
     """Manage long-term token - generate with POST or revoke with DELETE"""
     try:
@@ -213,7 +213,7 @@ def manage_long_term_token():
 
 
 @core_bp.route("/user/profile", methods=["GET"])
-@jwt_required
+@jwt_or_lt_token_required
 def get_profile():
     """Get user profile data"""
     try:
@@ -246,7 +246,7 @@ def get_profile():
 
 
 @core_bp.route("/user/profile", methods=["PATCH"])
-@jwt_required
+@jwt_or_lt_token_required
 def update_profile():
     """Update user profile data"""
     try:

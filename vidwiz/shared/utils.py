@@ -9,7 +9,7 @@ from vidwiz.shared.config import S3_BUCKET_NAME
 import json
 
 
-def jwt_required(f):
+def jwt_or_lt_token_required(f):
     @wraps(f)
     def decorated_function(*args, **kwargs):
         from vidwiz.shared.models import User  # Import here to avoid circular imports
