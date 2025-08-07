@@ -24,7 +24,7 @@ def parse_arguments():
     return args.auth_token, args.timeout
 
 
-TASK_ENDPOINT = "http://localhost:5000/tasks/transcript"
+TASK_ENDPOINT = "https://vidwiz.adhirajpandey.tech/tasks/transcript"
 AUTH_TOKEN, LONG_POLL_TIMEOUT = parse_arguments()
 
 
