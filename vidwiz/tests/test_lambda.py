@@ -1,8 +1,7 @@
 import pytest
-from unittest.mock import patch
 import json
 import importlib
-
+from unittest.mock import patch
 from vidwiz.lambdas import gen_note
 from vidwiz.lambdas.gen_note import (
     lambda_handler,
@@ -11,15 +10,25 @@ from vidwiz.lambdas.gen_note import (
     get_relevant_transcript,
 )
 
+# Test constants
+TEST_BASE_URL = "http://test-server.com"
+TEST_AUTH_TOKEN = "test_token"
+TEST_GEMINI_KEY = "test_gemini_key"
+TEST_RAPIDAPI_KEY = "test_rapidapi_key"
+TEST_VIDEO_ID = "test_video"
+TEST_VIDEO_TITLE = "Test Video Title"
+TEST_NOTE_TIMESTAMP = "1:23"
+TEST_NOTE_ID = "123"
+
 
 @pytest.fixture
 def mock_env_vars(monkeypatch):
     """Mock environment variables and reload the lambda module."""
-    monkeypatch.setenv("BASE_URL", "http://test-server.com")
-    monkeypatch.setenv("AUTH_TOKEN", "test_token")
+    monkeypatch.setenv("BASE_URL", TEST_BASE_URL)
+    monkeypatch.setenv("AUTH_TOKEN", TEST_AUTH_TOKEN)
     monkeypatch.setenv("PREFERRED_PROVIDER", "gemini")
-    monkeypatch.setenv("GEMINI_API_KEY", "test_gemini_key")
-    monkeypatch.setenv("RAPIDAPI_KEY", "test_rapidapi_key")
+    monkeypatch.setenv("GEMINI_API_KEY", TEST_GEMINI_KEY)
+    monkeypatch.setenv("RAPIDAPI_KEY", TEST_RAPIDAPI_KEY)
     importlib.reload(gen_note)
 
 
@@ -27,13 +36,13 @@ def mock_env_vars(monkeypatch):
 def api_gateway_event():
     """Provide a sample API Gateway event fixture."""
     return {
-        "headers": {"authorization": "Bearer test_token"},
+        "headers": {"authorization": f"Bearer {TEST_AUTH_TOKEN}"},
         "body": json.dumps(
             {
-                "id": "123",
-                "video_id": "test_video",
-                "video_title": "Test Video Title",
-                "note_timestamp": "1:23",
+                "id": TEST_NOTE_ID,
+                "video_id": TEST_VIDEO_ID,
+                "video_title": TEST_VIDEO_TITLE,
+                "note_timestamp": TEST_NOTE_TIMESTAMP,
             }
         ),
     }
@@ -48,7 +57,7 @@ def test_format_timestamp_in_seconds():
 
 def test_check_authorization(mock_env_vars):
     """Test the authorization logic with correct and incorrect tokens."""
-    assert check_authorization({"authorization": "Bearer test_token"}) is True
+    assert check_authorization({"authorization": f"Bearer {TEST_AUTH_TOKEN}"}) is True
     assert check_authorization({"authorization": "Bearer wrong_token"}) is False
     assert check_authorization({}) is False
 

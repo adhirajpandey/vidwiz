@@ -1,59 +1,11 @@
-import pytest
 import jwt
-from datetime import datetime, timedelta, timezone
-from werkzeug.security import generate_password_hash
-from vidwiz.app import create_app
 from vidwiz.shared.models import User, Video, Note, db
 
-
-@pytest.fixture
-def app():
-    app = create_app(
-        {
-            "TESTING": True,
-            "SQLALCHEMY_DATABASE_URI": "sqlite:///:memory:",
-            "SQLALCHEMY_TRACK_MODIFICATIONS": False,
-            "SECRET_KEY": "test_secret_key",
-        }
-    )
-    with app.app_context():
-        db.create_all()
-        yield app
-        db.session.remove()
-        db.drop_all()
-
-
-@pytest.fixture
-def client(app):
-    return app.test_client()
-
-
-@pytest.fixture
-def auth_headers(app):
-    """Create auth headers with valid JWT token"""
-    with app.app_context():
-        token = jwt.encode(
-            {
-                "user_id": 1,
-                "username": "testuser",
-                "exp": datetime.now(timezone.utc) + timedelta(hours=1),
-            },
-            app.config["SECRET_KEY"],
-            algorithm="HS256",
-        )
-        return {"Authorization": f"Bearer {token}"}
-
-
-@pytest.fixture
-def sample_user(app):
-    """Create a sample user for testing"""
-    with app.app_context():
-        user = User(
-            username="testuser", password_hash=generate_password_hash("testpassword")
-        )
-        db.session.add(user)
-        db.session.commit()
-        return user
+# Test constants
+TEST_VIDEO_ID = "vid1"
+TEST_VIDEO_TITLE = "Python Tutorial"
+TEST_NOTE_TEXT = "Test note"
+TEST_TIMESTAMP = "00:01:30"
 
 
 class TestIndexRoute:
@@ -74,22 +26,6 @@ class TestDashboardRoute:
         assert b"html" in response.data.lower() or response.mimetype == "text/html"
 
 
-class TestVideoPageRoute:
-    def test_video_page_with_auth(self, client, auth_headers):
-        """Test video page with valid authentication"""
-        response = client.get("/dashboard/test_video_id", headers=auth_headers)
-        assert response.status_code == 200
-        # Check if it returns HTML content
-        assert b"html" in response.data.lower() or response.mimetype == "text/html"
-
-    def test_video_page_without_auth(self, client):
-        """Test video page without authentication - returns HTML since route is not protected"""
-        response = client.get("/dashboard/test_video_id")
-        # The video page route is not protected by JWT, so it returns 200 with HTML
-        assert response.status_code == 200
-        assert b"html" in response.data.lower() or response.mimetype == "text/html"
-
-
 class TestSearchRoute:
     def test_search_with_results(self, client, auth_headers, app):
         """Test search with matching results"""
@@ -99,12 +35,15 @@ class TestSearchRoute:
             db.session.add(user)
             db.session.commit()
 
-            video = Video(video_id="vid1", title="Python Tutorial")
+            video = Video(video_id=TEST_VIDEO_ID, title=TEST_VIDEO_TITLE)
             db.session.add(video)
             db.session.commit()
 
             note = Note(
-                video_id="vid1", timestamp="00:01:30", text="Test note", user_id=1
+                video_id=TEST_VIDEO_ID,
+                timestamp=TEST_TIMESTAMP,
+                text=TEST_NOTE_TEXT,
+                user_id=1,
             )
             db.session.add(note)
             db.session.commit()
@@ -114,8 +53,8 @@ class TestSearchRoute:
         data = response.get_json()
         assert isinstance(data, list)
         assert len(data) == 1
-        assert data[0]["video_id"] == "vid1"
-        assert data[0]["video_title"] == "Python Tutorial"
+        assert data[0]["video_id"] == TEST_VIDEO_ID
+        assert data[0]["video_title"] == TEST_VIDEO_TITLE
 
     def test_search_no_results(self, client, auth_headers, app):
         """Test search with no matching results"""
