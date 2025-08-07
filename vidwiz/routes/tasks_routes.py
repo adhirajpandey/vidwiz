@@ -1,6 +1,6 @@
 from flask import Blueprint, jsonify, request
 from vidwiz.shared.models import Task, TaskStatus, db, Video
-from vidwiz.shared.utils import jwt_required, store_transcript_in_s3
+from vidwiz.shared.utils import store_transcript_in_s3, jwt_or_admin_required
 from vidwiz.shared.schemas import TranscriptResult
 from vidwiz.shared.config import (
     TRANSCRIPT_TASK_REQUEST_DEFAULT_TIMEOUT,
@@ -20,7 +20,7 @@ tasks_bp = Blueprint("tasks", __name__)
 
 
 @tasks_bp.route("/tasks/transcript", methods=["GET"])
-@jwt_required
+@jwt_or_admin_required
 def get_transcript_task():
     """
     Endpoint to retrieve a transcript task for processing from the task table.
@@ -90,7 +90,7 @@ def get_transcript_task():
 
 
 @tasks_bp.route("/tasks/transcript", methods=["POST"])
-@jwt_required
+@jwt_or_admin_required
 def submit_transcript_result():
     """
     Endpoint for workers to submit transcript processing results.

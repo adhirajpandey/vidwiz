@@ -64,7 +64,7 @@ def verify_database_connection(app):
 def main():
     app = create_app()
     verify_database_connection(app)
-    app.run(debug=True)
+    app.run(debug=True, host="0.0.0.0")
 
 
 if __name__ == "__main__":
