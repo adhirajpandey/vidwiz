@@ -21,19 +21,15 @@ def create_app(test_config=None):
     DB_URL = os.getenv("DB_URL")
     SECRET_KEY = os.getenv("SECRET_KEY", "dev_secret_key")
     LAMBDA_URL = os.getenv("LAMBDA_URL")
-    AI_NOTE_TOGGLE = os.getenv("AI_NOTE_TOGGLE", "false").lower() == "true"
 
     if not test_config:
         if not DB_URL:
             raise ValueError("DB_URL must be set in the environment variables.")
-        if AI_NOTE_TOGGLE and not LAMBDA_URL:
-            raise ValueError(
-                "LAMBDA_URL must be set in the environment variables when AI_NOTE_TOGGLE is enabled."
-            )
+        if not LAMBDA_URL:
+            raise ValueError("LAMBDA_URL must be set in the environment variables.")
         app.config["SQLALCHEMY_DATABASE_URI"] = DB_URL
         app.config["SECRET_KEY"] = SECRET_KEY
         app.config["LAMBDA_URL"] = LAMBDA_URL
-        app.config["AI_NOTE_TOGGLE"] = AI_NOTE_TOGGLE
 
     else:
         app.config.update(test_config)

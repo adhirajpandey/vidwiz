@@ -27,12 +27,11 @@ class TestAppCreation:
                 create_app()
 
     def test_create_app_without_test_config_missing_lambda_url(self):
-        """Test creating app with AI_NOTE_TOGGLE enabled but missing LAMBDA_URL"""
+        """Test creating app without LAMBDA_URL raises error"""
         with patch.dict(
             os.environ,
             {
                 "DB_URL": "postgresql://test:test@localhost/test",
-                "AI_NOTE_TOGGLE": "true",
             },
             clear=True,
         ):
@@ -47,7 +46,6 @@ class TestAppCreation:
                 "DB_URL": "postgresql://test:test@localhost/test",
                 "SECRET_KEY": "production_secret",
                 "LAMBDA_URL": "https://lambda.aws.com/function",
-                "AI_NOTE_TOGGLE": "true",
             },
             clear=True,
         ):
@@ -59,36 +57,30 @@ class TestAppCreation:
             )
             assert app.config["SECRET_KEY"] == "production_secret"
             assert app.config["LAMBDA_URL"] == "https://lambda.aws.com/function"
-            assert app.config["AI_NOTE_TOGGLE"] is True
 
-    def test_create_app_ai_toggle_disabled(self):
-        """Test creating app with AI_NOTE_TOGGLE disabled"""
+    def test_create_app_with_lambda_url(self):
+        """Test creating app with LAMBDA_URL works correctly"""
         with patch.dict(
             os.environ,
             {
                 "DB_URL": "postgresql://test:test@localhost/test",
-                "AI_NOTE_TOGGLE": "false",
+                "LAMBDA_URL": "https://lambda.aws.com/function",
             },
             clear=True,
         ):
             app = create_app()
 
-            assert app.config["AI_NOTE_TOGGLE"] is False
-            # LAMBDA_URL is not required when AI_NOTE_TOGGLE is false
-
-    def test_create_app_default_ai_toggle(self):
-        """Test creating app with default AI_NOTE_TOGGLE (should be false)"""
-        with patch.dict(
-            os.environ, {"DB_URL": "postgresql://test:test@localhost/test"}, clear=True
-        ):
-            app = create_app()
-
-            assert app.config["AI_NOTE_TOGGLE"] is False
+            assert app.config["LAMBDA_URL"] == "https://lambda.aws.com/function"
 
     def test_create_app_default_secret_key(self):
         """Test creating app with default secret key when not provided"""
         with patch.dict(
-            os.environ, {"DB_URL": "postgresql://test:test@localhost/test"}, clear=True
+            os.environ, 
+            {
+                "DB_URL": "postgresql://test:test@localhost/test",
+                "LAMBDA_URL": "https://lambda.aws.com/function",
+            }, 
+            clear=True
         ):
             app = create_app()
 
@@ -146,7 +138,7 @@ class TestAppCreation:
             {
                 "DB_URL": "postgresql://env:env@localhost/env",
                 "SECRET_KEY": "env_secret",
-                "AI_NOTE_TOGGLE": "true",
+                "LAMBDA_URL": "https://env-lambda.aws.com/function",
             },
             clear=True,
         ):
@@ -154,57 +146,14 @@ class TestAppCreation:
                 "TESTING": True,
                 "SQLALCHEMY_DATABASE_URI": "sqlite:///:memory:",
                 "SECRET_KEY": "test_secret",
-                "AI_NOTE_TOGGLE": False,
+                "LAMBDA_URL": "https://test-lambda.aws.com/function",
             }
             app = create_app(test_config)
 
             # Test config should override environment variables
             assert app.config["SQLALCHEMY_DATABASE_URI"] == "sqlite:///:memory:"
             assert app.config["SECRET_KEY"] == "test_secret"
-            assert app.config["AI_NOTE_TOGGLE"] is False
-
-    def test_create_app_ai_toggle_case_insensitive(self):
-        """Test that AI_NOTE_TOGGLE is case insensitive"""
-        test_cases = [
-            ("TRUE", True, True),  # Need LAMBDA_URL
-            ("True", True, True),  # Need LAMBDA_URL
-            ("true", True, True),  # Need LAMBDA_URL
-            ("FALSE", False, False),  # Don't need LAMBDA_URL
-            ("False", False, False),  # Don't need LAMBDA_URL
-            ("false", False, False),  # Don't need LAMBDA_URL
-            ("", False, False),  # Default case, don't need LAMBDA_URL
-            ("invalid", False, False),  # Invalid value defaults to false
-        ]
-
-        for toggle_value, expected, needs_lambda in test_cases:
-            env_vars = {
-                "DB_URL": "postgresql://test:test@localhost/test",
-                "AI_NOTE_TOGGLE": toggle_value,
-            }
-            if needs_lambda:
-                env_vars["LAMBDA_URL"] = "https://test-lambda.com/invoke"
-
-            with patch.dict(os.environ, env_vars, clear=True):
-                app = create_app()
-                assert app.config["AI_NOTE_TOGGLE"] is expected
-
-    def test_create_app_lambda_url_not_required_when_ai_disabled(self):
-        """Test that LAMBDA_URL is not required when AI_NOTE_TOGGLE is disabled"""
-        ai_toggle_false_values = ["false", "False", "FALSE", ""]
-
-        for toggle_value in ai_toggle_false_values:
-            with patch.dict(
-                os.environ,
-                {
-                    "DB_URL": "postgresql://test:test@localhost/test",
-                    "AI_NOTE_TOGGLE": toggle_value,
-                    # Intentionally not setting LAMBDA_URL
-                },
-                clear=True,
-            ):
-                # This should not raise an error
-                app = create_app()
-                assert app.config["AI_NOTE_TOGGLE"] is False
+            assert app.config["LAMBDA_URL"] == "https://test-lambda.aws.com/function"
 
     def test_create_app_error_messages(self):
         """Test that error messages are descriptive"""
@@ -221,7 +170,6 @@ class TestAppCreation:
             os.environ,
             {
                 "DB_URL": "postgresql://test:test@localhost/test",
-                "AI_NOTE_TOGGLE": "true",
             },
             clear=True,
         ):
@@ -230,6 +178,5 @@ class TestAppCreation:
                 assert False, "Should have raised ValueError"
             except ValueError as e:
                 assert (
-                    "LAMBDA_URL must be set in the environment variables when AI_NOTE_TOGGLE is enabled"
-                    in str(e)
+                    "LAMBDA_URL must be set in the environment variables" in str(e)
                 )

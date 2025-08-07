@@ -16,7 +16,6 @@ def notes_app():
             "SQLALCHEMY_DATABASE_URI": "sqlite:///:memory:",
             "SQLALCHEMY_TRACK_MODIFICATIONS": False,
             "SECRET_KEY": "test_secret_key",
-            "AI_NOTE_TOGGLE": True,
             "LAMBDA_URL": "https://test-lambda.com/invoke",
         }
     )
@@ -135,9 +134,16 @@ class TestCreateNote:
         notes_sample_user,
     ):
         """Test that AI note generation is triggered when appropriate"""
-        from vidwiz.shared.models import Video
+        from vidwiz.shared.models import Video, User
 
         with notes_app.app_context():
+            # Set user AI preference to enabled
+            user = User.query.get(1)  # notes_sample_user has ID 1
+            if not user.profile_data:
+                user.profile_data = {}
+            user.profile_data["ai_notes_enabled"] = True
+            db.session.commit()
+            
             # Create video with transcript available
             video = Video(
                 video_id="test_video_123",
@@ -159,6 +165,48 @@ class TestCreateNote:
 
             assert response.status_code == 201
             mock_lambda.assert_called_once()
+
+    @patch("vidwiz.routes.notes_routes.send_request_to_ainote_lambda")
+    def test_create_note_no_ai_generation_when_disabled(
+        self,
+        mock_lambda,
+        notes_client,
+        notes_auth_headers,
+        notes_app,
+        notes_sample_user,
+    ):
+        """Test that AI note generation is NOT triggered when user has AI disabled"""
+        from vidwiz.shared.models import Video, User
+
+        with notes_app.app_context():
+            # Set user AI preference to disabled
+            user = User.query.get(1)  # notes_sample_user has ID 1
+            if not user.profile_data:
+                user.profile_data = {}
+            user.profile_data["ai_notes_enabled"] = False
+            db.session.commit()
+            
+            # Create video with transcript available
+            video = Video(
+                video_id="test_video_456",
+                title="Test Video Title",
+                transcript_available=True,
+            )
+            db.session.add(video)
+            db.session.commit()
+
+            response = notes_client.post(
+                "/notes",
+                headers=notes_auth_headers,
+                json={
+                    "video_id": "test_video_456",
+                    "timestamp": "3:30",
+                    # No text provided - but AI is disabled for user
+                },
+            )
+
+            assert response.status_code == 201
+            mock_lambda.assert_not_called()
 
     def test_create_note_no_auth(self, client):
         """Test creating note without authentication"""

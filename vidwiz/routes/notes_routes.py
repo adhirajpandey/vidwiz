@@ -1,5 +1,5 @@
-from flask import Blueprint, request, jsonify, current_app
-from vidwiz.shared.models import Note, Video, db
+from flask import Blueprint, request, jsonify
+from vidwiz.shared.models import Note, Video, User, db
 from vidwiz.shared.schemas import NoteRead, NoteCreate, NoteUpdate
 from pydantic import ValidationError
 from vidwiz.shared.utils import (
@@ -52,10 +52,18 @@ def create_note():
         db.session.commit()
 
         # Check if we should trigger AI note generation
+        user = User.query.get(request.user_id)
+        user_ai_enabled = (
+            user.profile_data 
+            and user.profile_data.get("ai_notes_enabled", False)
+            if user 
+            else False
+        )
+        
         should_trigger_ai = (
             not note_data.text  # No text provided in payload
             and video.transcript_available  # Video has transcript available
-            and current_app.config.get("AI_NOTE_TOGGLE", False)
+            and user_ai_enabled  # User has AI notes enabled
         )
 
         if should_trigger_ai:
