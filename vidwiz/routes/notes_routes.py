@@ -1,18 +1,19 @@
-from flask import Blueprint, request, jsonify, current_app
-from vidwiz.shared.models import Note, Video, db
+from flask import Blueprint, request, jsonify
+from vidwiz.shared.models import Note, Video, User, db
 from vidwiz.shared.schemas import NoteRead, NoteCreate, NoteUpdate
 from pydantic import ValidationError
 from vidwiz.shared.utils import (
-    jwt_required,
+    jwt_or_lt_token_required,
     send_request_to_ainote_lambda,
     jwt_or_admin_required,
 )
+from vidwiz.shared.tasks import create_transcript_task
 
 notes_bp = Blueprint("notes", __name__)
 
 
 @notes_bp.route("/notes", methods=["POST"])
-@jwt_required
+@jwt_or_lt_token_required
 def create_note():
     try:
         data = request.json
@@ -37,6 +38,8 @@ def create_note():
             db.session.add(video)
             db.session.commit()
 
+            create_transcript_task(note_data.video_id)
+
         # Create note for this user
         note = Note(
             video_id=note_data.video_id,
@@ -49,10 +52,17 @@ def create_note():
         db.session.commit()
 
         # Check if we should trigger AI note generation
+        user = User.query.get(request.user_id)
+        user_ai_enabled = (
+            user.profile_data and user.profile_data.get("ai_notes_enabled", False)
+            if user
+            else False
+        )
+
         should_trigger_ai = (
             not note_data.text  # No text provided in payload
             and video.transcript_available  # Video has transcript available
-            and current_app.config.get("AI_NOTE_TOGGLE", False)
+            and user_ai_enabled  # User has AI notes enabled
         )
 
         if should_trigger_ai:
@@ -71,7 +81,7 @@ def create_note():
 
 
 @notes_bp.route("/notes/<string:video_id>", methods=["GET"])
-@jwt_required
+@jwt_or_lt_token_required
 def get_notes(video_id):
     try:
         notes = Note.query.filter_by(video_id=video_id, user_id=request.user_id).all()
@@ -83,7 +93,7 @@ def get_notes(video_id):
 
 
 @notes_bp.route("/notes/<int:note_id>", methods=["DELETE"])
-@jwt_required
+@jwt_or_lt_token_required
 def delete_note(note_id):
     try:
         note = Note.query.filter_by(id=note_id, user_id=request.user_id).first()
@@ -109,7 +119,6 @@ def update_note(note_id):
         except ValidationError as e:
             return jsonify({"error": f"Invalid data: {str(e)}"}), 400
 
-        # Admin can update any note, regular users can only update their own notes
         if request.is_admin:
             # Admin access - can update any note
             note = Note.query.filter_by(id=note_id).first()

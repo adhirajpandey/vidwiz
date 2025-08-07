@@ -14,7 +14,6 @@ def app():
             "SQLALCHEMY_DATABASE_URI": "sqlite:///:memory:",
             "SQLALCHEMY_TRACK_MODIFICATIONS": False,
             "SECRET_KEY": "test_secret_key",
-            "AI_NOTE_TOGGLE": True,
             "LAMBDA_URL": "https://test-lambda.com/invoke",
         }
     )

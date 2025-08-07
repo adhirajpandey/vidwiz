@@ -1,11 +1,18 @@
 from flask import Blueprint, jsonify, render_template, request
-from vidwiz.shared.utils import jwt_required
-from vidwiz.shared.models import Video, Note
+from vidwiz.shared.utils import jwt_or_lt_token_required
+from vidwiz.shared.models import Video, Note, User, db
+from vidwiz.shared.schemas import (
+    UserProfileRead,
+    UserProfileUpdate,
+    TokenResponse,
+    TokenRevokeResponse,
+)
+from sqlalchemy.orm.attributes import flag_modified
 from werkzeug.security import generate_password_hash, check_password_hash
 import jwt
 from datetime import datetime, timedelta, timezone
 from flask import current_app
-from vidwiz.shared.models import User, db
+from pydantic import ValidationError
 
 core_bp = Blueprint("core", __name__)
 
@@ -25,8 +32,13 @@ def get_video_page(video_id):
     return render_template("video.html")
 
 
+@core_bp.route("/profile", methods=["GET"])
+def get_profile_page():
+    return render_template("profile.html")
+
+
 @core_bp.route("/search", methods=["GET"])
-@jwt_required
+@jwt_or_lt_token_required
 def get_search_results():
     query = request.args.get("query", None)
     if query is None:
@@ -137,3 +149,141 @@ def login():
             return redirect(url_for("core.get_dashboard_page"))
 
     return render_template("login.html")
+
+
+@core_bp.route("/user/token", methods=["POST", "DELETE"])
+@jwt_or_lt_token_required
+def manage_long_term_token():
+    """Manage long-term token - generate with POST or revoke with DELETE"""
+    try:
+        user = User.query.get(request.user_id)
+        if not user:
+            return jsonify({"error": "User not found"}), 404
+
+        if request.method == "POST":
+            # Check if a long-term token already exists
+            if user.long_term_token:
+                # Return error - only one token allowed at a time
+                return jsonify(
+                    {
+                        "error": "A long-term token already exists. Please revoke the existing token before generating a new one."
+                    }
+                ), 400
+
+            # Generate a token with no expiry (no 'exp' claim)
+            long_term_token = jwt.encode(
+                {
+                    "user_id": user.id,
+                    "username": user.username,
+                    "type": "long_term",  # Add type to distinguish from regular tokens
+                    "iat": datetime.now(timezone.utc).timestamp(),
+                },
+                current_app.config["SECRET_KEY"],
+                algorithm="HS256",
+            )
+
+            # Store the token in the user's record
+            user.long_term_token = long_term_token
+            db.session.commit()
+
+            # Validate response using schema
+            response_data = {
+                "message": "Long-term token generated successfully",
+                "token": long_term_token,
+            }
+            validated_response = TokenResponse(**response_data)
+            return jsonify(validated_response.model_dump()), 200
+
+        elif request.method == "DELETE":
+            if not user.long_term_token:
+                return jsonify({"error": "No long-term token found"}), 404
+
+            # Clear the token from the user's record
+            user.long_term_token = None
+            db.session.commit()
+
+            # Validate response using schema
+            response_data = {"message": "Long-term token revoked successfully"}
+            validated_response = TokenRevokeResponse(**response_data)
+            return jsonify(validated_response.model_dump()), 200
+
+    except Exception as e:
+        db.session.rollback()
+        return jsonify({"error": f"Internal Server Error: {str(e)}"}), 500
+
+
+@core_bp.route("/user/profile", methods=["GET"])
+@jwt_or_lt_token_required
+def get_profile():
+    """Get user profile data"""
+    try:
+        user = User.query.get(request.user_id)
+        if not user:
+            return jsonify({"error": "User not found"}), 404
+
+        # Extract ai_notes_enabled from profile_data
+        ai_notes_enabled = False
+        if user.profile_data and isinstance(user.profile_data, dict):
+            ai_notes_enabled = user.profile_data.get("ai_notes_enabled", False)
+
+        # Check if token exists
+        token_exists = user.long_term_token is not None
+
+        # Construct response data manually
+        profile_data = {
+            "id": user.id,
+            "username": user.username,
+            "ai_notes_enabled": ai_notes_enabled,
+            "token_exists": token_exists,
+        }
+
+        # Validate using schema before sending
+        validated_profile = UserProfileRead(**profile_data)
+        return jsonify(validated_profile.model_dump()), 200
+
+    except Exception as e:
+        return jsonify({"error": f"Internal Server Error: {str(e)}"}), 500
+
+
+@core_bp.route("/user/profile", methods=["PATCH"])
+@jwt_or_lt_token_required
+def update_profile():
+    """Update user profile data"""
+    try:
+        data = request.json
+        if not data:
+            return jsonify({"error": "Request body must be JSON"}), 400
+
+        try:
+            update_data = UserProfileUpdate(**data)
+        except ValidationError as e:
+            return jsonify({"error": f"Invalid data: {str(e)}"}), 400
+
+        user = User.query.get(request.user_id)
+        if not user:
+            return jsonify({"error": "User not found"}), 404
+
+        # Update the profile_data field with ai_notes_enabled
+        if user.profile_data is None:
+            user.profile_data = {}
+
+        user.profile_data["ai_notes_enabled"] = update_data.ai_notes_enabled
+        flag_modified(user, "profile_data")
+        db.session.commit()
+
+        # Return updated profile data
+        token_exists = user.long_term_token is not None
+        profile_data = {
+            "id": user.id,
+            "username": user.username,
+            "ai_notes_enabled": update_data.ai_notes_enabled,
+            "token_exists": token_exists,
+        }
+
+        # Validate using schema before sending
+        validated_profile = UserProfileRead(**profile_data)
+        return jsonify(validated_profile.model_dump()), 200
+
+    except Exception as e:
+        db.session.rollback()
+        return jsonify({"error": f"Internal Server Error: {str(e)}"}), 500

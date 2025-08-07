@@ -1,31 +1,12 @@
-import pytest
 import jwt
 from datetime import datetime, timedelta, timezone
-from vidwiz.app import create_app
-from vidwiz.shared.utils import jwt_required, send_request_to_ainote_lambda
-from vidwiz.shared.models import db
+from vidwiz.shared.utils import jwt_or_lt_token_required, send_request_to_ainote_lambda
 
-
-@pytest.fixture
-def app():
-    app = create_app(
-        {
-            "TESTING": True,
-            "SQLALCHEMY_DATABASE_URI": "sqlite:///:memory:",
-            "SQLALCHEMY_TRACK_MODIFICATIONS": False,
-            "SECRET_KEY": "test_secret_key",
-        }
-    )
-    with app.app_context():
-        db.create_all()
-        yield app
-        db.session.remove()
-        db.drop_all()
-
-
-@pytest.fixture
-def client(app):
-    return app.test_client()
+# Test constants
+TEST_USER_ID = 1
+TEST_USERNAME = "testuser"
+INVALID_TOKEN = "invalid_token"
+WRONG_SECRET = "wrong_secret"
 
 
 class TestJWTRequired:
@@ -35,15 +16,15 @@ class TestJWTRequired:
             # Create a valid token
             token = jwt.encode(
                 {
-                    "user_id": 1,
-                    "username": "testuser",
+                    "user_id": TEST_USER_ID,
+                    "username": TEST_USERNAME,
                     "exp": datetime.now(timezone.utc) + timedelta(hours=1),
                 },
                 app.config["SECRET_KEY"],
                 algorithm="HS256",
             )
 
-            @jwt_required
+            @jwt_or_lt_token_required
             def test_route():
                 from flask import request
 
@@ -54,13 +35,13 @@ class TestJWTRequired:
                 "/test", headers={"Authorization": f"Bearer {token}"}
             ):
                 result = test_route()
-                assert result["user_id"] == 1
+                assert result["user_id"] == TEST_USER_ID
 
     def test_jwt_required_decorator_missing_header(self, app):
         """Test JWT decorator with missing Authorization header"""
         with app.app_context():
 
-            @jwt_required
+            @jwt_or_lt_token_required
             def test_route():
                 return {"success": True}
 
@@ -73,13 +54,12 @@ class TestJWTRequired:
                     result[0].get_json()["error"]
                     == "Missing or invalid Authorization header"
                 )
-                assert result[1] == 401
 
     def test_jwt_required_decorator_invalid_header_format(self, app):
         """Test JWT decorator with invalid Authorization header format"""
         with app.app_context():
 
-            @jwt_required
+            @jwt_or_lt_token_required
             def test_route():
                 return {"success": True}
 
@@ -93,7 +73,6 @@ class TestJWTRequired:
                     result[0].get_json()["error"]
                     == "Missing or invalid Authorization header"
                 )
-                assert result[1] == 401
 
     def test_jwt_required_decorator_expired_token(self, app):
         """Test JWT decorator with expired token"""
@@ -109,7 +88,7 @@ class TestJWTRequired:
                 algorithm="HS256",
             )
 
-            @jwt_required
+            @jwt_or_lt_token_required
             def test_route():
                 return {"success": True}
 
@@ -119,25 +98,37 @@ class TestJWTRequired:
             ):
                 result = test_route()
                 assert result[1] == 401
-                assert result[0].get_json()["error"] == "Invalid or expired token"
-                assert result[1] == 401
+                assert (
+                    result[0].get_json()["error"]
+                    == "Invalid or expired token or not a long term token"
+                )
 
     def test_jwt_required_decorator_invalid_token(self, app):
-        """Test JWT decorator with invalid token"""
+        """Test JWT decorator with various invalid token formats"""
         with app.app_context():
 
-            @jwt_required
+            @jwt_or_lt_token_required
             def test_route():
                 return {"success": True}
 
-            # Mock request with invalid token
-            with app.test_request_context(
-                "/test", headers={"Authorization": "Bearer invalid_token"}
-            ):
-                result = test_route()
-                assert result[1] == 401
-                assert result[0].get_json()["error"] == "Invalid or expired token"
-                assert result[1] == 401
+            # Test cases for different invalid token scenarios
+            invalid_tokens = [
+                "Bearer invalid_token",  # Invalid token string
+                "Bearer ",  # Empty token
+                "Bearer not.a.valid.jwt",  # Malformed JWT
+                "Bearer token1 Bearer token2",  # Multiple Bearer tokens
+            ]
+
+            for auth_header in invalid_tokens:
+                with app.test_request_context(
+                    "/test", headers={"Authorization": auth_header}
+                ):
+                    result = test_route()
+                    assert result[1] == 401
+                    assert (
+                        result[0].get_json()["error"]
+                        == "Invalid or expired token or not a long term token"
+                    )
 
     def test_jwt_required_decorator_wrong_secret(self, app):
         """Test JWT decorator with token signed with wrong secret"""
@@ -153,7 +144,7 @@ class TestJWTRequired:
                 algorithm="HS256",
             )
 
-            @jwt_required
+            @jwt_or_lt_token_required
             def test_route():
                 return {"success": True}
 
@@ -163,8 +154,10 @@ class TestJWTRequired:
             ):
                 result = test_route()
                 assert result[1] == 401
-                assert result[0].get_json()["error"] == "Invalid or expired token"
-                assert result[1] == 401
+                assert (
+                    result[0].get_json()["error"]
+                    == "Invalid or expired token or not a long term token"
+                )
 
 
 class TestSendRequestToAINoteLambda:
@@ -193,51 +186,3 @@ class TestSendRequestToAINoteLambda:
 
             # Function should return None regardless of parameters
             assert result is None
-
-    def test_jwt_required_decorator_multiple_bearer_tokens(self, app):
-        """Test JWT decorator with multiple Bearer tokens in header"""
-        with app.app_context():
-
-            @jwt_required
-            def test_route():
-                return {"success": True}
-
-            # Mock request with malformed header containing multiple Bearer tokens
-            with app.test_request_context(
-                "/test", headers={"Authorization": "Bearer token1 Bearer token2"}
-            ):
-                result = test_route()
-                assert result[1] == 401
-                assert result[0].get_json()["error"] == "Invalid or expired token"
-
-    def test_jwt_required_decorator_empty_token(self, app):
-        """Test JWT decorator with empty token after Bearer"""
-        with app.app_context():
-
-            @jwt_required
-            def test_route():
-                return {"success": True}
-
-            # Mock request with empty token
-            with app.test_request_context(
-                "/test", headers={"Authorization": "Bearer "}
-            ):
-                result = test_route()
-                assert result[1] == 401
-                assert result[0].get_json()["error"] == "Invalid or expired token"
-
-    def test_jwt_required_decorator_malformed_jwt(self, app):
-        """Test JWT decorator with malformed JWT token"""
-        with app.app_context():
-
-            @jwt_required
-            def test_route():
-                return {"success": True}
-
-            # Mock request with malformed JWT
-            with app.test_request_context(
-                "/test", headers={"Authorization": "Bearer not.a.valid.jwt"}
-            ):
-                result = test_route()
-                assert result[1] == 401
-                assert result[0].get_json()["error"] == "Invalid or expired token"

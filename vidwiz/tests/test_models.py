@@ -1,38 +1,26 @@
 import pytest
 from datetime import datetime
 from sqlalchemy.exc import IntegrityError
-from vidwiz.app import create_app
 from vidwiz.shared.models import User, Video, Note, db
 
-
-@pytest.fixture
-def app():
-    app = create_app(
-        {
-            "TESTING": True,
-            "SQLALCHEMY_DATABASE_URI": "sqlite:///:memory:",
-            "SQLALCHEMY_TRACK_MODIFICATIONS": False,
-            "SECRET_KEY": "test_secret_key",
-        }
-    )
-    with app.app_context():
-        db.create_all()
-        yield app
-        db.session.remove()
-        db.drop_all()
+# Test constants
+DEFAULT_USERNAME = "testuser"
+DEFAULT_PASSWORD = "hashed_password"
+TEST_VIDEO_ID = "vid123"
+TEST_VIDEO_TITLE = "Test Video"
 
 
 class TestUserModel:
     def test_user_creation(self, app):
         """Test basic user creation"""
         with app.app_context():
-            user = User(username="testuser", password_hash="hashed_password")
+            user = User(username=DEFAULT_USERNAME, password_hash=DEFAULT_PASSWORD)
             db.session.add(user)
             db.session.commit()
 
             assert user.id is not None
-            assert user.username == "testuser"
-            assert user.password_hash == "hashed_password"
+            assert user.username == DEFAULT_USERNAME
+            assert user.password_hash == DEFAULT_PASSWORD
             assert user.created_at is not None
             assert isinstance(user.created_at, datetime)
 

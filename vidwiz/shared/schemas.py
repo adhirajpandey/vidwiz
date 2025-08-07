@@ -1,6 +1,15 @@
 from pydantic import BaseModel, field_validator
 from typing import Optional
 from datetime import datetime
+from enum import Enum
+
+
+class TaskStatus(str, Enum):
+    PENDING = "pending"
+    IN_PROGRESS = "in_progress"
+    COMPLETED = "completed"
+    FAILED = "failed"
+    CANCELLED = "cancelled"
 
 
 class VideoCreate(BaseModel):
@@ -73,3 +82,52 @@ class NoteUpdate(BaseModel):
         "from_attributes": True,
         "extra": "forbid",
     }
+
+
+class TranscriptResult(BaseModel):
+    task_id: int
+    video_id: str
+    success: bool
+    transcript: Optional[list] = None
+    error_message: Optional[str] = None
+
+    @field_validator("transcript")
+    @classmethod
+    def validate_transcript_format(cls, v):
+        if v is not None:
+            if not isinstance(v, list):
+                raise ValueError("transcript must be a list")
+            for item in v:
+                if not isinstance(item, dict):
+                    raise ValueError("transcript items must be dictionaries")
+                if "text" not in item:
+                    raise ValueError("transcript items must contain 'text' field")
+        return v
+
+
+class UserProfileRead(BaseModel):
+    id: int
+    username: str
+    ai_notes_enabled: bool
+    token_exists: bool
+    model_config = {"from_attributes": True}
+
+
+class UserProfileUpdate(BaseModel):
+    ai_notes_enabled: bool
+
+    model_config = {
+        "from_attributes": True,
+        "extra": "forbid",
+    }
+
+
+class TokenResponse(BaseModel):
+    message: str
+    token: str
+    model_config = {"from_attributes": True}
+
+
+class TokenRevokeResponse(BaseModel):
+    message: str
+    model_config = {"from_attributes": True}

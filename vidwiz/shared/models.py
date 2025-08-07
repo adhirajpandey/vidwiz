@@ -1,10 +1,36 @@
 from flask_sqlalchemy import SQLAlchemy
-from sqlalchemy import Column, Integer, Text, TIMESTAMP, ForeignKey, Boolean
+from sqlalchemy import Column, Integer, Text, TIMESTAMP, ForeignKey, Boolean, JSON
 from sqlalchemy.orm import relationship
 from sqlalchemy.sql import func
+import enum
 
 
 db = SQLAlchemy()
+
+
+class TaskStatus(enum.Enum):
+    PENDING = "pending"
+    IN_PROGRESS = "in_progress"
+    COMPLETED = "completed"
+    FAILED = "failed"
+    CANCELLED = "cancelled"
+
+
+class Task(db.Model):
+    __tablename__ = "tasks"
+
+    id = Column(Integer, primary_key=True)
+    task_type = Column(Text, nullable=False)
+    status = Column(db.Enum(TaskStatus), default=TaskStatus.PENDING, nullable=False)
+    task_details = Column(JSON)
+    worker_details = Column(JSON)
+    retry_count = Column(Integer, default=0)
+    started_at = Column(TIMESTAMP(timezone=True))
+    completed_at = Column(TIMESTAMP(timezone=True))
+    created_at = Column(TIMESTAMP(timezone=True), default=func.now())
+    updated_at = Column(
+        TIMESTAMP(timezone=True), default=func.now(), onupdate=func.now()
+    )
 
 
 class Video(db.Model):
@@ -42,5 +68,7 @@ class User(db.Model):
     id = Column(Integer, primary_key=True)
     username = Column(Text, unique=True, nullable=False)
     password_hash = Column(Text, nullable=False)
+    long_term_token = Column(Text, nullable=True)
+    profile_data = Column(JSON, nullable=True)
     created_at = Column(TIMESTAMP(timezone=True), default=func.now())
     notes = relationship("Note", back_populates="user", cascade="all, delete-orphan")
