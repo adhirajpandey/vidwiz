@@ -34,6 +34,7 @@ class TranscriptHelper:
     def __init__(self, auth_token: str, timeout_seconds: int) -> None:
         self.auth_token = auth_token
         self.timeout_seconds = timeout_seconds
+        self.headers = {"Authorization": f"Bearer {auth_token}"}
 
     @staticmethod
     def _replace_key_names(transcript: List[Dict]) -> List[Dict]:
@@ -50,12 +51,9 @@ class TranscriptHelper:
         )
         return self._replace_key_names(transcript)
 
-    def _headers(self) -> Dict[str, str]:
-        return {"Authorization": f"Bearer {self.auth_token}"}
-
     def get_transcript_task(self) -> Optional[Dict]:
         response = requests.get(
-            TASK_ENDPOINT, headers=self._headers(), params={"timeout": self.timeout_seconds}
+            TASK_ENDPOINT, headers=self.headers, params={"timeout": self.timeout_seconds}
         )
         if response.status_code == 204:
             return None
@@ -86,7 +84,7 @@ class TranscriptHelper:
 
         logger.info(f"Sending task result: {data}")
 
-        response = requests.post(TASK_ENDPOINT, json=data, headers=self._headers())
+        response = requests.post(TASK_ENDPOINT, json=data, headers=self.headers)
         response.raise_for_status()
 
     def run(self) -> None:
