@@ -7,6 +7,8 @@ from typing import List, Dict, Optional, Tuple
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger("vidwiz.transcript_helper")
 
+TASK_ENDPOINT = "https://vidwiz.adhirajpandey.tech/tasks/transcript"
+
 
 def parse_arguments() -> Tuple[str, int]:
     """Parse command line arguments and return auth token and timeout."""
@@ -23,9 +25,6 @@ def parse_arguments() -> Tuple[str, int]:
 
     args = parser.parse_args()
     return args.auth_token, args.timeout
-
-
-TASK_ENDPOINT = "https://vidwiz.adhirajpandey.tech/tasks/transcript"
 
 
 class TranscriptHelper:
@@ -52,7 +51,9 @@ class TranscriptHelper:
 
     def get_transcript_task(self) -> Optional[Dict]:
         response = requests.get(
-            TASK_ENDPOINT, headers=self.headers, params={"timeout": self.timeout_seconds}
+            TASK_ENDPOINT,
+            headers=self.headers,
+            params={"timeout": self.timeout_seconds},
         )
         if response.status_code == 204:
             return None

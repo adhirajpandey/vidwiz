@@ -212,39 +212,51 @@ class TestSignupRoute:
     def test_signup_post_success(self, client):
         """Test successful user signup"""
         response = client.post(
-            "/signup",
-            data={"username": "newuser", "password": "newpassword"},
-            follow_redirects=False,
+            "/user/signup",
+            json={"username": "newuser", "password": "newpassword"},
+            content_type="application/json",
         )
 
-        # Should redirect to login page
-        assert response.status_code == 302
-        assert "/login" in response.location
+        # Should return success message
+        assert response.status_code == 201
+        data = response.get_json()
+        assert data["message"] == "User created successfully"
 
     def test_signup_missing_username(self, client):
         """Test signup with missing username"""
-        response = client.post("/signup", data={"password": "newpassword"})
-        assert response.status_code == 200
-        # Should return signup page with error
-        assert b"Username and password required" in response.data
+        response = client.post(
+            "/user/signup",
+            json={"password": "newpassword"},
+            content_type="application/json",
+        )
+        assert response.status_code == 400
+        data = response.get_json()
+        assert "Invalid data" in data["error"]
 
     def test_signup_missing_password(self, client):
         """Test signup with missing password"""
-        response = client.post("/signup", data={"username": "newuser"})
-        assert response.status_code == 200
-        assert b"Username and password required" in response.data
+        response = client.post(
+            "/user/signup",
+            json={"username": "newuser"},
+            content_type="application/json",
+        )
+        assert response.status_code == 400
+        data = response.get_json()
+        assert "Invalid data" in data["error"]
 
     def test_signup_duplicate_username(self, client, sample_user):
         """Test signup with existing username"""
         response = client.post(
-            "/signup",
-            data={
+            "/user/signup",
+            json={
                 "username": "testuser",  # Username from sample_user fixture
                 "password": "newpassword",
             },
+            content_type="application/json",
         )
-        assert response.status_code == 200
-        assert b"Username already exists" in response.data
+        assert response.status_code == 400
+        data = response.get_json()
+        assert data["error"] == "Username already exists."
 
 
 class TestLoginRoute:
@@ -258,7 +270,7 @@ class TestLoginRoute:
     def test_login_post_success(self, client, sample_user):
         """Test successful login"""
         response = client.post(
-            "/login",
+            "/user/login",
             json={"username": "testuser", "password": "testpassword"},
             content_type="application/json",
         )
@@ -279,25 +291,29 @@ class TestLoginRoute:
     def test_login_missing_username(self, client):
         """Test login with missing username"""
         response = client.post(
-            "/login", json={"password": "testpassword"}, content_type="application/json"
+            "/user/login",
+            json={"password": "testpassword"},
+            content_type="application/json",
         )
         assert response.status_code == 400
         data = response.get_json()
-        assert data["error"] == "Username and password required."
+        assert "Invalid data" in data["error"]
 
     def test_login_missing_password(self, client):
         """Test login with missing password"""
         response = client.post(
-            "/login", json={"username": "testuser"}, content_type="application/json"
+            "/user/login",
+            json={"username": "testuser"},
+            content_type="application/json",
         )
         assert response.status_code == 400
         data = response.get_json()
-        assert data["error"] == "Username and password required."
+        assert "Invalid data" in data["error"]
 
     def test_login_invalid_username(self, client):
         """Test login with invalid username"""
         response = client.post(
-            "/login",
+            "/user/login",
             json={"username": "nonexistent", "password": "testpassword"},
             content_type="application/json",
         )
@@ -308,7 +324,7 @@ class TestLoginRoute:
     def test_login_invalid_password(self, client, sample_user):
         """Test login with invalid password"""
         response = client.post(
-            "/login",
+            "/user/login",
             json={"username": "testuser", "password": "wrongpassword"},
             content_type="application/json",
         )
@@ -319,13 +335,13 @@ class TestLoginRoute:
     def test_login_empty_credentials(self, client):
         """Test login with empty credentials"""
         response = client.post(
-            "/login",
+            "/user/login",
             json={"username": "", "password": ""},
             content_type="application/json",
         )
         assert response.status_code == 400
         data = response.get_json()
-        assert data["error"] == "Username and password required."
+        assert "Invalid data" in data["error"]
 
 
 class TestLogoutRoute:

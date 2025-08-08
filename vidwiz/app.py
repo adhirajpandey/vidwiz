@@ -5,7 +5,7 @@ from flask import Flask
 from vidwiz.routes.video_routes import video_bp
 from vidwiz.routes.notes_routes import notes_bp
 from vidwiz.routes.core_routes import core_bp
-from vidwiz.routes.admin_routes import admin_bp
+from vidwiz.routes.user_routes import user_bp
 from vidwiz.routes.tasks_routes import tasks_bp
 
 from vidwiz.shared.models import db
@@ -43,9 +43,9 @@ def create_app(test_config=None):
     db.init_app(app)
 
     app.register_blueprint(core_bp)
+    app.register_blueprint(user_bp)
     app.register_blueprint(video_bp)
     app.register_blueprint(notes_bp)
-    app.register_blueprint(admin_bp)
     app.register_blueprint(tasks_bp)
 
     return app

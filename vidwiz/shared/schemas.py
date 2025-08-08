@@ -105,6 +105,56 @@ class TranscriptResult(BaseModel):
         return v
 
 
+class UserCreate(BaseModel):
+    username: str
+    password: str
+
+    @field_validator("username")
+    @classmethod
+    def validate_username(cls, v):
+        if not v or not v.strip():
+            raise ValueError("Username cannot be empty")
+        if len(v.strip()) < 3:
+            raise ValueError("Username must be at least 3 characters long")
+        return v.strip()
+
+    @field_validator("password")
+    @classmethod
+    def validate_password(cls, v):
+        if not v:
+            raise ValueError("Password cannot be empty")
+        if len(v) < 6:
+            raise ValueError("Password must be at least 6 characters long")
+        return v
+
+    model_config = {
+        "extra": "forbid",
+    }
+
+
+class UserLogin(BaseModel):
+    username: str
+    password: str
+
+    @field_validator("username")
+    @classmethod
+    def validate_username(cls, v):
+        if not v or not v.strip():
+            raise ValueError("Username cannot be empty")
+        return v.strip()
+
+    @field_validator("password")
+    @classmethod
+    def validate_password(cls, v):
+        if not v:
+            raise ValueError("Password cannot be empty")
+        return v
+
+    model_config = {
+        "extra": "forbid",
+    }
+
+
 class UserProfileRead(BaseModel):
     id: int
     username: str
