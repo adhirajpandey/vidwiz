@@ -7,6 +7,9 @@ import os
 import boto3
 from vidwiz.shared.config import S3_BUCKET_NAME
 import json
+from vidwiz.shared.log import get_logger
+
+logger = get_logger("vidwiz.shared.utils")
 
 
 def jwt_or_lt_token_required(f):
@@ -122,8 +125,8 @@ def _send_lambda_request(
             "note_timestamp": note_timestamp,
         }
         requests.post(lambda_url, json=payload, headers=headers)
-    except requests.RequestException as e:
-        print(f"Error sending request to Lambda: {e}")
+    except requests.RequestException:
+        logger.exception("Error sending request to Lambda")
 
 
 def send_request_to_ainote_lambda(
@@ -153,9 +156,9 @@ def send_request_to_ainote_lambda(
             daemon=True,
         )
         thread.start()
-        print(f"Lambda request initiated in background for note {note_id}")
-    except Exception as e:
-        print(f"Error initiating Lambda request: {e}")
+        logger.info("Lambda request initiated in background for note %s", note_id)
+    except Exception:
+        logger.exception("Error initiating Lambda request")
 
 
 def store_transcript_in_s3(video_id: str, transcript):
@@ -169,7 +172,7 @@ def store_transcript_in_s3(video_id: str, transcript):
     aws_region = os.getenv("AWS_REGION", "ap-south-1")
 
     if not aws_access_key_id or not aws_secret_access_key:
-        print("Error: AWS credentials not found in environment variables")
+        logger.error("AWS credentials not found in environment variables")
         return None
 
     transcript_key = f"transcripts/{video_id}.json"
@@ -186,9 +189,9 @@ def store_transcript_in_s3(video_id: str, transcript):
             Body=json.dumps(transcript),
             ContentType="application/json",
         )
-        print(
-            f"Successfully stored transcript in S3: s3://{S3_BUCKET_NAME}/{transcript_key}"
+        logger.info(
+            "Stored transcript in S3: s3://%s/%s", S3_BUCKET_NAME, transcript_key
         )
-    except Exception as e:
-        print(f"Error storing transcript in S3: {e}")
+    except Exception:
+        logger.exception("Error storing transcript in S3")
         return None

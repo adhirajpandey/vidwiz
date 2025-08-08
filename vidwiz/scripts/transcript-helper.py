@@ -3,8 +3,13 @@ import requests
 import logging
 import argparse
 
-logging.basicConfig(level=logging.INFO)
-logger = logging.getLogger("vidwiz.transcript_helper")
+try:
+    from vidwiz.shared.log import init_logging, get_logger
+    init_logging()
+    logger = get_logger("vidwiz.scripts.transcript_helper")
+except Exception:
+    logging.basicConfig(level=logging.INFO)
+    logger = logging.getLogger("vidwiz.scripts.transcript_helper")
 
 
 def parse_arguments():
@@ -72,7 +77,7 @@ def send_task_result(task_id, video_id, transcript=None, error_message=None):
     else:
         data["error_message"] = error_message
 
-    logger.info(f"Sending task result: {data}")
+    logger.info("Sending task result: %s", data)
 
     headers = {"Authorization": f"Bearer {AUTH_TOKEN}"}
     response = requests.post(TASK_ENDPOINT, json=data, headers=headers)
@@ -81,7 +86,7 @@ def send_task_result(task_id, video_id, transcript=None, error_message=None):
 
 def main():
     """Main function to continuously poll for transcript tasks and process them."""
-    logger.info(f"Starting transcript helper with timeout: {LONG_POLL_TIMEOUT}s")
+    logger.info("Starting transcript helper with timeout: %ss", LONG_POLL_TIMEOUT)
 
     while True:
         try:
@@ -93,7 +98,7 @@ def main():
             task_id = response.get("task_id")
             video_id = response.get("task_details", {}).get("video_id")
 
-            logger.info(f"Received task: {task_id}, video_id: {video_id}")
+            logger.info("Received task: %s, video_id: %s", task_id, video_id)
 
             try:
                 transcript = get_video_transcript(video_id)
@@ -102,7 +107,7 @@ def main():
                 send_task_result(task_id, video_id, error_message=str(e))
 
         except Exception as e:
-            logger.error(f"Error in main loop: {e}")
+            logger.error("Error in main loop: %s", e)
             continue
 
 

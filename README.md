@@ -52,6 +52,8 @@ The extension is built with:
    TABLE_NAME=your_table_name
 
    LAMBDA_URL=your_lambda_url
+   # Optional: Set application log verbosity (DEBUG, INFO, WARNING, ERROR)
+   LOG_LEVEL=INFO
    ```
 
 3. Build Backend server image using: `docker build -t vidwiz .`

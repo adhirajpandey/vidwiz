@@ -1,6 +1,7 @@
 import os
 import sys
 from flask import Flask
+from vidwiz.shared.log import init_logging, get_logger
 
 from vidwiz.routes.video_routes import video_bp
 from vidwiz.routes.notes_routes import notes_bp
@@ -14,9 +15,11 @@ from sqlalchemy import text
 from dotenv import load_dotenv
 
 load_dotenv()
+logger = get_logger("vidwiz.app")
 
 
 def create_app(test_config=None):
+    init_logging()
     app = Flask(__name__)
     DB_URL = os.getenv("DB_URL")
     SECRET_KEY = os.getenv("SECRET_KEY", "dev_secret_key")
@@ -51,9 +54,9 @@ def verify_database_connection(app):
         try:
             db.session.execute(text("SELECT 1"))
             db.create_all()
-            print("✅ Database connected and tables ready.")
+            logger.info("Database connected and tables ready.")
         except Exception as e:
-            print(f"❌ Failed to connect to the database: {e}")
+            logger.exception("Failed to connect to the database")
             sys.exit(1)
 
 

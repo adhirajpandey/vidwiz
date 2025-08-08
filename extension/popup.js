@@ -109,7 +109,6 @@ function saveNotesToBackend(url, notes, videoTitle, videoTimestamp) {
 			setMessage("Note saved successfully!", "green")
 		})
 		.catch(error => {
-			console.error("Error saving notes:", error)
 			setMessage(error.message || "Error saving notes. Please check your authentication token.", "red")
 		})
 }
@@ -141,7 +140,6 @@ function checkNotesExistence(url) {
 			return Array.isArray(data) && data.length > 0
 		})
 		.catch(error => {
-			console.error("Error checking notes:", error)
 			setMessage("Error checking notes. Please check your authentication token.", "red")
 			return false
 		})
