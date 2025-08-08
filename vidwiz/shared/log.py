@@ -34,11 +34,6 @@ def init_logging(default_level: Optional[int] = None) -> None:
         root_logger.addHandler(handler)
         root_logger.setLevel(level)
 
-    # Quiet overly chatty libraries unless explicitly overridden
-    logging.getLogger("boto3").setLevel(logging.WARNING)
-    logging.getLogger("botocore").setLevel(logging.WARNING)
-    logging.getLogger("urllib3").setLevel(logging.WARNING)
-
     _LOGGER_CONFIGURED = True
 
 

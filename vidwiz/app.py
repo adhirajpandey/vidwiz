@@ -56,7 +56,7 @@ def verify_database_connection(app):
             db.create_all()
             logger.info("Database connected and tables ready.")
         except Exception as e:
-            logger.exception("Failed to connect to the database")
+            logger.error("Failed to connect to the database", exc_info=True)
             sys.exit(1)
 
 

@@ -126,7 +126,7 @@ def _send_lambda_request(
         }
         requests.post(lambda_url, json=payload, headers=headers)
     except requests.RequestException:
-        logger.exception("Error sending request to Lambda")
+        logger.error("Error sending request to Lambda", exc_info=True)
 
 
 def send_request_to_ainote_lambda(
@@ -158,7 +158,7 @@ def send_request_to_ainote_lambda(
         thread.start()
         logger.info("Lambda request initiated in background for note %s", note_id)
     except Exception:
-        logger.exception("Error initiating Lambda request")
+        logger.error("Error initiating Lambda request", exc_info=True)
 
 
 def store_transcript_in_s3(video_id: str, transcript):
@@ -193,5 +193,5 @@ def store_transcript_in_s3(video_id: str, transcript):
             "Stored transcript in S3: s3://%s/%s", S3_BUCKET_NAME, transcript_key
         )
     except Exception:
-        logger.exception("Error storing transcript in S3")
+        logger.error("Error storing transcript in S3", exc_info=True)
         return None

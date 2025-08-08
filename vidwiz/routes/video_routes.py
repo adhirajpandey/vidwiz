@@ -17,7 +17,7 @@ def get_video(video_id):
             return jsonify({"error": "Video not found"}), 404
         return jsonify(VideoRead.model_validate(video).model_dump()), 200
     except Exception:
-        logger.exception("Unexpected error in get_video")
+        logger.error("Unexpected error in get_video", exc_info=True)
         return jsonify({"error": "Internal Server Error"}), 500
 
 
@@ -63,5 +63,5 @@ def get_video_notes(video_id):
             200,
         )
     except Exception:
-        logger.exception("Unexpected error in get_video_notes")
+        logger.error("Unexpected error in get_video_notes", exc_info=True)
         return jsonify({"error": "Internal Server Error"}), 500

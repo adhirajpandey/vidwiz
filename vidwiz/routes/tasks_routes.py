@@ -87,7 +87,7 @@ def get_transcript_task():
         ), 204
 
     except Exception:
-        logger.exception("Unexpected error in get_transcript_task")
+        logger.error("Unexpected error in get_transcript_task", exc_info=True)
         return jsonify({"error": "Internal Server Error"}), 500
 
 
@@ -142,7 +142,7 @@ def submit_transcript_result():
                         video.transcript_available = True
 
                 except Exception as s3_error:
-                    logger.warning("Error storing transcript in S3: %s", s3_error)
+                    logger.error("Error storing transcript in S3: %s", s3_error)
                     # Don't fail the task just because S3 failed
 
         else:
@@ -178,5 +178,5 @@ def submit_transcript_result():
 
     except Exception:
         db.session.rollback()
-        logger.exception("Unexpected error in submit_transcript_result")
+        logger.error("Unexpected error in submit_transcript_result", exc_info=True)
         return jsonify({"error": "Internal Server Error"}), 500
