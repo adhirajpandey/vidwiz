@@ -258,7 +258,7 @@ def generate_note_using_llm(
 
     Even if the transcript is in any language, generate a note in English.
     Return only the note, without any additional text or formatting.
-    Do not add ',"",-,: any special character anywhere in the note.
+    Do not add '","",-,: any special character anywhere in the note.
     """
 
     try:

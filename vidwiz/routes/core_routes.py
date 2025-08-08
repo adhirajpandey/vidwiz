@@ -13,8 +13,10 @@ import jwt
 from datetime import datetime, timedelta, timezone
 from flask import current_app
 from pydantic import ValidationError
+from vidwiz.shared.logging import get_logger
 
 core_bp = Blueprint("core", __name__)
+logger = get_logger("vidwiz.routes.core_routes")
 
 
 @core_bp.route("/", methods=["GET"])
@@ -42,8 +44,10 @@ def get_profile_page():
 def get_search_results():
     query = request.args.get("query", None)
     if query is None:
+        logger.warning("Search request missing 'query' parameter")
         return jsonify({"error": "Query parameter is required"}), 400
     # Only include videos that have at least one note owned by the current user
+    logger.info(f"Searching videos for user_id={request.user_id}, query='{query}'")
     videos = (
         Video.query.filter(Video.title.ilike(f"%{query}%"))
         .join(Note, Video.video_id == Note.video_id)
@@ -53,10 +57,12 @@ def get_search_results():
         .all()
     )
     if not videos:
+        logger.info("Search returned 0 videos")
         return jsonify({"error": "No videos found matching the query"}), 404
     all_videos = [
         {"video_id": video.video_id, "video_title": video.title} for video in videos
     ]
+    logger.info(f"Search returned {len(all_videos)} videos")
     return jsonify(all_videos), 200
 
 
@@ -73,6 +79,7 @@ def signup():
         password = data.get("password")
 
         if not username or not password:
+            logger.warning("Signup attempt missing username or password")
             if request.is_json:
                 return jsonify({"error": "Username and password required."}), 400
             else:
@@ -81,6 +88,7 @@ def signup():
                 ), 200
 
         if User.query.filter_by(username=username).first():
+            logger.info(f"Signup attempt with existing username='{username}'")
             if request.is_json:
                 return jsonify({"error": "Username already exists."}), 400
             else:
@@ -91,6 +99,7 @@ def signup():
         user = User(username=username, password_hash=generate_password_hash(password))
         db.session.add(user)
         db.session.commit()
+        logger.info(f"User created successfully username='{username}', id={user.id}")
 
         if request.is_json:
             return jsonify({"message": "User created successfully"}), 201
@@ -115,6 +124,7 @@ def login():
         password = data.get("password")
 
         if not username or not password:
+            logger.warning("Login attempt missing username or password")
             if request.is_json:
                 return jsonify({"error": "Username and password required."}), 400
             else:
@@ -124,6 +134,7 @@ def login():
 
         user = User.query.filter_by(username=username).first()
         if not user or not check_password_hash(user.password_hash, password):
+            logger.warning(f"Invalid login for username='{username}'")
             if request.is_json:
                 return jsonify({"error": "Invalid username or password."}), 401
             else:
@@ -142,6 +153,7 @@ def login():
         )
 
         if request.is_json:
+            logger.info(f"Login success username='{username}', user_id={user.id}")
             return jsonify({"token": token})
         else:
             from flask import redirect, url_for
@@ -158,12 +170,14 @@ def manage_long_term_token():
     try:
         user = User.query.get(request.user_id)
         if not user:
+            logger.warning(f"Long-term token action for missing user_id={request.user_id}")
             return jsonify({"error": "User not found"}), 404
 
         if request.method == "POST":
             # Check if a long-term token already exists
             if user.long_term_token:
                 # Return error - only one token allowed at a time
+                logger.warning(f"User_id={user.id} attempted to create duplicate long-term token")
                 return jsonify(
                     {
                         "error": "A long-term token already exists. Please revoke the existing token before generating a new one."
@@ -185,6 +199,7 @@ def manage_long_term_token():
             # Store the token in the user's record
             user.long_term_token = long_term_token
             db.session.commit()
+            logger.info(f"Long-term token generated for user_id={user.id}")
 
             # Validate response using schema
             response_data = {
@@ -196,11 +211,13 @@ def manage_long_term_token():
 
         elif request.method == "DELETE":
             if not user.long_term_token:
+                logger.warning(f"Token revoke requested but none exists for user_id={user.id}")
                 return jsonify({"error": "No long-term token found"}), 404
 
             # Clear the token from the user's record
             user.long_term_token = None
             db.session.commit()
+            logger.info(f"Long-term token revoked for user_id={user.id}")
 
             # Validate response using schema
             response_data = {"message": "Long-term token revoked successfully"}
@@ -209,6 +226,7 @@ def manage_long_term_token():
 
     except Exception as e:
         db.session.rollback()
+        logger.exception(f"Error in manage_long_term_token: {e}")
         return jsonify({"error": f"Internal Server Error: {str(e)}"}), 500
 
 
@@ -219,6 +237,7 @@ def get_profile():
     try:
         user = User.query.get(request.user_id)
         if not user:
+            logger.warning(f"Profile requested for missing user_id={request.user_id}")
             return jsonify({"error": "User not found"}), 404
 
         # Extract ai_notes_enabled from profile_data
@@ -239,9 +258,11 @@ def get_profile():
 
         # Validate using schema before sending
         validated_profile = UserProfileRead(**profile_data)
+        logger.debug(f"Profile fetched for user_id={user.id}")
         return jsonify(validated_profile.model_dump()), 200
 
     except Exception as e:
+        logger.exception(f"Error in get_profile: {e}")
         return jsonify({"error": f"Internal Server Error: {str(e)}"}), 500
 
 
@@ -252,15 +273,18 @@ def update_profile():
     try:
         data = request.json
         if not data:
+            logger.warning("Update profile missing JSON body")
             return jsonify({"error": "Request body must be JSON"}), 400
 
         try:
             update_data = UserProfileUpdate(**data)
         except ValidationError as e:
+            logger.warning(f"Update profile validation error: {e}")
             return jsonify({"error": f"Invalid data: {str(e)}"}), 400
 
         user = User.query.get(request.user_id)
         if not user:
+            logger.warning(f"Update profile for missing user_id={request.user_id}")
             return jsonify({"error": "User not found"}), 404
 
         # Update the profile_data field with ai_notes_enabled
@@ -270,6 +294,7 @@ def update_profile():
         user.profile_data["ai_notes_enabled"] = update_data.ai_notes_enabled
         flag_modified(user, "profile_data")
         db.session.commit()
+        logger.info(f"Updated ai_notes_enabled={update_data.ai_notes_enabled} for user_id={user.id}")
 
         # Return updated profile data
         token_exists = user.long_term_token is not None
@@ -286,4 +311,5 @@ def update_profile():
 
     except Exception as e:
         db.session.rollback()
+        logger.exception(f"Error in update_profile: {e}")
         return jsonify({"error": f"Internal Server Error: {str(e)}"}), 500

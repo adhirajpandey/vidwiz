@@ -12,11 +12,17 @@ from vidwiz.shared.models import db
 from sqlalchemy import text
 
 from dotenv import load_dotenv
+from vidwiz.shared.logging import get_logger, configure_logging
 
 load_dotenv()
 
+logger = get_logger("vidwiz.app")
+
 
 def create_app(test_config=None):
+    # Ensure logging is configured for the app context
+    configure_logging()
+
     app = Flask(__name__)
     DB_URL = os.getenv("DB_URL")
     SECRET_KEY = os.getenv("SECRET_KEY", "dev_secret_key")
@@ -51,15 +57,16 @@ def verify_database_connection(app):
         try:
             db.session.execute(text("SELECT 1"))
             db.create_all()
-            print("✅ Database connected and tables ready.")
+            logger.info("Database connected and tables ready.")
         except Exception as e:
-            print(f"❌ Failed to connect to the database: {e}")
+            logger.exception(f"Failed to connect to the database: {e}")
             sys.exit(1)
 
 
 def main():
     app = create_app()
     verify_database_connection(app)
+    logger.info("Starting Flask development server on 0.0.0.0 with debug=True")
     app.run(debug=True, host="0.0.0.0")
 
 

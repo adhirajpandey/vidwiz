@@ -1,4 +1,7 @@
 from vidwiz.shared.config import FETCH_TRANSCRIPT_TASK_TYPE
+from vidwiz.shared.logging import get_logger
+
+logger = get_logger("vidwiz.shared.tasks")
 
 
 def create_transcript_task(
@@ -23,10 +26,10 @@ def create_transcript_task(
         db.session.add(task)
         db.session.commit()
 
-        print(f"Task created for video {video_id}: {task_type}")
+        logger.info(f"Task created for video {video_id}: {task_type}")
 
     except Exception as e:
-        print(f"Error creating task for video {video_id}: {e}")
+        logger.exception(f"Error creating task for video {video_id}: {e}")
         # Don't raise the exception to avoid disrupting video creation
         try:
             db.session.rollback()
