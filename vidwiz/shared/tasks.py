@@ -26,10 +26,10 @@ def create_transcript_task(
         db.session.add(task)
         db.session.commit()
 
-        logger.info("Task created for video %s: %s", video_id, task_type)
+        logger.info(f"Task created for video {video_id}: {task_type}")
 
     except Exception:
-        logger.error("Error creating task for video %s", video_id, exc_info=True)
+        logger.error(f"Error creating task for video {video_id}", exc_info=True)
         # Don't raise the exception to avoid disrupting video creation
         try:
             db.session.rollback()

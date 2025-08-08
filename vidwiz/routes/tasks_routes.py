@@ -142,7 +142,7 @@ def submit_transcript_result():
                         video.transcript_available = True
 
                 except Exception as s3_error:
-                    logger.error("Error storing transcript in S3: %s", s3_error)
+                    logger.error(f"Error storing transcript in S3: {s3_error}")
                     # Don't fail the task just because S3 failed
 
         else:

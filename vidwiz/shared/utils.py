@@ -156,7 +156,7 @@ def send_request_to_ainote_lambda(
             daemon=True,
         )
         thread.start()
-        logger.info("Lambda request initiated in background for note %s", note_id)
+        logger.info(f"Lambda request initiated in background for note {note_id}")
     except Exception:
         logger.error("Error initiating Lambda request", exc_info=True)
 
@@ -189,9 +189,7 @@ def store_transcript_in_s3(video_id: str, transcript):
             Body=json.dumps(transcript),
             ContentType="application/json",
         )
-        logger.info(
-            "Stored transcript in S3: s3://%s/%s", S3_BUCKET_NAME, transcript_key
-        )
+        logger.info(f"Stored transcript in S3: s3://{S3_BUCKET_NAME}/{transcript_key}")
     except Exception:
         logger.error("Error storing transcript in S3", exc_info=True)
         return None
