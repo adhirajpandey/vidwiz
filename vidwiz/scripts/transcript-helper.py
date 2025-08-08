@@ -32,7 +32,6 @@ class TranscriptHelper:
     """Helper that polls for transcript tasks and submits results."""
 
     def __init__(self, auth_token: str, timeout_seconds: int) -> None:
-        self.auth_token = auth_token
         self.timeout_seconds = timeout_seconds
         self.headers = {"Authorization": f"Bearer {auth_token}"}
 
