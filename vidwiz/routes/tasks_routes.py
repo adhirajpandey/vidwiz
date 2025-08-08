@@ -15,6 +15,8 @@ from datetime import datetime, timedelta
 import time
 from sqlalchemy.orm.attributes import flag_modified
 from vidwiz.shared.logging import get_logger
+from vidwiz.shared.limiter import limiter
+from vidwiz.shared.config import DEFAULT_RATE_LIMIT, STRICT_RATE_LIMIT
 
 logger = get_logger("vidwiz.routes.tasks_routes")
 
@@ -24,6 +26,7 @@ tasks_bp = Blueprint("tasks", __name__)
 
 @tasks_bp.route("/tasks/transcript", methods=["GET"])
 @jwt_or_admin_required
+@limiter.limit(STRICT_RATE_LIMIT)
 def get_transcript_task():
     """
     Endpoint to retrieve a transcript task for processing from the task table.
@@ -101,6 +104,7 @@ def get_transcript_task():
 
 @tasks_bp.route("/tasks/transcript", methods=["POST"])
 @jwt_or_admin_required
+@limiter.limit(STRICT_RATE_LIMIT)
 def submit_transcript_result():
     """
     Endpoint for workers to submit transcript processing results.

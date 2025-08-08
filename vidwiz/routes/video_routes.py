@@ -3,6 +3,8 @@ from vidwiz.shared.models import Video, Note, User, db
 from vidwiz.shared.schemas import VideoRead, NoteRead
 from vidwiz.shared.utils import jwt_or_lt_token_required, admin_required
 from vidwiz.shared.logging import get_logger
+from vidwiz.shared.limiter import limiter
+from vidwiz.shared.config import DEFAULT_RATE_LIMIT, STRICT_RATE_LIMIT
 
 logger = get_logger("vidwiz.routes.video_routes")
 
@@ -11,6 +13,7 @@ video_bp = Blueprint("video", __name__)
 
 @video_bp.route("/videos/<video_id>", methods=["GET"])
 @jwt_or_lt_token_required
+@limiter.limit(DEFAULT_RATE_LIMIT)
 def get_video(video_id):
     try:
         video = Video.query.filter_by(video_id=video_id).first()
@@ -26,6 +29,7 @@ def get_video(video_id):
 
 @video_bp.route("/videos/<video_id>/notes/ai-note-task", methods=["GET"])
 @admin_required
+@limiter.limit(STRICT_RATE_LIMIT)
 def get_video_notes(video_id):
     try:
         # Check if video exists

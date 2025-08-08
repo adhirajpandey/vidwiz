@@ -5,6 +5,8 @@ from pydantic import ValidationError
 from vidwiz.shared.utils import admin_required
 from vidwiz.shared.tasks import create_transcript_task
 from vidwiz.shared.logging import get_logger
+from vidwiz.shared.limiter import limiter
+from vidwiz.shared.config import DEFAULT_RATE_LIMIT, STRICT_RATE_LIMIT
 
 admin_bp = Blueprint("admin", __name__, url_prefix="/admin")
 logger = get_logger("vidwiz.routes.admin_routes")
@@ -12,6 +14,7 @@ logger = get_logger("vidwiz.routes.admin_routes")
 
 @admin_bp.route("/videos", methods=["POST"])
 @admin_required
+@limiter.limit(STRICT_RATE_LIMIT)
 def create_video():
     try:
         data = request.json
@@ -54,6 +57,7 @@ def create_video():
 
 @admin_bp.route("/videos/<video_id>", methods=["PATCH"])
 @admin_required
+@limiter.limit(STRICT_RATE_LIMIT)
 def update_video(video_id):
     try:
         data = request.json
@@ -88,6 +92,7 @@ def update_video(video_id):
 
 @admin_bp.route("/videos/<video_id>", methods=["DELETE"])
 @admin_required
+@limiter.limit(STRICT_RATE_LIMIT)
 def delete_video(video_id):
     try:
         video = Video.query.filter_by(video_id=video_id).first()
@@ -107,6 +112,7 @@ def delete_video(video_id):
 
 @admin_bp.route("/videos", methods=["GET"])
 @admin_required
+@limiter.limit(DEFAULT_RATE_LIMIT)
 def list_all_videos():
     try:
         videos = Video.query.order_by(Video.created_at.desc()).all()

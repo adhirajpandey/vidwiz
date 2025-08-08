@@ -67,7 +67,7 @@ def admin_required(f):
         admin_token = os.getenv("ADMIN_TOKEN")
         if not admin_token:
             logger.error("Admin access attempted but ADMIN_TOKEN not configured")
-            return jsonify({"error": "Admin access not configured"}), 500
+            return jsonify({"error": "Invalid admin token"}), 403
 
         if token != admin_token:
             logger.warning("Admin auth failed: invalid admin token")

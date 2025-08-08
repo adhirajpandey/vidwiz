@@ -9,6 +9,8 @@ from vidwiz.shared.utils import (
 )
 from vidwiz.shared.tasks import create_transcript_task
 from vidwiz.shared.logging import get_logger
+from vidwiz.shared.limiter import limiter
+from vidwiz.shared.config import DEFAULT_RATE_LIMIT, STRICT_RATE_LIMIT
 
 notes_bp = Blueprint("notes", __name__)
 logger = get_logger("vidwiz.routes.notes_routes")
@@ -16,6 +18,7 @@ logger = get_logger("vidwiz.routes.notes_routes")
 
 @notes_bp.route("/notes", methods=["POST"])
 @jwt_or_lt_token_required
+@limiter.limit(STRICT_RATE_LIMIT)
 def create_note():
     try:
         data = request.json
@@ -96,6 +99,7 @@ def create_note():
 
 @notes_bp.route("/notes/<string:video_id>", methods=["GET"])
 @jwt_or_lt_token_required
+@limiter.limit(DEFAULT_RATE_LIMIT)
 def get_notes(video_id):
     try:
         notes = Note.query.filter_by(video_id=video_id, user_id=request.user_id).all()
@@ -112,6 +116,7 @@ def get_notes(video_id):
 
 @notes_bp.route("/notes/<int:note_id>", methods=["DELETE"])
 @jwt_or_lt_token_required
+@limiter.limit(STRICT_RATE_LIMIT)
 def delete_note(note_id):
     try:
         note = Note.query.filter_by(id=note_id, user_id=request.user_id).first()
@@ -132,6 +137,7 @@ def delete_note(note_id):
 
 @notes_bp.route("/notes/<int:note_id>", methods=["PATCH"])
 @jwt_or_admin_required
+@limiter.limit(STRICT_RATE_LIMIT)
 def update_note(note_id):
     try:
         data = request.json
