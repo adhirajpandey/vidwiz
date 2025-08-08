@@ -19,6 +19,7 @@ def jwt_or_lt_token_required(f):
 
         auth_header = request.headers.get("Authorization", "")
         if not auth_header.startswith("Bearer "):
+            logger.warning("Auth failed: missing/invalid Authorization header")
             return jsonify({"error": "Missing or invalid Authorization header"}), 401
         token = auth_header.split(" ", 1)[1]
 
@@ -28,9 +29,11 @@ def jwt_or_lt_token_required(f):
                 token, current_app.config["SECRET_KEY"], algorithms=["HS256"]
             )
             request.user_id = payload["user_id"]
+            logger.debug(f"JWT auth succeeded for user_id={request.user_id}")
             return f(*args, **kwargs)
         except Exception:
             # JWT decoding failed, try to check if it's a long term token
+            logger.debug("JWT decode failed; attempting long-term token auth")
             pass
 
         # Check if token matches any user's long_term_token
@@ -38,10 +41,12 @@ def jwt_or_lt_token_required(f):
             user = User.query.filter_by(long_term_token=token).first()
             if user:
                 request.user_id = user.id
+                logger.debug(f"Long-term token auth succeeded for user_id={user.id}")
                 return f(*args, **kwargs)
-        except Exception:
-            pass
+        except Exception as e:
+            logger.error(f"Error during long-term token lookup: {e}")
 
+        logger.warning("Auth failed: invalid/expired token or not a long-term token")
         return jsonify(
             {"error": "Invalid or expired token or not a long term token"}
         ), 401
@@ -54,17 +59,21 @@ def admin_required(f):
     def decorated_function(*args, **kwargs):
         auth_header = request.headers.get("Authorization", "")
         if not auth_header.startswith("Bearer "):
+            logger.warning("Admin auth failed: missing/invalid Authorization header")
             return jsonify({"error": "Missing or invalid Authorization header"}), 401
         token = auth_header.split(" ", 1)[1]
 
         # Check if token matches ADMIN_TOKEN
         admin_token = os.getenv("ADMIN_TOKEN")
         if not admin_token:
+            logger.error("Admin access attempted but ADMIN_TOKEN not configured")
             return jsonify({"error": "Admin access not configured"}), 500
 
         if token != admin_token:
+            logger.warning("Admin auth failed: invalid admin token")
             return jsonify({"error": "Invalid admin token"}), 403
 
+        logger.debug("Admin auth succeeded")
         return f(*args, **kwargs)
 
     return decorated_function
@@ -75,6 +84,7 @@ def jwt_or_admin_required(f):
     def decorated_function(*args, **kwargs):
         auth_header = request.headers.get("Authorization", "")
         if not auth_header.startswith("Bearer "):
+            logger.warning("Auth (admin/JWT) failed: missing/invalid Authorization header")
             return jsonify({"error": "Missing or invalid Authorization header"}), 401
         token = auth_header.split(" ", 1)[1]
 
@@ -84,6 +94,7 @@ def jwt_or_admin_required(f):
             # Admin token - set a flag to indicate admin access
             request.is_admin = True
             request.user_id = None  # Admin doesn't have a specific user_id
+            logger.debug("Admin token accepted for route access")
             return f(*args, **kwargs)
 
         # If not admin token, try to decode as JWT
@@ -93,7 +104,9 @@ def jwt_or_admin_required(f):
             )
             request.user_id = payload["user_id"]
             request.is_admin = False
+            logger.debug(f"JWT auth (non-admin) succeeded for user_id={request.user_id}")
         except Exception:
+            logger.warning("Auth (admin/JWT) failed: invalid or expired token")
             return jsonify({"error": "Invalid or expired token"}), 401
 
         return f(*args, **kwargs)
@@ -124,7 +137,11 @@ def _send_lambda_request(
             "video_title": video_title,
             "note_timestamp": note_timestamp,
         }
+        logger.debug(
+            f"Posting AI-note request to lambda_url={lambda_url} for note_id={note_id}, video_id={video_id}"
+        )
         requests.post(lambda_url, json=payload, headers=headers)
+        logger.debug(f"Posted AI-note request for note_id={note_id}")
     except requests.RequestException as e:
         logger.error(f"Error sending request to Lambda: {e}")
 
@@ -156,14 +173,20 @@ def send_request_to_ainote_lambda(
             daemon=True,
         )
         thread.start()
-        logger.info(f"Lambda request initiated in background for note {note_id}")
+        logger.info(
+            f"Lambda request initiated in background for note_id={note_id}, video_id={video_id}, timestamp={note_timestamp}"
+        )
     except Exception as e:
         logger.exception(f"Error initiating Lambda request: {e}")
 
 
 def store_transcript_in_s3(video_id: str, transcript):
     """Store transcript in S3."""
-    if not S3_BUCKET_NAME or not transcript:
+    if not S3_BUCKET_NAME:
+        logger.debug("Skipping S3 store: S3_BUCKET_NAME not set")
+        return None
+    if not transcript:
+        logger.debug("Skipping S3 store: empty transcript payload")
         return None
 
     # Get AWS credentials from environment variables
@@ -182,6 +205,9 @@ def store_transcript_in_s3(video_id: str, transcript):
             aws_access_key_id=aws_access_key_id,
             aws_secret_access_key=aws_secret_access_key,
             region_name=aws_region,
+        )
+        logger.debug(
+            f"Uploading transcript to S3 bucket={S3_BUCKET_NAME}, key={transcript_key}, region={aws_region}"
         )
         s3_client.put_object(
             Bucket=S3_BUCKET_NAME,
