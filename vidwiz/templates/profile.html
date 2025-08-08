@@ -302,9 +302,11 @@
           // Update token section based on token existence
           updateTokenSection(profileData.token_exists ? 'hidden_token' : null);
         } else {
+          console.error('Failed to load profile data');
           showToast('Failed to load profile data', 'error');
         }
       } catch (error) {
+        console.error('Error loading profile data:', error);
         showToast('Error loading profile data', 'error');
       }
     }

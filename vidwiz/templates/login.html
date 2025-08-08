@@ -56,6 +56,7 @@
           });
           if (resp.ok) {
             const data = await resp.json();
+            console.log('Login successful:', data);
             localStorage.setItem('vidwiz-token', data.token);
             window.location.href = '/dashboard';
           } else {

@@ -100,7 +100,7 @@
         headers: token ? { 'Authorization': `Bearer ${token}` } : {}
       });
       if (!response.ok) {
-        showToast('Failed to fetch videos', 'error');
+        console.error("Error fetching videos:", response.statusText);
         return;
       }
       const data = await response.json();
