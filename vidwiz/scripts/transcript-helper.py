@@ -1,10 +1,10 @@
 from youtube_transcript_api import YouTubeTranscriptApi
 import requests
-from vidwiz.logging_config import configure_logging, get_logger
+import logging
 import argparse
 
-configure_logging()
-logger = get_logger("vidwiz.transcript_helper")
+logging.basicConfig(level=logging.INFO)
+logger = logging.getLogger("vidwiz.transcript_helper")
 
 
 def parse_arguments():
