@@ -15,7 +15,9 @@ def get_video(video_id):
     try:
         video = Video.query.filter_by(video_id=video_id).first()
         if not video:
+            logger.warning(f"Video not found video_id={video_id}")
             return jsonify({"error": "Video not found"}), 404
+        logger.info(f"Fetched video video_id={video_id}")
         return jsonify(VideoRead.model_validate(video).model_dump()), 200
     except Exception as e:
         logger.exception(f"Unexpected error in get_video: {e}")
@@ -29,6 +31,7 @@ def get_video_notes(video_id):
         # Check if video exists
         video = Video.query.filter_by(video_id=video_id).first()
         if not video:
+            logger.warning(f"AI-note-task: video not found video_id={video_id}")
             return jsonify({"error": "Video not found"}), 404
 
         # Get notes for this video where users have AI notes enabled and the note text is empty or None
@@ -46,12 +49,18 @@ def get_video_notes(video_id):
 
         # Check if any notes were found
         if len(notes) == 0:
+            logger.info(
+                f"AI-note-task: no eligible notes for video_id={video_id}"
+            )
             return jsonify(
                 {"error": "No notes found for users with AI notes enabled"}
             ), 404
 
         # Convert notes to response format
         notes_data = [NoteRead.model_validate(note).model_dump() for note in notes]
+        logger.info(
+            f"AI-note-task: returning {len(notes_data)} notes for video_id={video_id}"
+        )
 
         return (
             jsonify(

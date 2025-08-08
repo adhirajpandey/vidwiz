@@ -35,6 +35,9 @@ def get_transcript_task():
         )
 
         start_time = time.time()
+        logger.info(
+            f"Transcript task poll started by user_id={getattr(request, 'user_id', None)} with timeout={timeout}s"
+        )
 
         while time.time() - start_time < timeout:
             # Calculate cutoff time for stale in-progress tasks
@@ -70,6 +73,9 @@ def get_transcript_task():
                 task.worker_details["worker_user_id"] = request.user_id
 
                 db.session.commit()
+                logger.info(
+                    f"Assigned transcript task task_id={task.id} to user_id={request.user_id}, retry_count={task.retry_count}"
+                )
 
                 return jsonify(
                     {
@@ -83,6 +89,7 @@ def get_transcript_task():
 
             time.sleep(TRANSCRIPT_POLL_INTERVAL)
 
+        logger.info("No transcript tasks available within timeout window")
         return jsonify(
             {"message": "No transcript tasks available for processing", "timeout": True}
         ), 204
@@ -101,11 +108,13 @@ def submit_transcript_result():
     try:
         data = request.json
         if not data:
+            logger.warning("Submit transcript result missing JSON body")
             return jsonify({"error": "Request body must be JSON"}), 400
 
         try:
             result_data = TranscriptResult(**data)
         except ValidationError as e:
+            logger.warning(f"Submit transcript result validation error: {e}")
             return jsonify({"error": f"Invalid data: {str(e)}"}), 400
 
         # Find the task
@@ -113,16 +122,23 @@ def submit_transcript_result():
 
         # Verify task belongs to the right video
         if task.task_details.get("video_id") != result_data.video_id:
+            logger.warning(
+                f"Task {task.id if task else None} video_id mismatch payload={result_data.video_id}"
+            )
             return jsonify({"error": "Task video_id mismatch"}), 400
 
         # Verify task is in IN_PROGRESS status
         if task.status != TaskStatus.IN_PROGRESS:
+            logger.warning(f"Task {task.id} not in progress; current status={task.status}")
             return jsonify({"error": "Task is not in progress"}), 400
 
         # Verify that the request is coming from the same worker who retrieved the task
         worker_user_id = task.worker_details.get("worker_user_id", None)
 
         if worker_user_id != request.user_id:
+            logger.warning(
+                f"Unauthorized submit for task_id={task.id} by user_id={request.user_id}, owner={worker_user_id}"
+            )
             return jsonify(
                 {"error": "Unauthorized: Task belongs to a different worker"}
             ), 403
@@ -168,6 +184,9 @@ def submit_transcript_result():
             flag_modified(task, "worker_details")
 
         db.session.commit()
+        logger.info(
+            f"Transcript result submitted for task_id={task.id}, status={task.status}"
+        )
 
         return jsonify(
             {
