@@ -3,23 +3,10 @@ import os
 import requests
 from typing import Dict, Any, Optional, List
 import boto3
-try:
-    from vidwiz.shared.log import get_logger, init_logging
-    init_logging()
-    logger = get_logger("vidwiz.lambda.gen_note")
-except Exception:
-    import logging, sys
-    logging.basicConfig(
-        level=logging.INFO,
-        stream=sys.stdout,
-        format="%(asctime)s %(levelname)s %(name)s - %(message)s",
-        datefmt="%Y-%m-%d %H:%M:%S",
-    )
-    logger = logging.getLogger("vidwiz.lambda.gen_note")
 
 
 # Environment variables
-logger.info("Loading environment variables")
+print("Loading environment variables...")
 BASE_URL = os.getenv("BASE_URL")
 AUTH_TOKEN = os.getenv("AUTH_TOKEN")
 PREFERRED_PROVIDER = os.getenv("PREFERRED_PROVIDER", "gemini")
@@ -30,27 +17,27 @@ S3_BUCKET_NAME = os.getenv("S3_BUCKET_NAME", "vidwiz")
 OPENAI_ENDPOINT = "https://api.openai.com/v1/chat/completions"
 GEMINI_ENDPOINT = "https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent"
 OPENAI_MODEL = os.getenv("OPENAI_MODEL", "gpt-4o-mini")
-logger.info("Environment loaded. Preferred provider: %s", PREFERRED_PROVIDER)
+print(f"Environment loaded. Preferred provider: {PREFERRED_PROVIDER}")
 
 s3_client = boto3.client("s3")
 
 
 def check_authorization(headers: Dict[str, str]) -> bool:
     """Check if the request is authorized using Bearer token"""
-    logger.debug("Checking authorization")
+    print("Checking authorization...")
     try:
         auth_header = headers.get("authorization", "")
-        logger.debug("Auth header present: %s", bool(auth_header))
+        print(f"Auth header present: {bool(auth_header)}")
         if not auth_header.startswith("Bearer "):
-            logger.warning("Invalid auth header format")
+            print("Invalid auth header format")
             return False
 
         token = auth_header.split(" ")[1]
         is_valid = token == AUTH_TOKEN
-        logger.debug("Token validation result: %s", is_valid)
+        print(f"Token validation result: {is_valid}")
         return is_valid
-    except Exception:
-        logger.exception("Authorization error")
+    except Exception as e:
+        print(f"Authorization error: {e}")
         return False
 
 
@@ -61,23 +48,21 @@ def get_transcript_from_s3(video_id: str) -> Optional[List[Dict]]:
 
     transcript_key = f"transcripts/{video_id}.json"
     try:
-        logger.info("Checking for transcript in S3: s3://%s/%s", S3_BUCKET_NAME, transcript_key)
+        print(f"Checking for transcript in S3: s3://{S3_BUCKET_NAME}/{transcript_key}")
         response = s3_client.get_object(Bucket=S3_BUCKET_NAME, Key=transcript_key)
         transcript_data = json.loads(response["Body"].read().decode("utf-8"))
-        logger.info("Successfully loaded transcript from S3 for video ID: %s", video_id)
+        print(f"Successfully loaded transcript from S3 for video ID: {video_id}")
         return transcript_data
     except Exception as e:
-        logger.warning(
-            "Transcript not found in S3 for video ID: %s (error: %s). Fetching from API.",
-            video_id,
-            str(e),
+        print(
+            f"Transcript not found in S3 for video ID: {video_id} (error: {e}). Fetching from API."
         )
         return None
 
 
 def get_transcript_from_api(video_id: str) -> Optional[List[Dict]]:
     """Get transcript from RapidAPI."""
-    logger.info("Fetching transcript for video ID: %s from RapidAPI", video_id)
+    print(f"Fetching transcript for video ID: {video_id} from RapidAPI")
     api_url = "https://youtube-transcript3.p.rapidapi.com/api/transcript"
     headers = {
         "x-rapidapi-key": RAPIDAPI_KEY,
@@ -87,25 +72,23 @@ def get_transcript_from_api(video_id: str) -> Optional[List[Dict]]:
     try:
         url = f"{api_url}?videoId={video_id}"
         response = requests.get(url, headers=headers, timeout=10)
-        logger.info("Transcript API response status: %s", response.status_code)
+        print(f"Transcript API response status: {response.status_code}")
         response.raise_for_status()
         response_data = response.json()
 
         if "error" in response_data or not response_data.get("success"):
-            logger.error(
-                "API returned an error or unsuccessful response: %s",
-                response_data.get("error"),
+            print(
+                f"API returned an error or unsuccessful response: {response_data.get('error')}"
             )
             return None
 
         transcript = response_data.get("transcript", [])
-        logger.info(
-            "Successfully retrieved transcript with %d segments from API",
-            len(transcript),
+        print(
+            f"Successfully retrieved transcript with {len(transcript)} segments from API"
         )
         return transcript
-    except requests.exceptions.RequestException:
-        logger.exception("Error fetching transcript from RapidAPI")
+    except requests.exceptions.RequestException as e:
+        print(f"Error fetching transcript from RapidAPI: {e}")
         return None
 
 
@@ -122,13 +105,11 @@ def store_transcript_in_s3(video_id: str, transcript: List[Dict]):
             Body=json.dumps(transcript),
             ContentType="application/json",
         )
-        logger.info(
-            "Successfully stored transcript in S3: s3://%s/%s",
-            S3_BUCKET_NAME,
-            transcript_key,
+        print(
+            f"Successfully stored transcript in S3: s3://{S3_BUCKET_NAME}/{transcript_key}"
         )
-    except Exception:
-        logger.exception("Error storing transcript in S3")
+    except Exception as e:
+        print(f"Error storing transcript in S3: {e}")
 
 
 def get_transcript(video_id: str):
@@ -150,23 +131,23 @@ def get_transcript(video_id: str):
 
 def format_timestamp_in_seconds(timestamp: str) -> int:
     """Convert timestamp to seconds"""
-    logger.debug("Converting timestamp to seconds: %s", timestamp)
+    print(f"Converting timestamp to seconds: {timestamp}")
     parts = [int(x) for x in timestamp.split(":")]
     seconds = sum(x * 60**i for i, x in enumerate(reversed(parts)))
-    logger.debug("Converted to %d seconds", seconds)
+    print(f"Converted to {seconds} seconds")
     return seconds
 
 
 def get_relevant_transcript(transcript: List[Dict], timestamp: str) -> Optional[str]:
     """Get relevant portion of transcript based on timestamp"""
-    logger.debug("Getting relevant transcript for timestamp: %s", timestamp)
+    print(f"Getting relevant transcript for timestamp: {timestamp}")
     try:
         if not transcript:
-            logger.warning("No transcript provided")
+            print("No transcript provided")
             return None
 
         timestamp_in_seconds = format_timestamp_in_seconds(timestamp)
-        logger.debug("Looking for content around %d seconds", timestamp_in_seconds)
+        print(f"Looking for content around {timestamp_in_seconds} seconds")
 
         buffer = 15
         relevant = [
@@ -177,14 +158,14 @@ def get_relevant_transcript(transcript: List[Dict], timestamp: str) -> Optional[
             <= (timestamp_in_seconds + buffer)
         ]
         if not relevant:
-            logger.info("No relevant segments found within buffer range")
+            print("No relevant segments found within buffer range")
             return None
 
         closest_idx = min(
             range(len(transcript)),
             key=lambda i: abs(float(transcript[i]["offset"]) - timestamp_in_seconds),
         )
-        logger.debug("Found closest segment at index %d", closest_idx)
+        print(f"Found closest segment at index {closest_idx}")
 
         before = transcript[max(0, closest_idx - 15) : closest_idx]
         after = transcript[closest_idx + 1 : closest_idx + 16]
@@ -195,20 +176,18 @@ def get_relevant_transcript(transcript: List[Dict], timestamp: str) -> Optional[
             "before": before,
             "after": after,
         }
-        logger.debug(
-            "Extracted relevant transcript with %d segments before and %d segments after",
-            len(before),
-            len(after),
+        print(
+            f"Extracted relevant transcript with {len(before)} segments before and {len(after)} segments after"
         )
         return json.dumps(result, ensure_ascii=False)
-    except Exception:
-        logger.exception("Error extracting relevant transcript")
+    except Exception as e:
+        print(f"Error extracting relevant transcript: {e}")
         return None
 
 
 def openai_api_call(prompt: str) -> Optional[str]:
     """Make API call to OpenAI"""
-    logger.info("Making OpenAI API call")
+    print("Making OpenAI API call...")
     headers = {
         "Authorization": f"Bearer {OPENAI_API_KEY}",
         "Content-Type": "application/json",
@@ -220,28 +199,29 @@ def openai_api_call(prompt: str) -> Optional[str]:
             {"role": "user", "content": prompt},
         ],
     }
-    logger.debug("OpenAI model: %s; prompt length: %d", OPENAI_MODEL, len(prompt))
+    print(f"Payload: {payload}")
     try:
         response = requests.post(
             OPENAI_ENDPOINT, json=payload, headers=headers, timeout=10
         )
-        logger.info("OpenAI response status code: %s", response.status_code)
+        print(f"Response status code: {response.status_code}")
         response.raise_for_status()
         response_data = response.json()
+        print(response_data)
         if "error" in response_data:
-            logger.error("OpenAI API error: %s", response_data["error"])
+            print(f"OpenAI API error: {response_data['error']}")
             return None
         result = response_data["choices"][0]["message"]["content"]
-        logger.info("Successfully received response from OpenAI")
+        print("Successfully received response from OpenAI")
         return result
-    except requests.exceptions.RequestException:
-        logger.exception("OpenAI API error")
+    except requests.exceptions.RequestException as e:
+        print(f"OpenAI API error: {e}")
         return None
 
 
 def gemini_api_call(prompt: str) -> Optional[str]:
     """Make API call to Gemini"""
-    logger.info("Making Gemini API call")
+    print("Making Gemini API call...")
     headers = {"Content-Type": "application/json", "x-goog-api-key": GEMINI_API_KEY}
     payload = {"contents": [{"parts": [{"text": prompt}]}]}
 
@@ -249,17 +229,16 @@ def gemini_api_call(prompt: str) -> Optional[str]:
         response = requests.post(
             GEMINI_ENDPOINT, json=payload, headers=headers, timeout=10
         )
-        logger.info("Gemini response status code: %s", response.status_code)
         response.raise_for_status()
         response_data = response.json()
         if "error" in response_data:
-            logger.error("Gemini API error: %s", response_data["error"])
+            print(f"Gemini API error: {response_data['error']}")
             return None
         result = response_data["candidates"][0]["content"]["parts"][0]["text"]
-        logger.info("Successfully received response from Gemini")
+        print("Successfully received response from Gemini")
         return result
-    except requests.exceptions.RequestException:
-        logger.exception("Gemini API error")
+    except requests.exceptions.RequestException as e:
+        print(f"Gemini API error: {e}")
         return None
 
 
@@ -267,7 +246,7 @@ def generate_note_using_llm(
     title: str, timestamp: str, note: Dict[str, Any], transcript: str
 ) -> Optional[str]:
     """Generate a note using LLM"""
-    logger.info("Generating note for video: %s at timestamp: %s", title, timestamp)
+    print(f"Generating note for video: {title} at timestamp: {timestamp}")
     prompt = f"""Generate a concise one-line note based on the provided title, timestamp, and transcript. 
     The note should be less than 120 characters and capture the essence of the content at the specified timestamp. 
     Focus more on the transcript context than the title. Do not include any additional text or formatting.
@@ -284,16 +263,16 @@ def generate_note_using_llm(
 
     try:
         if PREFERRED_PROVIDER == "gemini" and GEMINI_API_KEY:
-            logger.info("Using Gemini provider")
+            print("Using Gemini provider")
             return gemini_api_call(prompt)
         elif PREFERRED_PROVIDER == "openai" and OPENAI_API_KEY:
-            logger.info("Using OpenAI provider")
+            print("Using OpenAI provider")
             return openai_api_call(prompt)
         else:
-            logger.error("No valid API key found for the preferred provider")
+            print("No valid API key found for the preferred provider")
             return None
-    except Exception:
-        logger.exception("Error generating AI note")
+    except Exception as e:
+        print(f"Error generating AI note: {e}")
         return None
 
 
@@ -306,47 +285,46 @@ def get_valid_ai_note(
     max_tries: int = 3,
 ) -> Optional[str]:
     """Get a valid AI note with retries if needed"""
-    logger.info("Attempting to get valid AI note (attempt %d/%d)", tries, max_tries)
+    print(f"Attempting to get valid AI note (attempt {tries}/{max_tries})")
     ai_note = generate_note_using_llm(title, timestamp, note, transcript)
     if ai_note is None:
-        logger.warning("Failed to generate AI note")
+        print("Failed to generate AI note")
         return None
 
     if len(ai_note) > 120 or len(ai_note) < 10:
-        logger.info(
-            "AI note length invalid (%d chars). Retrying (attempt %d/%d)",
-            len(ai_note),
-            tries,
-            max_tries,
+        print(
+            f"AI note length invalid ({len(ai_note)} chars). Retrying (attempt {tries}/{max_tries})"
         )
         if tries < max_tries:
             return get_valid_ai_note(
                 title, timestamp, note, transcript, tries + 1, max_tries
             )
         else:
-            logger.warning("Max retries reached for note ID %s", note.get("id"))
+            print(f"Max retries reached for note ID {note.get('id')}")
             return ai_note
-    logger.info("Generated valid AI note with length %d", len(ai_note))
+    print(f"Generated valid AI note with length {len(ai_note)}")
     return ai_note
 
 
 def lambda_handler(event, context):
     """AWS Lambda handler function"""
-    logger.info("Lambda function started")
+    print("Lambda function started")
+    print(f"Event received: {json.dumps(event)}")
     try:
         # Check authorization
         headers = event.get("headers", {})
         if not check_authorization(headers):
-            logger.warning("Authorization failed")
+            print("Authorization failed")
             return {"statusCode": 401, "body": json.dumps({"error": "Unauthorized"})}
 
         # Get note data from the event
         note_data = event.get("body", {})
         if isinstance(note_data, str):
             note_data = json.loads(note_data)
+        print(f"Note data: {json.dumps(note_data)}")
 
         if not note_data:
-            logger.warning("No data provided in request")
+            print("No data provided in request")
             return {
                 "statusCode": 400,
                 "body": json.dumps({"error": "No data provided"}),
@@ -357,15 +335,12 @@ def lambda_handler(event, context):
         video_id = note_data.get("video_id")
         video_title = note_data.get("video_title")
         note_timestamp = note_data.get("note_timestamp")
-        logger.debug(
-            "Extracted fields - Note ID: %s, Video ID: %s, Timestamp: %s",
-            note_id,
-            video_id,
-            note_timestamp,
+        print(
+            f"Extracted fields - Note ID: {note_id}, Video ID: {video_id}, Timestamp: {note_timestamp}"
         )
 
         if not all([note_id, video_id, video_title, note_timestamp]):
-            logger.warning("Missing required fields")
+            print("Missing required fields")
             return {
                 "statusCode": 400,
                 "body": json.dumps({"error": "Missing required fields"}),
@@ -374,7 +349,7 @@ def lambda_handler(event, context):
         # Get transcript
         transcript = get_transcript(video_id)
         if not transcript:
-            logger.warning("Transcript not found")
+            print("Transcript not found")
             return {
                 "statusCode": 404,
                 "body": json.dumps({"error": "Transcript not found"}),
@@ -383,7 +358,7 @@ def lambda_handler(event, context):
         # Get relevant transcript portion
         relevant_transcript = get_relevant_transcript(transcript, note_timestamp)
         if not relevant_transcript:
-            logger.warning("No relevant transcript found")
+            print("No relevant transcript found")
             return {
                 "statusCode": 404,
                 "body": json.dumps({"error": "No relevant transcript found"}),
@@ -394,7 +369,7 @@ def lambda_handler(event, context):
             video_title, note_timestamp, note_data, relevant_transcript
         )
         if not ai_note:
-            logger.error("Failed to generate AI note")
+            print("Failed to generate AI note")
             return {
                 "statusCode": 500,
                 "body": json.dumps({"error": "Failed to generate AI note"}),
@@ -402,7 +377,7 @@ def lambda_handler(event, context):
 
         # Update note with AI note using PATCH request
         update_url = f"{BASE_URL}/notes/{note_id}"
-        logger.debug("Updating note with ID %s", note_id)
+        print(f"Updating note at URL: {update_url}")
         try:
             headers = {
                 "Content-Type": "application/json",
@@ -417,13 +392,13 @@ def lambda_handler(event, context):
             response.raise_for_status()
             update_response = response.json()
         except requests.exceptions.RequestException as e:
-            logger.exception("Failed to update note")
+            print(f"Failed to update note: {e}")
             return {
                 "statusCode": 500,
                 "body": json.dumps({"error": f"Failed to update note: {str(e)}"}),
             }
 
-        logger.info("Successfully completed note generation and update")
+        print("Successfully completed note generation and update")
         return {
             "statusCode": 200,
             "body": json.dumps(
@@ -435,5 +410,5 @@ def lambda_handler(event, context):
         }
 
     except Exception as e:
-        logger.exception("Unexpected error in lambda handler")
+        print(f"Unexpected error in lambda handler: {str(e)}")
         return {"statusCode": 500, "body": json.dumps({"error": str(e)})}
