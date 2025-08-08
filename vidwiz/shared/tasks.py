@@ -1,5 +1,5 @@
 from vidwiz.shared.config import FETCH_TRANSCRIPT_TASK_TYPE
-from vidwiz.logging_config import get_logger
+from vidwiz.shared.logging import get_logger
 
 logger = get_logger("vidwiz.shared.tasks")
 

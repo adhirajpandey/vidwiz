@@ -13,7 +13,7 @@ import jwt
 from datetime import datetime, timedelta, timezone
 from flask import current_app
 from pydantic import ValidationError
-from vidwiz.logging_config import get_logger
+from vidwiz.shared.logging import get_logger
 
 core_bp = Blueprint("core", __name__)
 logger = get_logger("vidwiz.routes.core_routes")

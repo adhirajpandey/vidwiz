@@ -12,7 +12,7 @@ from vidwiz.shared.models import db
 from sqlalchemy import text
 
 from dotenv import load_dotenv
-from vidwiz.logging_config import get_logger, configure_logging
+from vidwiz.shared.logging import get_logger, configure_logging
 
 load_dotenv()
 

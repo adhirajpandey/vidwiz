@@ -14,7 +14,7 @@ from pydantic import ValidationError
 from datetime import datetime, timedelta
 import time
 from sqlalchemy.orm.attributes import flag_modified
-from vidwiz.logging_config import get_logger
+from vidwiz.shared.logging import get_logger
 
 logger = get_logger("vidwiz.routes.tasks_routes")
 

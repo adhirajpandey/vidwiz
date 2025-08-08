@@ -7,7 +7,7 @@ import os
 import boto3
 from vidwiz.shared.config import S3_BUCKET_NAME
 import json
-from vidwiz.logging_config import get_logger
+from vidwiz.shared.logging import get_logger
 
 logger = get_logger("vidwiz.shared.utils")
 

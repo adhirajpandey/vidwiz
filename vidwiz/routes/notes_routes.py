@@ -8,7 +8,7 @@ from vidwiz.shared.utils import (
     jwt_or_admin_required,
 )
 from vidwiz.shared.tasks import create_transcript_task
-from vidwiz.logging_config import get_logger
+from vidwiz.shared.logging import get_logger
 
 notes_bp = Blueprint("notes", __name__)
 logger = get_logger("vidwiz.routes.notes_routes")

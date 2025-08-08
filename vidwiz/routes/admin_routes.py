@@ -4,7 +4,7 @@ from vidwiz.shared.schemas import VideoRead, VideoUpdate, VideoCreate
 from pydantic import ValidationError
 from vidwiz.shared.utils import admin_required
 from vidwiz.shared.tasks import create_transcript_task
-from vidwiz.logging_config import get_logger
+from vidwiz.shared.logging import get_logger
 
 admin_bp = Blueprint("admin", __name__, url_prefix="/admin")
 logger = get_logger("vidwiz.routes.admin_routes")

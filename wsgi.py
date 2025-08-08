@@ -3,7 +3,7 @@ WSGI entry point for production deployment with Gunicorn.
 """
 
 from vidwiz.app import create_app, verify_database_connection
-from vidwiz.logging_config import configure_logging, get_logger
+from vidwiz.shared.logging import configure_logging, get_logger
 
 # Configure logging for WSGI context
 configure_logging()

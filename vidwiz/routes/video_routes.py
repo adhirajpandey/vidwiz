@@ -2,7 +2,7 @@ from flask import Blueprint, jsonify
 from vidwiz.shared.models import Video, Note, User, db
 from vidwiz.shared.schemas import VideoRead, NoteRead
 from vidwiz.shared.utils import jwt_or_lt_token_required, admin_required
-from vidwiz.logging_config import get_logger
+from vidwiz.shared.logging import get_logger
 
 logger = get_logger("vidwiz.routes.video_routes")
 
