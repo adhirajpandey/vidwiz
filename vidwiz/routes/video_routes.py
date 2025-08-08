@@ -2,6 +2,9 @@ from flask import Blueprint, jsonify
 from vidwiz.shared.models import Video, Note, User, db
 from vidwiz.shared.schemas import VideoRead, NoteRead
 from vidwiz.shared.utils import jwt_or_lt_token_required, admin_required
+from vidwiz.logging_config import get_logger
+
+logger = get_logger("vidwiz.routes.video_routes")
 
 video_bp = Blueprint("video", __name__)
 
@@ -15,7 +18,7 @@ def get_video(video_id):
             return jsonify({"error": "Video not found"}), 404
         return jsonify(VideoRead.model_validate(video).model_dump()), 200
     except Exception as e:
-        print(f"Unexpected error in get_video: {e}")
+        logger.exception(f"Unexpected error in get_video: {e}")
         return jsonify({"error": "Internal Server Error"}), 500
 
 
@@ -61,5 +64,5 @@ def get_video_notes(video_id):
             200,
         )
     except Exception as e:
-        print(f"Unexpected error in get_video_notes: {e}")
+        logger.exception(f"Unexpected error in get_video_notes: {e}")
         return jsonify({"error": "Internal Server Error"}), 500

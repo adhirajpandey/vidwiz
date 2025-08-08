@@ -20,6 +20,10 @@ import urllib.parse as urlparse
 import os
 import requests
 from dotenv import load_dotenv
+from vidwiz.logging_config import configure_logging, get_logger
+
+configure_logging()
+logger = get_logger("vidwiz.scripts.llm_note")
 
 load_dotenv()
 
@@ -66,7 +70,7 @@ def get_db_connection() -> Optional[psycopg2.extensions.connection]:
         }
         return psycopg2.connect(**db_params)
     except Exception as e:
-        print("Connection error:", e)
+        logger.error(f"Connection error: {e}")
         return None
 
 
@@ -82,7 +86,7 @@ def get_empty_notes() -> List[Dict[str, Any]]:
             )
             return cursor.fetchall()
     except Exception as e:
-        print(f"Error fetching empty notes: {e}")
+        logger.error(f"Error fetching empty notes: {e}")
         return []
     finally:
         conn.close()
@@ -103,7 +107,7 @@ def update_ai_note(note_id: int, ai_note: str) -> Optional[Dict[str, Any]]:
             conn.commit()
             return updated_note
     except Exception as e:
-        print(f"Error updating AI note: {e}")
+        logger.error(f"Error updating AI note: {e}")
         return None
     finally:
         conn.close()
@@ -121,7 +125,7 @@ def get_formatted_video_transcript(video_id: str) -> Optional[str]:
             .decode("unicode_escape")
         )
     except Exception as e:
-        print(f"Error fetching transcript: {e}")
+        logger.error(f"Error fetching transcript: {e}")
         return None
 
 
@@ -164,7 +168,7 @@ def get_relevant_transcript(transcript: str, timestamp: str) -> Optional[str]:
         }
         return json.dumps(result, ensure_ascii=False)
     except Exception as e:
-        print(f"Error extracting relevant transcript: {e}")
+        logger.exception(f"Error extracting relevant transcript: {e}")
         return None
 
 
@@ -187,7 +191,7 @@ def openai_api_call(prompt: str, model: str = "gpt-4o-mini") -> Optional[str]:
         resp.raise_for_status()
         return resp.json()["choices"][0]["message"]["content"]
     except Exception as e:
-        print(f"OpenAI API error: {e}")
+        logger.error(f"OpenAI API error: {e}")
         return None
 
 
@@ -202,7 +206,7 @@ def gemini_api_call(prompt: str, model: str = "gemini-2.0-flash") -> Optional[st
         resp.raise_for_status()
         return resp.json()["candidates"][0]["content"]["parts"][0]["text"]
     except Exception as e:
-        print(f"Gemini API error: {e}")
+        logger.error(f"Gemini API error: {e}")
         return None
 
 
@@ -229,7 +233,7 @@ def openrouter_api_call(
         resp.raise_for_status()
         return resp.json()["choices"][0]["message"]["content"]
     except Exception as e:
-        print(f"OpenRouter API error: {e}")
+        logger.error(f"OpenRouter API error: {e}")
         return None
 
 
@@ -264,12 +268,12 @@ def generate_note_using_llm(
             case "openrouter":
                 return openrouter_api_call(prompt)
             case _:
-                print(
+                logger.error(
                     f"Invalid provider: {provider}. Please choose from openai, gemini, or openrouter."
                 )
                 return None
     except Exception as e:
-        print(f"Error generating AI note: {e}")
+        logger.exception(f"Error generating AI note: {e}")
         return None
 
 
@@ -288,7 +292,7 @@ def get_valid_ai_note(
         return None
 
     if len(ai_note) > 120 or len(ai_note) < 10:
-        print(
+        logger.info(
             f"AI note for ID {note.get('id')} is too long or too short, retrying (attempt {tries})."
         )
         if tries < max_tries:
@@ -296,7 +300,7 @@ def get_valid_ai_note(
                 title, timestamp, note, transcript, provider, tries + 1, max_tries
             )
         else:
-            print(f"Max retries reached for note ID {note.get('id')}.")
+            logger.warning(f"Max retries reached for note ID {note.get('id')}.")
             return ai_note
     return ai_note
 
@@ -306,7 +310,7 @@ def main():
 
     empty_notes = get_empty_notes()
     if not empty_notes:
-        print("No empty notes found.")
+        logger.info("No empty notes found.")
         return
 
     # Process notes by video to fetch transccript only once per video
@@ -320,31 +324,31 @@ def main():
     for video_id, notes in video_notes.items():
         transcript = get_formatted_video_transcript(video_id)
         if not transcript:
-            print(f"No transcript found for video ID: {video_id}")
+            logger.info(f"No transcript found for video ID: {video_id}")
             continue
 
         for note in notes:
             title = note.get("video_title")
             timestamp = note.get("note_timestamp")
             if not title or not timestamp:
-                print(f"Note ID {note.get('id')} is missing title or timestamp.")
+                logger.warning(f"Note ID {note.get('id')} is missing title or timestamp.")
                 continue
 
             relevant_transcript = get_relevant_transcript(transcript, timestamp)
             if not relevant_transcript:
-                print(f"No relevant transcript found for note ID {note.get('id')}.")
+                logger.info(f"No relevant transcript found for note ID {note.get('id')}.")
                 continue
 
             ai_note = get_valid_ai_note(title, timestamp, note, relevant_transcript)
-            print(f"AI note for ID {note.get('id')}: {ai_note}")
+            logger.info(f"AI note for ID {note.get('id')}: {ai_note}")
 
             if ai_note:
                 updated_note = update_ai_note(note.get("id"), ai_note)
                 if updated_note:
-                    print(f"Updated note ID {updated_note['id']} with AI note.")
+                    logger.info(f"Updated note ID {updated_note['id']} with AI note.")
                 else:
-                    print(f"Failed to update note ID {note.get('id')}.")
-            print("-" * 50)
+                    logger.error(f"Failed to update note ID {note.get('id')}.")
+            # Separator removed to keep logs concise
 
 
 if __name__ == "__main__":

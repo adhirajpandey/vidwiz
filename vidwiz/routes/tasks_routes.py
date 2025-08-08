@@ -14,6 +14,9 @@ from pydantic import ValidationError
 from datetime import datetime, timedelta
 import time
 from sqlalchemy.orm.attributes import flag_modified
+from vidwiz.logging_config import get_logger
+
+logger = get_logger("vidwiz.routes.tasks_routes")
 
 
 tasks_bp = Blueprint("tasks", __name__)
@@ -85,7 +88,7 @@ def get_transcript_task():
         ), 204
 
     except Exception as e:
-        print(f"Unexpected error in get_transcript_task: {e}")
+        logger.exception(f"Unexpected error in get_transcript_task: {e}")
         return jsonify({"error": "Internal Server Error"}), 500
 
 
@@ -140,7 +143,7 @@ def submit_transcript_result():
                         video.transcript_available = True
 
                 except Exception as s3_error:
-                    print(f"Error storing transcript in S3: {s3_error}")
+                    logger.error(f"Error storing transcript in S3: {s3_error}")
                     # Don't fail the task just because S3 failed
 
         else:
@@ -176,5 +179,5 @@ def submit_transcript_result():
 
     except Exception as e:
         db.session.rollback()
-        print(f"Unexpected error in submit_transcript_result: {e}")
+        logger.exception(f"Unexpected error in submit_transcript_result: {e}")
         return jsonify({"error": "Internal Server Error"}), 500
