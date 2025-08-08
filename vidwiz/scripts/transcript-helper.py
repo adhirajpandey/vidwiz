@@ -8,6 +8,23 @@ logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger("vidwiz.transcript_helper")
 
 
+def parse_arguments() -> Tuple[str, int]:
+    """Parse command line arguments and return auth token and timeout."""
+    parser = argparse.ArgumentParser(description="YouTube transcript helper for VidWiz")
+    parser.add_argument(
+        "--auth-token", required=True, help="Authentication token for API requests"
+    )
+    parser.add_argument(
+        "--timeout",
+        type=int,
+        default=30,
+        help="Long poll timeout in seconds (default: 30)",
+    )
+
+    args = parser.parse_args()
+    return args.auth_token, args.timeout
+
+
 TASK_ENDPOINT = "https://vidwiz.adhirajpandey.tech/tasks/transcript"
 
 
@@ -17,23 +34,6 @@ class TranscriptHelper:
     def __init__(self, auth_token: str, timeout_seconds: int) -> None:
         self.auth_token = auth_token
         self.timeout_seconds = timeout_seconds
-
-    @staticmethod
-    def parse_arguments() -> Tuple[str, int]:
-        """Parse command line arguments and return auth token and timeout."""
-        parser = argparse.ArgumentParser(description="YouTube transcript helper for VidWiz")
-        parser.add_argument(
-            "--auth-token", required=True, help="Authentication token for API requests"
-        )
-        parser.add_argument(
-            "--timeout",
-            type=int,
-            default=30,
-            help="Long poll timeout in seconds (default: 30)",
-        )
-
-        args = parser.parse_args()
-        return args.auth_token, args.timeout
 
     @staticmethod
     def _replace_key_names(transcript: List[Dict]) -> List[Dict]:
@@ -117,7 +117,7 @@ class TranscriptHelper:
 
 
 def main() -> None:
-    auth_token, timeout = TranscriptHelper.parse_arguments()
+    auth_token, timeout = parse_arguments()
     helper = TranscriptHelper(auth_token=auth_token, timeout_seconds=timeout)
     helper.run()
 
