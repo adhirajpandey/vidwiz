@@ -33,7 +33,6 @@ def create_app(config=None):
     AWS_ACCESS_KEY_ID = os.getenv("AWS_ACCESS_KEY_ID", None)
     AWS_SECRET_ACCESS_KEY = os.getenv("AWS_SECRET_ACCESS_KEY", None)
 
-    LAMBDA_URL = os.getenv("LAMBDA_URL", None)
     SQS_QUEUE_URL = os.getenv("SQS_QUEUE_URL", None)
     S3_BUCKET_NAME = os.getenv("S3_BUCKET_NAME", None)
 
@@ -42,7 +41,6 @@ def create_app(config=None):
         check_required_env_vars()
         app.config["SQLALCHEMY_DATABASE_URI"] = DB_URL
         app.config["SECRET_KEY"] = SECRET_KEY
-        app.config["LAMBDA_URL"] = LAMBDA_URL
         app.config["AWS_ACCESS_KEY_ID"] = AWS_ACCESS_KEY_ID
         app.config["AWS_SECRET_ACCESS_KEY"] = AWS_SECRET_ACCESS_KEY
         app.config["AWS_REGION"] = AWS_REGION

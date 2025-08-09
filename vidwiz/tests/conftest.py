@@ -28,7 +28,6 @@ def app():
             "SQLALCHEMY_TRACK_MODIFICATIONS": False,
             "SECRET_KEY": TEST_SECRET_KEY,
             "DB_URL": "sqlite:///:memory:",
-            "LAMBDA_URL": "http://localhost/mock-lambda",
             "AWS_ACCESS_KEY_ID": "test-access-key",
             "AWS_SECRET_ACCESS_KEY": "test-secret-key",
             "AWS_REGION": "us-test-1",

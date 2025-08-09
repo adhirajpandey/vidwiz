@@ -182,7 +182,6 @@ def check_required_env_vars():
     required_env_vars = [
         "DB_URL",
         "SECRET_KEY",
-        "LAMBDA_URL",
         "AWS_ACCESS_KEY_ID",
         "AWS_SECRET_ACCESS_KEY",
         "AWS_REGION",
