@@ -4,8 +4,8 @@ from vidwiz.shared.schemas import NoteRead, NoteCreate, NoteUpdate
 from pydantic import ValidationError
 from vidwiz.shared.utils import (
     jwt_or_lt_token_required,
-    send_request_to_ainote_lambda,
     jwt_or_admin_required,
+    push_note_to_sqs,
 )
 from vidwiz.shared.tasks import create_transcript_task
 from vidwiz.shared.logging import get_logger
@@ -69,23 +69,17 @@ def create_note():
             else False
         )
 
-        should_trigger_ai = (
+        should_trigger_ai_note_gen = (
             not note_data.text  # No text provided in payload
             and video.transcript_available  # Video has transcript available
             and user_ai_enabled  # User has AI notes enabled
         )
 
-        if should_trigger_ai:
-            # Send request to lambda function (fire and forget)
+        if should_trigger_ai_note_gen:
             logger.info(
                 f"Triggering AI note generation for note_id={note.id}, video_id={note_data.video_id}"
             )
-            send_request_to_ainote_lambda(
-                note_id=note.id,
-                video_id=note_data.video_id,
-                video_title=video.title,
-                note_timestamp=note_data.timestamp,
-            )
+            push_note_to_sqs(NoteRead.model_validate(note).model_dump())
 
         return jsonify(NoteRead.model_validate(note).model_dump()), 201
     except Exception as e:

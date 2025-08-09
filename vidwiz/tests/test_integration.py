@@ -36,15 +36,15 @@ class TestUserWorkflow:
         """Test complete user registration and login flow"""
         # 1. Register new user
         response = client.post(
-            "/signup",
-            data={"username": "integrationuser", "password": "securepassword123"},
-            follow_redirects=False,
+            "/user/signup",
+            json={"username": "integrationuser", "password": "securepassword123"},
+            content_type="application/json",
         )
-        assert response.status_code == 302  # Redirect to login
+        assert response.status_code == 201  # Success response
 
         # 2. Login with new user
         response = client.post(
-            "/login",
+            "/user/login",
             json={"username": "integrationuser", "password": "securepassword123"},
             content_type="application/json",
         )

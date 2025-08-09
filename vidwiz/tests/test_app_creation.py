@@ -23,8 +23,10 @@ class TestAppCreation:
     def test_create_app_without_test_config_missing_db_url(self):
         """Test creating app without test config and missing DB_URL"""
         with patch.dict(os.environ, {}, clear=True):
-            with pytest.raises(ValueError, match="DB_URL must be set"):
+            with pytest.raises(ValueError) as excinfo:
                 create_app()
+            assert "Missing required environment variables" in str(excinfo.value)
+            assert "DB_URL" in str(excinfo.value)
 
     def test_create_app_without_test_config_missing_lambda_url(self):
         """Test creating app without LAMBDA_URL raises error"""
@@ -35,22 +37,26 @@ class TestAppCreation:
             },
             clear=True,
         ):
-            with pytest.raises(ValueError, match="LAMBDA_URL must be set"):
+            with pytest.raises(ValueError) as excinfo:
                 create_app()
+            assert "Missing required environment variables" in str(excinfo.value)
+            assert "LAMBDA_URL" in str(excinfo.value)
 
     def test_create_app_with_production_config(self):
         """Test creating app with production-like configuration"""
-        with patch.dict(
-            os.environ,
-            {
-                "DB_URL": "postgresql://test:test@localhost/test",
-                "SECRET_KEY": "production_secret",
-                "LAMBDA_URL": "https://lambda.aws.com/function",
-            },
-            clear=True,
-        ):
+        required_env = {
+            "DB_URL": "postgresql://test:test@localhost/test",
+            "SECRET_KEY": "production_secret",
+            "LAMBDA_URL": "https://lambda.aws.com/function",
+            "AWS_ACCESS_KEY_ID": "test-access-key",
+            "AWS_SECRET_ACCESS_KEY": "test-secret-key",
+            "AWS_REGION": "us-test-1",
+            "SQS_QUEUE_URL": "http://localhost/mock-sqs",
+            "S3_BUCKET_NAME": "test-bucket",
+            "ADMIN_TOKEN": "admin-token",
+        }
+        with patch.dict(os.environ, required_env, clear=True):
             app = create_app()
-
             assert (
                 app.config["SQLALCHEMY_DATABASE_URI"]
                 == "postgresql://test:test@localhost/test"
@@ -60,31 +66,39 @@ class TestAppCreation:
 
     def test_create_app_with_lambda_url(self):
         """Test creating app with LAMBDA_URL works correctly"""
-        with patch.dict(
-            os.environ,
-            {
-                "DB_URL": "postgresql://test:test@localhost/test",
-                "LAMBDA_URL": "https://lambda.aws.com/function",
-            },
-            clear=True,
-        ):
+        required_env = {
+            "DB_URL": "postgresql://test:test@localhost/test",
+            "SECRET_KEY": "test_secret",
+            "LAMBDA_URL": "https://lambda.aws.com/function",
+            "AWS_ACCESS_KEY_ID": "test-access-key",
+            "AWS_SECRET_ACCESS_KEY": "test-secret-key",
+            "AWS_REGION": "us-test-1",
+            "SQS_QUEUE_URL": "http://localhost/mock-sqs",
+            "S3_BUCKET_NAME": "test-bucket",
+            "ADMIN_TOKEN": "admin-token",
+        }
+        with patch.dict(os.environ, required_env, clear=True):
             app = create_app()
-
             assert app.config["LAMBDA_URL"] == "https://lambda.aws.com/function"
 
     def test_create_app_default_secret_key(self):
-        """Test creating app with default secret key when not provided"""
-        with patch.dict(
-            os.environ, 
-            {
-                "DB_URL": "postgresql://test:test@localhost/test",
-                "LAMBDA_URL": "https://lambda.aws.com/function",
-            }, 
-            clear=True
-        ):
-            app = create_app()
-
-            assert app.config["SECRET_KEY"] == "dev_secret_key"
+        """Test that app fails if SECRET_KEY is not set in environment"""
+        required_env = {
+            "DB_URL": "postgresql://test:test@localhost/test",
+            # SECRET_KEY intentionally omitted to test strict requirement
+            "LAMBDA_URL": "https://lambda.aws.com/function",
+            "AWS_ACCESS_KEY_ID": "test-access-key",
+            "AWS_SECRET_ACCESS_KEY": "test-secret-key",
+            "AWS_REGION": "us-test-1",
+            "SQS_QUEUE_URL": "http://localhost/mock-sqs",
+            "S3_BUCKET_NAME": "test-bucket",
+            "ADMIN_TOKEN": "admin-token",
+        }
+        with patch.dict(os.environ, required_env, clear=True):
+            with pytest.raises(ValueError) as excinfo:
+                create_app()
+            assert "Missing required environment variables" in str(excinfo.value)
+            assert "SECRET_KEY" in str(excinfo.value)
 
     def test_create_app_blueprints_registered(self):
         """Test that all blueprints are properly registered"""
@@ -159,11 +173,10 @@ class TestAppCreation:
         """Test that error messages are descriptive"""
         # Test DB_URL error message
         with patch.dict(os.environ, {}, clear=True):
-            try:
+            with pytest.raises(ValueError) as excinfo:
                 create_app()
-                assert False, "Should have raised ValueError"
-            except ValueError as e:
-                assert "DB_URL must be set in the environment variables" in str(e)
+            assert "Missing required environment variables" in str(excinfo.value)
+            assert "DB_URL" in str(excinfo.value)
 
         # Test LAMBDA_URL error message
         with patch.dict(
@@ -173,10 +186,7 @@ class TestAppCreation:
             },
             clear=True,
         ):
-            try:
+            with pytest.raises(ValueError) as excinfo:
                 create_app()
-                assert False, "Should have raised ValueError"
-            except ValueError as e:
-                assert (
-                    "LAMBDA_URL must be set in the environment variables" in str(e)
-                )
+            assert "Missing required environment variables" in str(excinfo.value)
+            assert "LAMBDA_URL" in str(excinfo.value)

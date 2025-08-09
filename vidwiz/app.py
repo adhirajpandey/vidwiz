@@ -5,7 +5,7 @@ from flask import Flask
 from vidwiz.routes.video_routes import video_bp
 from vidwiz.routes.notes_routes import notes_bp
 from vidwiz.routes.core_routes import core_bp
-from vidwiz.routes.admin_routes import admin_bp
+from vidwiz.routes.user_routes import user_bp
 from vidwiz.routes.tasks_routes import tasks_bp
 
 from vidwiz.shared.models import db
@@ -13,39 +13,51 @@ from sqlalchemy import text
 
 from dotenv import load_dotenv
 from vidwiz.shared.logging import get_logger, configure_logging
+from vidwiz.shared.utils import check_required_env_vars
 
 load_dotenv()
 
 logger = get_logger("vidwiz.app")
 
 
-def create_app(test_config=None):
-    # Ensure logging is configured for the app context
+def create_app(config=None):
     configure_logging()
 
     app = Flask(__name__)
-    DB_URL = os.getenv("DB_URL")
-    SECRET_KEY = os.getenv("SECRET_KEY", "dev_secret_key")
-    LAMBDA_URL = os.getenv("LAMBDA_URL")
 
-    if not test_config:
-        if not DB_URL:
-            raise ValueError("DB_URL must be set in the environment variables.")
-        if not LAMBDA_URL:
-            raise ValueError("LAMBDA_URL must be set in the environment variables.")
+    DB_URL = os.getenv("DB_URL", None)
+    SECRET_KEY = os.getenv("SECRET_KEY", "dev_secret_key")
+    ADMIN_TOKEN = os.getenv("ADMIN_TOKEN", None)
+
+    AWS_REGION = os.getenv("AWS_REGION", "ap-south-1")
+    AWS_ACCESS_KEY_ID = os.getenv("AWS_ACCESS_KEY_ID", None)
+    AWS_SECRET_ACCESS_KEY = os.getenv("AWS_SECRET_ACCESS_KEY", None)
+
+    LAMBDA_URL = os.getenv("LAMBDA_URL", None)
+    SQS_QUEUE_URL = os.getenv("SQS_QUEUE_URL", None)
+    S3_BUCKET_NAME = os.getenv("S3_BUCKET_NAME", None)
+
+    # Only check and set required env vars if no config dict is provided - for test etc
+    if config is None:
+        check_required_env_vars()
         app.config["SQLALCHEMY_DATABASE_URI"] = DB_URL
         app.config["SECRET_KEY"] = SECRET_KEY
         app.config["LAMBDA_URL"] = LAMBDA_URL
-
+        app.config["AWS_ACCESS_KEY_ID"] = AWS_ACCESS_KEY_ID
+        app.config["AWS_SECRET_ACCESS_KEY"] = AWS_SECRET_ACCESS_KEY
+        app.config["AWS_REGION"] = AWS_REGION
+        app.config["SQS_QUEUE_URL"] = SQS_QUEUE_URL
+        app.config["S3_BUCKET_NAME"] = S3_BUCKET_NAME
+        app.config["ADMIN_TOKEN"] = ADMIN_TOKEN
     else:
-        app.config.update(test_config)
+        app.config.update(config)
 
     db.init_app(app)
 
     app.register_blueprint(core_bp)
+    app.register_blueprint(user_bp)
     app.register_blueprint(video_bp)
     app.register_blueprint(notes_bp)
-    app.register_blueprint(admin_bp)
     app.register_blueprint(tasks_bp)
 
     return app
