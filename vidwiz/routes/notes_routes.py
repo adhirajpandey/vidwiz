@@ -4,7 +4,6 @@ from vidwiz.shared.schemas import NoteRead, NoteCreate, NoteUpdate
 from pydantic import ValidationError
 from vidwiz.shared.utils import (
     jwt_or_lt_token_required,
-    send_request_to_ainote_lambda,
     jwt_or_admin_required,
     push_note_to_sqs,
 )
@@ -77,16 +76,9 @@ def create_note():
         )
 
         if should_trigger_ai_note_gen:
-            # # Send request to lambda function (fire and forget)
             logger.info(
                 f"Triggering AI note generation for note_id={note.id}, video_id={note_data.video_id}"
             )
-            # send_request_to_ainote_lambda(
-            #     note_id=note.id,
-            #     video_id=note_data.video_id,
-            #     video_title=video.title,
-            #     note_timestamp=note_data.timestamp,
-            # )
             push_note_to_sqs(NoteRead.model_validate(note).model_dump())
 
         return jsonify(NoteRead.model_validate(note).model_dump()), 201

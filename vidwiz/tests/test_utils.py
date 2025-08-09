@@ -1,6 +1,6 @@
 import jwt
 from datetime import datetime, timedelta, timezone
-from vidwiz.shared.utils import jwt_or_lt_token_required, send_request_to_ainote_lambda
+from vidwiz.shared.utils import jwt_or_lt_token_required
 
 # Test constants
 TEST_USER_ID = 1
@@ -158,31 +158,3 @@ class TestJWTRequired:
                     result[0].get_json()["error"]
                     == "Invalid or expired token or not a long term token"
                 )
-
-
-class TestSendRequestToAINoteLambda:
-    def test_send_request_basic_functionality(self, app):
-        """Test that lambda function can be called without errors"""
-        with app.app_context():
-            result = send_request_to_ainote_lambda(
-                note_id=1,
-                video_id="test123",
-                video_title="Test Video",
-                note_timestamp="00:01:30",
-            )
-
-            # Function should return None (fire and forget)
-            assert result is None
-
-    def test_send_request_with_different_parameters(self, app):
-        """Test lambda function with different parameter values"""
-        with app.app_context():
-            result = send_request_to_ainote_lambda(
-                note_id=999,
-                video_id="special_chars_测试",
-                video_title="Video with émojis 🎥",
-                note_timestamp="02:30:45",
-            )
-
-            # Function should return None regardless of parameters
-            assert result is None
