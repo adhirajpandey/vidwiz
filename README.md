@@ -33,77 +33,79 @@ The extension is built with:
    - Enhanced security over your data.
    - No third-party data sharing.
 
+## Quick start (Docker Compose)
+Prereqs: Docker, Docker Compose
 
+1) Create a .env file with at least:
 
-## Installation
+```
+# App
+DB_URL=postgresql://postgres:postgres@database:5432/vidwiz
+SECRET_KEY=change-me
+ADMIN_TOKEN=change-admin-token
 
-### Prerequisites
-- PostgreSQL database server running locally or remotely
-- Docker installed on your system
-- Chrome/Chromium based browser
+# AWS
+AWS_ACCESS_KEY_ID=your-key
+AWS_SECRET_ACCESS_KEY=your-secret
+AWS_REGION=ap-south-1
+SQS_QUEUE_URL=https://sqs.ap-south-1.amazonaws.com/123456789012/vidwiz
+S3_BUCKET_NAME=vidwiz
 
-### To Setup Backend
-1. Clone the project to your local system using: `git clone https://github.com/adhirajpandey/vidwiz`
+# Postgres container
+POSTGRES_DB=vidwiz
+POSTGRES_USER=postgres
+POSTGRES_PASSWORD=postgres
+```
 
-2. Create a `.env` file in the server directory with the following variables:
-   ```
-   DB_URL=postgresql://username:password@localhost:5432/postgres
-   AUTH_TOKEN=your_secret_token_here
-   TABLE_NAME=your_table_name
+2) Start services:
+- Development: docker compose up -d --build → API at http://localhost:5000
 
-   LAMBDA_URL=your_lambda_url
-   ```
+## Local development (Poetry)
+Prereqs: Python 3.10–3.13, Poetry, running PostgreSQL
 
-3. Build Backend server image using: `docker build -t vidwiz .`
+1) Install deps: poetry install
+2) Export env vars (match .env above)
+3) Run app (dev): poetry run vidwiz (runs Flask dev server on 0.0.0.0:5000)
 
-4. Setup Docker container using: `docker run -d -p 5000:5000 --name vidwiz-server vidwiz`
+## Extension setup
+1) Load unpacked from extension/ in a Chromium browser (chrome://extensions → Developer mode → Load unpacked)
+2) Configure backendEndpoint in extension/popup.js to your API base URL if self hosting
+3) Generate a token for the extension:
+    - Option A: JWT via POST /user/login (expires in 24h)
+    - Option B: Long‑term token via POST /user/token (recommended)
+4) In the extension popup’s DevTools console: localStorage.setItem('notes-token', '<your token>')
 
-### To Setup Chrome Extension in Browser
-1. Open Chrome on your machine and navigate to: `chrome://extensions/`
+The popup reads the current YouTube title/timestamp and calls POST /notes.
 
-2. Ensure the "Developer mode" checkbox in the top-right corner is checked.
-
-3. Click on Load Unpacked Extension Button, navigate to the `extension` folder in your cloned repository and select it.
-
-4. Set up your authentication token:
-   - Open the extension popup
-   - Open your browser's developer tools (F12)
-   - In the console, run: `localStorage.setItem('notes-token', 'your_secret_token_here')`
-   - Replace 'your_secret_token_here' with the same token you set in the server's .env file
-
-## API Endpoints
-- `POST /notes`: Create a new note
-- `GET /video-notes/{video_id}`: Get all notes for a specific video
-- `GET /dashboard`: View the dashboard page
-- `GET /dashboard/{video_id}`: View notes for a specific video
-- `GET /search?query={search_term}`: Search for videos by title
+## Running tests
+- poetry run pytest
 
 ## Roadmap
 - [x] Better UI/UX for Dashboard
 - [x] Improve note CRUD functionality
 - [x] AI generated note
-- [ ] Lambda workflow optimization
+- [x] Lambda workflow optimization
+- [x] SQS Implementation
 - [ ] Refine self-hosted setup
 - [ ] Cloud Hosted Offering - Subscription model
 
-## Sample
+## Screenshots
 
-### Dashboard
-   ![dashboard-UI](https://github.com/user-attachments/assets/4136d26d-9a08-48ad-a1bd-d3c794fd37f6)
+Dashboard
 
-### Video Notes
-   ![notes-ui](https://github.com/user-attachments/assets/b6a9efb8-c69a-4406-91b3-bfe6cbce160b)
+![dashboard-UI](https://github.com/user-attachments/assets/4136d26d-9a08-48ad-a1bd-d3c794fd37f6)
 
-### Extension
-   ![extension-ui](https://github.com/user-attachments/assets/7d4f24ec-0acb-4a19-861c-4c4be093668b)
-   
-### Mobile View
-   ![mobile-ui](https://github.com/user-attachments/assets/f9b21644-a718-49e3-ab3e-666bc1bf7e4c)
+Video Notes
 
+![notes-ui](https://github.com/user-attachments/assets/b6a9efb8-c69a-4406-91b3-bfe6cbce160b)
 
+Extension
 
+![extension-ui](https://github.com/user-attachments/assets/7d4f24ec-0acb-4a19-861c-4c4be093668b)
 
+Mobile View
 
+![mobile-ui](https://github.com/user-attachments/assets/f9b21644-a718-49e3-ab3e-666bc1bf7e4c)
 
 
 
