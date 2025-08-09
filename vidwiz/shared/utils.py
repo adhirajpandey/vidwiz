@@ -84,7 +84,9 @@ def jwt_or_admin_required(f):
     def decorated_function(*args, **kwargs):
         auth_header = request.headers.get("Authorization", "")
         if not auth_header.startswith("Bearer "):
-            logger.warning("Auth (admin/JWT) failed: missing/invalid Authorization header")
+            logger.warning(
+                "Auth (admin/JWT) failed: missing/invalid Authorization header"
+            )
             return jsonify({"error": "Missing or invalid Authorization header"}), 401
         token = auth_header.split(" ", 1)[1]
 
@@ -104,7 +106,9 @@ def jwt_or_admin_required(f):
             )
             request.user_id = payload["user_id"]
             request.is_admin = False
-            logger.debug(f"JWT auth (non-admin) succeeded for user_id={request.user_id}")
+            logger.debug(
+                f"JWT auth (non-admin) succeeded for user_id={request.user_id}"
+            )
         except Exception:
             logger.warning("Auth (admin/JWT) failed: invalid or expired token")
             return jsonify({"error": "Invalid or expired token"}), 401
@@ -190,13 +194,9 @@ def store_transcript_in_s3(video_id: str, transcript):
         return None
 
     # Get AWS credentials from environment variables
-    aws_access_key_id = os.getenv("AWS_ACCESS_KEY_ID")
-    aws_secret_access_key = os.getenv("AWS_SECRET_ACCESS_KEY")
-    aws_region = os.getenv("AWS_REGION", "ap-south-1")
-
-    if not aws_access_key_id or not aws_secret_access_key:
-        logger.error("AWS credentials not found in environment variables")
-        return None
+    aws_access_key_id = current_app.config["AWS_ACCESS_KEY_ID"]
+    aws_secret_access_key = current_app.config["AWS_SECRET_ACCESS_KEY"]
+    aws_region = current_app.config["AWS_REGION"]
 
     transcript_key = f"transcripts/{video_id}.json"
     try:
@@ -221,3 +221,49 @@ def store_transcript_in_s3(video_id: str, transcript):
     except Exception as e:
         logger.error(f"Error storing transcript in S3: {e}")
         return None
+
+
+def push_note_to_sqs(note_data):
+    """
+    Pushes note data to an AWS SQS queue.
+    Args:
+        note_data (dict): The note data to send.
+    Returns:
+        dict: Response from SQS send_message, or None if error.
+    """
+
+    try:
+        sqs = boto3.client(
+            "sqs",
+            aws_access_key_id=current_app.config["AWS_ACCESS_KEY_ID"],
+            aws_secret_access_key=current_app.config["AWS_SECRET_ACCESS_KEY"],
+            region_name=current_app.config["AWS_REGION"],
+        )
+        response = sqs.send_message(
+            QueueUrl=current_app.config["SQS_QUEUE_URL"],
+            MessageBody=json.dumps(note_data, default=str),
+        )
+        logger.info(f"Note data pushed to SQS: {response}")
+        return response
+    except Exception as e:
+        logger.error(f"Error pushing note data to SQS: {e}")
+        return None
+
+
+def check_required_env_vars():
+    required_env_vars = [
+        "DB_URL",
+        "SECRET_KEY",
+        "LAMBDA_URL",
+        "AWS_ACCESS_KEY_ID",
+        "AWS_SECRET_ACCESS_KEY",
+        "AWS_REGION",
+        "SQS_QUEUE_URL",
+        "S3_BUCKET_NAME",
+        "ADMIN_TOKEN",
+    ]
+    missing = [var for var in required_env_vars if os.getenv(var) is None]
+    if missing:
+        raise ValueError(
+            f"Missing required environment variables: {', '.join(missing)}"
+        )

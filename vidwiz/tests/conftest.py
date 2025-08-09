@@ -20,13 +20,21 @@ DEFAULT_PASSWORD = "testpassword"
 
 @pytest.fixture
 def app():
-    """Create and configure a test Flask application"""
+    """Create and configure a test Flask application with all required config keys"""
     app = create_app(
         {
             "TESTING": True,
             "SQLALCHEMY_DATABASE_URI": "sqlite:///:memory:",
             "SQLALCHEMY_TRACK_MODIFICATIONS": False,
             "SECRET_KEY": TEST_SECRET_KEY,
+            "DB_URL": "sqlite:///:memory:",
+            "LAMBDA_URL": "http://localhost/mock-lambda",
+            "AWS_ACCESS_KEY_ID": "test-access-key",
+            "AWS_SECRET_ACCESS_KEY": "test-secret-key",
+            "AWS_REGION": "us-test-1",
+            "SQS_QUEUE_URL": "http://localhost/mock-sqs",
+            "S3_BUCKET_NAME": "test-bucket",
+            "ADMIN_TOKEN": ADMIN_TEST_TOKEN,
         }
     )
     with app.app_context():
