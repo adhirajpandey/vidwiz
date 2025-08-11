@@ -17,14 +17,14 @@ def rate_limit_key():
     return get_remote_address()
 
 
-
 limiter = Limiter(
     key_func=rate_limit_key,
     headers_enabled=True,
+    storage_uri="memory://",  # or your real storage URI
+    in_memory_fallback_enabled=False,
 )
 
 
 def init_rate_limiter(app):
-    """Initialize the shared limiter with the Flask app."""
     limiter.init_app(app)
     return limiter
