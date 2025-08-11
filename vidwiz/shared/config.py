@@ -11,3 +11,7 @@ FETCH_TRANSCRIPT_MAX_RETRIES = 3
 FETCH_TRANSCRIPT_IN_PROGRESS_TIMEOUT = 120
 
 S3_BUCKET_NAME = "vidwiz"
+
+# Rate limiting configuration
+DEFAULT_RATE_LIMIT = "100 per minute"
+STRICT_RATE_LIMIT = "20 per minute"

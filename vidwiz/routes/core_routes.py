@@ -2,8 +2,11 @@ from flask import Blueprint, jsonify, render_template, request
 from vidwiz.shared.utils import jwt_or_lt_token_required
 from vidwiz.shared.models import Video, Note
 from vidwiz.shared.logging import get_logger
+from vidwiz.shared.rate_limiter import limiter
+from vidwiz.shared.config import DEFAULT_RATE_LIMIT
 
 core_bp = Blueprint("core", __name__)
+limiter.limit(DEFAULT_RATE_LIMIT)(core_bp)
 logger = get_logger("vidwiz.routes.core_routes")
 
 

@@ -16,8 +16,11 @@ from datetime import datetime, timedelta, timezone
 from flask import current_app
 from pydantic import ValidationError
 from vidwiz.shared.logging import get_logger
+from vidwiz.shared.rate_limiter import limiter
+from vidwiz.shared.config import STRICT_RATE_LIMIT
 
 user_bp = Blueprint("user", __name__)
+limiter.limit(STRICT_RATE_LIMIT)(user_bp)
 logger = get_logger("vidwiz.routes.user_routes")
 
 

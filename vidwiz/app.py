@@ -14,6 +14,7 @@ from sqlalchemy import text
 from dotenv import load_dotenv
 from vidwiz.shared.logging import get_logger, configure_logging
 from vidwiz.shared.utils import check_required_env_vars
+from vidwiz.shared.rate_limiter import init_rate_limiter
 
 load_dotenv()
 
@@ -51,6 +52,9 @@ def create_app(config=None):
         app.config.update(config)
 
     db.init_app(app)
+
+    # Initialize rate limiter
+    init_rate_limiter(app)
 
     app.register_blueprint(core_bp)
     app.register_blueprint(user_bp)

@@ -9,8 +9,11 @@ from vidwiz.shared.utils import (
 )
 from vidwiz.shared.tasks import create_transcript_task
 from vidwiz.shared.logging import get_logger
+from vidwiz.shared.rate_limiter import limiter
+from vidwiz.shared.config import DEFAULT_RATE_LIMIT
 
 notes_bp = Blueprint("notes", __name__)
+limiter.limit(DEFAULT_RATE_LIMIT)(notes_bp)
 logger = get_logger("vidwiz.routes.notes_routes")
 
 

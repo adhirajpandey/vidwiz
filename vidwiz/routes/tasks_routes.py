@@ -15,11 +15,14 @@ from datetime import datetime, timedelta
 import time
 from sqlalchemy.orm.attributes import flag_modified
 from vidwiz.shared.logging import get_logger
+from vidwiz.shared.rate_limiter import limiter
+from vidwiz.shared.config import STRICT_RATE_LIMIT
 
 logger = get_logger("vidwiz.routes.tasks_routes")
 
 
 tasks_bp = Blueprint("tasks", __name__)
+limiter.limit(STRICT_RATE_LIMIT)(tasks_bp)
 
 
 @tasks_bp.route("/tasks/transcript", methods=["GET"])
