@@ -52,6 +52,8 @@ def create_app(config=None):
     else:
         app.config.update(config)
 
+    app.config.setdefault("RATELIMIT_STORAGE_URI", os.getenv("RATELIMIT_STORAGE_URI", "memory://"))
+
     db.init_app(app)
 
     # Initialize rate limiter
