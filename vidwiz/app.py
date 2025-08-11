@@ -48,6 +48,7 @@ def create_app(config=None):
         app.config["SQS_QUEUE_URL"] = SQS_QUEUE_URL
         app.config["S3_BUCKET_NAME"] = S3_BUCKET_NAME
         app.config["ADMIN_TOKEN"] = ADMIN_TOKEN
+        app.config.setdefault("RATELIMIT_STORAGE_URI", os.getenv("RATELIMIT_STORAGE_URI", "memory://"))
     else:
         app.config.update(config)
 

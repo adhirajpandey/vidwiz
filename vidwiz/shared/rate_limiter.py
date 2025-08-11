@@ -19,12 +19,12 @@ def rate_limit_key():
 
 limiter = Limiter(
     key_func=rate_limit_key,
-    storage_uri="memory://",
     headers_enabled=True,
 )
 
 
 def init_rate_limiter(app):
     """Initialize the shared limiter with the Flask app."""
-    limiter.init_app(app)
+    storage_uri = app.config.get("RATELIMIT_STORAGE_URI", "memory://")
+    limiter.init_app(app, storage_uri=storage_uri, in_memory_fallback_enabled=False)
     return limiter
