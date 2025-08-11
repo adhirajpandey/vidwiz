@@ -53,8 +53,6 @@ def create_app(config=None):
 
     db.init_app(app)
 
-    app.config.setdefault("RATELIMIT_HEADERS_ENABLED", True)
-
     # Initialize rate limiter
     init_rate_limiter(app)
 

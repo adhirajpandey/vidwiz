@@ -20,6 +20,7 @@ def rate_limit_key():
 limiter = Limiter(
     key_func=rate_limit_key,
     storage_uri="memory://",
+    headers_enabled=True,
 )
 
 
