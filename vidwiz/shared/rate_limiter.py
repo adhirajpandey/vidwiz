@@ -1,6 +1,7 @@
 from flask_limiter import Limiter
 from flask_limiter.util import get_remote_address
 from flask import request
+import os
 
 # Shared Limiter instance with identifier priority:
 # 1) CF-Connecting-IP header
@@ -20,7 +21,7 @@ def rate_limit_key():
 limiter = Limiter(
     key_func=rate_limit_key,
     headers_enabled=True,
-    storage_uri="memory://",  # or your real storage URI
+    storage_uri=os.getenv("RATELIMIT_STORAGE_URI", "memory://"),
     in_memory_fallback_enabled=False,
 )
 

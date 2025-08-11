@@ -6,11 +6,14 @@ services:
       dockerfile: Dockerfile
     env_file:
       - .env
+    environment:
+      - RATELIMIT_STORAGE_URI=memcached://vidwiz-cache:11211
     restart: unless-stopped
     ports:
       - "5000:5000"
     depends_on:
       - database
+      - vidwiz-cache
 
   database:
     image: postgres:15
@@ -21,6 +24,12 @@ services:
     volumes:
       - ./init:/docker-entrypoint-initdb.d
       - pgdata:/var/lib/postgresql/data
+
+  vidwiz-cache:
+    image: memcached:1.6
+    container_name: vidwiz-cache
+    restart: unless-stopped
+    command: memcached -m 64 -p 11211
 
 volumes:
   pgdata:
