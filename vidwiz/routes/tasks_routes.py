@@ -1,4 +1,4 @@
-from flask import Blueprint, jsonify, request
+from flask import Blueprint, jsonify, request, current_app
 from vidwiz.shared.models import Task, TaskStatus, db, Video
 from vidwiz.shared.utils import store_transcript_in_s3, jwt_or_admin_required
 from vidwiz.shared.schemas import TranscriptResult
@@ -46,7 +46,7 @@ def get_transcript_task():
             )
 
             # Searching for pending, retryable failed, or stale in-progress transcript tasks
-            task = (
+            task_query = (
                 Task.query.filter(Task.task_type == FETCH_TRANSCRIPT_TASK_TYPE)
                 .filter(
                     (Task.status == TaskStatus.PENDING)
@@ -59,8 +59,14 @@ def get_transcript_task():
                         & (Task.started_at < stale_cutoff)
                     )
                 )
-                .first()
             )
+
+            # Apply row-level locking to avoid multiple workers claiming the same task
+            if current_app.config.get("TESTING"):
+                # SQLite (used in tests) lacks SELECT FOR UPDATE
+                task = task_query.first()
+            else:
+                task = task_query.with_for_update(skip_locked=True).first()
 
             if task:
                 # If a task is found, update its status to IN_PROGRESS and assign to worker
