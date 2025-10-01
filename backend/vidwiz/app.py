@@ -1,6 +1,7 @@
 import os
 import sys
 from flask import Flask
+from flask_cors import CORS
 
 from vidwiz.routes.video_routes import video_bp
 from vidwiz.routes.notes_routes import notes_bp
@@ -51,6 +52,8 @@ def create_app(config=None):
         app.config.update(config)
 
     db.init_app(app)
+
+    CORS(app)
 
     app.register_blueprint(core_bp)
     app.register_blueprint(user_bp)
