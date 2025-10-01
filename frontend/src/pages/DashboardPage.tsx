@@ -1,4 +1,3 @@
-
 import { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import config from '../config';
@@ -81,12 +80,12 @@ export default function DashboardPage() {
                 type="search"
                 value={searchQuery}
                 onChange={(e) => setSearchQuery(e.target.value)}
-                className="block w-full p-4 ps-10 text-sm text-gray-900 border border-gray-300 rounded-lg bg-gray-50 focus:ring-red-500 focus:border-red-500"
+                className="block w-full p-4 ps-10 text-sm text-foreground border border-input rounded-lg bg-background focus:ring-red-500 focus:border-red-500"
                 placeholder="Search Videos..."
               />
               <button
                 type="submit"
-                className="text-white absolute end-2.5 bottom-2.5 bg-red-500 hover:bg-red-600 font-medium rounded-lg text-sm px-4 py-2 transition-colors"
+                className="text-white absolute end-2.5 bottom-2.5 bg-red-500 hover:bg-red-600 font-medium rounded-lg text-sm px-4 py-2 transition-colors cursor-pointer"
               >
                 Search
               </button>

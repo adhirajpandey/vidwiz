@@ -1,4 +1,3 @@
-
 import { useEffect, useState } from 'react';
 import { Link, useLocation, useNavigate } from 'react-router-dom';
 import { Moon, Sun } from 'lucide-react';
@@ -47,12 +46,21 @@ export default function Navbar() {
           <img src={vidwizLogo} alt="VidWiz" className="w-8 h-8" />
           <span className="text-2xl font-bold text-foreground">VidWiz</span>
         </Link>
-        {location.pathname === '/' && (
-          <div className="hidden md:flex items-center gap-8">
-            <a href="#features" className="text-muted-foreground hover:text-foreground transition-colors">Features</a>
-            <a href="#how-it-works" className="text-muted-foreground hover:text-foreground transition-colors">How It Works</a>
-          </div>
-        )}
+        <div className="hidden md:flex items-center gap-8">
+          {isLoggedIn ? (
+            <>
+              <Link to="/dashboard" className="text-muted-foreground hover:text-foreground transition-colors">Dashboard</Link>
+              <Link to="/profile" className="text-muted-foreground hover:text-foreground transition-colors">Profile</Link>
+            </>
+          ) : (
+            location.pathname === '/' && (
+              <>
+                <a href="#features" className="text-muted-foreground hover:text-foreground transition-colors">Features</a>
+                <a href="#how-it-works" className="text-muted-foreground hover:text-foreground transition-colors">How It Works</a>
+              </>
+            )
+          )}
+        </div>
         <div className="flex items-center gap-2">
           <button
             aria-label="Toggle theme"
@@ -70,7 +78,7 @@ export default function Navbar() {
             </button>
           ) : (
             location.pathname === '/' && (
-              <Link to="/signup" className="bg-red-500 text-white px-6 py-2.5 rounded-lg font-medium hover:bg-red-600 transition-all hover:shadow-lg hover:shadow-red-500/25">
+              <Link to="/signup" className="bg-red-500 text-white px-6 py-2.5 rounded-lg font-medium hover:bg-red-600 transition-all hover:shadow-lg hover:shadow-red-500/25 cursor-pointer">
                 Get Started
               </Link>
             )

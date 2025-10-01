@@ -1,4 +1,3 @@
-
 import { Link } from 'react-router-dom';
 
 interface VideoCardProps {
@@ -21,7 +20,7 @@ export default function VideoCard({ video }: VideoCardProps) {
       </a>
       <Link
         to={`/dashboard/${video.video_id}`}
-        className="flex-shrink-0 inline-flex items-center justify-center px-4 py-2 text-sm font-medium text-white bg-red-500 rounded-md hover:bg-red-600 transition-colors"
+        className="flex-shrink-0 inline-flex items-center justify-center px-4 py-2 text-sm font-medium text-white bg-red-500 rounded-md hover:bg-red-600 transition-colors cursor-pointer"
       >
         View Notes
       </Link>

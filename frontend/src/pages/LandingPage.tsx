@@ -25,12 +25,12 @@ function LandingPage() {
           </p>
 
           <div className="flex flex-col sm:flex-row items-center justify-center gap-6 mb-16">
-            <Link to="/signup" className="w-64 bg-red-500 text-white px-8 py-4 rounded-lg font-medium hover:bg-red-600 transition-all hover:shadow-xl hover:shadow-red-500/25 flex items-center justify-center gap-2 group">
-              Try VidWiz Free
+            <Link to="/signup" className="w-64 flex items-center justify-center gap-2 bg-red-500 text-white px-6 py-2.5 rounded-lg font-medium hover:bg-red-600 transition-all hover:shadow-lg hover:shadow-red-500/25 cursor-pointer">
+              Try VidWiz for Free
               <ArrowRight className="w-5 h-5 group-hover:translate-x-1 transition-transform" />
             </Link>
-            <a href="#how-it-works" className="w-64 bg-background text-foreground/80 px-8 py-4 rounded-lg font-medium hover:bg-accent transition-all border border-border hover:border-foreground/30 cursor-pointer">
-              See how it works
+            <a href="#how-it-works" className="w-64 flex items-center justify-center gap-2 bg-background text-foreground/80 px-6 py-2.5 rounded-lg font-medium hover:bg-accent transition-all border border-border hover:border-foreground/30 cursor-pointer">
+              How it Works
             </a>
           </div>
 
@@ -116,8 +116,8 @@ function LandingPage() {
               Join learners, researchers, and professionals who are watching smarter, not longer.
             </p>
             <div className="flex justify-center">
-              <Link to="/signup" className="w-64 bg-red-500 text-white px-8 py-4 rounded-lg font-medium hover:bg-red-600 transition-all hover:shadow-xl hover:shadow-red-500/25 flex items-center justify-center gap-2 group">
-                Try VidWiz Free
+              <Link to="/signup" className="w-64 flex items-center justify-center gap-2 bg-red-500 text-white px-6 py-2.5 rounded-lg font-medium hover:bg-red-600 transition-all hover:shadow-lg hover:shadow-red-500/25 cursor-pointer">
+                Try VidWiz for Free
                 <ArrowRight className="w-5 h-5 group-hover:translate-x-1 transition-transform" />
               </Link>
             </div>
