@@ -1,6 +1,6 @@
 
 const config = {
-  API_URL: 'http://localhost:5000',
+  API_URL: 'https://vidwiz.adhirajpandey.tech',
 };
 
 export default config;
