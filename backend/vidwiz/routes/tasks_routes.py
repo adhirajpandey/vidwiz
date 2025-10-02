@@ -46,18 +46,17 @@ def get_transcript_task():
             )
 
             # Searching for pending, retryable failed, or stale in-progress transcript tasks
-            task_query = (
-                Task.query.filter(Task.task_type == FETCH_TRANSCRIPT_TASK_TYPE)
-                .filter(
-                    (Task.status == TaskStatus.PENDING)
-                    | (
-                        (Task.status == TaskStatus.FAILED)
-                        & (Task.retry_count < FETCH_TRANSCRIPT_MAX_RETRIES)
-                    )
-                    | (
-                        (Task.status == TaskStatus.IN_PROGRESS)
-                        & (Task.started_at < stale_cutoff)
-                    )
+            task_query = Task.query.filter(
+                Task.task_type == FETCH_TRANSCRIPT_TASK_TYPE
+            ).filter(
+                (Task.status == TaskStatus.PENDING)
+                | (
+                    (Task.status == TaskStatus.FAILED)
+                    & (Task.retry_count < FETCH_TRANSCRIPT_MAX_RETRIES)
+                )
+                | (
+                    (Task.status == TaskStatus.IN_PROGRESS)
+                    & (Task.started_at < stale_cutoff)
                 )
             )
 
@@ -135,7 +134,9 @@ def submit_transcript_result():
 
         # Verify task is in IN_PROGRESS status
         if task.status != TaskStatus.IN_PROGRESS:
-            logger.warning(f"Task {task.id} not in progress; current status={task.status}")
+            logger.warning(
+                f"Task {task.id} not in progress; current status={task.status}"
+            )
             return jsonify({"error": "Task is not in progress"}), 400
 
         # Verify that the request is coming from the same worker who retrieved the task

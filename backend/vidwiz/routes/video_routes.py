@@ -49,9 +49,7 @@ def get_video_notes(video_id):
 
         # Check if any notes were found
         if len(notes) == 0:
-            logger.info(
-                f"AI-note-task: no eligible notes for video_id={video_id}"
-            )
+            logger.info(f"AI-note-task: no eligible notes for video_id={video_id}")
             return jsonify(
                 {"error": "No notes found for users with AI notes enabled"}
             ), 404
