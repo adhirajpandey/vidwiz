@@ -3,9 +3,9 @@ services:
     container_name: vidwiz-app
     build:
       context: .
-      dockerfile: Dockerfile
+      dockerfile: backend/Dockerfile
     env_file:
-      - .env
+      - backend/.env
     restart: unless-stopped
     ports:
       - "5000:5000"
@@ -17,7 +17,7 @@ services:
     container_name: vidwiz-db
     restart: unless-stopped
     env_file:
-      - .env
+      - backend/.env
     volumes:
       - ./init:/docker-entrypoint-initdb.d
       - pgdata:/var/lib/postgresql/data
