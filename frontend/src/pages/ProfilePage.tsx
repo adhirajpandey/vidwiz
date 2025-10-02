@@ -1,10 +1,10 @@
 
 
 import { useEffect, useState } from 'react';
-import { useNavigate, Link } from 'react-router-dom';
+import { useNavigate } from 'react-router-dom';
 import config from '../config';
 import { useToast } from '../hooks/useToast';
-import { FaExclamationTriangle, FaTimes, FaKey, FaEye, FaEyeSlash, FaCopy, FaSpinner } from 'react-icons/fa';
+import { FaExclamationTriangle, FaEye, FaEyeSlash, FaCopy, FaSpinner } from 'react-icons/fa';
 
 interface UserProfile {
   username: string;

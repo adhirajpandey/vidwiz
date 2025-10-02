@@ -1,12 +1,12 @@
 
 import { useEffect } from 'react';
-import { CheckCircle, XCircle, X } from 'lucide-react';
+import { CheckCircle, XCircle, X, Info } from 'lucide-react';
 
 interface ToastProps {
   id: number;
   title: string;
   message: string;
-  type: 'success' | 'error';
+  type: 'success' | 'error' | 'info';
   onClose: (id: number) => void;
 }
 
@@ -27,11 +27,13 @@ export default function Toast({ id, title, message, type, onClose }: ToastProps)
   const typeClasses = {
     success: 'border-green-500',
     error: 'border-red-500',
+    info: 'border-blue-500',
   };
 
   const ICONS = {
     success: <CheckCircle className="w-6 h-6 text-green-500" />,
     error: <XCircle className="w-6 h-6 text-red-500" />,
+    info: <Info className="w-6 h-6 text-blue-500" />,
   };
 
   return (

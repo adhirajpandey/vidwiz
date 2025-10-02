@@ -3,7 +3,7 @@ import { useParams, useNavigate } from 'react-router-dom';
 import config from '../config';
 import NoteCard from '../components/NoteCard';
 import { useToast } from '../hooks/useToast';
-import { FaExclamationTriangle, FaTimes, FaTrashAlt } from 'react-icons/fa';
+import { FaExclamationTriangle } from 'react-icons/fa';
 
 interface Video {
   video_id: string;
