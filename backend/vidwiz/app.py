@@ -1,12 +1,14 @@
 import os
 import sys
-from flask import Flask
+from flask import Flask, send_from_directory
+from flask_cors import CORS
 
 from vidwiz.routes.video_routes import video_bp
 from vidwiz.routes.notes_routes import notes_bp
 from vidwiz.routes.core_routes import core_bp
 from vidwiz.routes.user_routes import user_bp
 from vidwiz.routes.tasks_routes import tasks_bp
+from vidwiz.routes.frontend_routes import frontend_bp
 
 from vidwiz.shared.models import db
 from sqlalchemy import text
@@ -23,7 +25,7 @@ logger = get_logger("vidwiz.app")
 def create_app(config=None):
     configure_logging()
 
-    app = Flask(__name__)
+    app = Flask(__name__, static_folder="dist", static_url_path="/static")
 
     DB_URL = os.getenv("DB_URL", None)
     SECRET_KEY = os.getenv("SECRET_KEY", "dev_secret_key")
@@ -52,11 +54,14 @@ def create_app(config=None):
 
     db.init_app(app)
 
+    CORS(app)
+
     app.register_blueprint(core_bp)
     app.register_blueprint(user_bp)
     app.register_blueprint(video_bp)
     app.register_blueprint(notes_bp)
     app.register_blueprint(tasks_bp)
+    app.register_blueprint(frontend_bp)
 
     return app
 
