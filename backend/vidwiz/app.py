@@ -49,6 +49,10 @@ def create_app(config=None):
         app.config["SQS_QUEUE_URL"] = SQS_QUEUE_URL
         app.config["S3_BUCKET_NAME"] = S3_BUCKET_NAME
         app.config["ADMIN_TOKEN"] = ADMIN_TOKEN
+        app.config["SQLALCHEMY_ENGINE_OPTIONS"] = {
+            "pool_recycle": 7200,
+        }
+        
     else:
         app.config.update(config)
 
