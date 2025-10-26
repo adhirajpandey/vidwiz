@@ -60,26 +60,12 @@ def get_transcript_task():
                 )
             )
 
-            logger.info("Polling database for available tasks...")
-            task = None
-
-            try:
-                if current_app.config.get("TESTING"):
-                    task = task_query.first()
-                else:
-                    task = task_query.with_for_update(skip_locked=True).first()
-
-                # Add this diagnostic logging block
-                if task:
-                    logger.info(f"Database query found task with ID: {task.id}")
-                else:
-                    logger.info("Database query returned no available tasks.")
-
-            except Exception as db_error:
-                # Add this error handling block
-                logger.error(f"A database error occurred during task polling: {db_error}", exc_info=True)
-                time.sleep(TRANSCRIPT_POLL_INTERVAL)
-                continue # Move to next poll attempt
+            # Apply row-level locking to avoid multiple workers claiming the same task
+            if current_app.config.get("TESTING"):
+                # SQLite (used in tests) lacks SELECT FOR UPDATE
+                task = task_query.first()
+            else:
+                task = task_query.with_for_update(skip_locked=True).first()
 
             if task:
                 # If a task is found, update its status to IN_PROGRESS and assign to worker

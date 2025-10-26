@@ -51,7 +51,6 @@ def create_app(config=None):
         app.config["ADMIN_TOKEN"] = ADMIN_TOKEN
         app.config["SQLALCHEMY_ENGINE_OPTIONS"] = {
             "pool_recycle": 7200,
-            "pool_pre_ping": True
         }
         
     else:
