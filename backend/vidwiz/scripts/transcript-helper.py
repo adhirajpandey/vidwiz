@@ -54,6 +54,7 @@ class TranscriptHelper:
             TASK_ENDPOINT,
             headers=self.headers,
             params={"timeout": self.timeout_seconds},
+            timeout=(10, self.timeout_seconds + 10),  # for safe teardown
         )
         if response.status_code == 204:
             return None
