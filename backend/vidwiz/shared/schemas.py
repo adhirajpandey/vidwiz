@@ -161,6 +161,7 @@ class UserProfileRead(BaseModel):
     username: str
     ai_notes_enabled: bool
     token_exists: bool
+    long_term_token: Optional[str] = None
     model_config = {"from_attributes": True}
 
 

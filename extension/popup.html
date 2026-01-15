@@ -4,18 +4,56 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>VidWiz</title>
+    <!-- Inter Font from Google Fonts -->
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
     <link rel="stylesheet" href="popup.css">
 </head>
 <body>
     <div class="container">
-        <div id="feedback-message"></div>
-        <div id="video-title" class="video-title">Video Title</div>
-        <div id="current-timestamp" class="timestamp">0:00</div>
-        <textarea id="notes-textarea" class="note-textarea" placeholder="Write a note..."></textarea>
-        <button id="saveNotesBtn" class="save-btn">Save Note</button>
-        <div class="links-row">
-            <a href="#" id="viewNotes" class="link">View Notes</a>
-            <a href="#" id="goDashboard" class="link">Go to Dashboard</a>
+        <!-- Token Setup View (shown when no token) -->
+        <div id="token-setup" class="token-setup">
+            <div class="token-header">
+                <svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" class="token-icon">
+                    <rect x="3" y="11" width="18" height="11" rx="2" ry="2"></rect>
+                    <path d="M7 11V7a5 5 0 0 1 10 0v4"></path>
+                </svg>
+                <h2 class="token-title">Connect to VidWiz</h2>
+                <p class="token-subtitle">Enter your API token to start saving notes</p>
+            </div>
+            <input type="password" id="token-input" class="token-input" placeholder="Paste your API token here..." />
+            <button id="saveTokenBtn" class="save-btn">Save Token</button>
+            <a href="#" id="goLoginFromSetup" class="token-link">Don't have a token? Get one from Profile</a>
+        </div>
+
+        <!-- Main Notes View (shown when token exists) -->
+        <div id="notes-view" class="notes-view hidden">
+            <div id="feedback-message"></div>
+            <div id="video-title" class="video-title">Video Title</div>
+            <div id="current-timestamp" class="timestamp">0:00</div>
+            <textarea id="notes-textarea" class="note-textarea" placeholder="Write a note..."></textarea>
+            <button id="saveNotesBtn" class="save-btn">Save Note</button>
+            <div class="links-row">
+                <a href="#" id="viewNotes" class="link">
+                    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                        <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"></path>
+                        <polyline points="14 2 14 8 20 8"></polyline>
+                        <line x1="16" y1="13" x2="8" y2="13"></line>
+                        <line x1="16" y1="17" x2="8" y2="17"></line>
+                    </svg>
+                    View Notes
+                </a>
+                <a href="#" id="goDashboard" class="link">
+                    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                        <rect x="3" y="3" width="7" height="7"></rect>
+                        <rect x="14" y="3" width="7" height="7"></rect>
+                        <rect x="14" y="14" width="7" height="7"></rect>
+                        <rect x="3" y="14" width="7" height="7"></rect>
+                    </svg>
+                    Dashboard
+                </a>
+            </div>
         </div>
     </div>
     <script src="popup.js"></script>

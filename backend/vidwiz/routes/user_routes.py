@@ -188,6 +188,7 @@ def get_profile():
             "username": user.username,
             "ai_notes_enabled": ai_notes_enabled,
             "token_exists": token_exists,
+            "long_term_token": user.long_term_token,
         }
 
         validated_profile = UserProfileRead(**profile_data)

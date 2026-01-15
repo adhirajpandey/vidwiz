@@ -13,32 +13,38 @@ export default function DashboardPage() {
   const [hasSearched, setHasSearched] = useState(false);
   const navigate = useNavigate();
 
+  // Decode JWT to get username (avoid API call)
+  const decodeJwt = (token: string): { username?: string } | null => {
+    try {
+      const base64Url = token.split('.')[1];
+      const base64 = base64Url.replace(/-/g, '+').replace(/_/g, '/');
+      const jsonPayload = decodeURIComponent(
+        atob(base64)
+          .split('')
+          .map((c) => '%' + ('00' + c.charCodeAt(0).toString(16)).slice(-2))
+          .join('')
+      );
+      return JSON.parse(jsonPayload);
+    } catch (error) {
+      console.error('Failed to decode JWT', error);
+      return null;
+    }
+  };
+
   useEffect(() => {
-    const fetchProfile = async () => {
-      const token = localStorage.getItem('token');
-      if (token) {
-        try {
-          const response = await fetch(`${config.API_URL}/user/profile`, {
-            headers: {
-              Authorization: `Bearer ${token}`,
-            },
-          });
-
-          if (response.ok) {
-            const data = await response.json();
-            setUser(data);
-          } else {
-            // Handle error, e.g., token expired
-            localStorage.removeItem('token');
-            navigate('/login');
-          }
-        } catch (error) {
-          console.error('Failed to fetch profile', error);
-        }
+    const token = localStorage.getItem('token');
+    if (token) {
+      const decoded = decodeJwt(token);
+      if (decoded?.username) {
+        setUser({ username: decoded.username });
+      } else {
+        // Invalid token, redirect to login
+        localStorage.removeItem('token');
+        navigate('/login');
       }
-    };
-
-    fetchProfile();
+    } else {
+      navigate('/login');
+    }
   }, [navigate]);
 
   const handleSearch = async (e: React.FormEvent) => {

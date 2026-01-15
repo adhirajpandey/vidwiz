@@ -2,7 +2,11 @@
 // const ApiURL = "http://127.0.0.1:5000/"
 const AppURL = "https://vidwiz.adhirajpandey.tech/"
 const ApiURL = "https://vidwiz.adhirajpandey.tech/api/"
-const AUTH_TOKEN = localStorage.getItem("notes-token")
+
+// Get token from localStorage (will be null if not set)
+function getAuthToken() {
+	return localStorage.getItem("notes-token")
+}
 
 function fetchVideoTitle() {
 	if (
@@ -47,6 +51,8 @@ function validateTimestamp(timestamp) {
 }
 
 function saveNotesToBackend(url, notes, videoTitle, videoTimestamp) {
+	const AUTH_TOKEN = getAuthToken()
+	
 	if (videoTitle === "No YouTube video found.") {
 		setMessage("No YouTube video found on this page. Notes not saved.")
 		return
@@ -117,6 +123,7 @@ function saveNotesToBackend(url, notes, videoTitle, videoTimestamp) {
 }
 
 function checkNotesExistence(url) {
+	const AUTH_TOKEN = getAuthToken()
 	const videoId = new URL(url).searchParams.get("v")
 	if (!videoId) {
 		return Promise.reject("Invalid YouTube URL")
@@ -149,18 +156,46 @@ function checkNotesExistence(url) {
 		})
 }
 
-function setMessage(message, color) {
-	document.getElementById("feedback-message").textContent = message
-	document.getElementById("feedback-message").style.color = color || "black"
+function setMessage(message, type) {
+	const el = document.getElementById("feedback-message")
+	if (!el) return
+	el.textContent = message
+	el.classList.remove("error", "success")
+	if (type === "red" || type === "error") {
+		el.classList.add("error")
+	} else if (type === "green" || type === "success") {
+		el.classList.add("success")
+	}
+}
+
+// Show/hide views based on token presence
+function updateViewState() {
+	const tokenSetup = document.getElementById("token-setup")
+	const notesView = document.getElementById("notes-view")
+	const hasToken = !!getAuthToken()
+	
+	if (hasToken) {
+		tokenSetup.classList.add("hidden")
+		notesView.classList.remove("hidden")
+	} else {
+		tokenSetup.classList.remove("hidden")
+		notesView.classList.add("hidden")
+	}
+	
+	return hasToken
 }
 
 document.addEventListener("DOMContentLoaded", function() {
-	// Set welcome message
-	setMessage("Welcome to VidWiz!", "black")
-
-	if (!localStorage.getItem("notes-token")) {
-		setMessage("Please set your notes-token in localStorage before using the extension.\nOpen DevTools and run: localStorage.setItem('notes-token', 'YOUR_TOKEN')", "red")
+	// Check if token exists and show appropriate view
+	const hasToken = updateViewState()
+	
+	if (!hasToken) {
+		// Token setup view is shown, no need to do anything else
+		return
 	}
+	
+	// Set welcome message for notes view
+	setMessage("Welcome to VidWiz!", "black")
 
 	chrome.tabs.query({active: true, currentWindow: true}, function(tabs) {
 		const tabId = tabs[0].id
@@ -203,6 +238,75 @@ document.addEventListener("DOMContentLoaded", function() {
 	})
 })
 
+// Save token button handler
+document.getElementById("saveTokenBtn").addEventListener("click", function() {
+	const tokenInput = document.getElementById("token-input")
+	const token = tokenInput.value.trim()
+	
+	if (!token) {
+		tokenInput.style.borderColor = "rgba(239, 68, 68, 0.5)"
+		tokenInput.placeholder = "Please enter a valid token..."
+		return
+	}
+	
+	// Save token to localStorage
+	localStorage.setItem("notes-token", token)
+	
+	// Update view state to show notes view
+	updateViewState()
+	
+	// Set welcome message
+	setMessage("Token saved! Welcome to VidWiz!", "green")
+	
+	// Initialize the notes view
+	chrome.tabs.query({active: true, currentWindow: true}, function(tabs) {
+		const tabId = tabs[0].id
+		const tabURL = tabs[0].url
+
+		if (!tabURL.includes("youtube.com/watch")) {
+			setMessage("No YouTube video found on this page.", "red")
+			document.getElementById("video-title").style.display = "none"
+			document.getElementById("current-timestamp").style.display = "none"
+			document.getElementById("notes-textarea").style.display = "none"
+			document.getElementById("saveNotesBtn").style.display = "none"
+			document.getElementById("viewNotes").style.display = "none"
+			return
+		}
+
+		chrome.scripting.executeScript(
+			{
+				target: {tabId: tabId},
+				function: fetchVideoTitle,
+			},
+			function(results) {
+				if (results && results[0]) {
+					document.getElementById("video-title").textContent = results[0].result
+				}
+			}
+		)
+
+		chrome.scripting.executeScript(
+			{
+				target: {tabId: tabId},
+				function: fetchVideoTimestamp,
+			},
+			function(results) {
+				if (results && results[0]) {
+					document.getElementById("current-timestamp").textContent = results[0].result
+				}
+			}
+		)
+	})
+})
+
+// Go to profile from token setup
+document.getElementById("goLoginFromSetup").addEventListener("click", function(e) {
+	e.preventDefault()
+	const profileURL = AppURL + "profile"
+	chrome.tabs.create({ url: profileURL })
+})
+
+// Save notes button handler
 document.getElementById("saveNotesBtn").addEventListener("click", function () {
 	chrome.tabs.query({ active: true, currentWindow: true }, function (tabs) {
 		const tabURL = tabs[0].url

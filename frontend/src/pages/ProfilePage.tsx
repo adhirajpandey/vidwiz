@@ -35,11 +35,8 @@ export default function ProfilePage() {
         if (response.ok) {
           const data = await response.json();
           setUser(data);
-          if (data.token_exists) {
-            setApiToken('hidden_token');
-          } else {
-            setApiToken(null);
-          }
+          // Use the actual token from API response
+          setApiToken(data.long_term_token || null);
         } else {
           localStorage.removeItem('token');
           navigate('/login');
@@ -145,12 +142,20 @@ export default function ProfilePage() {
   };
 
   const handleCopyToken = () => {
-    if (apiToken && apiToken !== 'hidden_token') {
+    if (apiToken) {
       navigator.clipboard.writeText(apiToken);
-      addToast({ title: 'Success', message: 'Token copied to clipboard', type: 'success' });
-    } else if (apiToken === 'hidden_token') {
-      addToast({ title: 'Info', message: 'Token is hidden. Click show to reveal and copy.', type: 'info' });
+      addToast({ title: 'Copied!', message: 'Token copied to clipboard', type: 'success' });
+    } else {
+      addToast({ title: 'No Token', message: 'Generate a token first', type: 'error' });
     }
+  };
+
+  const handleToggleShowToken = () => {
+    if (!apiToken) {
+      addToast({ title: 'No Token', message: 'Generate a token first', type: 'error' });
+      return;
+    }
+    setShowToken(!showToken);
   };
 
   return (
@@ -321,7 +326,7 @@ export default function ProfilePage() {
                             </div>
                             <div className="flex gap-2">
                               <button
-                                onClick={() => setShowToken(!showToken)}
+                                onClick={handleToggleShowToken}
                                 className="flex-1 sm:flex-none inline-flex items-center justify-center gap-2 px-4 py-2.5 text-xs font-medium bg-white/[0.04] hover:bg-white/[0.08] border border-white/[0.08] rounded-lg text-foreground/70 hover:text-foreground transition-all cursor-pointer"
                               >
                                 {showToken ? <FaEyeSlash className="w-3.5 h-3.5" /> : <FaEye className="w-3.5 h-3.5" />}
