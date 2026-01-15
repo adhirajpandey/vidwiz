@@ -6,10 +6,12 @@ VidWiz is designed to enhance your YouTube learning and note-taking experience. 
 Additionally, it leverages AI to automatically generate comprehensive notes for any timestamp, providing intelligent summaries and insights from the video content at that specific moment.
 
 The extension is built with:
-- Frontend: HTML5, CSS3, and vanilla JavaScript for extension
-- Backend: Flask (Python) for REST API
-- Database: PostgreSQL for data storage
+- Frontend: **React (Vite)** with **TypeScript** and **Tailwind CSS**
+- Backend: **Flask (Python)** for REST API
+- Database: **PostgreSQL** for data storage
 - LLM: OpenAI/Gemini models for intelligent note generation
+
+[Check Screenshots](#screenshots)
 
 ## Features
 1. **Multi-Client Support**
@@ -18,10 +20,10 @@ The extension is built with:
    - Use with iOS devices via Shortcuts automation.
 
 2. **Interactive Dashboard**
-   - A modern UI with a consolidated view of all your notes.
-   - Search for videos.
-   - Open videos directly at the note's timestamp.
-   - Edit and delete notes with ease.
+   - A glassmorphic UI with a consolidated view of all your notes.
+   - **Enhanced Video Details**: Rich metadata including thumbnails, channel info, view/like counts, and durations.
+   - **Smart Navigation**: Open videos directly at the precise note timestamp.
+   - **Fluid Interaction**: Seamless note CRUD with real-time feedback and modern transitions.
 
 3. **AI Magic**
    - Automatically generate accurate notes for any timestamp using LLMs.
@@ -60,25 +62,35 @@ POSTGRES_PASSWORD=postgres
 2) Start services:
 - Development: docker compose up -d --build → API at http://localhost:5000
 
-## Local development (Poetry)
-Prereqs: Python 3.10–3.13, Poetry, running PostgreSQL
+## Local development
+Prereqs: Python 3.10–3.13, Node.js, Poetry, running PostgreSQL
 
-1) Install deps: poetry install
-2) Export env vars (match .env above)
-3) Run app (dev): poetry run vidwiz (runs Flask dev server on 0.0.0.0:5000)
+### Backend
+1. `cd backend`
+2. Install dependencies: `poetry install`
+3. Configure `.env` (use `.env.example` as reference)
+4. Start server: `python wsgi.py`
+
+### Frontend
+1. `cd frontend`
+2. Install dependencies: `npm install`
+3. Start development server: `npm run dev`
 
 ## Extension setup
-1) Load unpacked from extension/ in a Chromium browser (chrome://extensions → Developer mode → Load unpacked)
-2) Configure backendEndpoint in extension/popup.js to your API base URL if self hosting
-3) Generate a token for the extension:
-    - Option A: JWT via POST /user/login (expires in 24h)
-    - Option B: Long‑term token via POST /user/token (recommended)
-4) In the extension popup’s DevTools console: localStorage.setItem('notes-token', '<your token>')
+1) Load unpacked from `extension/` in a Chromium browser (`chrome://extensions` → Developer mode → Load unpacked)
+2) Configure `AppURL` and `ApiURL` in `extension/popup.js` to match your deployment
+3) Open the extension popup - you'll see a token setup screen
+4) Get your API token:
+   - Log in to the web dashboard
+   - Go to **Profile** → **Developer Access**
+   - Click **Generate New** to create a long-term token
+   - Copy the token
+5) Paste the token in the extension popup and click **Save Token**
 
-The popup reads the current YouTube title/timestamp and calls POST /notes.
+The extension will then show the note-taking interface when on YouTube videos.
 
 ## Running tests
-- poetry run pytest
+- Backend: `cd backend && poetry run pytest`
 
 ## Roadmap
 - [x] Better UI/UX for Dashboard
@@ -86,26 +98,25 @@ The popup reads the current YouTube title/timestamp and calls POST /notes.
 - [x] AI generated note
 - [x] Lambda workflow optimization
 - [x] SQS Implementation
-- [ ] Refine self-hosted setup
-- [ ] Cloud Hosted Offering - Subscription model
+- [x] UI/UX Improvements
+- [ ] Cloud Hosted Offering - Subscription model   
 
 ## Screenshots
 
-Dashboard
+### Dashboard
+<img width="1280" height="900" alt="Screenshot 2026-01-16 011505" src="https://github.com/user-attachments/assets/52de59e9-b19b-46db-a22b-64f1652c58a0" />
 
-![dashboard-UI](https://github.com/user-attachments/assets/4136d26d-9a08-48ad-a1bd-d3c794fd37f6)
+### Video Notes
+<img width="1280" height="900" alt="Screenshot 2026-01-16 011644" src="https://github.com/user-attachments/assets/365917cf-4c58-41a8-adb5-60d84a5b2a7b" />
 
-Video Notes
 
-![notes-ui](https://github.com/user-attachments/assets/b6a9efb8-c69a-4406-91b3-bfe6cbce160b)
+### Extension
+<img width="369" height="450" alt="Screenshot 2026-01-16 011711" src="https://github.com/user-attachments/assets/d52c10c5-fcaa-4d0b-8dae-e2f63b7c2f66" />
 
-Extension
 
-![extension-ui](https://github.com/user-attachments/assets/7d4f24ec-0acb-4a19-861c-4c4be093668b)
+### Mobile View
+<img width="422" height="816" alt="Screenshot 2026-01-16 011748" src="https://github.com/user-attachments/assets/acd8755c-bf89-4223-919d-6fe56602e189" />
 
-Mobile View
-
-![mobile-ui](https://github.com/user-attachments/assets/f9b21644-a718-49e3-ab3e-666bc1bf7e4c)
 
 
 
