@@ -105,7 +105,7 @@ export default function NoteCard({ note, onUpdate, onDelete }: NoteCardProps) {
               </div>
             </div>
           ) : (
-            <p className="text-foreground/70 text-sm leading-relaxed select-text break-words">{note.text}</p>
+            <p className="text-foreground/70 text-sm leading-relaxed break-words">{note.text}</p>
           )}
         </div>
         

@@ -1,10 +1,11 @@
 
-
 import { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import config from '../config';
 import { useToast } from '../hooks/useToast';
-import { FaExclamationTriangle, FaEye, FaEyeSlash, FaCopy, FaSpinner } from 'react-icons/fa';
+import { FaExclamationTriangle, FaEye, FaEyeSlash, FaCopy, FaSpinner, FaKey, FaShieldAlt } from 'react-icons/fa';
+import { HiSparkles } from 'react-icons/hi2';
+import { Settings, Zap, User as UserIcon, Calendar } from 'lucide-react';
 
 interface UserProfile {
   username: string;
@@ -36,7 +37,7 @@ export default function ProfilePage() {
           const data = await response.json();
           setUser(data);
           if (data.token_exists) {
-            setApiToken('hidden_token'); // Indicate token exists but don't show it
+            setApiToken('hidden_token');
           } else {
             setApiToken(null);
           }
@@ -155,151 +156,228 @@ export default function ProfilePage() {
 
   return (
     <div className="min-h-screen bg-background text-foreground">
+      {/* Revoke Modal */}
       {showRevokeModal && (
-        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
-          <div className="bg-card rounded-lg p-6 max-w-sm w-full mx-4">
-            <div className="text-center">
-              <div className="text-red-500 text-3xl mb-4">
-                <FaExclamationTriangle className="inline-block" />
+        <div className="fixed inset-0 bg-black/60 backdrop-blur-sm flex items-center justify-center z-50">
+          <div className="relative bg-gradient-to-br from-card via-card to-card/90 rounded-2xl p-6 max-w-sm w-full mx-4 border border-white/[0.08] shadow-2xl select-none">
+            {/* Ambient glow */}
+            <div className="absolute -inset-1 bg-gradient-to-r from-red-500/20 via-transparent to-red-500/20 rounded-2xl blur-xl opacity-50"></div>
+            
+            <div className="relative text-center">
+              <div className="w-14 h-14 mx-auto mb-4 rounded-xl bg-gradient-to-br from-red-500/20 to-red-600/10 border border-red-500/20 flex items-center justify-center">
+                <FaExclamationTriangle className="w-6 h-6 text-red-400" />
               </div>
-              <h3 className="text-lg font-semibold text-foreground mb-3">Revoke API Token</h3>
-              <p className="text-sm text-muted-foreground mb-6">Are you sure you want to revoke your API token? This action cannot be undone and will immediately invalidate the token. Any applications using this token will stop working.</p>
-              <div className="flex justify-center space-x-4">
-                <button onClick={() => setShowRevokeModal(false)} className="px-3 py-1.5 text-sm font-medium text-secondary-foreground bg-secondary rounded-md hover:bg-secondary/90 transition-colors cursor-pointer">
+              <h3 className="text-lg font-semibold text-foreground mb-2">Revoke API Token</h3>
+              <p className="text-sm text-foreground/50 mb-6">Are you sure? This action cannot be undone. Any applications using this token will stop working.</p>
+              <div className="flex justify-center gap-3">
+                <button 
+                  onClick={() => setShowRevokeModal(false)} 
+                  className="px-4 py-2 text-sm font-medium bg-white/[0.04] hover:bg-white/[0.08] border border-white/[0.08] hover:border-white/[0.12] rounded-lg text-foreground/70 hover:text-foreground transition-all cursor-pointer"
+                >
                   Cancel
                 </button>
-                <button onClick={handleRevokeToken} className="px-3 py-1.5 text-sm font-medium text-destructive-foreground bg-destructive rounded-md hover:bg-destructive/90 transition-colors cursor-pointer">
-                  {isRevokingToken ? <FaSpinner className="animate-spin mr-1" /> : null}Revoke Token
+                <button 
+                  onClick={handleRevokeToken} 
+                  className="inline-flex items-center gap-2 px-4 py-2 text-sm font-semibold text-white bg-gradient-to-r from-red-600 via-red-500 to-red-600 bg-[length:200%_100%] rounded-lg hover:bg-right transition-all duration-500 shadow-lg shadow-red-500/25 cursor-pointer"
+                >
+                  {isRevokingToken ? <FaSpinner className="animate-spin w-4 h-4" /> : null}
+                  Revoke Token
                 </button>
               </div>
             </div>
           </div>
         </div>
       )}
-      <div className="max-w-4xl mx-auto px-6 py-12">
-        <h1 className="text-4xl font-bold">Profile</h1>
-        <p className="text-muted-foreground mb-4">Manage your account settings and API access.</p>
-        {user && (
-          <div className="mt-8 bg-card p-6 rounded-lg shadow-md">
-            {/* Username Section */}
-            <div className="mb-6">
-              <label className="block text-foreground mb-2 font-medium" htmlFor="username">Username</label>
-              <input
-                className="w-full px-3 py-2 border border-input rounded-lg bg-background text-muted-foreground cursor-not-allowed"
-                type="text"
-                id="username"
-                name="username"
-                readOnly
-                disabled
-                value={user.username}
-              />
-            </div>
 
-            {/* LLM Note Settings Section */}
-            <div className="mb-6">
-              <label className="block text-foreground mb-3 font-medium">LLM Note Generation</label>
-              <div className="flex items-center justify-between p-4 border border-border rounded-lg bg-card">
-                <div>
-                  <h3 className="text-sm font-medium text-foreground">Auto-generate AI notes</h3>
-                  <p className="text-xs text-muted-foreground">Automatically generate notes based on video timestamp content using AI</p>
-                </div>
+      <div className="max-w-4xl mx-auto px-4 md:px-6 py-8 md:py-12">
+        {user && (
+          <div className="space-y-12">
+            
+            {/* Profile Identity Section */}
+            <div className="relative select-none">
+              <div className="flex flex-col md:flex-row items-center md:items-start gap-6 md:gap-8">
+                {/* Large Avatar */}
                 <div className="relative">
-                  <input
-                    type="checkbox"
-                    id="llm-notes-toggle"
-                    className="sr-only"
-                    checked={user.ai_notes_enabled}
-                    onChange={handleAiNotesToggle}
-                  />
-                  <label
-                    htmlFor="llm-notes-toggle"
-                    className="flex items-center cursor-pointer"
-                  >
-                    <div className={`block w-14 h-8 rounded-full transition-colors duration-200 ease-in-out ${user.ai_notes_enabled ? 'bg-primary' : 'bg-input'}`}></div>
-                    <div className={`dot absolute left-1 top-1 bg-primary-foreground w-6 h-6 rounded-full transition-transform duration-200 ease-in-out ${user.ai_notes_enabled ? 'translate-x-full' : 'translate-x-0'}`}></div>
-                  </label>
+                  <div className="absolute inset-0 bg-gradient-to-br from-violet-500 to-fuchsia-600 rounded-full blur-xl opacity-30 animate-pulse"></div>
+                  <div className="relative w-24 h-24 md:w-32 md:h-32 rounded-full bg-gradient-to-br from-violet-500 to-fuchsia-600 p-1 shadow-2xl">
+                    <div className="w-full h-full rounded-full bg-background flex items-center justify-center text-4xl md:text-5xl font-bold text-foreground">
+                      {user.username.charAt(0).toUpperCase()}
+                    </div>
+                  </div>
+                  <div className="absolute -bottom-2 md:bottom-0 right-0 md:right-2">
+                    <div className="w-8 h-8 rounded-full bg-background border-4 border-background flex items-center justify-center">
+                      <div className="w-4 h-4 rounded-full bg-green-500 animate-pulse"></div>
+                    </div>
+                  </div>
+                </div>
+
+                {/* Info */}
+                <div className="text-center md:text-left pt-2">
+                  <h1 className="text-3xl md:text-4xl font-bold tracking-tight mb-2">
+                    {user.username}
+                  </h1>
+                  <div className="flex flex-wrap items-center justify-center md:justify-start gap-3 text-sm text-foreground/60">
+                    <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-white/[0.04] border border-white/[0.08]">
+                      <UserIcon className="w-3.5 h-3.5" />
+                      Free Plan
+                    </span>
+                    <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-white/[0.04] border border-white/[0.08]">
+                      <Calendar className="w-3.5 h-3.5" />
+                      Member
+                    </span>
+                  </div>
                 </div>
               </div>
             </div>
 
-            {/* API Token Section */}
-            <div className="mb-6">
-              <label className="block text-foreground mb-3 font-medium">API Access</label>
-              <div className="border border-border rounded-lg p-4 bg-card">
-                <div className="flex items-center justify-between mb-3 flex-wrap">
-                  <div>
-                    <h3 className="text-sm font-medium text-foreground">Long-term API Token</h3>
-                    <p className="text-xs text-muted-foreground">Generate a token for API access to your VidWiz account</p>
-                  </div>
+            {/* Main Content Grid */}
+            <div className="grid gap-8">
+              
+              {/* Settings Group: Preferences */}
+              <div className="space-y-4">
+                <div className="flex items-center gap-2 px-1 select-none">
+                  <Settings className="w-4 h-4 text-foreground/40" />
+                  <h2 className="text-sm font-semibold text-foreground/40 uppercase tracking-wider">Preferences</h2>
                 </div>
+                
+                {/* AI Note Generation Toggle Row */}
+                <div className="group relative bg-white/[0.02] hover:bg-white/[0.04] border border-white/[0.06] rounded-xl p-5 transition-colors select-none">
+                  <div className="flex items-center justify-between gap-4">
+                    <div className="flex items-start gap-4">
+                      <div className="w-10 h-10 rounded-lg bg-gradient-to-br from-violet-500/20 to-fuchsia-500/20 flex items-center justify-center flex-shrink-0 group-hover:scale-110 transition-transform duration-300">
+                        <Zap className="w-5 h-5 text-violet-400" />
+                      </div>
+                      <div>
+                        <h3 className="text-base font-medium text-foreground">AI Note Generation</h3>
+                        <p className="text-sm text-foreground/50 mt-1 max-w-lg">
+                          Automatically generate summary notes using AI when you save a timestamp. 
+                          <span className="hidden sm:inline"> Uses advanced language models to synthesize video content.</span>
+                        </p>
+                      </div>
+                    </div>
 
-                {/* Current Token Display */}
-                {apiToken && (
-                  <div className="mb-4">
-                    <label className="block text-xs text-muted-foreground mb-1">Current Token:</label>
-                    <div className="flex items-center space-x-2">
-                      <input
-                        type={showToken ? 'text' : 'password'}
-                        id="current-token"
-                        className="flex-1 min-w-0 px-3 py-2 text-xs border border-input rounded bg-background font-mono text-foreground"
-                        readOnly
-                        value={apiToken === 'hidden_token' ? '••••••••••••••••••••••••••••••••' : apiToken}
-                      />
+                    <div className="flex items-center gap-3">
+                      <span className={`text-xs font-medium transition-colors ${user.ai_notes_enabled ? 'text-violet-400' : 'text-foreground/30'}`}>
+                        {user.ai_notes_enabled ? 'On' : 'Off'}
+                      </span>
                       <button
-                        onClick={() => setShowToken(!showToken)}
-                        className="flex-shrink-0 flex items-center gap-1 px-3 py-2 text-xs bg-secondary hover:bg-secondary/90 rounded transition-colors text-secondary-foreground cursor-pointer"
-                        type="button"
+                        onClick={handleAiNotesToggle}
+                        className={`relative inline-flex h-7 w-12 flex-shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors duration-200 ease-in-out focus:outline-none ${
+                          user.ai_notes_enabled ? 'bg-violet-500' : 'bg-white/[0.1]'
+                        }`}
                       >
-                        {showToken ? <FaEyeSlash /> : <FaEye />} {showToken ? 'Hide' : 'Show'}
-                      </button>
-                      <button
-                        onClick={handleCopyToken}
-                        className="flex-shrink-0 flex items-center gap-1 px-3 py-2 text-xs bg-red-500 hover:bg-red-600 text-white rounded transition-colors cursor-pointer"
-                        type="button"
-                      >
-                        <FaCopy /> Copy
+                        <span
+                          className={`pointer-events-none inline-block h-6 w-6 transform rounded-full bg-white shadow-lg ring-0 transition duration-200 ease-in-out ${
+                            user.ai_notes_enabled ? 'translate-x-5' : 'translate-x-0'
+                          }`}
+                        />
                       </button>
                     </div>
                   </div>
-                )}
-
-                {/* No Token Message */}
-                {!apiToken && (
-                  <div className="mb-4">
-                    <p className="text-sm text-muted-foreground">No API token generated yet.</p>
-                  </div>
-                )}
-
-                {/* Action Buttons */}
-                <div className="flex space-x-2">
-                  <button
-                    id="generate-token-btn"
-                    onClick={handleGenerateToken}
-                    className="w-32 px-4 py-2 text-sm bg-red-500 hover:bg-red-600 text-white rounded-lg transition-colors disabled:opacity-50 disabled:cursor-not-allowed cursor-pointer"
-                    type="button"
-                    disabled={user.token_exists || isGeneratingToken}
-                  >
-                    {isGeneratingToken ? <FaSpinner className="animate-spin mr-1" /> : null} Generate
-                  </button>
-                  <button
-                    id="revoke-token-btn"
-                    onClick={() => setShowRevokeModal(true)}
-                    className="w-32 px-4 py-2 text-sm bg-secondary hover:bg-secondary/90 text-secondary-foreground rounded-lg transition-colors disabled:opacity-50 disabled:cursor-not-allowed cursor-pointer"
-                    type="button"
-                    disabled={!user.token_exists || isRevokingToken}
-                  >
-                    {isRevokingToken ? <FaSpinner className="animate-spin mr-1" /> : null} Revoke
-                  </button>
-                </div>
-
-                {/* Token Generation Warning */}
-                <div className="mt-3 p-3 bg-yellow-50 border border-yellow-200 rounded text-xs text-yellow-800">
-                  <strong>Long-term API Token:</strong> This token never expires and provides full access to your account. Only one token can exist at a time. Keep it secure and revoke immediately if compromised. You must revoke your existing token before generating a new one.
                 </div>
               </div>
+
+              {/* Settings Group: Developer */}
+              <div className="space-y-4">
+                <div className="flex items-center gap-2 px-1 select-none">
+                  <FaKey className="w-4 h-4 text-foreground/40" />
+                  <h2 className="text-sm font-semibold text-foreground/40 uppercase tracking-wider">Developer Access</h2>
+                </div>
+
+                {/* API Token Card - Kept as card for complexity */}
+                <div className="relative bg-gradient-to-br from-card via-card to-card/90 rounded-xl shadow-xl overflow-hidden border border-white/[0.08] select-none">
+                  <div className="p-1 px-1"> {/* Thin padding container for potential future gradient border */}
+                    <div className="p-5 md:p-6 space-y-6">
+                      <div className="flex md:items-start justify-between gap-4 flex-col md:flex-row">
+                        <div className="space-y-1">
+                          <h3 className="text-base font-medium text-foreground">Personal Access Token</h3>
+                          <p className="text-sm text-foreground/50 max-w-xl">
+                            Use this token to authenticate with the VidWiz API for external integrations, mobile apps, or custom scripts. 
+                            Treat this like your password.
+                          </p>
+                        </div>
+                        <span className={`self-start inline-flex items-center px-2.5 py-1 rounded-full text-xs font-medium ${
+                          user.token_exists 
+                            ? 'bg-emerald-500/10 text-emerald-400 border border-emerald-500/20' 
+                            : 'bg-white/[0.04] text-foreground/50 border border-white/[0.08]'
+                        }`}>
+                          {user.token_exists ? 'Active' : 'Inactive'}
+                        </span>
+                      </div>
+
+                      {/* Token Display Area */}
+                      <div className="bg-white/[0.02] border border-white/[0.06] rounded-xl p-4">
+                        {apiToken ? (
+                          <div className="flex flex-col sm:flex-row gap-3">
+                            <div className="relative flex-1">
+                              <input
+                                type={showToken ? 'text' : 'password'}
+                                className="w-full pl-10 pr-4 py-2.5 text-xs font-mono bg-black/20 border border-white/[0.08] rounded-lg text-foreground/80 focus:outline-none focus:border-white/[0.2] transition-colors"
+                                readOnly
+                                value={apiToken === 'hidden_token' ? '••••••••••••••••••••••••••••••••' : apiToken}
+                              />
+                              <div className="absolute left-3 top-1/2 -translate-y-1/2 text-foreground/30">
+                                <FaKey className="w-3.5 h-3.5" />
+                              </div>
+                            </div>
+                            <div className="flex gap-2">
+                              <button
+                                onClick={() => setShowToken(!showToken)}
+                                className="flex-1 sm:flex-none inline-flex items-center justify-center gap-2 px-4 py-2.5 text-xs font-medium bg-white/[0.04] hover:bg-white/[0.08] border border-white/[0.08] rounded-lg text-foreground/70 hover:text-foreground transition-all cursor-pointer"
+                              >
+                                {showToken ? <FaEyeSlash className="w-3.5 h-3.5" /> : <FaEye className="w-3.5 h-3.5" />}
+                                {showToken ? 'Hide' : 'Show'}
+                              </button>
+                              <button
+                                onClick={handleCopyToken}
+                                className="flex-1 sm:flex-none inline-flex items-center justify-center gap-2 px-4 py-2.5 text-xs font-semibold text-white bg-white/[0.1] hover:bg-white/[0.15] border border-white/[0.1] rounded-lg transition-all cursor-pointer"
+                              >
+                                <FaCopy className="w-3.5 h-3.5" />
+                                Copy
+                              </button>
+                            </div>
+                          </div>
+                        ) : (
+                          <div className="text-center py-2">
+                            <span className="text-sm text-foreground/40 italic">No active token</span>
+                          </div>
+                        )}
+                      </div>
+
+                      {/* Actions Footer */}
+                      <div className="flex flex-wrap items-center justify-between gap-4 pt-2">
+                        <div className="flex items-center gap-2 text-xs text-amber-500/80 bg-amber-500/5 px-3 py-1.5 rounded-lg border border-amber-500/10">
+                          <FaShieldAlt className="w-3 h-3" />
+                          <span>Never share this token</span>
+                        </div>
+                        
+                        <div className="flex gap-3 ml-auto">
+                          <button
+                            onClick={handleGenerateToken}
+                            disabled={user.token_exists || isGeneratingToken}
+                            className="inline-flex items-center gap-2 px-5 py-2 text-sm font-semibold text-white bg-gradient-to-r from-red-600 via-red-500 to-red-600 bg-[length:200%_100%] rounded-lg hover:bg-right transition-all duration-500 shadow-lg shadow-red-500/20 disabled:opacity-50 disabled:cursor-not-allowed cursor-pointer"
+                          >
+                            {isGeneratingToken ? <FaSpinner className="animate-spin w-4 h-4" /> : null}
+                            Generate New
+                          </button>
+                          
+                          {user.token_exists && (
+                             <button
+                              onClick={() => setShowRevokeModal(true)}
+                              disabled={isRevokingToken}
+                              className="inline-flex items-center gap-2 px-5 py-2 text-sm font-medium text-red-400 bg-red-500/5 hover:bg-red-500/10 border border-red-500/10 hover:border-red-500/20 rounded-lg transition-all cursor-pointer"
+                            >
+                              Revoke
+                            </button>
+                          )}
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              </div>
+
             </div>
-
-
           </div>
         )}
       </div>

@@ -1,16 +1,22 @@
+
 import { useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { useToast } from '../hooks/useToast';
 import vidwizLogo from '../public/vidwiz.png';
 import config from '../config';
+import { ArrowRight, User, Lock } from 'lucide-react';
+import AmbientBackground from '../components/ui/AmbientBackground';
+import GlassCard from '../components/ui/GlassCard';
 
 export default function LoginPage() {
   const [username, setUsername] = useState('');
   const [password, setPassword] = useState('');
+  const [isLoading, setIsLoading] = useState(false);
   const { addToast } = useToast();
   const navigate = useNavigate();
 
   const handleLogin = async () => {
+    setIsLoading(true);
     try {
       const response = await fetch(`${config.API_URL}/user/login`, {
         method: 'POST',
@@ -25,97 +31,133 @@ export default function LoginPage() {
       if (response.ok) {
         localStorage.setItem('token', data.token);
         addToast({
-          title: 'Success',
-          message: 'Login successful!',
+          title: 'Welcome back!',
+          message: 'Login successful',
           type: 'success',
         });
         navigate('/dashboard');
       } else {
         addToast({
-          title: 'Error',
-          message: data.error || 'Something went wrong',
+          title: 'Access Denied',
+          message: data.error || 'Invalid credentials',
           type: 'error',
         });
       }
     } catch (error) {
       addToast({
-        title: 'Error',
-        message: 'Something went wrong',
+        title: 'Connection Error',
+        message: 'Could not connect to server',
         type: 'error',
       });
+    } finally {
+      setIsLoading(false);
     }
   };
 
   return (
-    <div className="flex min-h-screen items-center justify-center bg-background px-4 sm:px-8">
-      <div className="w-full max-w-md space-y-8 rounded-2xl border border-border bg-card p-8 shadow-lg">
-        <div className="text-center">
-          <img src={vidwizLogo} alt="VidWiz" className="mx-auto h-12 w-auto" />
-          <h2 className="mt-6 text-3xl font-bold tracking-tight text-foreground">
-            Sign in to your account
-          </h2>
-        </div>
-        <div className="space-y-6">
-          <div>
-            <label
-              htmlFor="username"
-              className="block text-sm font-medium text-muted-foreground"
-            >
-              Username
-            </label>
-            <div className="mt-1">
-              <input
-                id="username"
-                name="username"
-                type="text"
-                autoComplete="username"
-                required
-                value={username}
-                onChange={(e) => setUsername(e.target.value)}
-                className="block w-full appearance-none rounded-md border border-input bg-background px-3 py-2 text-foreground placeholder-muted-foreground shadow-sm focus:border-black focus:outline-none focus:ring-black sm:text-sm"
-              />
-            </div>
+    <div className="relative flex min-h-screen items-center justify-center overflow-hidden bg-background px-4 sm:px-6">
+      {/* Ambient Background Effects */}
+      <AmbientBackground />
+
+      <div className="relative w-full max-w-md animate-in fade-in zoom-in-95 duration-500">
+        {/* Glass Card */}
+        <GlassCard className="overflow-hidden rounded-3xl shadow-2xl">
+          {/* Header */}
+          <div className="relative border-b border-white/[0.06] bg-white/[0.02] p-8 text-center select-none">
+            <div className="absolute top-0 left-0 w-full h-1 bg-gradient-to-r from-transparent via-red-500 to-transparent opacity-50"></div>
+            <Link to="/" className="inline-block group">
+              <div className="relative mx-auto mb-4 h-12 w-12 transition-transform duration-300 group-hover:scale-110">
+                <div className="absolute inset-0 rounded-full bg-red-500/20 blur-md group-hover:bg-red-500/30"></div>
+                <img src={vidwizLogo} alt="VidWiz" className="relative h-full w-full object-contain" />
+              </div>
+            </Link>
+            <h2 className="text-2xl font-bold tracking-tight text-white">
+              Welcome back
+            </h2>
+            <p className="mt-2 text-sm text-white/50">
+              Sign in to continue to your dashboard
+            </p>
           </div>
 
-          <div>
-            <label
-              htmlFor="password"
-              className="block text-sm font-medium text-muted-foreground"
-            >
-              Password
-            </label>
-            <div className="mt-1">
-              <input
-                id="password"
-                name="password"
-                type="password"
-                autoComplete="current-password"
-                required
-                value={password}
-                onChange={(e) => setPassword(e.target.value)}
-                className="block w-full appearance-none rounded-md border border-input bg-background px-3 py-2 text-foreground placeholder-muted-foreground shadow-sm focus:border-black focus:outline-none focus:ring-black sm:text-sm"
-              />
-            </div>
-          </div>
+          <div className="p-8 space-y-6">
+            <div className="space-y-4">
+              <div className="space-y-2">
+                <label htmlFor="username" className="text-xs font-medium uppercase tracking-wider text-white/40 ml-1 select-none">
+                  Username
+                </label>
+                <div className="relative group">
+                  <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none text-white/30 group-focus-within:text-red-400 transition-colors">
+                    <User className="h-5 w-5" />
+                  </div>
+                  <input
+                    id="username"
+                    name="username"
+                    type="text"
+                    required
+                    value={username}
+                    onChange={(e) => setUsername(e.target.value)}
+                    className="block w-full rounded-xl border border-white/[0.08] bg-white/[0.03] pl-10 pr-3 py-3 text-white placeholder-white/20 focus:border-red-500/50 focus:bg-white/[0.05] focus:outline-none focus:ring-1 focus:ring-red-500/50 transition-all sm:text-sm"
+                    placeholder="Enter your username"
+                  />
+                </div>
+              </div>
 
-          <div>
+              <div className="space-y-2">
+                <div className="flex justify-between items-center ml-1">
+                  <label htmlFor="password" className="text-xs font-medium uppercase tracking-wider text-white/40 select-none">
+                    Password
+                  </label>
+                </div>
+                <div className="relative group">
+                  <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none text-white/30 group-focus-within:text-red-400 transition-colors">
+                    <Lock className="h-5 w-5" />
+                  </div>
+                  <input
+                    id="password"
+                    name="password"
+                    type="password"
+                    required
+                    value={password}
+                    onChange={(e) => setPassword(e.target.value)}
+                    className="block w-full rounded-xl border border-white/[0.08] bg-white/[0.03] pl-10 pr-3 py-3 text-white placeholder-white/20 focus:border-red-500/50 focus:bg-white/[0.05] focus:outline-none focus:ring-1 focus:ring-red-500/50 transition-all sm:text-sm"
+                    placeholder="••••••••"
+                  />
+                </div>
+              </div>
+            </div>
+
             <button
               onClick={handleLogin}
-              className="flex w-full justify-center rounded-md border border-transparent bg-red-500 py-2 px-4 text-sm font-medium text-white shadow-sm hover:bg-red-600 focus:outline-none focus:ring-2 focus:ring-red-500 focus:ring-offset-2 cursor-pointer"
+              disabled={isLoading}
+              className="group relative flex w-full justify-center items-center gap-2 rounded-xl bg-gradient-to-r from-red-600 to-red-500 py-3.5 px-4 text-sm font-semibold text-white shadow-lg shadow-red-500/20 hover:shadow-red-500/30 hover:scale-[1.02] active:scale-[0.98] transition-all duration-200 disabled:opacity-70 disabled:cursor-not-allowed cursor-pointer"
             >
-              Sign in
+              {isLoading ? (
+                <div className="h-5 w-5 animate-spin rounded-full border-2 border-white/20 border-t-white"></div>
+              ) : (
+                <>
+                  Sign in
+                  <ArrowRight className="h-4 w-4 transition-transform group-hover:translate-x-1" />
+                </>
+              )}
             </button>
           </div>
+
+          <div className="border-t border-white/[0.06] bg-white/[0.02] p-6 text-center select-none">
+            <p className="text-sm text-white/40">
+              Don't have an account?{' '}
+              <Link
+                to="/signup"
+                className="font-medium text-red-400 hover:text-red-300 transition-colors"
+              >
+                Sign up for free
+              </Link>
+            </p>
+          </div>
+        </GlassCard>
+        
+        <div className="mt-8 text-center text-xs text-white/20 select-none">
+          <p>© 2025 VidWiz. Secure login.</p>
         </div>
-        <p className="text-center text-sm text-muted-foreground">
-          Don't have an account?{' '}
-          <Link
-            to="/signup"
-            className="font-medium text-red-500 hover:text-red-600"
-          >
-            Sign up
-          </Link>
-        </p>
       </div>
     </div>
   );
