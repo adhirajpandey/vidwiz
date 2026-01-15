@@ -210,17 +210,17 @@ export default function VideoPage() {
               {/* Content section */}
               <div className="p-6">
                 {/* Title */}
-                <h2 className="text-xl md:text-2xl font-bold text-foreground mb-4 leading-tight">{video.title}</h2>
+                <h2 className="text-xl md:text-2xl font-bold text-foreground mb-4 leading-tight tracking-tight select-none">{video.title}</h2>
                 
                 {/* Stats bar with glassmorphism */}
                 {video.metadata && (
                   <div className="flex flex-wrap items-center gap-2 mb-5">
                     {video.metadata.channel && (
-                      <span className="inline-flex items-center px-3 py-1.5 rounded-lg text-sm font-semibold bg-gradient-to-r from-red-500/20 to-red-600/10 text-red-400 border border-red-500/20">
+                      <span className="inline-flex items-center px-3 py-1.5 rounded-lg text-sm font-semibold bg-gradient-to-r from-red-500/20 to-red-600/10 text-red-400 border border-red-500/20 select-none">
                         {video.metadata.channel}
                       </span>
                     )}
-                    <div className="flex items-center gap-2 px-3 py-1.5 rounded-lg bg-white/5 backdrop-blur-sm border border-white/10">
+                    <div className="flex items-center gap-2 px-3 py-1.5 rounded-lg bg-white/5 backdrop-blur-sm border border-white/10 select-none">
                       {video.metadata.view_count && (
                         <span className="inline-flex items-center gap-1.5 text-sm text-foreground/70">
                           <FaEye className="w-3.5 h-3.5" />
@@ -256,22 +256,40 @@ export default function VideoPage() {
             </div>
           </div>
         )}
-        <div className="bg-card rounded-xl shadow-lg overflow-hidden border border-border/50">
-          <div className="px-6 py-4 border-b border-border/50 flex items-center justify-between">
-            <h3 className="text-lg font-semibold text-foreground">Your Notes</h3>
-            <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-primary/10 text-primary">
+        <div className="relative bg-gradient-to-br from-card via-card to-card/90 rounded-xl md:rounded-2xl shadow-xl overflow-hidden border border-white/[0.08]">
+          {/* Header */}
+          <div className="px-4 py-3 md:px-6 md:py-4 border-b border-white/[0.06] bg-white/[0.02] flex items-center justify-between select-none">
+            <div className="flex items-center gap-2.5 md:gap-3">
+              <div className="w-7 h-7 md:w-8 md:h-8 rounded-lg bg-gradient-to-br from-blue-500/20 to-purple-500/20 flex items-center justify-center flex-shrink-0">
+                <svg className="w-3.5 h-3.5 md:w-4 md:h-4 text-blue-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" />
+                </svg>
+              </div>
+              <h3 className="text-base md:text-lg font-semibold text-foreground tracking-tight">Your Notes</h3>
+            </div>
+            <span className="inline-flex items-center px-2 py-0.5 md:px-2.5 md:py-1 rounded-md text-[11px] md:text-xs font-medium bg-white/[0.06] text-foreground/60 border border-white/[0.08]">
               {notes.length} {notes.length === 1 ? 'note' : 'notes'}
             </span>
           </div>
-          <div className="p-6">
+          
+          {/* Notes list */}
+          <div className="p-3 md:p-5">
             {notes.length === 0 ? (
-              <p className="text-center text-muted-foreground py-8">No notes yet. Start adding notes while watching!</p>
+              <div className="text-center py-10 md:py-14 select-none">
+                <div className="w-14 h-14 md:w-16 md:h-16 mx-auto mb-3 md:mb-4 rounded-xl bg-white/[0.04] flex items-center justify-center">
+                  <svg className="w-7 h-7 md:w-8 md:h-8 text-foreground/20" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
+                  </svg>
+                </div>
+                <p className="text-foreground/50 text-sm font-medium">No notes yet</p>
+                <p className="text-foreground/30 text-xs mt-1">Start adding notes while watching!</p>
+              </div>
             ) : (
-              <ol className="space-y-3">
+              <div className="space-y-2 md:space-y-2.5">
                 {notes.map(note => (
                   <NoteCard key={note.id} note={note} onUpdate={handleUpdateNote} onDelete={openDeleteModal} />
                 ))}
-              </ol>
+              </div>
             )}
           </div>
         </div>
