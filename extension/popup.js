@@ -1,5 +1,7 @@
-// const backendEndpoint = "http://127.0.0.1:5000/"
-const backendEndpoint = "https://vidwiz.adhirajpandey.tech/"
+// const AppURL = "http://localhost:5173/"
+// const ApiURL = "http://127.0.0.1:5000/"
+const AppURL = "https://vidwiz.adhirajpandey.tech/"
+const ApiURL = "https://vidwiz.adhirajpandey.tech/api/"
 const AUTH_TOKEN = localStorage.getItem("notes-token")
 
 function fetchVideoTitle() {
@@ -63,7 +65,7 @@ function saveNotesToBackend(url, notes, videoTitle, videoTimestamp) {
 		return
 	}
 
-	const apiEndpoint = backendEndpoint + "notes"
+	const apiEndpoint = ApiURL + "notes"
 
 	const noteData = {
 		video_id: videoId,
@@ -120,7 +122,7 @@ function checkNotesExistence(url) {
 		return Promise.reject("Invalid YouTube URL")
 	}
 
-	const apiEndpoint = backendEndpoint + `notes/${videoId}`
+	const apiEndpoint = ApiURL + `notes/${videoId}`
 
 	return fetch(apiEndpoint, {
 		method: "GET",
@@ -237,7 +239,7 @@ document.getElementById("viewNotes").addEventListener("click", function(e) {
 		const tabURL = tabs[0].url;
 		const videoId = new URL(tabURL).searchParams.get("v");
 		if (videoId) {
-			const viewNotesURL = backendEndpoint + `dashboard/${videoId}`;
+			const viewNotesURL = AppURL + `dashboard/${videoId}`;
 			chrome.tabs.create({ url: viewNotesURL });
 		}
 	});
@@ -245,6 +247,6 @@ document.getElementById("viewNotes").addEventListener("click", function(e) {
 
 document.getElementById("goDashboard").addEventListener("click", function(e) {
 	e.preventDefault();
-	const dashboardURL = backendEndpoint + "dashboard";
+	const dashboardURL = AppURL + "dashboard";
 	chrome.tabs.create({ url: dashboardURL });
 });

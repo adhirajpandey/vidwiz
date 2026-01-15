@@ -6,7 +6,7 @@ import requests
 from aws_lambda_powertools import Logger
 
 # Configuration
-VIDWIZ_HOST = os.getenv("VIDWIZ_HOST", "vidwiz.adhirajpandey.tech")
+VIDWIZ_HOST = os.getenv("VIDWIZ_HOST", "vidwiz.adhirajpandey.tech/api")
 SQS_QUEUE_URL = os.getenv("SQS_QUEUE_URL")
 ADMIN_AUTH_TOKEN = os.getenv("ADMIN_AUTH_TOKEN")
 
