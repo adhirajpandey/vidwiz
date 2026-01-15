@@ -3,7 +3,7 @@ import { useParams, useNavigate } from 'react-router-dom';
 import config from '../config';
 import NoteCard from '../components/NoteCard';
 import { useToast } from '../hooks/useToast';
-import { FaExclamationTriangle } from 'react-icons/fa';
+import { FaExclamationTriangle, FaPlay, FaEye, FaHeart, FaExternalLinkAlt } from 'react-icons/fa';
 
 interface Video {
   video_id: string;
@@ -166,40 +166,114 @@ export default function VideoPage() {
       )}
       <div className="max-w-4xl mx-auto px-6 py-12">
         {video && (
-          <div className="bg-card rounded-lg shadow-md p-6 mb-6">
-            <div className="flex flex-col px-4">
-              <h2 className="text-2xl font-bold text-foreground mb-4">{video.title}</h2>
-              {video.metadata && (
-                <div className="flex flex-wrap gap-4 text-sm text-muted-foreground mb-4">
-                  {video.metadata.channel && (
-                    <div className="flex items-center">
-                      <span className="font-medium text-foreground">{video.metadata.channel}</span>
+          <div className="relative bg-gradient-to-br from-card via-card to-card/80 rounded-2xl shadow-2xl overflow-hidden mb-8 border border-border/30">
+            {/* Ambient glow effect */}
+            <div className="absolute -inset-1 bg-gradient-to-r from-red-500/20 via-transparent to-red-500/20 rounded-2xl blur-xl opacity-50"></div>
+            
+            <div className="relative">
+              {/* Top section with thumbnail */}
+              <div className="relative">
+                {/* Thumbnail with overlay */}
+                {video.metadata?.thumbnail ? (
+                  <div className="relative group cursor-pointer" onClick={() => window.open(`https://www.youtube.com/watch?v=${video.video_id}`, '_blank')}>
+                    <div className="relative overflow-hidden">
+                      <img 
+                        src={video.metadata.thumbnail} 
+                        alt={video.title}
+                        className="w-full h-48 md:h-56 object-cover transition-transform duration-500 group-hover:scale-105"
+                      />
+                      {/* Gradient overlay */}
+                      <div className="absolute inset-0 bg-gradient-to-t from-black/80 via-black/20 to-transparent"></div>
+                      
+                      {/* Play button overlay */}
+                      <div className="absolute inset-0 flex items-center justify-center opacity-0 group-hover:opacity-100 transition-all duration-300">
+                        <div className="w-16 h-16 rounded-full bg-red-600/90 backdrop-blur-sm flex items-center justify-center shadow-2xl transform scale-90 group-hover:scale-100 transition-transform duration-300">
+                          <FaPlay className="w-6 h-6 text-white ml-1" />
+                        </div>
+                      </div>
+                      
+                      {/* Duration badge */}
+                      {video.metadata.duration_string && (
+                        <div className="absolute bottom-3 right-3 px-2.5 py-1 bg-black/80 backdrop-blur-sm rounded-md text-white text-sm font-medium">
+                          {video.metadata.duration_string}
+                        </div>
+                      )}
                     </div>
-                  )}
-                  {video.metadata.view_count && (
-                    <div>{video.metadata.view_count.toLocaleString()} views</div>
-                  )}
-                  {video.metadata.like_count && (
-                    <div>{video.metadata.like_count.toLocaleString()} likes</div>
-                  )}
-                  {video.metadata.duration_string && (
-                    <div>{video.metadata.duration_string}</div>
-                  )}
-                </div>
-              )}
-              <a id="watch-button" href={`https://www.youtube.com/watch?v=${video.video_id}`} target="_blank" rel="noopener noreferrer" className="inline-flex items-center justify-center w-24 px-4 py-2 text-sm font-medium text-white bg-red-600 rounded-md hover:bg-red-700 transition-colors cursor-pointer">
-                Watch
-              </a>
+                  </div>
+                ) : (
+                  <div className="w-full h-48 md:h-56 bg-muted flex items-center justify-center">
+                    <FaPlay className="w-12 h-12 text-muted-foreground/30" />
+                  </div>
+                )}
+              </div>
+              
+              {/* Content section */}
+              <div className="p-6">
+                {/* Title */}
+                <h2 className="text-xl md:text-2xl font-bold text-foreground mb-4 leading-tight">{video.title}</h2>
+                
+                {/* Stats bar with glassmorphism */}
+                {video.metadata && (
+                  <div className="flex flex-wrap items-center gap-2 mb-5">
+                    {video.metadata.channel && (
+                      <span className="inline-flex items-center px-3 py-1.5 rounded-lg text-sm font-semibold bg-gradient-to-r from-red-500/20 to-red-600/10 text-red-400 border border-red-500/20">
+                        {video.metadata.channel}
+                      </span>
+                    )}
+                    <div className="flex items-center gap-2 px-3 py-1.5 rounded-lg bg-white/5 backdrop-blur-sm border border-white/10">
+                      {video.metadata.view_count && (
+                        <span className="inline-flex items-center gap-1.5 text-sm text-foreground/70">
+                          <FaEye className="w-3.5 h-3.5" />
+                          {video.metadata.view_count.toLocaleString()}
+                        </span>
+                      )}
+                      {video.metadata.view_count && video.metadata.like_count && (
+                        <span className="text-foreground/30">•</span>
+                      )}
+                      {video.metadata.like_count && (
+                        <span className="inline-flex items-center gap-1.5 text-sm text-foreground/70">
+                          <FaHeart className="w-3.5 h-3.5" />
+                          {video.metadata.like_count.toLocaleString()}
+                        </span>
+                      )}
+                    </div>
+                  </div>
+                )}
+                
+                {/* CTA Button */}
+                <a 
+                  id="watch-button" 
+                  href={`https://www.youtube.com/watch?v=${video.video_id}`} 
+                  target="_blank" 
+                  rel="noopener noreferrer" 
+                  className="group/btn inline-flex items-center justify-center gap-2.5 px-6 py-3 text-sm font-semibold text-white bg-gradient-to-r from-red-600 via-red-500 to-red-600 bg-[length:200%_100%] rounded-xl hover:bg-right transition-all duration-500 shadow-lg shadow-red-500/25 hover:shadow-xl hover:shadow-red-500/30 cursor-pointer"
+                >
+                  <FaPlay className="w-3.5 h-3.5 transition-transform duration-300 group-hover/btn:scale-110" />
+                  <span>Watch on YouTube</span>
+                  <FaExternalLinkAlt className="w-3 h-3 opacity-60" />
+                </a>
+              </div>
             </div>
           </div>
         )}
-        <div className="bg-card rounded-lg shadow-md p-6">
-          <h3 className="text-xl font-semibold text-foreground mb-4">Your Notes</h3>
-          <ol className="space-y-2">
-            {notes.map(note => (
-              <NoteCard key={note.id} note={note} onUpdate={handleUpdateNote} onDelete={openDeleteModal} />
-            ))}
-          </ol>
+        <div className="bg-card rounded-xl shadow-lg overflow-hidden border border-border/50">
+          <div className="px-6 py-4 border-b border-border/50 flex items-center justify-between">
+            <h3 className="text-lg font-semibold text-foreground">Your Notes</h3>
+            <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-primary/10 text-primary">
+              {notes.length} {notes.length === 1 ? 'note' : 'notes'}
+            </span>
+          </div>
+          <div className="p-6">
+            {notes.length === 0 ? (
+              <p className="text-center text-muted-foreground py-8">No notes yet. Start adding notes while watching!</p>
+            ) : (
+              <ol className="space-y-3">
+                {notes.map(note => (
+                  <NoteCard key={note.id} note={note} onUpdate={handleUpdateNote} onDelete={openDeleteModal} />
+                ))}
+              </ol>
+            )}
+          </div>
         </div>
       </div>
     </div>

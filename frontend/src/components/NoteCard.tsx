@@ -35,18 +35,18 @@ export default function NoteCard({ note, onUpdate, onDelete }: NoteCardProps) {
   };
 
   return (
-    <li className="flex items-center p-2 hover:bg-accent rounded-lg transition-colors border-b last:border-b-0">
-      <div className="px-1 py-0.5 flex-shrink-0">
+    <li className="flex items-center p-3 hover:bg-muted/50 rounded-lg transition-all duration-200 border border-transparent hover:border-border/30 group">
+      <div className="px-2 py-1 flex-shrink-0 bg-primary/10 rounded-md">
         <a
           href={`https://www.youtube.com/watch?v=${note.video_id}&t=${timestampToSeconds(note.timestamp)}s`}
           target="_blank"
           rel="noopener noreferrer"
-          className="font-bold text-foreground text-sm md:text-base"
+          className="font-semibold text-primary text-sm hover:underline"
         >
           {note.timestamp}
         </a>
       </div>
-      <span className="px-1 py-0.5 text-bold rounded-full not-italic mr-2" title={note.generated_by_ai ? 'AI Generated' : 'Human Note'}>
+      <span className="px-1.5 py-0.5 text-lg" title={note.generated_by_ai ? 'AI Generated' : 'Human Note'}>
         {note.generated_by_ai ? '🤖' : '👤'}
       </span>
       <div className="flex-grow pr-2 md:pr-4">
@@ -73,7 +73,7 @@ export default function NoteCard({ note, onUpdate, onDelete }: NoteCardProps) {
           <span className="text-muted-foreground text-sm md:text-base">{note.text}</span>
         )}
       </div>
-      <div className="flex items-center space-x-4 text-muted-foreground">
+      <div className="flex items-center space-x-3 text-muted-foreground opacity-60 group-hover:opacity-100 transition-opacity">
         <a
           href={`https://www.youtube.com/watch?v=${note.video_id}&t=${timestampToSeconds(note.timestamp)}s`}
           target="_blank"
