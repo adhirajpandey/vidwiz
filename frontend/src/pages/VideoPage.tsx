@@ -3,11 +3,19 @@ import { useParams, useNavigate } from 'react-router-dom';
 import config from '../config';
 import NoteCard from '../components/NoteCard';
 import { useToast } from '../hooks/useToast';
-import { FaExclamationTriangle } from 'react-icons/fa';
+import { FaExclamationTriangle, FaPlay, FaEye, FaHeart, FaExternalLinkAlt } from 'react-icons/fa';
 
 interface Video {
   video_id: string;
   title: string;
+  metadata?: {
+    channel?: string;
+    view_count?: number;
+    like_count?: number;
+    duration_string?: string;
+    upload_date?: string;
+    thumbnail?: string;
+  };
 }
 
 interface Note {
@@ -137,7 +145,7 @@ export default function VideoPage() {
     <div className="min-h-screen bg-background text-foreground">
       {showDeleteModal && (
         <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
-          <div className="bg-card rounded-lg p-6 max-w-sm w-full mx-4">
+          <div className="bg-card rounded-lg p-6 max-w-sm w-full mx-4 select-none">
             <div className="text-center">
               <div className="text-red-500 text-3xl mb-4">
                 <FaExclamationTriangle className="inline-block" />
@@ -158,22 +166,132 @@ export default function VideoPage() {
       )}
       <div className="max-w-4xl mx-auto px-6 py-12">
         {video && (
-          <div className="bg-card rounded-lg shadow-md p-6 mb-6">
-            <div className="flex flex-col px-4">
-              <h2 className="text-2xl font-bold text-foreground mb-4">{video.title}</h2>
-              <a id="watch-button" href={`https://www.youtube.com/watch?v=${video.video_id}`} target="_blank" rel="noopener noreferrer" className="inline-flex items-center justify-center w-24 px-4 py-2 text-sm font-medium text-white bg-red-600 rounded-md hover:bg-red-700 transition-colors cursor-pointer">
-                Watch
-              </a>
+          <div className="relative bg-gradient-to-br from-card via-card to-card/80 rounded-2xl shadow-2xl overflow-hidden mb-8 border border-border/30 select-none">
+            {/* Ambient glow effect */}
+            <div className="absolute -inset-1 bg-gradient-to-r from-red-500/20 via-transparent to-red-500/20 rounded-2xl blur-xl opacity-50"></div>
+            
+            <div className="relative">
+              {/* Top section with thumbnail */}
+              <div className="relative">
+                {/* Thumbnail with overlay */}
+                {video.metadata?.thumbnail ? (
+                  <div className="relative group cursor-pointer" onClick={() => window.open(`https://www.youtube.com/watch?v=${video.video_id}`, '_blank')}>
+                    <div className="relative overflow-hidden">
+                      <img 
+                        src={video.metadata.thumbnail} 
+                        alt={video.title}
+                        className="w-full h-48 md:h-56 object-cover transition-transform duration-500 group-hover:scale-105"
+                      />
+                      {/* Gradient overlay */}
+                      <div className="absolute inset-0 bg-gradient-to-t from-black/80 via-black/20 to-transparent"></div>
+                      
+                      {/* Play button overlay */}
+                      <div className="absolute inset-0 flex items-center justify-center opacity-0 group-hover:opacity-100 transition-all duration-300">
+                        <div className="w-16 h-16 rounded-full bg-red-600/90 backdrop-blur-sm flex items-center justify-center shadow-2xl transform scale-90 group-hover:scale-100 transition-transform duration-300">
+                          <FaPlay className="w-6 h-6 text-white ml-1" />
+                        </div>
+                      </div>
+                      
+                      {/* Duration badge */}
+                      {video.metadata.duration_string && (
+                        <div className="absolute bottom-3 right-3 px-2.5 py-1 bg-black/80 backdrop-blur-sm rounded-md text-white text-sm font-medium">
+                          {video.metadata.duration_string}
+                        </div>
+                      )}
+                    </div>
+                  </div>
+                ) : (
+                  <div className="w-full h-48 md:h-56 bg-muted flex items-center justify-center">
+                    <FaPlay className="w-12 h-12 text-muted-foreground/30" />
+                  </div>
+                )}
+              </div>
+              
+              {/* Content section */}
+              <div className="p-6">
+                {/* Title */}
+                <h2 className="text-xl md:text-2xl font-bold text-foreground mb-4 leading-tight tracking-tight select-none">{video.title}</h2>
+                
+                {/* Stats bar with glassmorphism */}
+                {video.metadata && (
+                  <div className="flex flex-wrap items-center gap-2 mb-5">
+                    {video.metadata.channel && (
+                      <span className="inline-flex items-center px-3 py-1.5 rounded-lg text-sm font-semibold bg-gradient-to-r from-red-500/20 to-red-600/10 text-red-400 border border-red-500/20 select-none">
+                        {video.metadata.channel}
+                      </span>
+                    )}
+                    <div className="flex items-center gap-2 px-3 py-1.5 rounded-lg bg-white/5 backdrop-blur-sm border border-white/10 select-none">
+                      {video.metadata.view_count && (
+                        <span className="inline-flex items-center gap-1.5 text-sm text-foreground/70">
+                          <FaEye className="w-3.5 h-3.5" />
+                          {video.metadata.view_count.toLocaleString()}
+                        </span>
+                      )}
+                      {video.metadata.view_count && video.metadata.like_count && (
+                        <span className="text-foreground/30">•</span>
+                      )}
+                      {video.metadata.like_count && (
+                        <span className="inline-flex items-center gap-1.5 text-sm text-foreground/70">
+                          <FaHeart className="w-3.5 h-3.5" />
+                          {video.metadata.like_count.toLocaleString()}
+                        </span>
+                      )}
+                    </div>
+                  </div>
+                )}
+                
+                {/* CTA Button */}
+                <a 
+                  id="watch-button" 
+                  href={`https://www.youtube.com/watch?v=${video.video_id}`} 
+                  target="_blank" 
+                  rel="noopener noreferrer" 
+                  className="group/btn inline-flex items-center justify-center gap-2.5 px-6 py-3 text-sm font-semibold text-white bg-gradient-to-r from-red-600 via-red-500 to-red-600 bg-[length:200%_100%] rounded-xl hover:bg-right transition-all duration-500 shadow-lg shadow-red-500/25 hover:shadow-xl hover:shadow-red-500/30 cursor-pointer"
+                >
+                  <FaPlay className="w-3.5 h-3.5 transition-transform duration-300 group-hover/btn:scale-110" />
+                  <span>Watch on YouTube</span>
+                  <FaExternalLinkAlt className="w-3 h-3 opacity-60" />
+                </a>
+              </div>
             </div>
           </div>
         )}
-        <div className="bg-card rounded-lg shadow-md p-6">
-          <h3 className="text-xl font-semibold text-foreground mb-4">Your Notes</h3>
-          <ol className="space-y-2">
-            {notes.map(note => (
-              <NoteCard key={note.id} note={note} onUpdate={handleUpdateNote} onDelete={openDeleteModal} />
-            ))}
-          </ol>
+        <div className="relative bg-gradient-to-br from-card via-card to-card/90 rounded-xl md:rounded-2xl shadow-xl overflow-hidden border border-white/[0.08]">
+          {/* Header */}
+          <div className="px-4 py-3 md:px-6 md:py-4 border-b border-white/[0.06] bg-white/[0.02] flex items-center justify-between select-none">
+            <div className="flex items-center gap-2.5 md:gap-3">
+              <div className="w-7 h-7 md:w-8 md:h-8 rounded-lg bg-gradient-to-br from-blue-500/20 to-purple-500/20 flex items-center justify-center flex-shrink-0">
+                <svg className="w-3.5 h-3.5 md:w-4 md:h-4 text-blue-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" />
+                </svg>
+              </div>
+              <h3 className="text-base md:text-lg font-semibold text-foreground tracking-tight">Your Notes</h3>
+            </div>
+            <span className="inline-flex items-center px-2 py-0.5 md:px-2.5 md:py-1 rounded-md text-[11px] md:text-xs font-medium bg-white/[0.06] text-foreground/60 border border-white/[0.08]">
+              {notes.length} {notes.length === 1 ? 'note' : 'notes'}
+            </span>
+          </div>
+          
+          {/* Notes list */}
+          <div className="p-3 md:p-5">
+            {notes.length === 0 ? (
+              <div className="text-center py-10 md:py-14 select-none">
+                <div className="w-14 h-14 md:w-16 md:h-16 mx-auto mb-3 md:mb-4 rounded-xl bg-white/[0.04] flex items-center justify-center">
+                  <svg className="w-7 h-7 md:w-8 md:h-8 text-foreground/20" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
+                  </svg>
+                </div>
+                <p className="text-foreground/50 text-sm font-medium">No notes yet</p>
+                <p className="text-foreground/30 text-xs mt-1">Start adding notes while watching!</p>
+              </div>
+            ) : (
+              <div className="space-y-2 md:space-y-2.5">
+                {notes.map(note => (
+                  <NoteCard key={note.id} note={note} onUpdate={handleUpdateNote} onDelete={openDeleteModal} />
+                ))}
+              </div>
+            )}
+          </div>
         </div>
       </div>
     </div>

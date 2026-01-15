@@ -1,4 +1,4 @@
-from pydantic import BaseModel, field_validator
+from pydantic import BaseModel, field_validator, Field
 from typing import Optional
 from datetime import datetime
 from enum import Enum
@@ -22,6 +22,7 @@ class VideoRead(BaseModel):
     id: int
     video_id: str
     title: Optional[str]
+    metadata: Optional[dict] = Field(default=None, validation_alias="video_metadata")
     transcript_available: bool
     created_at: datetime
     updated_at: datetime

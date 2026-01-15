@@ -60,11 +60,11 @@ def create_app(config=None):
 
     CORS(app)
 
-    app.register_blueprint(core_bp)
-    app.register_blueprint(user_bp)
-    app.register_blueprint(video_bp)
-    app.register_blueprint(notes_bp)
-    app.register_blueprint(tasks_bp)
+    app.register_blueprint(core_bp, url_prefix="/api")
+    app.register_blueprint(user_bp, url_prefix="/api")
+    app.register_blueprint(video_bp, url_prefix="/api")
+    app.register_blueprint(notes_bp, url_prefix="/api")
+    app.register_blueprint(tasks_bp, url_prefix="/api")
     app.register_blueprint(frontend_bp)
 
     return app
