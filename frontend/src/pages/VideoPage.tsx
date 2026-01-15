@@ -8,6 +8,14 @@ import { FaExclamationTriangle } from 'react-icons/fa';
 interface Video {
   video_id: string;
   title: string;
+  metadata?: {
+    channel?: string;
+    view_count?: number;
+    like_count?: number;
+    duration_string?: string;
+    upload_date?: string;
+    thumbnail?: string;
+  };
 }
 
 interface Note {
@@ -161,6 +169,24 @@ export default function VideoPage() {
           <div className="bg-card rounded-lg shadow-md p-6 mb-6">
             <div className="flex flex-col px-4">
               <h2 className="text-2xl font-bold text-foreground mb-4">{video.title}</h2>
+              {video.metadata && (
+                <div className="flex flex-wrap gap-4 text-sm text-muted-foreground mb-4">
+                  {video.metadata.channel && (
+                    <div className="flex items-center">
+                      <span className="font-medium text-foreground">{video.metadata.channel}</span>
+                    </div>
+                  )}
+                  {video.metadata.view_count && (
+                    <div>{video.metadata.view_count.toLocaleString()} views</div>
+                  )}
+                  {video.metadata.like_count && (
+                    <div>{video.metadata.like_count.toLocaleString()} likes</div>
+                  )}
+                  {video.metadata.duration_string && (
+                    <div>{video.metadata.duration_string}</div>
+                  )}
+                </div>
+              )}
               <a id="watch-button" href={`https://www.youtube.com/watch?v=${video.video_id}`} target="_blank" rel="noopener noreferrer" className="inline-flex items-center justify-center w-24 px-4 py-2 text-sm font-medium text-white bg-red-600 rounded-md hover:bg-red-700 transition-colors cursor-pointer">
                 Watch
               </a>
