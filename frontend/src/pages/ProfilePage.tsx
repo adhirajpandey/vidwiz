@@ -4,7 +4,6 @@ import { useNavigate } from 'react-router-dom';
 import config from '../config';
 import { useToast } from '../hooks/useToast';
 import { FaExclamationTriangle, FaEye, FaEyeSlash, FaCopy, FaSpinner, FaKey, FaShieldAlt } from 'react-icons/fa';
-import { HiSparkles } from 'react-icons/hi2';
 import { Settings, Zap, User as UserIcon, Calendar } from 'lucide-react';
 
 interface UserProfile {
