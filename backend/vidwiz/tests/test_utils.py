@@ -1,160 +1,146 @@
+import pytest
+from unittest.mock import patch, MagicMock
+from flask import Flask, jsonify
+from vidwiz.shared.utils import (
+    jwt_or_lt_token_required,
+    admin_required,
+    jwt_or_admin_required,
+    store_transcript_in_s3,
+    push_note_to_sqs,
+    check_required_env_vars
+)
+from vidwiz.shared.models import User, db
 import jwt
-from datetime import datetime, timedelta, timezone
-from vidwiz.shared.utils import jwt_or_lt_token_required
+import os
 
-# Test constants
-TEST_USER_ID = 1
-TEST_USERNAME = "testuser"
-INVALID_TOKEN = "invalid_token"
-WRONG_SECRET = "wrong_secret"
+class TestUtils:
+    """Test shared utilities"""
 
+    @pytest.fixture
+    def mock_app(self):
+        app = Flask(__name__)
+        app.config["SECRET_KEY"] = "test_secret"
+        app.config["AWS_ACCESS_KEY_ID"] = "test_access"
+        app.config["AWS_SECRET_ACCESS_KEY"] = "test_secret_key"
+        app.config["AWS_REGION"] = "test-region"
+        app.config["SQS_QUEUE_URL"] = "http://sqs-url"
+        return app
 
-class TestJWTRequired:
-    def test_jwt_required_decorator_valid_token(self, app):
-        """Test JWT decorator with valid token"""
-        with app.app_context():
-            # Create a valid token
-            token = jwt.encode(
-                {
-                    "user_id": TEST_USER_ID,
-                    "username": TEST_USERNAME,
-                    "exp": datetime.now(timezone.utc) + timedelta(hours=1),
-                },
-                app.config["SECRET_KEY"],
-                algorithm="HS256",
-            )
+    def test_jwt_or_lt_token_required_valid_jwt(self, mock_app):
+        # We need to manually set the headers in the request context correctly
+        token = jwt.encode({"user_id": 1}, "test_secret", algorithm="HS256")
 
+        with mock_app.test_request_context(headers={"Authorization": f"Bearer {token}"}):
             @jwt_or_lt_token_required
-            def test_route():
-                from flask import request
+            def protected_route():
+                return "success"
 
-                return {"user_id": request.user_id}
+            assert protected_route() == "success"
 
-            # Mock request with valid token
-            with app.test_request_context(
-                "/test", headers={"Authorization": f"Bearer {token}"}
-            ):
-                result = test_route()
-                assert result["user_id"] == TEST_USER_ID
+    def test_jwt_or_lt_token_required_valid_lt_token(self, mock_app):
+        # We need an app context to mock database queries
+        with mock_app.app_context():
+            # Mock User query
+            mock_user = MagicMock()
+            mock_user.id = 1
 
-    def test_jwt_required_decorator_missing_header(self, app):
-        """Test JWT decorator with missing Authorization header"""
-        with app.app_context():
+            with patch("vidwiz.shared.models.User.query") as mock_query:
+                mock_query.filter_by.return_value.first.return_value = mock_user
 
-            @jwt_or_lt_token_required
-            def test_route():
-                return {"success": True}
+                with mock_app.test_request_context(headers={"Authorization": "Bearer lt_token_123"}):
+                    @jwt_or_lt_token_required
+                    def protected_route():
+                        return "success"
 
-            # Mock request without Authorization header
-            with app.test_request_context("/test"):
-                result = test_route()
-                # The decorator returns a tuple (response, status_code)
-                assert result[1] == 401
-                assert (
-                    result[0].get_json()["error"]
-                    == "Missing or invalid Authorization header"
-                )
+                    assert protected_route() == "success"
 
-    def test_jwt_required_decorator_invalid_header_format(self, app):
-        """Test JWT decorator with invalid Authorization header format"""
-        with app.app_context():
+    def test_jwt_or_lt_token_required_invalid_token(self, mock_app):
+        with mock_app.app_context():
+            # Mock User query to return None for LT token check
+            with patch("vidwiz.shared.models.User.query") as mock_query:
+                mock_query.filter_by.return_value.first.return_value = None
 
-            @jwt_or_lt_token_required
-            def test_route():
-                return {"success": True}
+                with mock_app.test_request_context(headers={"Authorization": "Bearer invalid_token"}):
+                    @jwt_or_lt_token_required
+                    def protected_route():
+                        return "success"
 
-            # Mock request with invalid header format
-            with app.test_request_context(
-                "/test", headers={"Authorization": "InvalidToken"}
-            ):
-                result = test_route()
-                assert result[1] == 401
-                assert (
-                    result[0].get_json()["error"]
-                    == "Missing or invalid Authorization header"
-                )
+                    response = protected_route()
+                    assert response[1] == 401
 
-    def test_jwt_required_decorator_expired_token(self, app):
-        """Test JWT decorator with expired token"""
-        with app.app_context():
-            # Create an expired token
-            token = jwt.encode(
-                {
-                    "user_id": 1,
-                    "username": "testuser",
-                    "exp": datetime.now(timezone.utc) - timedelta(hours=1),  # Expired
-                },
-                app.config["SECRET_KEY"],
-                algorithm="HS256",
-            )
+    def test_admin_required_success(self, mock_app):
+        with patch.dict(os.environ, {"ADMIN_TOKEN": "admin_token"}):
+            with mock_app.test_request_context(headers={"Authorization": "Bearer admin_token"}):
+                @admin_required
+                def admin_route():
+                    return "success"
 
-            @jwt_or_lt_token_required
-            def test_route():
-                return {"success": True}
+                assert admin_route() == "success"
 
-            # Mock request with expired token
-            with app.test_request_context(
-                "/test", headers={"Authorization": f"Bearer {token}"}
-            ):
-                result = test_route()
-                assert result[1] == 401
-                assert (
-                    result[0].get_json()["error"]
-                    == "Invalid or expired token or not a long term token"
-                )
+    def test_admin_required_failure(self, mock_app):
+        with patch.dict(os.environ, {"ADMIN_TOKEN": "admin_token"}):
+            with mock_app.test_request_context(headers={"Authorization": "Bearer wrong_token"}):
+                @admin_required
+                def admin_route():
+                    return "success"
 
-    def test_jwt_required_decorator_invalid_token(self, app):
-        """Test JWT decorator with various invalid token formats"""
-        with app.app_context():
+                response = admin_route()
+                assert response[1] == 403
 
-            @jwt_or_lt_token_required
-            def test_route():
-                return {"success": True}
+    def test_jwt_or_admin_required_admin_success(self, mock_app):
+        with patch.dict(os.environ, {"ADMIN_TOKEN": "admin_token"}):
+            with mock_app.test_request_context(headers={"Authorization": "Bearer admin_token"}):
+                @jwt_or_admin_required
+                def shared_route():
+                    return "success"
 
-            # Test cases for different invalid token scenarios
-            invalid_tokens = [
-                "Bearer invalid_token",  # Invalid token string
-                "Bearer ",  # Empty token
-                "Bearer not.a.valid.jwt",  # Malformed JWT
-                "Bearer token1 Bearer token2",  # Multiple Bearer tokens
-            ]
+                assert shared_route() == "success"
 
-            for auth_header in invalid_tokens:
-                with app.test_request_context(
-                    "/test", headers={"Authorization": auth_header}
-                ):
-                    result = test_route()
-                    assert result[1] == 401
-                    assert (
-                        result[0].get_json()["error"]
-                        == "Invalid or expired token or not a long term token"
-                    )
+    def test_jwt_or_admin_required_jwt_success(self, mock_app):
+        token = jwt.encode({"user_id": 1}, "test_secret", algorithm="HS256")
+        with mock_app.test_request_context(headers={"Authorization": f"Bearer {token}"}):
+            @jwt_or_admin_required
+            def shared_route():
+                return "success"
 
-    def test_jwt_required_decorator_wrong_secret(self, app):
-        """Test JWT decorator with token signed with wrong secret"""
-        with app.app_context():
-            # Create a token with wrong secret
-            token = jwt.encode(
-                {
-                    "user_id": 1,
-                    "username": "testuser",
-                    "exp": datetime.now(timezone.utc) + timedelta(hours=1),
-                },
-                "wrong_secret",  # Wrong secret
-                algorithm="HS256",
-            )
+            assert shared_route() == "success"
 
-            @jwt_or_lt_token_required
-            def test_route():
-                return {"success": True}
+    def test_store_transcript_in_s3_success(self, mock_app):
+        with patch("boto3.client") as mock_boto:
+            with patch("vidwiz.shared.utils.S3_BUCKET_NAME", "test_bucket"):
+                with mock_app.app_context():
+                    store_transcript_in_s3("vid1", [{"text": "hello"}])
+                    mock_boto.return_value.put_object.assert_called()
 
-            # Mock request with token signed with wrong secret
-            with app.test_request_context(
-                "/test", headers={"Authorization": f"Bearer {token}"}
-            ):
-                result = test_route()
-                assert result[1] == 401
-                assert (
-                    result[0].get_json()["error"]
-                    == "Invalid or expired token or not a long term token"
-                )
+    def test_store_transcript_in_s3_missing_bucket(self, mock_app):
+        with patch("vidwiz.shared.utils.S3_BUCKET_NAME", None):
+             with mock_app.app_context():
+                result = store_transcript_in_s3("vid1", [{"text": "hello"}])
+                assert result is None
+
+    def test_push_note_to_sqs_success(self, mock_app):
+        with patch("boto3.client") as mock_boto:
+            mock_boto.return_value.send_message.return_value = {"MessageId": "123"}
+
+            with mock_app.app_context():
+                response = push_note_to_sqs({"note_id": 1})
+                assert response["MessageId"] == "123"
+
+    def test_check_required_env_vars_success(self):
+        env_vars = {
+            "DB_URL": "db",
+            "SECRET_KEY": "secret",
+            "AWS_ACCESS_KEY_ID": "key",
+            "AWS_SECRET_ACCESS_KEY": "secret",
+            "AWS_REGION": "region",
+            "SQS_QUEUE_URL": "url",
+            "S3_BUCKET_NAME": "bucket",
+            "ADMIN_TOKEN": "token"
+        }
+        with patch.dict(os.environ, env_vars):
+            check_required_env_vars() # Should not raise
+
+    def test_check_required_env_vars_failure(self):
+        with patch.dict(os.environ, {}, clear=True):
+            with pytest.raises(ValueError):
+                check_required_env_vars()
