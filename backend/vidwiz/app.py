@@ -37,6 +37,7 @@ def create_app(config=None):
 
     SQS_QUEUE_URL = os.getenv("SQS_QUEUE_URL", None)
     S3_BUCKET_NAME = os.getenv("S3_BUCKET_NAME", None)
+    JWT_EXPIRY_HOURS = int(os.getenv("JWT_EXPIRY_HOURS", "24"))
 
     # Only check and set required env vars if no config dict is provided - for test etc
     if config is None:
@@ -49,6 +50,7 @@ def create_app(config=None):
         app.config["SQS_QUEUE_URL"] = SQS_QUEUE_URL
         app.config["S3_BUCKET_NAME"] = S3_BUCKET_NAME
         app.config["ADMIN_TOKEN"] = ADMIN_TOKEN
+        app.config["JWT_EXPIRY_HOURS"] = JWT_EXPIRY_HOURS
         app.config["SQLALCHEMY_ENGINE_OPTIONS"] = {
             "pool_recycle": 7200,
         }

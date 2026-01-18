@@ -73,7 +73,7 @@ def login():
         {
             "user_id": user.id,
             "username": user.username,
-            "exp": datetime.now(timezone.utc) + timedelta(hours=24),
+            "exp": datetime.now(timezone.utc) + timedelta(hours=current_app.config["JWT_EXPIRY_HOURS"]),
         },
         current_app.config["SECRET_KEY"],
         algorithm="HS256",
