@@ -2,7 +2,7 @@ import { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import config from '../config';
 import VideoCard from '../components/VideoCard';
-import { FaSearch, FaYoutube, FaVideo } from 'react-icons/fa';
+import { FaSearch, FaYoutube, FaVideo, FaChevronLeft, FaChevronRight } from 'react-icons/fa';
 import { HiSparkles } from 'react-icons/hi2';
 
 export default function DashboardPage() {
@@ -11,6 +11,9 @@ export default function DashboardPage() {
   const [searchQuery, setSearchQuery] = useState('');
   const [isSearching, setIsSearching] = useState(false);
   const [hasSearched, setHasSearched] = useState(false);
+  const [currentPage, setCurrentPage] = useState(1);
+  const [totalPages, setTotalPages] = useState(0);
+  const [totalVideos, setTotalVideos] = useState(0);
   const navigate = useNavigate();
 
   // Decode JWT to get username (avoid API call)
@@ -47,28 +50,42 @@ export default function DashboardPage() {
     }
   }, [navigate]);
 
-  const handleSearch = async (e: React.FormEvent) => {
-    e.preventDefault();
+  // Fetch initial videos on page load
+  useEffect(() => {
+    if (user) {
+      fetchPage(1);
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [user]);
+
+  const fetchPage = async (page: number) => {
     setIsSearching(true);
     const token = localStorage.getItem('token');
     if (token) {
       try {
-        const response = await fetch(`${config.API_URL}/search?query=${searchQuery}`, {
-          headers: {
-            Authorization: `Bearer ${token}`,
-          },
-        });
+        const response = await fetch(
+          `${config.API_URL}/search?query=${encodeURIComponent(searchQuery)}&page=${page}&per_page=10`,
+          {
+            headers: {
+              Authorization: `Bearer ${token}`,
+            },
+          }
+        );
 
         if (response.ok) {
           const data = await response.json();
-          setVideos(data);
+          setVideos(data.videos);
+          setCurrentPage(data.page);
+          setTotalPages(data.total_pages);
+          setTotalVideos(data.total);
         } else if (response.status === 401) {
-          // Token expired, clear and redirect to login
           localStorage.removeItem('token');
           navigate('/login');
           return;
         } else {
           setVideos([]);
+          setTotalPages(0);
+          setTotalVideos(0);
         }
       } catch (error) {
         console.error('Failed to fetch videos', error);
@@ -76,6 +93,12 @@ export default function DashboardPage() {
     }
     setIsSearching(false);
     setHasSearched(true);
+  };
+
+  const handleSearch = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setCurrentPage(1);
+    await fetchPage(1);
   };
 
   return (
@@ -167,7 +190,7 @@ export default function DashboardPage() {
                 <h3 className="text-base md:text-lg font-semibold text-foreground tracking-tight">Search Results</h3>
               </div>
               <span className="inline-flex items-center px-2 py-0.5 md:px-2.5 md:py-1 rounded-md text-[11px] md:text-xs font-medium bg-white/[0.06] text-foreground/60 border border-white/[0.08]">
-                {videos.length} {videos.length === 1 ? 'video' : 'videos'}
+                {totalVideos} {totalVideos === 1 ? 'video' : 'videos'}
               </span>
             </div>
             
@@ -186,6 +209,31 @@ export default function DashboardPage() {
                   {videos.map((video) => (
                     <VideoCard key={video.video_id} video={video} />
                   ))}
+
+                  {/* Pagination Controls */}
+                  {totalPages > 1 && (
+                    <div className="flex items-center justify-center gap-4 pt-4 mt-4 border-t border-white/[0.06]">
+                      <button
+                        onClick={() => fetchPage(currentPage - 1)}
+                        disabled={currentPage <= 1 || isSearching}
+                        className="inline-flex items-center gap-2 px-4 py-2 text-sm font-medium text-foreground/70 bg-white/[0.04] border border-white/[0.08] rounded-lg hover:bg-white/[0.08] hover:text-foreground disabled:opacity-40 disabled:cursor-not-allowed transition-all duration-200 cursor-pointer"
+                      >
+                        <FaChevronLeft className="w-3 h-3" />
+                        <span>Previous</span>
+                      </button>
+                      <span className="text-sm text-foreground/60 font-medium">
+                        Page {currentPage} of {totalPages}
+                      </span>
+                      <button
+                        onClick={() => fetchPage(currentPage + 1)}
+                        disabled={currentPage >= totalPages || isSearching}
+                        className="inline-flex items-center gap-2 px-4 py-2 text-sm font-medium text-foreground/70 bg-white/[0.04] border border-white/[0.08] rounded-lg hover:bg-white/[0.08] hover:text-foreground disabled:opacity-40 disabled:cursor-not-allowed transition-all duration-200 cursor-pointer"
+                      >
+                        <span>Next</span>
+                        <FaChevronRight className="w-3 h-3" />
+                      </button>
+                    </div>
+                  )}
                 </div>
               )}
             </div>
