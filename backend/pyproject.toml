@@ -33,3 +33,7 @@ vidwiz = "vidwiz.app:main"
 
 [tool.poetry]
 package-mode = false
+
+[tool.pytest.ini_options]
+pythonpath = "."
+testpaths = ["vidwiz/tests"]
