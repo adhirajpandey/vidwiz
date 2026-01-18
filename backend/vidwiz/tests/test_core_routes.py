@@ -48,13 +48,13 @@ class TestSearchRoute:
             db.session.add(note)
             db.session.commit()
 
-        response = client.get("/search?query=Python", headers=auth_headers)
+        response = client.get("/api/search?query=Python", headers=auth_headers)
         assert response.status_code == 200
         data = response.get_json()
-        assert isinstance(data, list)
-        assert len(data) == 1
-        assert data[0]["video_id"] == TEST_VIDEO_ID
-        assert data[0]["video_title"] == TEST_VIDEO_TITLE
+        assert "videos" in data
+        assert len(data["videos"]) == 1
+        assert data["videos"][0]["video_id"] == TEST_VIDEO_ID
+        assert data["videos"][0]["video_title"] == TEST_VIDEO_TITLE
 
     def test_search_no_results(self, client, auth_headers, app):
         """Test search with no matching results"""
@@ -67,21 +67,23 @@ class TestSearchRoute:
             db.session.add(video)
             db.session.commit()
 
-        response = client.get("/search?query=Python", headers=auth_headers)
-        assert response.status_code == 404
+        response = client.get("/api/search?query=Python", headers=auth_headers)
+        assert response.status_code == 200
         data = response.get_json()
-        assert data["error"] == "No videos found matching the query"
+        assert data["videos"] == []
+        assert data["total"] == 0
 
     def test_search_missing_query_parameter(self, client, auth_headers):
         """Test search without query parameter"""
-        response = client.get("/search", headers=auth_headers)
-        assert response.status_code == 400
+        response = client.get("/api/search", headers=auth_headers)
+        assert response.status_code == 200
         data = response.get_json()
-        assert data["error"] == "Query parameter is required"
+        # Empty query returns all videos with user's notes
+        assert "videos" in data
 
     def test_search_without_auth(self, client):
         """Test search without authentication"""
-        response = client.get("/search?query=Python")
+        response = client.get("/api/search?query=Python")
         assert response.status_code == 401
         data = response.get_json()
         assert "error" in data
@@ -104,16 +106,16 @@ class TestSearchRoute:
             db.session.commit()
 
         # Test lowercase query
-        response = client.get("/search?query=python", headers=auth_headers)
+        response = client.get("/api/search?query=python", headers=auth_headers)
         assert response.status_code == 200
         data = response.get_json()
-        assert len(data) == 1
+        assert len(data["videos"]) == 1
 
         # Test uppercase query
-        response = client.get("/search?query=PYTHON", headers=auth_headers)
+        response = client.get("/api/search?query=PYTHON", headers=auth_headers)
         assert response.status_code == 200
         data = response.get_json()
-        assert len(data) == 1
+        assert len(data["videos"]) == 1
 
     def test_search_partial_match(self, client, auth_headers, app):
         """Test search with partial title match"""
@@ -132,11 +134,11 @@ class TestSearchRoute:
             db.session.add(note)
             db.session.commit()
 
-        response = client.get("/search?query=Python", headers=auth_headers)
+        response = client.get("/api/search?query=Python", headers=auth_headers)
         assert response.status_code == 200
         data = response.get_json()
-        assert len(data) == 1
-        assert "Python" in data[0]["video_title"]
+        assert len(data["videos"]) == 1
+        assert "Python" in data["videos"][0]["video_title"]
 
     def test_search_only_videos_with_notes(self, client, auth_headers, app):
         """Test search only returns videos that have notes"""
@@ -162,11 +164,11 @@ class TestSearchRoute:
             db.session.add(note)
             db.session.commit()
 
-        response = client.get("/search?query=Python", headers=auth_headers)
+        response = client.get("/api/search?query=Python", headers=auth_headers)
         assert response.status_code == 200
         data = response.get_json()
-        assert len(data) == 1  # Only video with notes should be returned
-        assert data[0]["video_id"] == "vid1"
+        assert len(data["videos"]) == 1  # Only video with notes should be returned
+        assert data["videos"][0]["video_id"] == "vid1"
 
     def test_search_user_isolation(self, client, auth_headers, app):
         """Test search only returns videos belonging to the authenticated user"""
@@ -194,11 +196,11 @@ class TestSearchRoute:
             db.session.commit()
 
         # Search as user 1 (from auth_headers fixture)
-        response = client.get("/search?query=Python", headers=auth_headers)
+        response = client.get("/api/search?query=Python", headers=auth_headers)
         assert response.status_code == 200
         data = response.get_json()
-        assert len(data) == 1  # Only user 1's video should be returned
-        assert data[0]["video_id"] == "vid1"
+        assert len(data["videos"]) == 1  # Only user 1's video should be returned
+        assert data["videos"][0]["video_id"] == "vid1"
 
 
 class TestSignupRoute:
@@ -212,7 +214,7 @@ class TestSignupRoute:
     def test_signup_post_success(self, client):
         """Test successful user signup"""
         response = client.post(
-            "/user/signup",
+            "/api/user/signup",
             json={"username": "newuser", "password": "newpassword"},
             content_type="application/json",
         )
@@ -225,7 +227,7 @@ class TestSignupRoute:
     def test_signup_missing_username(self, client):
         """Test signup with missing username"""
         response = client.post(
-            "/user/signup",
+            "/api/user/signup",
             json={"password": "newpassword"},
             content_type="application/json",
         )
@@ -236,7 +238,7 @@ class TestSignupRoute:
     def test_signup_missing_password(self, client):
         """Test signup with missing password"""
         response = client.post(
-            "/user/signup",
+            "/api/user/signup",
             json={"username": "newuser"},
             content_type="application/json",
         )
@@ -247,7 +249,7 @@ class TestSignupRoute:
     def test_signup_duplicate_username(self, client, sample_user):
         """Test signup with existing username"""
         response = client.post(
-            "/user/signup",
+            "/api/user/signup",
             json={
                 "username": "testuser",  # Username from sample_user fixture
                 "password": "newpassword",
@@ -270,7 +272,7 @@ class TestLoginRoute:
     def test_login_post_success(self, client, sample_user):
         """Test successful login"""
         response = client.post(
-            "/user/login",
+            "/api/user/login",
             json={"username": "testuser", "password": "testpassword"},
             content_type="application/json",
         )
@@ -291,7 +293,7 @@ class TestLoginRoute:
     def test_login_missing_username(self, client):
         """Test login with missing username"""
         response = client.post(
-            "/user/login",
+            "/api/user/login",
             json={"password": "testpassword"},
             content_type="application/json",
         )
@@ -302,7 +304,7 @@ class TestLoginRoute:
     def test_login_missing_password(self, client):
         """Test login with missing password"""
         response = client.post(
-            "/user/login",
+            "/api/user/login",
             json={"username": "testuser"},
             content_type="application/json",
         )
@@ -313,7 +315,7 @@ class TestLoginRoute:
     def test_login_invalid_username(self, client):
         """Test login with invalid username"""
         response = client.post(
-            "/user/login",
+            "/api/user/login",
             json={"username": "nonexistent", "password": "testpassword"},
             content_type="application/json",
         )
@@ -324,7 +326,7 @@ class TestLoginRoute:
     def test_login_invalid_password(self, client, sample_user):
         """Test login with invalid password"""
         response = client.post(
-            "/user/login",
+            "/api/user/login",
             json={"username": "testuser", "password": "wrongpassword"},
             content_type="application/json",
         )
@@ -335,7 +337,7 @@ class TestLoginRoute:
     def test_login_empty_credentials(self, client):
         """Test login with empty credentials"""
         response = client.post(
-            "/user/login",
+            "/api/user/login",
             json={"username": "", "password": ""},
             content_type="application/json",
         )
@@ -344,9 +346,4 @@ class TestLoginRoute:
         assert "Invalid data" in data["error"]
 
 
-class TestLogoutRoute:
-    def test_logout(self, client):
-        """Test logout route - currently not implemented"""
-        response = client.get("/logout", follow_redirects=False)
-        # Since logout route is not implemented, expect 404
-        assert response.status_code == 404
+

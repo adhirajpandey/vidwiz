@@ -38,7 +38,7 @@ def sample_data(app):
 class TestGetVideoRoute:
     def test_get_video_success(self, client, auth_headers, sample_data):
         """Test successful video retrieval"""
-        response = client.get("/videos/vid123", headers=auth_headers)
+        response = client.get("/api/videos/vid123", headers=auth_headers)
         assert response.status_code == 200
 
         data = response.get_json()
@@ -50,7 +50,7 @@ class TestGetVideoRoute:
 
     def test_get_video_not_found(self, client, auth_headers, sample_data):
         """Test video not found"""
-        response = client.get("/videos/nonexistent", headers=auth_headers)
+        response = client.get("/api/videos/nonexistent", headers=auth_headers)
         assert response.status_code == 404
 
         data = response.get_json()
@@ -59,7 +59,7 @@ class TestGetVideoRoute:
     def test_get_video_unauthorized_access(self, client, auth_headers, sample_data):
         """Test accessing video with valid authentication - videos are public"""
         # All videos are accessible to any authenticated user
-        response = client.get("/videos/vid456", headers=auth_headers)
+        response = client.get("/api/videos/vid456", headers=auth_headers)
         assert response.status_code == 200
 
         data = response.get_json()
@@ -68,7 +68,7 @@ class TestGetVideoRoute:
 
     def test_get_video_no_auth_header(self, client, sample_data):
         """Test video access without authentication"""
-        response = client.get("/videos/vid123")
+        response = client.get("/api/videos/vid123")
         assert response.status_code == 401
 
         data = response.get_json()
@@ -78,7 +78,7 @@ class TestGetVideoRoute:
     def test_get_video_invalid_token(self, client, sample_data):
         """Test video access with invalid token"""
         headers = {"Authorization": "Bearer invalid_token"}
-        response = client.get("/videos/vid123", headers=headers)
+        response = client.get("/api/videos/vid123", headers=headers)
         assert response.status_code == 401
 
         data = response.get_json()
@@ -86,7 +86,7 @@ class TestGetVideoRoute:
 
     def test_get_video_response_structure(self, client, auth_headers, sample_data):
         """Test that video response has correct structure"""
-        response = client.get("/videos/vid123", headers=auth_headers)
+        response = client.get("/api/videos/vid123", headers=auth_headers)
         assert response.status_code == 200
 
         data = response.get_json()

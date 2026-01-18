@@ -27,6 +27,7 @@ def app():
             "SQLALCHEMY_DATABASE_URI": "sqlite:///:memory:",
             "SQLALCHEMY_TRACK_MODIFICATIONS": False,
             "SECRET_KEY": TEST_SECRET_KEY,
+            "JWT_EXPIRY_HOURS": 24,
             "DB_URL": "sqlite:///:memory:",
             "AWS_ACCESS_KEY_ID": "test-access-key",
             "AWS_SECRET_ACCESS_KEY": "test-secret-key",

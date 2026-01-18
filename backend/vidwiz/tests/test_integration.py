@@ -14,6 +14,7 @@ def app():
             "SQLALCHEMY_DATABASE_URI": "sqlite:///:memory:",
             "SQLALCHEMY_TRACK_MODIFICATIONS": False,
             "SECRET_KEY": "test_secret_key",
+            "JWT_EXPIRY_HOURS": 24,
         }
     )
     with app.app_context():
@@ -35,7 +36,7 @@ class TestUserWorkflow:
         """Test complete user registration and login flow"""
         # 1. Register new user
         response = client.post(
-            "/user/signup",
+            "/api/user/signup",
             json={"username": "integrationuser", "password": "securepassword123"},
             content_type="application/json",
         )
@@ -43,7 +44,7 @@ class TestUserWorkflow:
 
         # 2. Login with new user
         response = client.post(
-            "/user/login",
+            "/api/user/login",
             json={"username": "integrationuser", "password": "securepassword123"},
             content_type="application/json",
         )
@@ -55,7 +56,7 @@ class TestUserWorkflow:
 
         # 3. Verify token works for protected endpoints
         auth_headers = {"Authorization": f"Bearer {token}"}
-        response = client.get("/search?query=test", headers=auth_headers)
+        response = client.get("/api/search?query=test", headers=auth_headers)
         assert response.status_code in [
             200,
             404,
@@ -91,7 +92,7 @@ class TestUserWorkflow:
             "timestamp": "00:01:30",
             "text": "Introduction to Python basics",
         }
-        response = client.post("/notes", json=note_payload, headers=auth_headers)
+        response = client.post("/api/notes", json=note_payload, headers=auth_headers)
         assert response.status_code == 201
         note1_data = response.get_json()
         note1_id = note1_data["id"]
@@ -103,26 +104,27 @@ class TestUserWorkflow:
             "timestamp": "00:05:45",
             "text": "Variables and data types in Python",
         }
-        response = client.post("/notes", json=note_payload2, headers=auth_headers)
+        response = client.post("/api/notes", json=note_payload2, headers=auth_headers)
         assert response.status_code == 201
 
         # 3. Get video details
-        response = client.get("/videos/test_video_123", headers=auth_headers)
+        response = client.get("/api/videos/test_video_123", headers=auth_headers)
         assert response.status_code == 200
         video_data = response.get_json()
         assert video_data["video_id"] == "test_video_123"
         assert video_data["title"] == "Learn Python Programming"
 
         # 4. Get all notes for video
-        response = client.get("/notes/test_video_123", headers=auth_headers)
+        response = client.get("/api/notes/test_video_123", headers=auth_headers)
         assert response.status_code == 200
         notes_data = response.get_json()
         assert len(notes_data) == 2
 
         # 5. Search for video
-        response = client.get("/search?query=Python", headers=auth_headers)
+        response = client.get("/api/search?query=Python", headers=auth_headers)
         assert response.status_code == 200
-        search_results = response.get_json()
+        search_data = response.get_json()
+        search_results = search_data["videos"]
         assert len(search_results) == 1
         assert search_results[0]["video_id"] == "test_video_123"
 
@@ -132,7 +134,7 @@ class TestUserWorkflow:
             "generated_by_ai": True,
         }
         response = client.patch(
-            f"/notes/{note1_id}", json=ai_update_payload, headers=auth_headers
+            f"/api/notes/{note1_id}", json=ai_update_payload, headers=auth_headers
         )
         assert response.status_code == 200
         updated_note = response.get_json()
@@ -140,11 +142,11 @@ class TestUserWorkflow:
         assert updated_note["generated_by_ai"] is True
 
         # 7. Delete one note
-        response = client.delete(f"/notes/{note1_id}", headers=auth_headers)
+        response = client.delete(f"/api/notes/{note1_id}", headers=auth_headers)
         assert response.status_code == 200
 
         # 8. Verify note was deleted
-        response = client.get("/notes/test_video_123", headers=auth_headers)
+        response = client.get("/api/notes/test_video_123", headers=auth_headers)
         assert response.status_code == 200
         remaining_notes = response.get_json()
         assert len(remaining_notes) == 1
@@ -193,7 +195,7 @@ class TestUserWorkflow:
             "timestamp": "00:01:00",
             "text": "User 1's note",
         }
-        response = client.post("/notes", json=note_payload1, headers=auth_headers1)
+        response = client.post("/api/notes", json=note_payload1, headers=auth_headers1)
         assert response.status_code == 201
 
         # User 2 creates a note
@@ -203,29 +205,31 @@ class TestUserWorkflow:
             "timestamp": "00:01:00",
             "text": "User 2's note",
         }
-        response = client.post("/notes", json=note_payload2, headers=auth_headers2)
+        response = client.post("/api/notes", json=note_payload2, headers=auth_headers2)
         assert response.status_code == 201
 
         # User 1 searches - should only see their video
-        response = client.get("/search?query=Video", headers=auth_headers1)
+        response = client.get("/api/search?query=Video", headers=auth_headers1)
         assert response.status_code == 200
-        user1_results = response.get_json()
+        user1_data = response.get_json()
+        user1_results = user1_data["videos"]
         assert len(user1_results) == 1
         assert user1_results[0]["video_title"] == "User 1's Video"
 
         # User 2 searches - should only see their video
-        response = client.get("/search?query=Video", headers=auth_headers2)
+        response = client.get("/api/search?query=Video", headers=auth_headers2)
         assert response.status_code == 200
-        user2_results = response.get_json()
+        user2_data = response.get_json()
+        user2_results = user2_data["videos"]
         assert len(user2_results) == 1
         assert user2_results[0]["video_title"] == "User 2's Video"
 
         # User 1 tries to access User 2's video - should succeed because videos are public
-        response = client.get("/videos/user2_video", headers=auth_headers1)
+        response = client.get("/api/videos/user2_video", headers=auth_headers1)
         assert response.status_code == 200
 
         # User 2 tries to access User 1's video - should succeed because videos are public
-        response = client.get("/videos/user1_video", headers=auth_headers2)
+        response = client.get("/api/videos/user1_video", headers=auth_headers2)
         assert response.status_code == 200
 
     def test_error_handling_workflow(self, client, app):
@@ -255,31 +259,31 @@ class TestUserWorkflow:
             "timestamp": "invalid_timestamp",
             "text": "Test note",
         }
-        response = client.post("/notes", json=invalid_payload, headers=auth_headers)
+        response = client.post("/api/notes", json=invalid_payload, headers=auth_headers)
         assert response.status_code == 400
 
         # 2. Try to access non-existent video
-        response = client.get("/videos/nonexistent", headers=auth_headers)
+        response = client.get("/api/videos/nonexistent", headers=auth_headers)
         assert response.status_code == 404
 
         # 3. Try to delete non-existent note
-        response = client.delete("/note/99999", headers=auth_headers)
+        response = client.delete("/api/notes/99999", headers=auth_headers)
         assert response.status_code == 404
 
         # 4. Try to update non-existent note
         response = client.patch(
-            "/note/99999", json={"ai_note": "test"}, headers=auth_headers
+            "/api/notes/99999", json={"text": "valid update"}, headers=auth_headers
         )
         assert response.status_code == 404
 
         # 5. Try to access protected endpoints without auth
-        response = client.get("/search?query=test")
+        response = client.get("/api/search?query=test")
         assert response.status_code == 401
 
-        response = client.get("/videos/test")
+        response = client.get("/api/videos/test")
         assert response.status_code == 401
 
-        response = client.get("/notes/test")
+        response = client.get("/api/notes/test")
         assert response.status_code == 401
 
     def test_large_scale_data_workflow(self, client, app):
@@ -319,20 +323,21 @@ class TestUserWorkflow:
                     "text": f"Note {note_idx} for video {video_idx}",
                 }
                 response = client.post(
-                    "/notes", json=note_payload, headers=auth_headers
+                    "/api/notes", json=note_payload, headers=auth_headers
                 )
                 assert response.status_code == 201
 
         # Test searching across all videos
-        response = client.get("/search?query=Bulk", headers=auth_headers)
+        response = client.get("/api/search?query=Bulk", headers=auth_headers)
         assert response.status_code == 200
-        search_results = response.get_json()
+        search_data = response.get_json()
+        search_results = search_data["videos"]
         assert len(search_results) == video_count
 
         # Test getting notes for each video
         for video_idx in range(video_count):
             video_id = f"bulk_video_{video_idx}"
-            response = client.get(f"/notes/{video_id}", headers=auth_headers)
+            response = client.get(f"/api/notes/{video_id}", headers=auth_headers)
             assert response.status_code == 200
             notes = response.get_json()
             assert len(notes) == notes_per_video
@@ -340,7 +345,7 @@ class TestUserWorkflow:
         # Test getting video details for each video
         for video_idx in range(video_count):
             video_id = f"bulk_video_{video_idx}"
-            response = client.get(f"/videos/{video_id}", headers=auth_headers)
+            response = client.get(f"/api/videos/{video_id}", headers=auth_headers)
             assert response.status_code == 200
             video_data = response.get_json()
             assert video_data["video_id"] == video_id
@@ -366,7 +371,7 @@ class TestUserWorkflow:
         )
         expired_headers = {"Authorization": f"Bearer {expired_token}"}
 
-        response = client.get("/search?query=test", headers=expired_headers)
+        response = client.get("/api/search?query=test", headers=expired_headers)
         assert response.status_code == 401
 
         # 2. Test with invalid signature
@@ -381,17 +386,17 @@ class TestUserWorkflow:
         )
         invalid_headers = {"Authorization": f"Bearer {invalid_token}"}
 
-        response = client.get("/search?query=test", headers=invalid_headers)
+        response = client.get("/api/search?query=test", headers=invalid_headers)
         assert response.status_code == 401
 
         # 3. Test with malformed token
         malformed_headers = {"Authorization": "Bearer not.a.valid.jwt.token"}
-        response = client.get("/search?query=test", headers=malformed_headers)
+        response = client.get("/api/search?query=test", headers=malformed_headers)
         assert response.status_code == 401
 
         # 4. Test with missing Bearer prefix
         no_bearer_headers = {"Authorization": "SomeToken"}
-        response = client.get("/search?query=test", headers=no_bearer_headers)
+        response = client.get("/api/search?query=test", headers=no_bearer_headers)
         assert response.status_code == 401
 
         # 5. Test with valid token but wrong user_id
@@ -407,7 +412,7 @@ class TestUserWorkflow:
         wrong_user_headers = {"Authorization": f"Bearer {token_wrong_user}"}
 
         # This should work for search (user isolation is handled at data level)
-        response = client.get("/search?query=test", headers=wrong_user_headers)
+        response = client.get("/api/search?query=test", headers=wrong_user_headers)
         assert response.status_code in [200, 404]  # 404 if no videos found
 
 
@@ -499,10 +504,11 @@ class TestPerformance:
             auth_headers = {"Authorization": f"Bearer {token}"}
 
         # Search should still be fast
-        response = client.get("/search?query=Performance", headers=auth_headers)
+        response = client.get("/api/search?query=Performance", headers=auth_headers)
         assert response.status_code == 200
-        results = response.get_json()
-        assert len(results) == 100
+        results_data = response.get_json()
+        assert results_data["total"] == 100
+        assert len(results_data["videos"]) <= 100  # Will be limited by pagination
 
 
 class TestAPIConsistency:
@@ -535,17 +541,17 @@ class TestAPIConsistency:
             "timestamp": "1:23",
             "text": "Test note",
         }
-        response = client.post("/notes", json=payload, headers=auth_headers)
+        response = client.post("/api/notes", json=payload, headers=auth_headers)
         assert response.status_code == 201
 
         # Retrieve video via video endpoint
-        response = client.get("/videos/vid123", headers=auth_headers)
+        response = client.get("/api/videos/vid123", headers=auth_headers)
         assert response.status_code == 200
         video_data = response.get_json()
         assert video_data["title"] == "Auto-created Video"
 
         # Retrieve notes via notes endpoint
-        response = client.get("/notes/vid123", headers=auth_headers)
+        response = client.get("/api/notes/vid123", headers=auth_headers)
         assert response.status_code == 200
         notes_data = response.get_json()
         assert len(notes_data) == 1
@@ -589,26 +595,26 @@ class TestAPIConsistency:
             "timestamp": "1:23",
             "text": "Private note",
         }
-        response = client.post("/notes", json=payload, headers=auth_headers1)
+        response = client.post("/api/notes", json=payload, headers=auth_headers1)
         assert response.status_code == 201
         note_id = response.get_json()["id"]
 
         # User 2 tries to access User 1's video - should succeed because videos are public
-        response = client.get("/videos/private_vid", headers=auth_headers2)
+        response = client.get("/api/videos/private_vid", headers=auth_headers2)
         assert response.status_code == 200
 
         # User 2 tries to access User 1's notes - should get empty list
-        response = client.get("/notes/private_vid", headers=auth_headers2)
+        response = client.get("/api/notes/private_vid", headers=auth_headers2)
         assert response.status_code == 200
         assert response.get_json() == []
 
         # User 2 tries to delete User 1's note - should fail
-        response = client.delete(f"/notes/{note_id}", headers=auth_headers2)
+        response = client.delete(f"/api/notes/{note_id}", headers=auth_headers2)
         assert response.status_code == 404
 
         # User 2 tries to update User 1's note - should fail
         response = client.patch(
-            f"/notes/{note_id}",
+            f"/api/notes/{note_id}",
             json={"text": "Hacked note", "generated_by_ai": False},
             headers=auth_headers2,
         )
@@ -646,28 +652,28 @@ class TestAPIConsistency:
                 "timestamp": f"0:{i:02d}",
                 "text": f"Note {i}",
             }
-            response = client.post("/notes", json=payload, headers=auth_headers)
+            response = client.post("/api/notes", json=payload, headers=auth_headers)
             assert response.status_code == 201
             note_ids.append(response.get_json()["id"])
 
         # Verify all notes were created
-        response = client.get(f"/notes/{video_id}", headers=auth_headers)
+        response = client.get(f"/api/notes/{video_id}", headers=auth_headers)
         assert response.status_code == 200
         notes = response.get_json()
         assert len(notes) == 10
 
         # Verify video was created only once
-        response = client.get(f"/videos/{video_id}", headers=auth_headers)
+        response = client.get(f"/api/videos/{video_id}", headers=auth_headers)
         assert response.status_code == 200
         video = response.get_json()
         assert video["title"] == "Video 0"  # Should use title from first note creation
 
         # Clean up by deleting all notes
         for note_id in note_ids:
-            response = client.delete(f"/notes/{note_id}", headers=auth_headers)
+            response = client.delete(f"/api/notes/{note_id}", headers=auth_headers)
             assert response.status_code == 200
 
         # Verify all notes are deleted
-        response = client.get(f"/notes/{video_id}", headers=auth_headers)
+        response = client.get(f"/api/notes/{video_id}", headers=auth_headers)
         assert response.status_code == 200
         assert response.get_json() == []

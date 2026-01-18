@@ -16,6 +16,7 @@ def notes_app():
             "SQLALCHEMY_DATABASE_URI": "sqlite:///:memory:",
             "SQLALCHEMY_TRACK_MODIFICATIONS": False,
             "SECRET_KEY": "test_secret_key",
+            "JWT_EXPIRY_HOURS": 24,
         }
     )
     with app.app_context():
@@ -68,7 +69,7 @@ class TestCreateNote:
         """Test creating a note with existing video"""
         with app.app_context():
             response = client.post(
-                "/notes",
+                "/api/notes",
                 headers=auth_headers,
                 json={
                     "video_id": "test_video_123",
@@ -89,7 +90,7 @@ class TestCreateNote:
         """Test creating a note with a new video that doesn't exist"""
         with patch("vidwiz.routes.notes_routes.create_transcript_task") as mock_task:
             response = client.post(
-                "/notes",
+                "/api/notes",
                 headers=auth_headers,
                 json={
                     "video_id": "new_video_456",
@@ -110,7 +111,7 @@ class TestCreateNote:
     ):
         """Test creating a note for non-existent video without video_title"""
         response = client.post(
-            "/notes",
+            "/api/notes",
             headers=auth_headers,
             json={
                 "video_id": "nonexistent_video",
@@ -126,7 +127,7 @@ class TestCreateNote:
     def test_create_note_no_auth(self, client):
         """Test creating note without authentication"""
         response = client.post(
-            "/notes",
+            "/api/notes",
             json={
                 "video_id": "test_video",
                 "text": "Unauthorized note",
@@ -139,7 +140,7 @@ class TestCreateNote:
     def test_create_note_invalid_data(self, client, auth_headers):
         """Test creating note with invalid data"""
         response = client.post(
-            "/notes",
+            "/api/notes",
             headers=auth_headers,
             json={
                 "video_id": "",  # Invalid empty video_id
@@ -154,9 +155,7 @@ class TestCreateNote:
 
     def test_create_note_no_json_body(self, client, auth_headers):
         """Test creating note without JSON body"""
-        # When json=None is passed, request.json becomes None,
-        # and NoteCreate(**None) causes TypeError -> 500 error
-        response = client.post("/notes", headers=auth_headers, json=None)
+        response = client.post("/api/notes", headers=auth_headers, json=None)
 
         assert response.status_code == 500
         data = response.get_json()
@@ -187,7 +186,7 @@ class TestGetNotes:
             db.session.add_all([note1, note2])
             db.session.commit()
 
-            response = client.get("/notes/test_video_123", headers=auth_headers)
+            response = client.get("/api/notes/test_video_123", headers=auth_headers)
 
             assert response.status_code == 200
             data = response.get_json()
@@ -196,7 +195,7 @@ class TestGetNotes:
 
     def test_get_notes_empty_list(self, client, auth_headers, app, sample_user):
         """Test getting notes for video with no notes"""
-        response = client.get("/notes/no_notes_video", headers=auth_headers)
+        response = client.get("/api/notes/no_notes_video", headers=auth_headers)
 
         assert response.status_code == 200
         data = response.get_json()
@@ -204,7 +203,7 @@ class TestGetNotes:
 
     def test_get_notes_no_auth(self, client):
         """Test getting notes without authentication"""
-        response = client.get("/notes/test_video")
+        response = client.get("/api/notes/test_video")
 
         assert response.status_code == 401
 
@@ -249,7 +248,7 @@ class TestGetNotes:
             )
             headers = {"Authorization": f"Bearer {token}"}
 
-            response = client.get("/notes/test_video_123", headers=headers)
+            response = client.get("/api/notes/test_video_123", headers=headers)
 
             assert response.status_code == 200
             data = response.get_json()
@@ -276,7 +275,7 @@ class TestDeleteNote:
             db.session.commit()
             note_id = note.id
 
-            response = client.delete(f"/notes/{note_id}", headers=auth_headers)
+            response = client.delete(f"/api/notes/{note_id}", headers=auth_headers)
 
             assert response.status_code == 200
             data = response.get_json()
@@ -288,7 +287,7 @@ class TestDeleteNote:
 
     def test_delete_note_not_found(self, client, auth_headers):
         """Test deleting non-existent note"""
-        response = client.delete("/notes/999", headers=auth_headers)
+        response = client.delete("/api/notes/999", headers=auth_headers)
 
         assert response.status_code == 404
         data = response.get_json()
@@ -330,7 +329,7 @@ class TestDeleteNote:
             )
             headers = {"Authorization": f"Bearer {token}"}
 
-            response = client.delete(f"/notes/{note_id}", headers=headers)
+            response = client.delete(f"/api/notes/{note_id}", headers=headers)
 
             assert response.status_code == 404  # Note not found (for this user)
 
@@ -340,6 +339,6 @@ class TestDeleteNote:
 
     def test_delete_note_no_auth(self, client):
         """Test deleting note without authentication"""
-        response = client.delete("/notes/1")
+        response = client.delete("/api/notes/1")
 
         assert response.status_code == 401

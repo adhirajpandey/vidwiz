@@ -24,7 +24,7 @@ class TestTasksRoutes:
             db.session.commit()
             task_id = task.id
 
-        response = client.get("/tasks/transcript", headers=auth_headers)
+        response = client.get("/api/tasks/transcript", headers=auth_headers)
 
         assert response.status_code == 200
         data = response.get_json()
@@ -40,7 +40,7 @@ class TestTasksRoutes:
 
     def test_get_transcript_task_no_tasks_timeout(self, client, auth_headers):
         """Test timeout when no tasks available"""
-        response = client.get("/tasks/transcript?timeout=1", headers=auth_headers)
+        response = client.get("/api/tasks/transcript?timeout=1", headers=auth_headers)
 
         assert response.status_code == 204
         # Note: 204 responses have no content, so no JSON to parse
@@ -69,7 +69,7 @@ class TestTasksRoutes:
 
         with patch("vidwiz.routes.tasks_routes.store_transcript_in_s3"):
             response = client.post(
-                "/tasks/transcript",
+                "/api/tasks/transcript",
                 headers=auth_headers,
                 json={
                     "task_id": task_id,
@@ -103,7 +103,7 @@ class TestTasksRoutes:
             task_id = task.id
 
         response = client.post(
-            "/tasks/transcript",
+            "/api/tasks/transcript",
             headers=auth_headers,
             json={
                 "task_id": task_id,
@@ -150,7 +150,7 @@ class TestTasksRoutes:
             headers = {"Authorization": f"Bearer {token}"}
 
         response = client.post(
-            "/tasks/transcript",
+            "/api/tasks/transcript",
             headers=headers,
             json={
                 "task_id": task_id,
@@ -165,14 +165,14 @@ class TestTasksRoutes:
 
     def test_get_transcript_task_no_auth(self, client):
         """Test getting transcript task without authentication"""
-        response = client.get("/tasks/transcript")
+        response = client.get("/api/tasks/transcript")
 
         assert response.status_code == 401
 
     def test_submit_transcript_result_no_auth(self, client):
         """Test submitting result without authentication"""
         response = client.post(
-            "/tasks/transcript",
+            "/api/tasks/transcript",
             json={"task_id": 1, "video_id": "test_video", "success": True},
         )
 
@@ -191,7 +191,7 @@ class TestTasksRoutes:
             db.session.add(task)
             db.session.commit()
 
-        response = client.get("/tasks/transcript", headers=admin_headers)
+        response = client.get("/api/tasks/transcript", headers=admin_headers)
 
         assert response.status_code == 200
         data = response.get_json()
