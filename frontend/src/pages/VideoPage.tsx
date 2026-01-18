@@ -10,6 +10,9 @@ interface Video {
   title: string;
   metadata?: {
     channel?: string;
+    channel_url?: string;
+    uploader?: string;
+    uploader_url?: string;
     view_count?: number;
     like_count?: number;
     duration_string?: string;
@@ -222,10 +225,22 @@ export default function VideoPage() {
                 {/* Stats bar with glassmorphism */}
                 {video.metadata && (
                   <div className="flex flex-wrap items-center gap-2 mb-5">
-                    {video.metadata.channel && (
-                      <span className="inline-flex items-center px-3 py-1.5 rounded-lg text-sm font-semibold bg-gradient-to-r from-red-500/20 to-red-600/10 text-red-400 border border-red-500/20 select-none">
-                        {video.metadata.channel}
-                      </span>
+                    {(video.metadata.channel || video.metadata.uploader) && (
+                      (video.metadata.channel_url || video.metadata.uploader_url) ? (
+                        <a 
+                          href={video.metadata.channel_url || video.metadata.uploader_url}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          className="inline-flex items-center px-3 py-1.5 rounded-lg text-sm font-semibold bg-gradient-to-r from-red-500/20 to-red-600/10 text-red-400 border border-red-500/20 hover:from-red-500/30 hover:to-red-600/20 hover:border-red-500/30 transition-all duration-200 cursor-pointer"
+                        >
+                          {video.metadata.channel || video.metadata.uploader}
+                          <FaExternalLinkAlt className="w-2.5 h-2.5 ml-1.5 opacity-60" />
+                        </a>
+                      ) : (
+                        <span className="inline-flex items-center px-3 py-1.5 rounded-lg text-sm font-semibold bg-gradient-to-r from-red-500/20 to-red-600/10 text-red-400 border border-red-500/20 select-none">
+                          {video.metadata.channel || video.metadata.uploader}
+                        </span>
+                      )
                     )}
                     <div className="flex items-center gap-2 px-3 py-1.5 rounded-lg bg-white/5 backdrop-blur-sm border border-white/10 select-none">
                       {video.metadata.view_count && (
