@@ -49,6 +49,9 @@ export default function VideoPage() {
           if (response.ok) {
             const data = await response.json();
             setVideo(data);
+          } else if (response.status === 401) {
+            localStorage.removeItem('token');
+            navigate('/login');
           } else {
             navigate('/dashboard');
           }
@@ -71,6 +74,9 @@ export default function VideoPage() {
           if (response.ok) {
             const data = await response.json();
             setNotes(data.sort((a: Note, b: Note) => timestampToSeconds(a.timestamp) - timestampToSeconds(b.timestamp)));
+          } else if (response.status === 401) {
+            localStorage.removeItem('token');
+            navigate('/login');
           } else {
             setNotes([]);
           }
@@ -99,6 +105,9 @@ export default function VideoPage() {
       if (response.ok) {
         setNotes(notes.map(n => n.id === noteId ? { ...n, text: newText, generated_by_ai: false } : n));
         addToast({ title: 'Success', message: 'Note updated successfully', type: 'success' });
+      } else if (response.status === 401) {
+        localStorage.removeItem('token');
+        navigate('/login');
       } else {
         addToast({ title: 'Error', message: 'Failed to update note', type: 'error' });
       }
@@ -120,6 +129,10 @@ export default function VideoPage() {
       if (response.ok) {
         setNotes(notes.filter(n => n.id !== noteToDelete));
         addToast({ title: 'Success', message: 'Note deleted successfully', type: 'success' });
+      } else if (response.status === 401) {
+        localStorage.removeItem('token');
+        navigate('/login');
+        return;
       } else {
         addToast({ title: 'Error', message: 'Failed to delete note', type: 'error' });
       }

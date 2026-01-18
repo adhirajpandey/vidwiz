@@ -70,6 +70,9 @@ export default function ProfilePage() {
           const data = await response.json();
           setUser(data);
           addToast({ title: 'Success', message: 'Profile updated successfully', type: 'success' });
+        } else if (response.status === 401) {
+          localStorage.removeItem('token');
+          navigate('/login');
         } else {
           addToast({ title: 'Error', message: 'Failed to update AI notes setting', type: 'error' });
         }
@@ -97,6 +100,10 @@ export default function ProfilePage() {
           setApiToken(data.token);
           setUser(prev => prev ? { ...prev, token_exists: true } : null);
           addToast({ title: 'Success', message: data.message || 'API token generated successfully', type: 'success' });
+        } else if (response.status === 401) {
+          localStorage.removeItem('token');
+          navigate('/login');
+          return;
         } else {
           const errorData = await response.json();
           addToast({ title: 'Error', message: errorData.error || 'Failed to generate token', type: 'error' });
@@ -127,6 +134,10 @@ export default function ProfilePage() {
           setApiToken(null);
           setUser(prev => prev ? { ...prev, token_exists: false } : null);
           addToast({ title: 'Success', message: data.message || 'API token revoked successfully', type: 'success' });
+        } else if (response.status === 401) {
+          localStorage.removeItem('token');
+          navigate('/login');
+          return;
         } else {
           const errorData = await response.json();
           addToast({ title: 'Error', message: errorData.error || 'Failed to revoke token', type: 'error' });

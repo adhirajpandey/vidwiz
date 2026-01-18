@@ -62,6 +62,11 @@ export default function DashboardPage() {
         if (response.ok) {
           const data = await response.json();
           setVideos(data);
+        } else if (response.status === 401) {
+          // Token expired, clear and redirect to login
+          localStorage.removeItem('token');
+          navigate('/login');
+          return;
         } else {
           setVideos([]);
         }
