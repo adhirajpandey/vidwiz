@@ -23,7 +23,8 @@ logger = get_logger("vidwiz.routes.user_routes")
 
 @user_bp.route("/user/signup", methods=["POST"])
 def signup():
-    data = request.get_json()
+    # Allow silent failure so we can check if data is None and return our custom error
+    data = request.get_json(silent=True)
     if not data:
         logger.warning("Signup attempt missing JSON body")
         return jsonify({"error": "Request body must be JSON"}), 400
@@ -53,7 +54,7 @@ def signup():
 
 @user_bp.route("/user/login", methods=["POST"])
 def login():
-    data = request.get_json()
+    data = request.get_json(silent=True)
     if not data:
         logger.warning("Login attempt missing JSON body")
         return jsonify({"error": "Request body must be JSON"}), 400
@@ -205,7 +206,7 @@ def get_profile():
 def update_profile():
     """Update user profile data"""
     try:
-        data = request.json
+        data = request.get_json(silent=True)
         if not data:
             logger.warning("Update profile missing JSON body")
             return jsonify({"error": "Request body must be JSON"}), 400
