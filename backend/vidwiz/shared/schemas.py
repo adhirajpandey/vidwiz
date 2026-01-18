@@ -106,6 +106,22 @@ class TranscriptResult(BaseModel):
         return v
 
 
+class MetadataResult(BaseModel):
+    task_id: int
+    video_id: str
+    success: bool
+    metadata: Optional[dict] = None
+    error_message: Optional[str] = None
+
+    @field_validator("metadata")
+    @classmethod
+    def validate_metadata_format(cls, v):
+        if v is not None:
+            if not isinstance(v, dict):
+                raise ValueError("metadata must be a dictionary")
+        return v
+
+
 class UserCreate(BaseModel):
     username: str
     password: str

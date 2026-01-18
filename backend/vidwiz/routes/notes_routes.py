@@ -7,7 +7,7 @@ from vidwiz.shared.utils import (
     jwt_or_admin_required,
     push_note_to_sqs,
 )
-from vidwiz.shared.tasks import create_transcript_task
+from vidwiz.shared.tasks import create_transcript_task, create_metadata_task
 from vidwiz.shared.logging import get_logger
 
 notes_bp = Blueprint("notes", __name__)
@@ -46,6 +46,7 @@ def create_note():
             db.session.commit()
 
             create_transcript_task(note_data.video_id)
+            create_metadata_task(note_data.video_id)
 
         # Create note for this user
         note = Note(
