@@ -187,37 +187,31 @@ export default function VideoPage() {
               {/* Top section with thumbnail */}
               <div className="relative">
                 {/* Thumbnail with overlay */}
-                {video.metadata?.thumbnail ? (
-                  <div className="relative group cursor-pointer" onClick={() => window.open(`https://www.youtube.com/watch?v=${video.video_id}`, '_blank')}>
-                    <div className="relative overflow-hidden">
-                      <img 
-                        src={video.metadata.thumbnail} 
-                        alt={video.title}
-                        className="w-full h-48 md:h-56 object-cover transition-transform duration-500 group-hover:scale-105"
-                      />
-                      {/* Gradient overlay */}
-                      <div className="absolute inset-0 bg-gradient-to-t from-black/80 via-black/20 to-transparent"></div>
-                      
-                      {/* Play button overlay */}
-                      <div className="absolute inset-0 flex items-center justify-center opacity-0 group-hover:opacity-100 transition-all duration-300">
-                        <div className="w-16 h-16 rounded-full bg-red-600/90 backdrop-blur-sm flex items-center justify-center shadow-2xl transform scale-90 group-hover:scale-100 transition-transform duration-300">
-                          <FaPlay className="w-6 h-6 text-white ml-1" />
-                        </div>
+                <div className="relative group cursor-pointer" onClick={() => window.open(`https://www.youtube.com/watch?v=${video.video_id}`, '_blank')}>
+                  <div className="relative overflow-hidden">
+                    <img 
+                      src={video.metadata?.thumbnail || `https://i.ytimg.com/vi_webp/${video.video_id}/maxresdefault.webp`} 
+                      alt={video.title}
+                      className="w-full h-48 md:h-56 object-cover transition-transform duration-500 group-hover:scale-105"
+                    />
+                    {/* Gradient overlay */}
+                    <div className="absolute inset-0 bg-gradient-to-t from-black/80 via-black/20 to-transparent"></div>
+                    
+                    {/* Play button overlay */}
+                    <div className="absolute inset-0 flex items-center justify-center opacity-0 group-hover:opacity-100 transition-all duration-300">
+                      <div className="w-16 h-16 rounded-full bg-red-600/90 backdrop-blur-sm flex items-center justify-center shadow-2xl transform scale-90 group-hover:scale-100 transition-transform duration-300">
+                        <FaPlay className="w-6 h-6 text-white ml-1" />
                       </div>
-                      
-                      {/* Duration badge */}
-                      {video.metadata.duration_string && (
-                        <div className="absolute bottom-3 right-3 px-2.5 py-1 bg-black/80 backdrop-blur-sm rounded-md text-white text-sm font-medium">
-                          {video.metadata.duration_string}
-                        </div>
-                      )}
                     </div>
+                    
+                    {/* Duration badge */}
+                    {video.metadata?.duration_string && (
+                      <div className="absolute bottom-3 right-3 px-2.5 py-1 bg-black/80 backdrop-blur-sm rounded-md text-white text-sm font-medium">
+                        {video.metadata.duration_string}
+                      </div>
+                    )}
                   </div>
-                ) : (
-                  <div className="w-full h-48 md:h-56 bg-muted flex items-center justify-center">
-                    <FaPlay className="w-12 h-12 text-muted-foreground/30" />
-                  </div>
-                )}
+                </div>
               </div>
               
               {/* Content section */}
