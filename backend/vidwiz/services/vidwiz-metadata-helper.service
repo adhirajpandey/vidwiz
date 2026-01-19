@@ -1,0 +1,12 @@
+[Unit]
+Description=Vidwiz Transcript Helper Service
+
+[Service]
+EnvironmentFile=/home/adhiraj/projects/vidwiz/backend/.env
+ExecStart=/usr/bin/python /home/adhiraj/projects/vidwiz/backend/vidwiz/scripts/metadata-helper.py --auth-token ${AUTH_TOKEN}
+Restart=always
+Environment=PYTHONUNBUFFERED=1
+User=adhiraj
+
+[Install]
+WantedBy=multi-user.target
