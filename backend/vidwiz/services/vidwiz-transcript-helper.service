@@ -2,11 +2,12 @@
 Description=Vidwiz Transcript Helper Service
 
 [Service]
-EnvironmentFile=/home/adhiraj/projects/vidwiz/backend/.env
-ExecStart=/usr/bin/python /home/adhiraj/projects/vidwiz/backend/vidwiz/scripts/transcript-helper.py --auth-token ${AUTH_TOKEN}
+EnvironmentFile=/home/adhiraj/projects/vidwiz/.env
+ExecStart=/usr/bin/python /home/adhiraj/projects/vidwiz/backend/vidwiz/scripts/transcript-helper.py
 Restart=always
 Environment=PYTHONUNBUFFERED=1
 User=adhiraj
+WorkingDirectory=/home/adhiraj/projects/vidwiz/backend
 
 [Install]
 WantedBy=multi-user.target
