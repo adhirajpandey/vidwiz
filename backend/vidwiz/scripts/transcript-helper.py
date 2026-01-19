@@ -7,7 +7,7 @@ from typing import List, Dict, Optional, Tuple
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger("vidwiz.transcript_helper")
 
-TASK_ENDPOINT = "https://vidwiz.adhirajpandey.tech/api/tasks/transcript"
+TASK_ENDPOINT = "https://vidwiz.online/api/tasks/transcript"
 
 
 def parse_arguments() -> Tuple[str, int]:
