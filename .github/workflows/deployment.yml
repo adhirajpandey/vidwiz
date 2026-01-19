@@ -48,4 +48,7 @@ jobs:
             docker pull adhirajpandey/vidwiz:latest
             docker compose -f docker-compose.prod.yml down || true
             docker compose -f docker-compose.prod.yml up -d
+            sudo systemctl daemon-reload
+            sudo systemctl restart vidwiz-transcript-helper.service
+            sudo systemctl restart vidwiz-metadata-helper.service
             
