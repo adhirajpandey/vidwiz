@@ -1,6 +1,6 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useState, useRef } from 'react';
 import { Link, useLocation, useNavigate } from 'react-router-dom';
-import { Moon, Sun, LogOut, LayoutDashboard, User } from 'lucide-react';
+import { Moon, Sun, LogOut, LayoutDashboard, User, ChevronDown } from 'lucide-react';
 import vidwizLogo from '../../public/vidwiz.png';
 
 export default function Navbar() {
@@ -13,11 +13,53 @@ export default function Navbar() {
   const location = useLocation();
   const navigate = useNavigate();
   const [isLoggedIn, setIsLoggedIn] = useState(false);
+  const [userName, setUserName] = useState<string | null>(null);
+  const [isDropdownOpen, setIsDropdownOpen] = useState(false);
+  const dropdownRef = useRef<HTMLDivElement>(null);
+
+  // Decode JWT to get user info
+  const decodeJwt = (token: string): { username?: string; name?: string } | null => {
+    try {
+      const base64Url = token.split('.')[1];
+      const base64 = base64Url.replace(/-/g, '+').replace(/_/g, '/');
+      const jsonPayload = decodeURIComponent(
+        atob(base64)
+          .split('')
+          .map((c) => '%' + ('00' + c.charCodeAt(0).toString(16)).slice(-2))
+          .join('')
+      );
+      return JSON.parse(jsonPayload);
+    } catch (error) {
+      console.error('Failed to decode JWT', error);
+      return null;
+    }
+  };
 
   useEffect(() => {
     const token = localStorage.getItem('token');
-    setIsLoggedIn(!!token);
+    if (token) {
+      setIsLoggedIn(true);
+      const decoded = decodeJwt(token);
+      if (decoded) {
+        setUserName(decoded.name || decoded.username || null);
+      }
+    } else {
+      setIsLoggedIn(false);
+      setUserName(null);
+    }
   }, [location]);
+
+  // Close dropdown when clicking outside
+  useEffect(() => {
+    const handleClickOutside = (event: MouseEvent) => {
+      if (dropdownRef.current && !dropdownRef.current.contains(event.target as Node)) {
+        setIsDropdownOpen(false);
+      }
+    };
+
+    document.addEventListener('mousedown', handleClickOutside);
+    return () => document.removeEventListener('mousedown', handleClickOutside);
+  }, []);
 
   useEffect(() => {
     const root = document.documentElement;
@@ -36,10 +78,20 @@ export default function Navbar() {
   const handleLogout = () => {
     localStorage.removeItem('token');
     setIsLoggedIn(false);
+    setUserName(null);
+    setIsDropdownOpen(false);
     navigate('/login');
   };
 
   const isActive = (path: string) => location.pathname === path;
+
+  // Get first character for avatar
+  const getAvatarChar = () => {
+    if (userName && userName.length > 0) {
+      return userName.charAt(0).toUpperCase();
+    }
+    return 'U';
+  };
 
   return (
     <nav className="fixed top-0 w-full z-50 select-none">
@@ -61,33 +113,20 @@ export default function Navbar() {
           </span>
         </Link>
 
-        {/* Navigation Links */}
+        {/* Navigation Links - Center */}
         <div className="hidden md:flex items-center gap-1">
           {isLoggedIn ? (
-            <>
-              <Link 
-                to="/dashboard" 
-                className={`group inline-flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-medium transition-all duration-200 ${
-                  isActive('/dashboard') 
-                    ? 'bg-white/[0.08] text-foreground' 
-                    : 'text-foreground/60 hover:text-foreground hover:bg-white/[0.04]'
-                }`}
-              >
-                <LayoutDashboard className={`w-4 h-4 transition-colors ${isActive('/dashboard') ? 'text-red-400' : 'group-hover:text-red-400'}`} />
-                Dashboard
-              </Link>
-              <Link 
-                to="/profile" 
-                className={`group inline-flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-medium transition-all duration-200 ${
-                  isActive('/profile') 
-                    ? 'bg-white/[0.08] text-foreground' 
-                    : 'text-foreground/60 hover:text-foreground hover:bg-white/[0.04]'
-                }`}
-              >
-                <User className={`w-4 h-4 transition-colors ${isActive('/profile') ? 'text-red-400' : 'group-hover:text-red-400'}`} />
-                Profile
-              </Link>
-            </>
+            <Link 
+              to="/dashboard" 
+              className={`group inline-flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-medium transition-all duration-200 ${
+                isActive('/dashboard') 
+                  ? 'bg-white/[0.08] text-foreground' 
+                  : 'text-foreground/60 hover:text-foreground hover:bg-white/[0.04]'
+              }`}
+            >
+              <LayoutDashboard className={`w-4 h-4 transition-colors ${isActive('/dashboard') ? 'text-red-400' : 'group-hover:text-red-400'}`} />
+              Dashboard
+            </Link>
           ) : (
             location.pathname === '/' && (
               <>
@@ -110,9 +149,6 @@ export default function Navbar() {
 
         {/* Right Actions */}
         <div className="flex items-center gap-2 md:gap-3">
-          {/* GitHub Star Button - Hidden on mobile, visible on desktop */}
-
-
           {/* Theme Toggle */}
           <button
             aria-label="Toggle theme"
@@ -127,13 +163,68 @@ export default function Navbar() {
           </button>
 
           {isLoggedIn ? (
-            <button
-              onClick={handleLogout}
-              className="group inline-flex items-center gap-2 px-4 py-2 md:px-5 md:py-2.5 rounded-lg text-sm font-medium bg-white/[0.04] hover:bg-red-500/10 border border-white/[0.08] hover:border-red-500/30 text-foreground/70 hover:text-red-400 transition-all duration-200 cursor-pointer"
-            >
-              <LogOut className="w-4 h-4 transition-transform duration-200 group-hover:-translate-x-0.5" />
-              <span className="hidden sm:inline">Logout</span>
-            </button>
+            /* User Avatar Dropdown */
+            <div className="relative" ref={dropdownRef}>
+              <button
+                onClick={() => setIsDropdownOpen(!isDropdownOpen)}
+                className="group flex items-center gap-2 px-2 py-1.5 rounded-lg hover:bg-white/[0.04] transition-all duration-200 cursor-pointer"
+                aria-label="User menu"
+              >
+                {/* Avatar */}
+                <div className="relative">
+                  <div className="w-9 h-9 rounded-full bg-gradient-to-br from-red-500 to-red-600 flex items-center justify-center text-white font-semibold text-sm shadow-lg shadow-red-500/25 transition-transform duration-200 group-hover:scale-105">
+                    {getAvatarChar()}
+                  </div>
+                  {/* Online indicator */}
+                  <div className="absolute bottom-0 right-0 w-2.5 h-2.5 bg-green-500 rounded-full border-2 border-background"></div>
+                </div>
+                <ChevronDown className={`w-4 h-4 text-foreground/50 transition-transform duration-200 ${isDropdownOpen ? 'rotate-180' : ''}`} />
+              </button>
+
+              {/* Dropdown Menu */}
+              {isDropdownOpen && (
+                <div className="absolute right-0 mt-2 w-56 rounded-xl bg-card/95 backdrop-blur-xl border border-white/[0.08] shadow-2xl shadow-black/20 overflow-hidden animate-in fade-in slide-in-from-top-2 duration-200">
+                  {/* User Info Header */}
+                  <div className="px-4 py-3 border-b border-white/[0.06] bg-white/[0.02]">
+                    <div className="flex items-center gap-3">
+                      <div className="w-10 h-10 rounded-full bg-gradient-to-br from-red-500 to-red-600 flex items-center justify-center text-white font-semibold text-base">
+                        {getAvatarChar()}
+                      </div>
+                      <div className="flex-1 min-w-0">
+                        <p className="text-sm font-medium text-foreground truncate">{userName || 'User'}</p>
+                        <p className="text-xs text-foreground/50">Manage your account</p>
+                      </div>
+                    </div>
+                  </div>
+
+                  {/* Menu Items */}
+                  <div className="py-1.5">
+                    <Link
+                      to="/profile"
+                      onClick={() => setIsDropdownOpen(false)}
+                      className={`flex items-center gap-3 px-4 py-2.5 text-sm transition-all duration-150 ${
+                        isActive('/profile')
+                          ? 'bg-white/[0.06] text-foreground'
+                          : 'text-foreground/70 hover:text-foreground hover:bg-white/[0.04]'
+                      }`}
+                    >
+                      <User className={`w-4 h-4 ${isActive('/profile') ? 'text-red-400' : ''}`} />
+                      <span>Profile</span>
+                    </Link>
+                    
+                    <div className="my-1.5 mx-3 border-t border-white/[0.06]"></div>
+                    
+                    <button
+                      onClick={handleLogout}
+                      className="w-full flex items-center gap-3 px-4 py-2.5 text-sm text-foreground/70 hover:text-red-400 hover:bg-red-500/10 transition-all duration-150 cursor-pointer"
+                    >
+                      <LogOut className="w-4 h-4" />
+                      <span>Logout</span>
+                    </button>
+                  </div>
+                </div>
+              )}
+            </div>
           ) : (
             location.pathname === '/' && (
               <Link 

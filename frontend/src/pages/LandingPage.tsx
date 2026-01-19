@@ -1,11 +1,19 @@
 
-import { Clock, Target, Sparkles, ArrowRight, Play, CheckCircle2, Zap, Brain, ChevronRight } from 'lucide-react';
+import { useEffect, useState } from 'react';
+import { Clock, Target, Sparkles, ArrowRight, Play, CheckCircle2, Zap, Brain, ChevronRight, LayoutDashboard } from 'lucide-react';
 import { Link } from 'react-router-dom';
 import AmbientBackground from '../components/ui/AmbientBackground';
 import GradientText from '../components/ui/GradientText';
 import GlassCard from '../components/ui/GlassCard';
 
 function LandingPage() {
+  const [isLoggedIn, setIsLoggedIn] = useState(false);
+
+  useEffect(() => {
+    const token = localStorage.getItem('token');
+    setIsLoggedIn(!!token);
+  }, []);
+
   return (
     <div className="relative overflow-hidden">
       <AmbientBackground />
@@ -44,11 +52,20 @@ function LandingPage() {
             {/* CTA Buttons */}
             <div className="flex flex-col sm:flex-row items-center gap-4 mb-10 animate-in fade-in slide-in-from-bottom-8 duration-1000 delay-300">
               <Link 
-                to="/signup" 
+                to={isLoggedIn ? "/dashboard" : "/signup"} 
                 className="w-full sm:w-auto min-w-[180px] inline-flex items-center justify-center gap-2 px-8 py-4 text-base font-semibold text-white bg-gradient-to-r from-red-600 to-red-500 rounded-xl hover:scale-105 active:scale-95 transition-all duration-300 shadow-[0_0_40px_-10px_rgba(239,68,68,0.4)] hover:shadow-[0_0_60px_-15px_rgba(239,68,68,0.6)]"
               >
-                Start for Free
-                <ArrowRight className="w-5 h-5" />
+                {isLoggedIn ? (
+                  <>
+                    <LayoutDashboard className="w-5 h-5" />
+                    Open Dashboard
+                  </>
+                ) : (
+                  <>
+                    Start for Free
+                    <ArrowRight className="w-5 h-5" />
+                  </>
+                )}
               </Link>
               
               <a 
@@ -235,8 +252,8 @@ function LandingPage() {
               <h2 className="text-4xl md:text-5xl font-bold mb-4">Zero Friction Workflow</h2>
               <p className="text-xl text-foreground/50">From installation to mastery in three steps.</p>
             </div>
-            <Link to="/signup" className="text-red-400 hover:text-red-300 font-medium flex items-center gap-2 group">
-              Get Started Now <ChevronRight className="w-4 h-4 group-hover:translate-x-1 transition-transform" />
+            <Link to={isLoggedIn ? "/dashboard" : "/signup"} className="text-red-400 hover:text-red-300 font-medium flex items-center gap-2 group">
+              {isLoggedIn ? "Open Dashboard" : "Get Started Now"} <ChevronRight className="w-4 h-4 group-hover:translate-x-1 transition-transform" />
             </Link>
           </div>
 
@@ -281,10 +298,17 @@ function LandingPage() {
               
               <div className="flex flex-col sm:flex-row items-center justify-center gap-4">
                 <Link 
-                  to="/signup" 
-                  className="min-w-[200px] px-8 py-4 bg-gradient-to-r from-red-600 to-red-500 text-white rounded-xl font-bold text-lg hover:bg-red-600 transition-all transform hover:-translate-y-1 shadow-lg hover:shadow-red-500/25"
+                  to={isLoggedIn ? "/dashboard" : "/signup"} 
+                  className="min-w-[200px] px-8 py-4 bg-gradient-to-r from-red-600 to-red-500 text-white rounded-xl font-bold text-lg hover:bg-red-600 transition-all transform hover:-translate-y-1 shadow-lg hover:shadow-red-500/25 inline-flex items-center justify-center gap-2"
                 >
-                  Get Started for Free
+                  {isLoggedIn ? (
+                    <>
+                      <LayoutDashboard className="w-5 h-5" />
+                      Open Dashboard
+                    </>
+                  ) : (
+                    "Get Started for Free"
+                  )}
                 </Link>
                 <div className="flex items-center gap-2 text-foreground/60 px-6 py-4">
                   <CheckCircle2 className="w-5 h-5 text-red-500" />
