@@ -68,7 +68,10 @@ class User(db.Model):
     __tablename__ = "users"
     id = Column(Integer, primary_key=True)
     username = Column(Text, unique=True, nullable=False)
-    password_hash = Column(Text, nullable=False)
+    name = Column(Text, nullable=True)  # Store user's display name
+    password_hash = Column(Text, nullable=True)  # Nullable for OAuth users
+    google_id = Column(Text, unique=True, nullable=True)
+    email = Column(Text, unique=True, nullable=True)
     long_term_token = Column(Text, nullable=True)
     profile_data = Column(JSON, nullable=True)
     created_at = Column(TIMESTAMP(timezone=True), default=func.now())

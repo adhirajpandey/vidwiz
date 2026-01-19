@@ -39,6 +39,8 @@ def create_app(config=None):
     S3_BUCKET_NAME = os.getenv("S3_BUCKET_NAME", None)
     JWT_EXPIRY_HOURS = int(os.getenv("JWT_EXPIRY_HOURS", "24"))
 
+    GOOGLE_CLIENT_ID = os.getenv("GOOGLE_CLIENT_ID", None)
+
     # Only check and set required env vars if no config dict is provided - for test etc
     if config is None:
         check_required_env_vars()
@@ -51,6 +53,7 @@ def create_app(config=None):
         app.config["S3_BUCKET_NAME"] = S3_BUCKET_NAME
         app.config["ADMIN_TOKEN"] = ADMIN_TOKEN
         app.config["JWT_EXPIRY_HOURS"] = JWT_EXPIRY_HOURS
+        app.config["GOOGLE_CLIENT_ID"] = GOOGLE_CLIENT_ID
         app.config["SQLALCHEMY_ENGINE_OPTIONS"] = {
             "pool_recycle": 7200,
         }

@@ -175,6 +175,7 @@ class UserLogin(BaseModel):
 class UserProfileRead(BaseModel):
     id: int
     username: str
+    name: Optional[str] = None
     ai_notes_enabled: bool
     token_exists: bool
     long_term_token: Optional[str] = None
