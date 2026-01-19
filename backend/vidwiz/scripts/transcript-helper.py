@@ -1,21 +1,30 @@
-from youtube_transcript_api import YouTubeTranscriptApi
-import requests
-import logging
+import os
+import sys
 import argparse
-from typing import List, Dict, Optional, Tuple
+import logging
+from typing import List, Dict, Optional
+
+import requests
+from youtube_transcript_api import YouTubeTranscriptApi
 
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger("vidwiz.transcript_helper")
 
-TASK_ENDPOINT = "https://vidwiz.adhirajpandey.tech/api/tasks/transcript"
+TASK_ENDPOINT = "https://vidwiz.online/api/tasks/transcript"
 
 
-def parse_arguments() -> Tuple[str, int]:
-    """Parse command line arguments and return auth token and timeout."""
+def get_auth_token() -> str:
+    """Load ADMIN_TOKEN from environment. Fail fast if missing."""
+    token = os.environ.get("ADMIN_TOKEN")
+    if not token:
+        logger.error("ADMIN_TOKEN environment variable is not set")
+        sys.exit(1)
+    return token
+
+
+def parse_arguments() -> int:
+    """Parse command line arguments and return timeout."""
     parser = argparse.ArgumentParser(description="YouTube transcript helper for VidWiz")
-    parser.add_argument(
-        "--auth-token", required=True, help="Authentication token for API requests"
-    )
     parser.add_argument(
         "--timeout",
         type=int,
@@ -24,7 +33,7 @@ def parse_arguments() -> Tuple[str, int]:
     )
 
     args = parser.parse_args()
-    return args.auth_token, args.timeout
+    return args.timeout
 
 
 class TranscriptHelper:
@@ -116,7 +125,8 @@ class TranscriptHelper:
 
 
 def main() -> None:
-    auth_token, timeout = parse_arguments()
+    auth_token = get_auth_token()
+    timeout = parse_arguments()
     helper = TranscriptHelper(auth_token=auth_token, timeout_seconds=timeout)
     helper.run()
 

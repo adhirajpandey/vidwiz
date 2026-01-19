@@ -1,7 +1,7 @@
 // const AppURL = "http://localhost:5173/"
 // const ApiURL = "http://127.0.0.1:5000/"
-const AppURL = "https://vidwiz.adhirajpandey.tech/"
-const ApiURL = "https://vidwiz.adhirajpandey.tech/api/"
+const AppURL = "https://vidwiz.online/"
+const ApiURL = "https://vidwiz.online/api/"
 
 // Get token from localStorage (will be null if not set)
 function getAuthToken() {

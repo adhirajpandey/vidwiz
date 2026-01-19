@@ -1,0 +1,13 @@
+[Unit]
+Description=Vidwiz Metadata Helper Service
+
+[Service]
+EnvironmentFile=/home/adhiraj/projects/vidwiz/.env
+ExecStart=/usr/bin/python /home/adhiraj/projects/vidwiz/backend/vidwiz/scripts/metadata-helper.py
+Restart=always
+Environment=PYTHONUNBUFFERED=1
+User=adhiraj
+WorkingDirectory=/home/adhiraj/projects/vidwiz/backend
+
+[Install]
+WantedBy=multi-user.target

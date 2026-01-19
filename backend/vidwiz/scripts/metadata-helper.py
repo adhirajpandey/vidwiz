@@ -1,21 +1,30 @@
-import yt_dlp
-import requests
-import logging
+import os
+import sys
 import argparse
-from typing import Dict, Optional, Tuple
+import logging
+from typing import Dict, Optional
+
+import requests
+import yt_dlp
 
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger("vidwiz.metadata_helper")
 
-TASK_ENDPOINT = "https://vidwiz.adhirajpandey.tech/api/tasks/metadata"
+TASK_ENDPOINT = "https://vidwiz.online/api/tasks/metadata"
 
 
-def parse_arguments() -> Tuple[str, int]:
-    """Parse command line arguments and return auth token and timeout."""
+def get_auth_token() -> str:
+    """Load ADMIN_TOKEN from environment. Fail fast if missing."""
+    token = os.environ.get("ADMIN_TOKEN")
+    if not token:
+        logger.error("ADMIN_TOKEN environment variable is not set")
+        sys.exit(1)
+    return token
+
+
+def parse_arguments() -> int:
+    """Parse command line arguments and return timeout."""
     parser = argparse.ArgumentParser(description="YouTube metadata helper for VidWiz")
-    parser.add_argument(
-        "--auth-token", required=True, help="Authentication token for API requests"
-    )
     parser.add_argument(
         "--timeout",
         type=int,
@@ -24,7 +33,7 @@ def parse_arguments() -> Tuple[str, int]:
     )
 
     args = parser.parse_args()
-    return args.auth_token, args.timeout
+    return args.timeout
 
 
 class MetadataHelper:
@@ -129,7 +138,8 @@ class MetadataHelper:
 
 
 def main() -> None:
-    auth_token, timeout = parse_arguments()
+    auth_token = get_auth_token()
+    timeout = parse_arguments()
     helper = MetadataHelper(auth_token=auth_token, timeout_seconds=timeout)
     helper.run()
 
