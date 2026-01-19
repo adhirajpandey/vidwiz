@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react';
-import { CheckCircle2, XCircle, X, Info } from 'lucide-react';
+import { Check, X, AlertCircle } from 'lucide-react';
 
 interface ToastProps {
   id: number;
@@ -13,81 +13,101 @@ export type { ToastProps };
 
 export default function Toast({ id, title, message, type, onClose }: ToastProps) {
   const [isExiting, setIsExiting] = useState(false);
+  const [progress, setProgress] = useState(100);
 
   useEffect(() => {
-    const timer = setTimeout(() => {
+    // Progress bar animation
+    const duration = 4000;
+    const interval = 50;
+    const decrement = (interval / duration) * 100;
+    
+    const progressTimer = setInterval(() => {
+      setProgress((prev) => Math.max(0, prev - decrement));
+    }, interval);
+
+    const closeTimer = setTimeout(() => {
       handleClose();
-    }, 5000);
+    }, duration);
 
     return () => {
-      clearTimeout(timer);
+      clearInterval(progressTimer);
+      clearTimeout(closeTimer);
     };
   }, []);
 
   const handleClose = () => {
     setIsExiting(true);
-    // Wait for animation to finish before actually removing
     setTimeout(() => {
       onClose(id);
-    }, 300);
+    }, 200);
   };
 
-  const baseClasses = 'relative flex max-w-sm w-full overflow-hidden rounded-xl border p-4 shadow-2xl backdrop-blur-xl transition-all duration-300';
-  
-  // Animation classes
-  const animationClasses = isExiting 
-    ? 'animate-out fade-out slide-out-to-right-full' 
-    : 'animate-in slide-in-from-right fade-in duration-300';
-
-  const typeStyles = {
+  const typeConfig = {
     success: {
-      container: 'bg-black/80 border-green-500/20 shadow-green-500/10',
-      iconBg: 'bg-green-500/10',
-      iconColor: 'text-green-500',
-      icon: <CheckCircle2 className="h-5 w-5" />,
-      glow: 'bg-green-500'
+      icon: <Check className="w-4 h-4" strokeWidth={2.5} />,
+      iconBg: 'bg-emerald-500',
+      progressBar: 'bg-emerald-500',
+      border: 'border-emerald-500/20',
     },
     error: {
-      container: 'bg-black/80 border-red-500/20 shadow-red-500/10',
-      iconBg: 'bg-red-500/10',
-      iconColor: 'text-red-500',
-      icon: <XCircle className="h-5 w-5" />,
-      glow: 'bg-red-500'
+      icon: <X className="w-4 h-4" strokeWidth={2.5} />,
+      iconBg: 'bg-red-500',
+      progressBar: 'bg-red-500',
+      border: 'border-red-500/20',
     },
     info: {
-      container: 'bg-black/80 border-blue-500/20 shadow-blue-500/10',
-      iconBg: 'bg-blue-500/10',
-      iconColor: 'text-blue-500',
-      icon: <Info className="h-5 w-5" />,
-      glow: 'bg-blue-500'
+      icon: <AlertCircle className="w-4 h-4" strokeWidth={2} />,
+      iconBg: 'bg-blue-500',
+      progressBar: 'bg-blue-500',
+      border: 'border-blue-500/20',
     },
   };
 
-  const styles = typeStyles[type];
+  const config = typeConfig[type];
 
   return (
-    <div className={`${baseClasses} ${styles.container} ${animationClasses}`} role="alert">
-      {/* Ambient background glow */}
-      <div className={`absolute -left-4 top-0 bottom-0 w-1 ${styles.glow} opacity-50`}></div>
-      <div className={`absolute inset-0 bg-gradient-to-br from-white/[0.03] to-transparent pointer-events-none`}></div>
-
-      <div className="relative flex w-full items-start gap-3">
-        <div className={`flex-shrink-0 rounded-full p-1 ${styles.iconBg} ${styles.iconColor}`}>
-          {styles.icon}
+    <div
+      className={`
+        relative w-full overflow-hidden rounded-xl 
+        bg-card/95 backdrop-blur-lg
+        border ${config.border}
+        shadow-lg shadow-black/10
+        transition-all duration-200 ease-out
+        ${isExiting 
+          ? 'opacity-0 translate-x-4 scale-95' 
+          : 'opacity-100 translate-x-0 scale-100'
+        }
+      `}
+      role="alert"
+    >
+      <div className="flex items-start gap-3 p-4">
+        {/* Icon */}
+        <div className={`flex-shrink-0 w-6 h-6 rounded-full ${config.iconBg} flex items-center justify-center text-white`}>
+          {config.icon}
         </div>
-        
-        <div className="flex-1 pt-0.5">
-          <p className="text-sm font-semibold text-white tracking-tight">{title}</p>
-          <p className="mt-1 text-sm text-white/60 leading-relaxed">{message}</p>
+
+        {/* Content */}
+        <div className="flex-1 min-w-0 pt-0.5">
+          <p className="text-sm font-medium text-foreground leading-tight">{title}</p>
+          <p className="mt-0.5 text-[13px] text-muted-foreground leading-snug">{message}</p>
         </div>
 
+        {/* Close Button */}
         <button
           onClick={handleClose}
-          className="flex-shrink-0 -mr-1 -mt-1 rounded-lg p-1 text-white/40 hover:text-white hover:bg-white/10 transition-colors"
+          className="flex-shrink-0 w-6 h-6 -mt-0.5 -mr-0.5 rounded-md flex items-center justify-center text-foreground/40 hover:text-foreground hover:bg-foreground/5 transition-colors cursor-pointer"
+          aria-label="Close"
         >
-          <span className="sr-only">Close</span>
-          <X className="h-4 w-4" />
+          <X className="w-4 h-4" />
         </button>
+      </div>
+
+      {/* Progress Bar */}
+      <div className="absolute bottom-0 left-0 right-0 h-0.5 bg-foreground/5">
+        <div
+          className={`h-full ${config.progressBar} transition-all duration-50 ease-linear`}
+          style={{ width: `${progress}%` }}
+        />
       </div>
     </div>
   );
