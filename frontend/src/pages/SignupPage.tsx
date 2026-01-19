@@ -1,5 +1,5 @@
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { useToast } from '../hooks/useToast';
 import vidwizLogo from '../public/vidwiz.png';
@@ -94,7 +94,7 @@ export default function SignupPage() {
     }
   };
 
-  const handleGoogleSuccess = async (credential: string) => {
+  const handleGoogleSuccess = useCallback(async (credential: string) => {
     setIsLoading(true);
     try {
       const response = await fetch(`${config.API_URL}/user/google/login`, {
@@ -131,15 +131,15 @@ export default function SignupPage() {
     } finally {
       setIsLoading(false);
     }
-  };
+  }, [addToast, navigate]);
 
-  const handleGoogleError = (error: string) => {
+  const handleGoogleError = useCallback((error: string) => {
     addToast({
       title: 'Error',
       message: error,
       type: 'error',
     });
-  };
+  }, [addToast]);
 
   return (
     <div className="relative flex min-h-screen items-center justify-center overflow-hidden bg-background px-4 sm:px-6">

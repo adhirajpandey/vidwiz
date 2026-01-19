@@ -1,4 +1,4 @@
-import { useEffect, useRef } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import config from '../config';
 import { FcGoogle } from 'react-icons/fc';
 
@@ -36,6 +36,7 @@ interface GoogleSignInButtonProps {
 
 export default function GoogleSignInButton({ onSuccess, onError }: GoogleSignInButtonProps) {
   const buttonRef = useRef<HTMLDivElement>(null);
+  const [isReady, setIsReady] = useState(false);
 
   useEffect(() => {
     if (!config.GOOGLE_CLIENT_ID) {
@@ -64,6 +65,9 @@ export default function GoogleSignInButton({ onSuccess, onError }: GoogleSignInB
           shape: 'pill',
           width: 400, // Large width to ensure it covers the container
         });
+        
+        // Mark as ready once rendered
+        setIsReady(true);
       }
     };
 
@@ -89,18 +93,29 @@ export default function GoogleSignInButton({ onSuccess, onError }: GoogleSignInB
   return (
     <div className="relative w-full group cursor-pointer">
       {/* Custom Visual Button */}
-      <div className="relative flex items-center justify-center gap-3 w-full rounded-xl bg-white/[0.05] border border-white/[0.1] px-4 py-3.5 transition-all duration-300 md:hover:bg-white/[0.08] md:hover:border-white/[0.2] md:hover:scale-[1.01] shadow-lg shadow-black/20">
+      <div 
+        className={`relative flex items-center justify-center gap-3 w-full rounded-xl bg-white/[0.05] border border-white/[0.1] px-4 py-3.5 transition-all duration-300 md:hover:bg-white/[0.08] md:hover:border-white/[0.2] md:hover:scale-[1.01] shadow-lg shadow-black/20 ${!isReady ? 'opacity-80 cursor-wait' : ''}`}
+      >
         {/* Glow Effect */}
         <div className="absolute inset-0 rounded-xl bg-gradient-to-r from-white/0 via-white/[0.05] to-white/0 opacity-0 group-hover:opacity-100 transition-opacity duration-500 blur-sm" />
         
-        <FcGoogle className="w-5 h-5 relative z-10" />
-        <span className="text-sm font-medium text-white/90 relative z-10 tracking-wide">Continue with Google</span>
+        {isReady ? (
+          <>
+            <FcGoogle className="w-5 h-5 relative z-10" />
+            <span className="text-sm font-medium text-white/90 relative z-10 tracking-wide">Continue with Google</span>
+          </>
+        ) : (
+          <div className="flex items-center gap-2">
+            <div className="h-4 w-4 animate-spin rounded-full border-2 border-white/20 border-t-white"></div>
+            <span className="text-sm font-medium text-white/50">Loading...</span>
+          </div>
+        )}
       </div>
 
-      {/* Invisible Interactive Layer */}
+      {/* Invisible Interactive Layer - only present when ready */}
       <div 
         ref={buttonRef} 
-        className="absolute inset-0 opacity-0 z-20 overflow-hidden flex items-center justify-center [&>div]:w-full [&>div]:h-full [&>iframe]:scale-[1.5] [&>iframe]:opacity-0 cursor-pointer"
+        className={`absolute inset-0 z-20 overflow-hidden flex items-center justify-center [&>div]:w-full [&>div]:h-full [&>iframe]:scale-[1.1] ${isReady ? 'opacity-[0.01]' : 'hidden'}`}
         aria-hidden="true"
       />
     </div>
