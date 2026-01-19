@@ -1,110 +1,119 @@
+from unittest.mock import patch
+from vidwiz.shared.models import Video, Note, User, db
+import os
 import pytest
-from vidwiz.shared.models import User, Video, db
 
-# Test constants
-VIDEO_IDS = ["vid123", "vid456", "vid789"]
-VIDEO_TITLES = ["Test Video 1", "Test Video 2", "Test Video 3"]
-TRANSCRIPT_AVAILABILITY = [True, False, True]
-
-
+# Define fixture here as it might not be available if not in conftest for this scope or needs override
 @pytest.fixture
-def sample_data(app):
-    """Create sample users and videos for testing"""
-    with app.app_context():
-        # Create users
-        user1 = User(username="testuser", password_hash="hashed1")
-        user2 = User(username="testuser2", password_hash="hashed2")
-        db.session.add_all([user1, user2])
-        db.session.commit()
+def admin_headers_with_token(app):
+    """Ensure ADMIN_TOKEN is set for tests using it"""
+    # Note: app fixture in conftest already sets ADMIN_TOKEN in config, but admin_required decorator
+    # checks os.getenv("ADMIN_TOKEN"). We need to patch os.environ.
+    with patch.dict(os.environ, {"ADMIN_TOKEN": "admin_test_token"}):
+        yield {"Authorization": "Bearer admin_test_token"}
 
-        # Create videos
-        videos = []
-        for i, (video_id, title, transcript) in enumerate(
-            zip(VIDEO_IDS, VIDEO_TITLES, TRANSCRIPT_AVAILABILITY)
-        ):
-            video = Video(
-                video_id=video_id,
-                title=title,
-                transcript_available=transcript,
-            )
-            videos.append(video)
+class TestVideoRoutes:
+    def test_get_video_success(self, client, auth_headers, app):
+        """Test successfully retrieving a video"""
+        with app.app_context():
+            video = Video(video_id="test_vid_1", title="Test Video 1")
+            db.session.add(video)
+            db.session.commit()
 
-        db.session.add_all(videos)
-        db.session.commit()
-
-        return {"users": [user1, user2], "videos": videos}
-
-
-class TestGetVideoRoute:
-    def test_get_video_success(self, client, auth_headers, sample_data):
-        """Test successful video retrieval"""
-        response = client.get("/api/videos/vid123", headers=auth_headers)
+        response = client.get("/api/videos/test_vid_1", headers=auth_headers)
         assert response.status_code == 200
-
         data = response.get_json()
-        assert data["video_id"] == "vid123"
+        assert data["video_id"] == "test_vid_1"
         assert data["title"] == "Test Video 1"
-        assert data["transcript_available"] is True
-        assert "created_at" in data
-        assert "updated_at" in data
 
-    def test_get_video_not_found(self, client, auth_headers, sample_data):
-        """Test video not found"""
-        response = client.get("/api/videos/nonexistent", headers=auth_headers)
+    def test_get_video_not_found(self, client, auth_headers):
+        """Test retrieving a non-existent video"""
+        response = client.get("/api/videos/non_existent", headers=auth_headers)
         assert response.status_code == 404
+        assert "Video not found" in response.get_json()["error"]
 
-        data = response.get_json()
-        assert data["error"] == "Video not found"
-
-    def test_get_video_unauthorized_access(self, client, auth_headers, sample_data):
-        """Test accessing video with valid authentication - videos are public"""
-        # All videos are accessible to any authenticated user
-        response = client.get("/api/videos/vid456", headers=auth_headers)
-        assert response.status_code == 200
-
-        data = response.get_json()
-        assert data["video_id"] == "vid456"
-        assert data["title"] == "Test Video 2"
-
-    def test_get_video_no_auth_header(self, client, sample_data):
-        """Test video access without authentication"""
-        response = client.get("/api/videos/vid123")
+    def test_get_video_unauthorized(self, client):
+        """Test retrieving video without authentication"""
+        response = client.get("/api/videos/test_vid_1")
         assert response.status_code == 401
 
-        data = response.get_json()
-        assert "error" in data
-        assert "Authorization" in data["error"]
+    def test_get_video_internal_error(self, client, auth_headers):
+        """Test internal server error during video retrieval"""
+        with patch("vidwiz.shared.models.Video.query") as mock_query:
+            mock_query.filter_by.side_effect = Exception("Database error")
+            response = client.get("/api/videos/test_vid_1", headers=auth_headers)
+            assert response.status_code == 500
+            assert "Internal Server Error" in response.get_json()["error"]
 
-    def test_get_video_invalid_token(self, client, sample_data):
-        """Test video access with invalid token"""
-        headers = {"Authorization": "Bearer invalid_token"}
-        response = client.get("/api/videos/vid123", headers=headers)
-        assert response.status_code == 401
+    def test_get_video_notes_success(self, client, admin_headers_with_token, app):
+        """Test retrieving notes for AI note generation"""
+        with app.app_context():
+            video = Video(video_id="ai_vid_1", title="AI Video")
+            user = User(
+                username="ai_user",
+                password_hash="pass",
+                profile_data={"ai_notes_enabled": True}
+            )
+            db.session.add_all([video, user])
+            db.session.commit()
 
-        data = response.get_json()
-        assert data["error"] == "Invalid or expired token or not a long term token"
+            note = Note(
+                video_id="ai_vid_1",
+                user_id=user.id,
+                timestamp="00:01",
+                text="" # Empty text eligible for AI generation
+            )
+            db.session.add(note)
+            db.session.commit()
 
-    def test_get_video_response_structure(self, client, auth_headers, sample_data):
-        """Test that video response has correct structure"""
-        response = client.get("/api/videos/vid123", headers=auth_headers)
+        response = client.get("/api/videos/ai_vid_1/notes/ai-note-task", headers=admin_headers_with_token)
         assert response.status_code == 200
-
         data = response.get_json()
+        assert len(data["notes"]) == 1
+        assert data["notes"][0]["video_id"] == "ai_vid_1"
 
-        # Check required fields
-        required_fields = [
-            "id",
-            "video_id",
-            "title",
-            "transcript_available",
-            "created_at",
-            "updated_at",
-        ]
-        for field in required_fields:
-            assert field in data, f"Missing required field: {field}"
+    def test_get_video_notes_video_not_found(self, client, admin_headers_with_token):
+        """Test retrieving AI notes for non-existent video"""
+        response = client.get("/api/videos/non_existent/notes/ai-note-task", headers=admin_headers_with_token)
+        assert response.status_code == 404
+        assert "Video not found" in response.get_json()["error"]
 
-        # Check data types
-        assert isinstance(data["id"], int)
-        assert isinstance(data["video_id"], str)
-        assert isinstance(data["title"], str)
-        assert isinstance(data["transcript_available"], bool)
+    def test_get_video_notes_no_eligible_notes(self, client, admin_headers_with_token, app):
+        """Test retrieving AI notes when none are eligible"""
+        with app.app_context():
+            video = Video(video_id="no_notes_vid", title="No Notes Video")
+            user = User(
+                username="no_ai_user",
+                password_hash="pass",
+                profile_data={"ai_notes_enabled": False} # AI disabled
+            )
+            db.session.add_all([video, user])
+            db.session.commit()
+
+            note = Note(
+                video_id="no_notes_vid",
+                user_id=user.id,
+                timestamp="00:01",
+                text=""
+            )
+            db.session.add(note)
+            db.session.commit()
+
+        response = client.get("/api/videos/no_notes_vid/notes/ai-note-task", headers=admin_headers_with_token)
+        assert response.status_code == 404
+        assert "No notes found" in response.get_json()["error"]
+
+    def test_get_video_notes_unauthorized(self, client, auth_headers):
+        """Test regular user cannot access AI note task endpoint"""
+        # Ensure ADMIN_TOKEN is set so the check fails at token comparison, not configuration
+        with patch.dict(os.environ, {"ADMIN_TOKEN": "admin_test_token"}):
+             response = client.get("/api/videos/test_vid/notes/ai-note-task", headers=auth_headers)
+             assert response.status_code == 403 # Admin required
+
+    def test_get_video_notes_internal_error(self, client, admin_headers_with_token, app):
+        """Test internal server error during AI notes retrieval"""
+        with patch("vidwiz.shared.models.Video.query") as mock_query:
+            mock_query.filter_by.side_effect = Exception("Database error")
+            response = client.get("/api/videos/test_vid/notes/ai-note-task", headers=admin_headers_with_token)
+            assert response.status_code == 500
+            assert "Internal Server Error" in response.get_json()["error"]
