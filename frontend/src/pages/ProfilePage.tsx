@@ -8,6 +8,7 @@ import { Settings, Zap, User as UserIcon, Calendar } from 'lucide-react';
 
 interface UserProfile {
   username: string;
+  name?: string;
   ai_notes_enabled: boolean;
   token_exists: boolean;
 }
@@ -216,7 +217,7 @@ export default function ProfilePage() {
                   <div className="absolute inset-0 bg-gradient-to-br from-violet-500 to-fuchsia-600 rounded-full blur-xl opacity-30 animate-pulse"></div>
                   <div className="relative w-24 h-24 md:w-32 md:h-32 rounded-full bg-gradient-to-br from-violet-500 to-fuchsia-600 p-1 shadow-2xl">
                     <div className="w-full h-full rounded-full bg-background flex items-center justify-center text-4xl md:text-5xl font-bold text-foreground">
-                      {user.username.charAt(0).toUpperCase()}
+                      {(user.name || user.username).charAt(0).toUpperCase()}
                     </div>
                   </div>
                   <div className="absolute -bottom-2 md:bottom-0 right-0 md:right-2">
@@ -229,8 +230,11 @@ export default function ProfilePage() {
                 {/* Info */}
                 <div className="text-center md:text-left pt-2">
                   <h1 className="text-3xl md:text-4xl font-bold tracking-tight mb-2">
-                    {user.username}
+                    {user.name || user.username}
                   </h1>
+                  {user.name && (
+                    <p className="text-lg text-foreground/60 mb-2">{user.username}</p>
+                  )}
                   <div className="flex flex-wrap items-center justify-center md:justify-start gap-3 text-sm text-foreground/60">
                     <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-white/[0.04] border border-white/[0.08]">
                       <UserIcon className="w-3.5 h-3.5" />

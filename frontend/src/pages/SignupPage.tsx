@@ -1,5 +1,5 @@
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { useToast } from '../hooks/useToast';
 import vidwizLogo from '../public/vidwiz.png';
@@ -7,6 +7,7 @@ import config from '../config';
 import { ArrowRight, User, Lock, Check, Sparkles } from 'lucide-react';
 import AmbientBackground from '../components/ui/AmbientBackground';
 import GlassCard from '../components/ui/GlassCard';
+import GoogleSignInButton from '../components/GoogleSignInButton';
 
 export default function SignupPage() {
   const [username, setUsername] = useState('');
@@ -93,6 +94,53 @@ export default function SignupPage() {
     }
   };
 
+  const handleGoogleSuccess = useCallback(async (credential: string) => {
+    setIsLoading(true);
+    try {
+      const response = await fetch(`${config.API_URL}/user/google/login`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({ credential }),
+      });
+
+      const data = await response.json();
+
+      if (response.ok) {
+        localStorage.setItem('token', data.token);
+        addToast({
+          title: 'Welcome!',
+          message: 'Account created with Google',
+          type: 'success',
+        });
+        navigate('/dashboard');
+      } else {
+        addToast({
+          title: 'Sign-up Failed',
+          message: data.error || 'Google sign-up failed',
+          type: 'error',
+        });
+      }
+    } catch (error) {
+      addToast({
+        title: 'Connection Error',
+        message: 'Could not connect to server',
+        type: 'error',
+      });
+    } finally {
+      setIsLoading(false);
+    }
+  }, [addToast, navigate]);
+
+  const handleGoogleError = useCallback((error: string) => {
+    addToast({
+      title: 'Error',
+      message: error,
+      type: 'error',
+    });
+  }, [addToast]);
+
   return (
     <div className="relative flex min-h-screen items-center justify-center overflow-hidden bg-background px-4 sm:px-6">
       {/* Ambient Background Effects */}
@@ -128,6 +176,22 @@ export default function SignupPage() {
           </div>
 
           <div className="p-8 space-y-6">
+            {/* Google Sign In first */}
+            {config.GOOGLE_CLIENT_ID && (
+              <>
+                <GoogleSignInButton
+                  onSuccess={handleGoogleSuccess}
+                  onError={handleGoogleError}
+                />
+                
+                <div className="relative flex items-center">
+                  <div className="flex-grow border-t border-white/[0.08]"></div>
+                  <span className="mx-4 text-xs text-white/30 select-none">or sign up with</span>
+                  <div className="flex-grow border-t border-white/[0.08]"></div>
+                </div>
+              </>
+            )}
+
             <div className="space-y-4">
               <div className="space-y-2">
                 <label htmlFor="username" className="text-xs font-medium uppercase tracking-wider text-white/40 ml-1 select-none">
@@ -212,6 +276,8 @@ export default function SignupPage() {
                 </>
               )}
             </button>
+
+
           </div>
 
           <div className="border-t border-white/[0.06] bg-white/[0.02] p-6 text-center select-none">

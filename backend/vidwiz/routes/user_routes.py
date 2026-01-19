@@ -16,6 +16,9 @@ from datetime import datetime, timedelta, timezone
 from flask import current_app
 from pydantic import ValidationError
 from vidwiz.shared.logging import get_logger
+from google.oauth2 import id_token
+from google.auth.transport import requests as google_requests
+import secrets
 
 user_bp = Blueprint("user", __name__)
 logger = get_logger("vidwiz.routes.user_routes")
@@ -74,6 +77,7 @@ def login():
         {
             "user_id": user.id,
             "username": user.username,
+            "name": user.name or user.username,
             "exp": datetime.now(timezone.utc) + timedelta(hours=current_app.config["JWT_EXPIRY_HOURS"]),
         },
         current_app.config["SECRET_KEY"],
@@ -187,6 +191,7 @@ def get_profile():
         profile_data = {
             "id": user.id,
             "username": user.username,
+            "name": user.name,
             "ai_notes_enabled": ai_notes_enabled,
             "token_exists": token_exists,
             "long_term_token": user.long_term_token,
@@ -247,4 +252,124 @@ def update_profile():
     except Exception as e:
         db.session.rollback()
         logger.exception(f"Error in update_profile: {e}")
+        return jsonify({"error": f"Internal Server Error: {str(e)}"}), 500
+
+
+def generate_unique_username(base_name: str) -> str:
+    """Generate a unique username based on a base name."""
+    # Clean the base name
+    clean_name = "".join(c for c in base_name if c.isalnum() or c == "_").lower()
+    if not clean_name:
+        clean_name = "user"
+    
+    # Check if base name is available
+    if not User.query.filter_by(username=clean_name).first():
+        return clean_name
+    
+    # Add random suffix until unique
+    for _ in range(100):
+        suffix = secrets.token_hex(3)
+        candidate = f"{clean_name}_{suffix}"
+        if not User.query.filter_by(username=candidate).first():
+            return candidate
+    
+    # Fallback: use full random
+    return f"user_{secrets.token_hex(6)}"
+
+
+@user_bp.route("/user/google/login", methods=["POST"])
+def google_login():
+    """
+    Handle Google Sign-In from the frontend.
+    Frontend sends Google ID token (credential), backend verifies it and creates/logs in user.
+    """
+    data = request.get_json(silent=True)
+    if not data:
+        logger.warning("Google login attempt missing JSON body")
+        return jsonify({"error": "Request body must be JSON"}), 400
+
+    credential = data.get("credential")
+    if not credential:
+        logger.warning("Google login attempt missing credential")
+        return jsonify({"error": "Missing Google credential"}), 400
+
+    google_client_id = current_app.config.get("GOOGLE_CLIENT_ID")
+    if not google_client_id:
+        logger.error("GOOGLE_CLIENT_ID not configured")
+        return jsonify({"error": "Google OAuth not configured"}), 500
+
+    try:
+        # Verify the Google ID token
+        idinfo = id_token.verify_oauth2_token(
+            credential,
+            google_requests.Request(),
+            google_client_id
+        )
+
+        # Extract user info from the verified token
+        google_id = idinfo["sub"]
+        email = idinfo.get("email")
+        name = idinfo.get("name", email.split("@")[0] if email else "user")
+
+        logger.info(f"Google login attempt for google_id={google_id}, email={email}")
+
+        # Find existing user by google_id
+        user = User.query.filter_by(google_id=google_id).first()
+
+        if not user and email:
+            # Check if email already exists (user signed up with password, now linking Google)
+            user = User.query.filter_by(email=email).first()
+            if user:
+                # Link Google account to existing user
+                user.google_id = google_id
+                logger.info(f"Linked Google account to existing user_id={user.id}")
+
+        if not user:
+            # Create new user
+            # For Google users, use email as username if available, otherwise fallback to generated unique name
+            username = email if email else generate_unique_username(name)
+            
+            # If email is used as username, ensure it's unique (it should be if we checked email existence above)
+            if email and User.query.filter_by(username=username).first():
+                 # Should not happen if logic above is correct, but safe fallback
+                 username = generate_unique_username(name)
+
+            user = User(
+                username=username,
+                google_id=google_id,
+                email=email,
+                name=name, # Store real name from Google
+            )
+            db.session.add(user)
+            logger.info(f"Created new Google user with username='{username}'")
+        
+        # If user exists but name is missing, update it
+        if user and not user.name:
+            user.name = name
+            flag_modified(user, "name")
+
+        db.session.commit()
+
+        # Generate JWT token
+        token = jwt.encode(
+            {
+                "user_id": user.id,
+                "username": user.username,
+                "name": user.name or user.username,
+                "exp": datetime.now(timezone.utc) + timedelta(hours=current_app.config["JWT_EXPIRY_HOURS"]),
+            },
+            current_app.config["SECRET_KEY"],
+            algorithm="HS256",
+        )
+
+        logger.info(f"Google login success for user_id={user.id}, username='{user.username}'")
+        return jsonify({"token": token})
+
+    except ValueError as e:
+        # Invalid token
+        logger.warning(f"Invalid Google token: {e}")
+        return jsonify({"error": "Invalid Google credential"}), 401
+    except Exception as e:
+        db.session.rollback()
+        logger.exception(f"Error in google_login: {e}")
         return jsonify({"error": f"Internal Server Error: {str(e)}"}), 500
