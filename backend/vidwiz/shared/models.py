@@ -72,6 +72,7 @@ class User(db.Model):
     password_hash = Column(Text, nullable=True)  # Nullable for OAuth users
     google_id = Column(Text, unique=True, nullable=True)
     email = Column(Text, unique=True, nullable=True)
+    profile_image_url = Column(Text, nullable=True)  # Store profile picture URL from Google
     long_term_token = Column(Text, nullable=True)
     profile_data = Column(JSON, nullable=True)
     created_at = Column(TIMESTAMP(timezone=True), default=func.now())

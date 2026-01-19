@@ -34,6 +34,13 @@ def migrate():
                 except Exception as e:
                     print(f"Note: Could not add email: {e}")
 
+                print("Adding profile_image_url column...")
+                try:
+                    conn.execute(text("ALTER TABLE users ADD COLUMN IF NOT EXISTS profile_image_url TEXT;"))
+                    print("profile_image_url column added (or already existed).")
+                except Exception as e:
+                    print(f"Note: Could not add profile_image_url: {e}")
+
                 print("Altering password_hash to be nullable...")
                 try:
                     # Postgres syntax

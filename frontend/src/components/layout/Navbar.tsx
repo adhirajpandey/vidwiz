@@ -14,11 +14,12 @@ export default function Navbar() {
   const navigate = useNavigate();
   const [isLoggedIn, setIsLoggedIn] = useState(false);
   const [userName, setUserName] = useState<string | null>(null);
+  const [profileImageUrl, setProfileImageUrl] = useState<string | null>(null);
   const [isDropdownOpen, setIsDropdownOpen] = useState(false);
   const dropdownRef = useRef<HTMLDivElement>(null);
 
   // Decode JWT to get user info
-  const decodeJwt = (token: string): { username?: string; name?: string } | null => {
+  const decodeJwt = (token: string): { username?: string; name?: string; profile_image_url?: string } | null => {
     try {
       const base64Url = token.split('.')[1];
       const base64 = base64Url.replace(/-/g, '+').replace(/_/g, '/');
@@ -42,10 +43,12 @@ export default function Navbar() {
       const decoded = decodeJwt(token);
       if (decoded) {
         setUserName(decoded.name || decoded.username || null);
+        setProfileImageUrl(decoded.profile_image_url || null);
       }
     } else {
       setIsLoggedIn(false);
       setUserName(null);
+      setProfileImageUrl(null);
     }
   }, [location]);
 
@@ -79,6 +82,7 @@ export default function Navbar() {
     localStorage.removeItem('token');
     setIsLoggedIn(false);
     setUserName(null);
+    setProfileImageUrl(null);
     setIsDropdownOpen(false);
     navigate('/login');
   };
@@ -172,7 +176,19 @@ export default function Navbar() {
               >
                 {/* Avatar */}
                 <div className="relative">
-                  <div className="w-9 h-9 rounded-full bg-gradient-to-br from-red-500 to-red-600 flex items-center justify-center text-white font-semibold text-sm shadow-lg shadow-red-500/25 transition-transform duration-200 group-hover:scale-105">
+                  {profileImageUrl ? (
+                    <img 
+                      src={profileImageUrl} 
+                      alt={userName || 'User'}
+                      className="w-9 h-9 rounded-full shadow-lg shadow-red-500/25 transition-transform duration-200 group-hover:scale-105 object-cover"
+                      onError={(e) => {
+                        // Fallback to char avatar on image load error
+                        e.currentTarget.style.display = 'none';
+                        e.currentTarget.nextElementSibling?.classList.remove('hidden');
+                      }}
+                    />
+                  ) : null}
+                  <div className={`w-9 h-9 rounded-full bg-gradient-to-br from-red-500 to-red-600 flex items-center justify-center text-white font-semibold text-sm shadow-lg shadow-red-500/25 transition-transform duration-200 group-hover:scale-105 ${profileImageUrl ? 'hidden' : ''}`}>
                     {getAvatarChar()}
                   </div>
                   {/* Online indicator */}
@@ -187,7 +203,18 @@ export default function Navbar() {
                   {/* User Info Header */}
                   <div className="px-4 py-3 border-b border-white/[0.06] bg-white/[0.02]">
                     <div className="flex items-center gap-3">
-                      <div className="w-10 h-10 rounded-full bg-gradient-to-br from-red-500 to-red-600 flex items-center justify-center text-white font-semibold text-base">
+                      {profileImageUrl ? (
+                        <img 
+                          src={profileImageUrl} 
+                          alt={userName || 'User'}
+                          className="w-10 h-10 rounded-full object-cover"
+                          onError={(e) => {
+                            e.currentTarget.style.display = 'none';
+                            e.currentTarget.nextElementSibling?.classList.remove('hidden');
+                          }}
+                        />
+                      ) : null}
+                      <div className={`w-10 h-10 rounded-full bg-gradient-to-br from-red-500 to-red-600 flex items-center justify-center text-white font-semibold text-base ${profileImageUrl ? 'hidden' : ''}`}>
                         {getAvatarChar()}
                       </div>
                       <div className="flex-1 min-w-0">

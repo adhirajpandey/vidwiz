@@ -78,6 +78,7 @@ def login():
             "user_id": user.id,
             "username": user.username,
             "name": user.name or user.username,
+            "profile_image_url": user.profile_image_url,
             "exp": datetime.now(timezone.utc) + timedelta(hours=current_app.config["JWT_EXPIRY_HOURS"]),
         },
         current_app.config["SECRET_KEY"],
@@ -192,6 +193,7 @@ def get_profile():
             "id": user.id,
             "username": user.username,
             "name": user.name,
+            "profile_image_url": user.profile_image_url,
             "ai_notes_enabled": ai_notes_enabled,
             "token_exists": token_exists,
             "long_term_token": user.long_term_token,
@@ -310,6 +312,7 @@ def google_login():
         google_id = idinfo["sub"]
         email = idinfo.get("email")
         name = idinfo.get("name", email.split("@")[0] if email else "user")
+        picture = idinfo.get("picture")  # Profile image URL from Google
 
         logger.info(f"Google login attempt for google_id={google_id}, email={email}")
 
@@ -338,7 +341,8 @@ def google_login():
                 username=username,
                 google_id=google_id,
                 email=email,
-                name=name, # Store real name from Google
+                name=name,  # Store real name from Google
+                profile_image_url=picture,  # Store profile image URL from Google
             )
             db.session.add(user)
             logger.info(f"Created new Google user with username='{username}'")
@@ -347,6 +351,10 @@ def google_login():
         if user and not user.name:
             user.name = name
             flag_modified(user, "name")
+        
+        # Always update profile image URL on login (in case it changed)
+        if user and picture:
+            user.profile_image_url = picture
 
         db.session.commit()
 
@@ -356,6 +364,7 @@ def google_login():
                 "user_id": user.id,
                 "username": user.username,
                 "name": user.name or user.username,
+                "profile_image_url": user.profile_image_url,
                 "exp": datetime.now(timezone.utc) + timedelta(hours=current_app.config["JWT_EXPIRY_HOURS"]),
             },
             current_app.config["SECRET_KEY"],

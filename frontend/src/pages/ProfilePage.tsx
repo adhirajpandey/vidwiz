@@ -9,6 +9,7 @@ import { Settings, Zap, User as UserIcon, Calendar } from 'lucide-react';
 interface UserProfile {
   username: string;
   name?: string;
+  profile_image_url?: string;
   ai_notes_enabled: boolean;
   token_exists: boolean;
 }
@@ -216,7 +217,19 @@ export default function ProfilePage() {
                 <div className="relative">
                   <div className="absolute inset-0 bg-gradient-to-br from-violet-500 to-fuchsia-600 rounded-full blur-xl opacity-30 animate-pulse"></div>
                   <div className="relative w-24 h-24 md:w-32 md:h-32 rounded-full bg-gradient-to-br from-violet-500 to-fuchsia-600 p-1 shadow-2xl">
-                    <div className="w-full h-full rounded-full bg-background flex items-center justify-center text-4xl md:text-5xl font-bold text-foreground">
+                    {user.profile_image_url ? (
+                      <img 
+                        src={user.profile_image_url} 
+                        alt={user.name || user.username}
+                        className="w-full h-full rounded-full object-cover"
+                        onError={(e) => {
+                          // Fallback to char avatar on image load error
+                          e.currentTarget.style.display = 'none';
+                          e.currentTarget.nextElementSibling?.classList.remove('hidden');
+                        }}
+                      />
+                    ) : null}
+                    <div className={`w-full h-full rounded-full bg-background flex items-center justify-center text-4xl md:text-5xl font-bold text-foreground ${user.profile_image_url ? 'hidden' : ''}`}>
                       {(user.name || user.username).charAt(0).toUpperCase()}
                     </div>
                   </div>
