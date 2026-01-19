@@ -13,13 +13,13 @@ export default function Navbar() {
   const location = useLocation();
   const navigate = useNavigate();
   const [isLoggedIn, setIsLoggedIn] = useState(false);
-  const [userName, setUserName] = useState<string | null>(null);
+  const [displayName, setDisplayName] = useState<string | null>(null);
   const [profileImageUrl, setProfileImageUrl] = useState<string | null>(null);
   const [isDropdownOpen, setIsDropdownOpen] = useState(false);
   const dropdownRef = useRef<HTMLDivElement>(null);
 
   // Decode JWT to get user info
-  const decodeJwt = (token: string): { username?: string; name?: string; profile_image_url?: string } | null => {
+  const decodeJwt = (token: string): { email?: string; name?: string; profile_image_url?: string } | null => {
     try {
       const base64Url = token.split('.')[1];
       const base64 = base64Url.replace(/-/g, '+').replace(/_/g, '/');
@@ -42,12 +42,12 @@ export default function Navbar() {
       setIsLoggedIn(true);
       const decoded = decodeJwt(token);
       if (decoded) {
-        setUserName(decoded.name || decoded.username || null);
+        setDisplayName(decoded.name || decoded.email || null);
         setProfileImageUrl(decoded.profile_image_url || null);
       }
     } else {
       setIsLoggedIn(false);
-      setUserName(null);
+      setDisplayName(null);
       setProfileImageUrl(null);
     }
   }, [location]);
@@ -81,7 +81,7 @@ export default function Navbar() {
   const handleLogout = () => {
     localStorage.removeItem('token');
     setIsLoggedIn(false);
-    setUserName(null);
+    setDisplayName(null);
     setProfileImageUrl(null);
     setIsDropdownOpen(false);
     navigate('/login');
@@ -91,8 +91,8 @@ export default function Navbar() {
 
   // Get first character for avatar
   const getAvatarChar = () => {
-    if (userName && userName.length > 0) {
-      return userName.charAt(0).toUpperCase();
+    if (displayName && displayName.length > 0) {
+      return displayName.charAt(0).toUpperCase();
     }
     return 'U';
   };
@@ -179,7 +179,7 @@ export default function Navbar() {
                   {profileImageUrl ? (
                     <img 
                       src={profileImageUrl} 
-                      alt={userName || 'User'}
+                      alt={displayName || 'User'}
                       className="w-9 h-9 rounded-full shadow-lg shadow-red-500/25 transition-transform duration-200 group-hover:scale-105 object-cover"
                       onError={(e) => {
                         // Fallback to char avatar on image load error
@@ -206,7 +206,7 @@ export default function Navbar() {
                       {profileImageUrl ? (
                         <img 
                           src={profileImageUrl} 
-                          alt={userName || 'User'}
+                          alt={displayName || 'User'}
                           className="w-10 h-10 rounded-full object-cover"
                           onError={(e) => {
                             e.currentTarget.style.display = 'none';
@@ -218,7 +218,7 @@ export default function Navbar() {
                         {getAvatarChar()}
                       </div>
                       <div className="flex-1 min-w-0">
-                        <p className="text-sm font-medium text-foreground truncate">{userName || 'User'}</p>
+                        <p className="text-sm font-medium text-foreground truncate">{displayName || 'User'}</p>
                         <p className="text-xs text-foreground/50">Manage your account</p>
                       </div>
                     </div>

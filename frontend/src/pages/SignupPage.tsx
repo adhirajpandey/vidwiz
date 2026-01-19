@@ -4,24 +4,29 @@ import { Link, useNavigate } from 'react-router-dom';
 import { useToast } from '../hooks/useToast';
 import vidwizLogo from '../public/vidwiz.png';
 import config from '../config';
-import { ArrowRight, User, Lock, Check, Sparkles } from 'lucide-react';
+import { ArrowRight, User, Lock, Check, Sparkles, Mail } from 'lucide-react';
 import AmbientBackground from '../components/ui/AmbientBackground';
 import GlassCard from '../components/ui/GlassCard';
 import GoogleSignInButton from '../components/GoogleSignInButton';
 
 export default function SignupPage() {
-  const [username, setUsername] = useState('');
+  const [email, setEmail] = useState('');
+  const [name, setName] = useState('');
   const [password, setPassword] = useState('');
   const [confirmPassword, setConfirmPassword] = useState('');
   const [passwordError, setPasswordError] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
   const { addToast } = useToast();
 
+  // Email validation regex
+  const emailRegex = /^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}$/;
+  
   // Derived validation states
   const isPasswordValid = password.length > 6;
-  const isUsernameValid = username.length > 4;
+  const isEmailValid = emailRegex.test(email);
+  const isNameValid = name.trim().length >= 2;
   const passwordsMatch = password === confirmPassword;
-  const isFormValid = isUsernameValid && isPasswordValid && passwordsMatch && confirmPassword.length > 0;
+  const isFormValid = isEmailValid && isNameValid && isPasswordValid && passwordsMatch && confirmPassword.length > 0;
   const navigate = useNavigate();
 
   useEffect(() => {
@@ -34,8 +39,11 @@ export default function SignupPage() {
   }, [password, confirmPassword]);
 
   const validateFields = () => {
-    if (username.length <= 4) {
-      return 'Username must be greater than 4 characters';
+    if (!isEmailValid) {
+      return 'Please enter a valid email address';
+    }
+    if (!isNameValid) {
+      return 'Name must be at least 2 characters';
     }
     if (password.length <= 6) {
       return 'Password must be greater than 6 characters';
@@ -70,7 +78,7 @@ export default function SignupPage() {
         headers: {
           'Content-Type': 'application/json',
         },
-        body: JSON.stringify({ username, password }),
+        body: JSON.stringify({ email, password, name }),
       });
 
       const data = await response.json();
@@ -200,31 +208,59 @@ export default function SignupPage() {
 
             <div className="space-y-4">
               <div className="space-y-2">
-                <label htmlFor="username" className="text-xs font-medium uppercase tracking-wider text-white/40 ml-1 select-none">
-                  Username
+                <label htmlFor="email" className="text-xs font-medium uppercase tracking-wider text-white/40 ml-1 select-none">
+                  Email
+                </label>
+                <div className="relative group">
+                  <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none text-white/30 group-focus-within:text-red-400 transition-colors">
+                    <Mail className="h-5 w-5" />
+                  </div>
+                  <input
+                    id="email"
+                    name="email"
+                    type="email"
+                    required
+                    value={email}
+                    onChange={(e) => setEmail(e.target.value)}
+                    className="block w-full rounded-xl border border-white/[0.08] bg-white/[0.03] pl-10 pr-3 py-3 text-white placeholder-white/20 focus:border-red-500/50 focus:bg-white/[0.05] focus:outline-none focus:ring-1 focus:ring-red-500/50 transition-all sm:text-sm"
+                    placeholder="Enter your email"
+                  />
+                </div>
+                {email && !isEmailValid && (
+                  <p className="text-xs text-amber-400 ml-1 mt-1 animate-in slide-in-from-top-1">Please enter a valid email address</p>
+                )}
+                {isEmailValid && (
+                  <p className="text-xs text-green-400 ml-1 mt-1 animate-in slide-in-from-top-1">✓ Email is valid</p>
+                )}
+              </div>
+
+              <div className="space-y-2">
+                <label htmlFor="name" className="text-xs font-medium uppercase tracking-wider text-white/40 ml-1 select-none">
+                  Name
                 </label>
                 <div className="relative group">
                   <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none text-white/30 group-focus-within:text-red-400 transition-colors">
                     <User className="h-5 w-5" />
                   </div>
                   <input
-                    id="username"
-                    name="username"
+                    id="name"
+                    name="name"
                     type="text"
                     required
-                    value={username}
-                    onChange={(e) => setUsername(e.target.value)}
+                    value={name}
+                    onChange={(e) => setName(e.target.value)}
                     className="block w-full rounded-xl border border-white/[0.08] bg-white/[0.03] pl-10 pr-3 py-3 text-white placeholder-white/20 focus:border-red-500/50 focus:bg-white/[0.05] focus:outline-none focus:ring-1 focus:ring-red-500/50 transition-all sm:text-sm"
-                    placeholder="Choose a username"
+                    placeholder="Enter your name"
                   />
                 </div>
-                {username && !isUsernameValid && (
-                  <p className="text-xs text-amber-400 ml-1 mt-1 animate-in slide-in-from-top-1">Username must be more than 4 characters</p>
+                {name && !isNameValid && (
+                  <p className="text-xs text-amber-400 ml-1 mt-1 animate-in slide-in-from-top-1">Name must be at least 2 characters</p>
                 )}
-                {isUsernameValid && (
-                  <p className="text-xs text-green-400 ml-1 mt-1 animate-in slide-in-from-top-1">✓ Username is valid</p>
+                {isNameValid && (
+                  <p className="text-xs text-green-400 ml-1 mt-1 animate-in slide-in-from-top-1">✓ Name is valid</p>
                 )}
               </div>
+
 
               <div className="space-y-2">
                 <label htmlFor="password" className="text-xs font-medium uppercase tracking-wider text-white/40 ml-1 select-none">

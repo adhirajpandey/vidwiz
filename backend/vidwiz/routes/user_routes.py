@@ -38,18 +38,19 @@ def signup():
         logger.warning(f"Signup validation error: {e}")
         return jsonify({"error": f"Invalid data: {str(e)}"}), 400
 
-    if User.query.filter_by(username=user_data.username).first():
-        logger.info(f"Signup attempt with existing username='{user_data.username}'")
-        return jsonify({"error": "Username already exists."}), 400
+    if User.query.filter_by(email=user_data.email).first():
+        logger.info(f"Signup attempt with existing email='{user_data.email}'")
+        return jsonify({"error": "Email already exists."}), 400
 
     user = User(
-        username=user_data.username,
+        email=user_data.email,
+        name=user_data.name,
         password_hash=generate_password_hash(user_data.password),
     )
     db.session.add(user)
     db.session.commit()
     logger.info(
-        f"User created successfully username='{user_data.username}', id={user.id}"
+        f"User created successfully email='{user_data.email}', id={user.id}"
     )
 
     return jsonify({"message": "User created successfully"}), 201
@@ -68,16 +69,16 @@ def login():
         logger.warning(f"Login validation error: {e}")
         return jsonify({"error": f"Invalid data: {str(e)}"}), 400
 
-    user = User.query.filter_by(username=login_data.username).first()
-    if not user or not check_password_hash(user.password_hash, login_data.password):
-        logger.warning(f"Invalid login for username='{login_data.username}'")
-        return jsonify({"error": "Invalid username or password."}), 401
+    user = User.query.filter_by(email=login_data.email).first()
+    if not user or not user.password_hash or not check_password_hash(user.password_hash, login_data.password):
+        logger.warning(f"Invalid login for email='{login_data.email}'")
+        return jsonify({"error": "Invalid email or password."}), 401
 
     token = jwt.encode(
         {
             "user_id": user.id,
-            "username": user.username,
-            "name": user.name or user.username,
+            "email": user.email,
+            "name": user.name or user.email,
             "profile_image_url": user.profile_image_url,
             "exp": datetime.now(timezone.utc) + timedelta(hours=current_app.config["JWT_EXPIRY_HOURS"]),
         },
@@ -85,7 +86,7 @@ def login():
         algorithm="HS256",
     )
 
-    logger.info(f"Login success username='{login_data.username}', user_id={user.id}")
+    logger.info(f"Login success email='{login_data.email}', user_id={user.id}")
     return jsonify({"token": token})
 
 
@@ -114,7 +115,7 @@ def create_long_term_token():
         long_term_token = jwt.encode(
             {
                 "user_id": user.id,
-                "username": user.username,
+                "email": user.email,
                 "type": "long_term",  # Add type to distinguish from regular tokens
                 "iat": datetime.now(timezone.utc).timestamp(),
             },
@@ -191,12 +192,13 @@ def get_profile():
 
         profile_data = {
             "id": user.id,
-            "username": user.username,
+            "email": user.email,
             "name": user.name,
             "profile_image_url": user.profile_image_url,
             "ai_notes_enabled": ai_notes_enabled,
             "token_exists": token_exists,
             "long_term_token": user.long_term_token,
+            "created_at": user.created_at,
         }
 
         validated_profile = UserProfileRead(**profile_data)
@@ -207,11 +209,10 @@ def get_profile():
         logger.exception(f"Error in get_profile: {e}")
         return jsonify({"error": f"Internal Server Error: {str(e)}"}), 500
 
-
 @user_bp.route("/user/profile", methods=["PATCH"])
 @jwt_or_lt_token_required
 def update_profile():
-    """Update user profile data"""
+    """Update user profile data (name, ai_notes_enabled). Email is immutable."""
     try:
         data = request.get_json(silent=True)
         if not data:
@@ -229,23 +230,32 @@ def update_profile():
             logger.warning(f"Update profile for missing user_id={request.user_id}")
             return jsonify({"error": "User not found"}), 404
 
-        if user.profile_data is None:
-            user.profile_data = {}
-
-        user.profile_data["ai_notes_enabled"] = update_data.ai_notes_enabled
-        flag_modified(user, "profile_data")
+        # Update fields if provided
+        if update_data.name is not None:
+            user.name = update_data.name
+        if update_data.ai_notes_enabled is not None:
+            if user.profile_data is None:
+                user.profile_data = {}
+            user.profile_data["ai_notes_enabled"] = update_data.ai_notes_enabled
+            flag_modified(user, "profile_data")
 
         db.session.commit()
-        logger.info(
-            f"Updated ai_notes_enabled={update_data.ai_notes_enabled} for user_id={user.id}"
-        )
+        logger.info(f"Updated profile for user_id={user.id}")
+
+        # Return updated profile data
+        ai_notes_enabled = False
+        if user.profile_data and isinstance(user.profile_data, dict):
+            ai_notes_enabled = user.profile_data.get("ai_notes_enabled", False)
 
         token_exists = user.long_term_token is not None
         profile_data = {
             "id": user.id,
-            "username": user.username,
-            "ai_notes_enabled": update_data.ai_notes_enabled,
+            "email": user.email,
+            "name": user.name,
+            "profile_image_url": user.profile_image_url,
+            "ai_notes_enabled": ai_notes_enabled,
             "token_exists": token_exists,
+            "created_at": user.created_at,
         }
 
         validated_profile = UserProfileRead(**profile_data)
@@ -255,28 +265,6 @@ def update_profile():
         db.session.rollback()
         logger.exception(f"Error in update_profile: {e}")
         return jsonify({"error": f"Internal Server Error: {str(e)}"}), 500
-
-
-def generate_unique_username(base_name: str) -> str:
-    """Generate a unique username based on a base name."""
-    # Clean the base name
-    clean_name = "".join(c for c in base_name if c.isalnum() or c == "_").lower()
-    if not clean_name:
-        clean_name = "user"
-    
-    # Check if base name is available
-    if not User.query.filter_by(username=clean_name).first():
-        return clean_name
-    
-    # Add random suffix until unique
-    for _ in range(100):
-        suffix = secrets.token_hex(3)
-        candidate = f"{clean_name}_{suffix}"
-        if not User.query.filter_by(username=candidate).first():
-            return candidate
-    
-    # Fallback: use full random
-    return f"user_{secrets.token_hex(6)}"
 
 
 @user_bp.route("/user/google/login", methods=["POST"])
@@ -311,15 +299,20 @@ def google_login():
         # Extract user info from the verified token
         google_id = idinfo["sub"]
         email = idinfo.get("email")
-        name = idinfo.get("name", email.split("@")[0] if email else "user")
+        
+        if not email:
+            logger.warning("Google login without email - email is required")
+            return jsonify({"error": "Email is required for Google Sign-In"}), 400
+        
+        name = idinfo.get("name", email.split("@")[0])
         picture = idinfo.get("picture")  # Profile image URL from Google
 
         logger.info(f"Google login attempt for google_id={google_id}, email={email}")
 
-        # Find existing user by google_id
+        # Find existing user by google_id or email
         user = User.query.filter_by(google_id=google_id).first()
 
-        if not user and email:
+        if not user:
             # Check if email already exists (user signed up with password, now linking Google)
             user = User.query.filter_by(email=email).first()
             if user:
@@ -328,29 +321,19 @@ def google_login():
                 logger.info(f"Linked Google account to existing user_id={user.id}")
 
         if not user:
-            # Create new user
-            # For Google users, use email as username if available, otherwise fallback to generated unique name
-            username = email if email else generate_unique_username(name)
-            
-            # If email is used as username, ensure it's unique (it should be if we checked email existence above)
-            if email and User.query.filter_by(username=username).first():
-                 # Should not happen if logic above is correct, but safe fallback
-                 username = generate_unique_username(name)
-
+            # Create new user with email as primary identifier
             user = User(
-                username=username,
-                google_id=google_id,
                 email=email,
-                name=name,  # Store real name from Google
-                profile_image_url=picture,  # Store profile image URL from Google
+                google_id=google_id,
+                name=name,
+                profile_image_url=picture,
             )
             db.session.add(user)
-            logger.info(f"Created new Google user with username='{username}'")
+            logger.info(f"Created new Google user with email='{email}'")
         
         # If user exists but name is missing, update it
         if user and not user.name:
             user.name = name
-            flag_modified(user, "name")
         
         # Always update profile image URL on login (in case it changed)
         if user and picture:
@@ -362,8 +345,8 @@ def google_login():
         token = jwt.encode(
             {
                 "user_id": user.id,
-                "username": user.username,
-                "name": user.name or user.username,
+                "email": user.email,
+                "name": user.name or user.email,
                 "profile_image_url": user.profile_image_url,
                 "exp": datetime.now(timezone.utc) + timedelta(hours=current_app.config["JWT_EXPIRY_HOURS"]),
             },
@@ -371,7 +354,7 @@ def google_login():
             algorithm="HS256",
         )
 
-        logger.info(f"Google login success for user_id={user.id}, username='{user.username}'")
+        logger.info(f"Google login success for user_id={user.id}, email='{user.email}'")
         return jsonify({"token": token})
 
     except ValueError as e:

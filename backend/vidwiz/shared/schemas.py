@@ -123,17 +123,21 @@ class MetadataResult(BaseModel):
 
 
 class UserCreate(BaseModel):
-    username: str
+    email: str
     password: str
+    name: str
 
-    @field_validator("username")
+    @field_validator("email")
     @classmethod
-    def validate_username(cls, v):
+    def validate_email(cls, v):
         if not v or not v.strip():
-            raise ValueError("Username cannot be empty")
-        if len(v.strip()) <= 4:
-            raise ValueError("Username must be more than 4 characters long")
-        return v.strip()
+            raise ValueError("Email cannot be empty")
+        v = v.strip().lower()
+        import re
+        email_pattern = r'^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}$'
+        if not re.match(email_pattern, v):
+            raise ValueError("Invalid email format")
+        return v
 
     @field_validator("password")
     @classmethod
@@ -144,21 +148,33 @@ class UserCreate(BaseModel):
             raise ValueError("Password must be more than 6 characters long")
         return v
 
+    @field_validator("name")
+    @classmethod
+    def validate_name(cls, v):
+        if not v or not v.strip():
+            raise ValueError("Name cannot be empty")
+        v = v.strip()
+        if len(v) < 2:
+            raise ValueError("Name must be at least 2 characters long")
+        if len(v) > 100:
+            raise ValueError("Name must be less than 100 characters")
+        return v
+
     model_config = {
         "extra": "forbid",
     }
 
 
 class UserLogin(BaseModel):
-    username: str
+    email: str
     password: str
 
-    @field_validator("username")
+    @field_validator("email")
     @classmethod
-    def validate_username(cls, v):
+    def validate_email(cls, v):
         if not v or not v.strip():
-            raise ValueError("Username cannot be empty")
-        return v.strip()
+            raise ValueError("Email cannot be empty")
+        return v.strip().lower()
 
     @field_validator("password")
     @classmethod
@@ -174,17 +190,30 @@ class UserLogin(BaseModel):
 
 class UserProfileRead(BaseModel):
     id: int
-    username: str
+    email: str
     name: Optional[str] = None
     profile_image_url: Optional[str] = None
     ai_notes_enabled: bool
     token_exists: bool
     long_term_token: Optional[str] = None
+    created_at: Optional[datetime] = None
     model_config = {"from_attributes": True}
 
 
 class UserProfileUpdate(BaseModel):
-    ai_notes_enabled: bool
+    ai_notes_enabled: Optional[bool] = None
+    name: Optional[str] = None
+
+    @field_validator("name")
+    @classmethod
+    def validate_name(cls, v):
+        if v is not None:
+            v = v.strip()
+            if len(v) < 2:
+                raise ValueError("Name must be at least 2 characters long")
+            if len(v) > 100:
+                raise ValueError("Name must be less than 100 characters")
+        return v
 
     model_config = {
         "from_attributes": True,

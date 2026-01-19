@@ -6,7 +6,7 @@ import { FaSearch, FaYoutube, FaVideo, FaChevronLeft, FaChevronRight } from 'rea
 import { HiSparkles } from 'react-icons/hi2';
 
 export default function DashboardPage() {
-  const [user, setUser] = useState<{ username: string; name?: string } | null>(null);
+  const [user, setUser] = useState<{ email: string; name?: string } | null>(null);
   const [videos, setVideos] = useState<any[]>([]);
   const [searchQuery, setSearchQuery] = useState('');
   const [isSearching, setIsSearching] = useState(false);
@@ -16,8 +16,8 @@ export default function DashboardPage() {
   const [totalVideos, setTotalVideos] = useState(0);
   const navigate = useNavigate();
 
-  // Decode JWT to get username and name
-  const decodeJwt = (token: string): { username?: string; name?: string } | null => {
+  // Decode JWT to get email and name
+  const decodeJwt = (token: string): { email?: string; name?: string } | null => {
     try {
       const base64Url = token.split('.')[1];
       const base64 = base64Url.replace(/-/g, '+').replace(/_/g, '/');
@@ -38,8 +38,8 @@ export default function DashboardPage() {
     const token = localStorage.getItem('token');
     if (token) {
       const decoded = decodeJwt(token);
-      if (decoded?.username) {
-        setUser({ username: decoded.username, name: decoded.name });
+      if (decoded?.email) {
+        setUser({ email: decoded.email, name: decoded.name });
       } else {
         // Invalid token, redirect to login
         localStorage.removeItem('token');
@@ -114,7 +114,7 @@ export default function DashboardPage() {
             {user && (
               <div className="inline-flex items-center gap-2 px-3 py-1.5 mb-4 rounded-full bg-gradient-to-r from-white/[0.08] to-white/[0.04] border border-white/[0.08] select-none">
                 <HiSparkles className="w-3.5 h-3.5 text-violet-400" />
-                <span className="text-sm font-medium text-foreground/80">Welcome back, <span className="text-foreground">{user.name || user.username}</span></span>
+                <span className="text-sm font-medium text-foreground/80">Welcome back, <span className="text-foreground">{user.name || user.email}</span></span>
               </div>
             )}
             

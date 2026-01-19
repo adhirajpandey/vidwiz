@@ -67,13 +67,13 @@ class Note(db.Model):
 class User(db.Model):
     __tablename__ = "users"
     id = Column(Integer, primary_key=True)
-    username = Column(Text, unique=True, nullable=False)
-    name = Column(Text, nullable=True)  # Store user's display name
+    email = Column(Text, unique=True, nullable=False)  # Primary identifier
+    name = Column(Text, nullable=False)  # User's display name (required)
     password_hash = Column(Text, nullable=True)  # Nullable for OAuth users
     google_id = Column(Text, unique=True, nullable=True)
-    email = Column(Text, unique=True, nullable=True)
     profile_image_url = Column(Text, nullable=True)  # Store profile picture URL from Google
     long_term_token = Column(Text, nullable=True)
     profile_data = Column(JSON, nullable=True)
     created_at = Column(TIMESTAMP(timezone=True), default=func.now())
     notes = relationship("Note", back_populates="user", cascade="all, delete-orphan")
+

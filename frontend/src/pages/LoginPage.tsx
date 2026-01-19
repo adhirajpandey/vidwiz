@@ -4,13 +4,13 @@ import { Link, useNavigate } from 'react-router-dom';
 import { useToast } from '../hooks/useToast';
 import vidwizLogo from '../public/vidwiz.png';
 import config from '../config';
-import { ArrowRight, User, Lock } from 'lucide-react';
+import { ArrowRight, Mail, Lock } from 'lucide-react';
 import AmbientBackground from '../components/ui/AmbientBackground';
 import GlassCard from '../components/ui/GlassCard';
 import GoogleSignInButton from '../components/GoogleSignInButton';
 
 export default function LoginPage() {
-  const [username, setUsername] = useState('');
+  const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [isLoading, setIsLoading] = useState(false);
   const { addToast } = useToast();
@@ -24,7 +24,7 @@ export default function LoginPage() {
         headers: {
           'Content-Type': 'application/json',
         },
-        body: JSON.stringify({ username, password }),
+        body: JSON.stringify({ email, password }),
       });
 
       const data = await response.json();
@@ -146,25 +146,26 @@ export default function LoginPage() {
 
             <div className="space-y-4">
               <div className="space-y-2">
-                <label htmlFor="username" className="text-xs font-medium uppercase tracking-wider text-white/40 ml-1 select-none">
-                  Username
+                <label htmlFor="email" className="text-xs font-medium uppercase tracking-wider text-white/40 ml-1 select-none">
+                  Email
                 </label>
                 <div className="relative group">
                   <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none text-white/30 group-focus-within:text-red-400 transition-colors">
-                    <User className="h-5 w-5" />
+                    <Mail className="h-5 w-5" />
                   </div>
                   <input
-                    id="username"
-                    name="username"
-                    type="text"
+                    id="email"
+                    name="email"
+                    type="email"
                     required
-                    value={username}
-                    onChange={(e) => setUsername(e.target.value)}
+                    value={email}
+                    onChange={(e) => setEmail(e.target.value)}
                     className="block w-full rounded-xl border border-white/[0.08] bg-white/[0.03] pl-10 pr-3 py-3 text-white placeholder-white/20 focus:border-red-500/50 focus:bg-white/[0.05] focus:outline-none focus:ring-1 focus:ring-red-500/50 transition-all sm:text-sm"
-                    placeholder="Enter your username"
+                    placeholder="Enter your email"
                   />
                 </div>
               </div>
+
 
               <div className="space-y-2">
                 <div className="flex justify-between items-center ml-1">
