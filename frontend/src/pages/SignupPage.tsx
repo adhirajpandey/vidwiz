@@ -16,6 +16,12 @@ export default function SignupPage() {
   const [passwordError, setPasswordError] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
   const { addToast } = useToast();
+
+  // Derived validation states
+  const isPasswordValid = password.length > 6;
+  const isUsernameValid = username.length > 4;
+  const passwordsMatch = password === confirmPassword;
+  const isFormValid = isUsernameValid && isPasswordValid && passwordsMatch && confirmPassword.length > 0;
   const navigate = useNavigate();
 
   useEffect(() => {
@@ -212,6 +218,12 @@ export default function SignupPage() {
                     placeholder="Choose a username"
                   />
                 </div>
+                {username && !isUsernameValid && (
+                  <p className="text-xs text-amber-400 ml-1 mt-1 animate-in slide-in-from-top-1">Username must be more than 4 characters</p>
+                )}
+                {isUsernameValid && (
+                  <p className="text-xs text-green-400 ml-1 mt-1 animate-in slide-in-from-top-1">✓ Username is valid</p>
+                )}
               </div>
 
               <div className="space-y-2">
@@ -233,6 +245,12 @@ export default function SignupPage() {
                     placeholder="Create a password"
                   />
                 </div>
+                {password && !isPasswordValid && (
+                  <p className="text-xs text-amber-400 ml-1 mt-1 animate-in slide-in-from-top-1">Password must be more than 6 characters</p>
+                )}
+                {isPasswordValid && (
+                  <p className="text-xs text-green-400 ml-1 mt-1 animate-in slide-in-from-top-1">✓ Password length is valid</p>
+                )}
               </div>
 
               <div className="space-y-2">
@@ -241,8 +259,8 @@ export default function SignupPage() {
                 </label>
                 <div className="relative group">
                   <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none text-white/30 group-focus-within:text-red-400 transition-colors">
-                    <div className={`transition-colors ${passwordError ? 'text-red-500' : (confirmPassword && !passwordError ? 'text-green-500' : '')}`}>
-                       {confirmPassword && !passwordError ? <Check className="h-5 w-5" /> : <Lock className="h-5 w-5" />}
+                    <div className={`transition-colors ${passwordError ? 'text-red-500' : (isPasswordValid && passwordsMatch && confirmPassword ? 'text-green-500' : '')}`}>
+                       {isPasswordValid && passwordsMatch && confirmPassword ? <Check className="h-5 w-5" /> : <Lock className="h-5 w-5" />}
                     </div>
                   </div>
                   <input
@@ -264,7 +282,7 @@ export default function SignupPage() {
 
             <button
               onClick={handleSignup}
-              disabled={isLoading || passwordError}
+              disabled={isLoading || !isFormValid}
               className="group relative flex w-full justify-center items-center gap-2 rounded-xl bg-gradient-to-r from-red-600 to-red-500 py-3.5 px-4 text-sm font-semibold text-white shadow-lg shadow-red-500/20 hover:shadow-red-500/30 hover:scale-[1.02] active:scale-[0.98] transition-all duration-200 disabled:opacity-70 disabled:cursor-not-allowed cursor-pointer"
             >
               {isLoading ? (

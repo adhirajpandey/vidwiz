@@ -210,10 +210,10 @@ class TestSchemaValidation:
         assert "Username cannot be empty" in str(exc_info.value)
 
     def test_user_create_short_username(self):
-        """Test UserCreate validator rejects username shorter than 3 chars."""
+        """Test UserCreate validator rejects username with 4 or fewer chars."""
         with pytest.raises(ValidationError) as exc_info:
-            UserCreate(username="ab", password="password123")
-        assert "Username must be at least 3 characters long" in str(exc_info.value)
+            UserCreate(username="abcd", password="password123")
+        assert "Username must be more than 4 characters long" in str(exc_info.value)
 
     def test_user_create_empty_password(self):
         """Test UserCreate validator rejects empty password."""
@@ -222,10 +222,10 @@ class TestSchemaValidation:
         assert "Password cannot be empty" in str(exc_info.value)
 
     def test_user_create_short_password(self):
-        """Test UserCreate validator rejects password shorter than 6 chars."""
+        """Test UserCreate validator rejects password with 6 or fewer chars."""
         with pytest.raises(ValidationError) as exc_info:
-            UserCreate(username="testuser", password="12345")
-        assert "Password must be at least 6 characters long" in str(exc_info.value)
+            UserCreate(username="testuser", password="123456")
+        assert "Password must be more than 6 characters long" in str(exc_info.value)
 
 
 class TestUtilsAdditionalCoverage:

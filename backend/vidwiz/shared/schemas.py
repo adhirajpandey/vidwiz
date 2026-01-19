@@ -131,8 +131,8 @@ class UserCreate(BaseModel):
     def validate_username(cls, v):
         if not v or not v.strip():
             raise ValueError("Username cannot be empty")
-        if len(v.strip()) < 3:
-            raise ValueError("Username must be at least 3 characters long")
+        if len(v.strip()) <= 4:
+            raise ValueError("Username must be more than 4 characters long")
         return v.strip()
 
     @field_validator("password")
@@ -140,8 +140,8 @@ class UserCreate(BaseModel):
     def validate_password(cls, v):
         if not v:
             raise ValueError("Password cannot be empty")
-        if len(v) < 6:
-            raise ValueError("Password must be at least 6 characters long")
+        if len(v) <= 6:
+            raise ValueError("Password must be more than 6 characters long")
         return v
 
     model_config = {
