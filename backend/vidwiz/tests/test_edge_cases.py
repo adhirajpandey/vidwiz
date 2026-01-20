@@ -203,29 +203,41 @@ class TestSchemaValidation:
             )
         assert "transcript items must contain 'text' field" in str(exc_info.value)
 
-    def test_user_create_empty_username(self):
-        """Test UserCreate validator rejects empty username."""
+    def test_user_create_empty_email(self):
+        """Test UserCreate validator rejects empty email."""
         with pytest.raises(ValidationError) as exc_info:
-            UserCreate(username="", password="password123")
-        assert "Username cannot be empty" in str(exc_info.value)
+            UserCreate(email="", password="password123", name="Test User")
+        assert "Email cannot be empty" in str(exc_info.value)
 
-    def test_user_create_short_username(self):
-        """Test UserCreate validator rejects username with 4 or fewer chars."""
+    def test_user_create_invalid_email(self):
+        """Test UserCreate validator rejects invalid email format."""
         with pytest.raises(ValidationError) as exc_info:
-            UserCreate(username="abcd", password="password123")
-        assert "Username must be more than 4 characters long" in str(exc_info.value)
+            UserCreate(email="notanemail", password="password123", name="Test User")
+        assert "Invalid email format" in str(exc_info.value)
 
     def test_user_create_empty_password(self):
         """Test UserCreate validator rejects empty password."""
         with pytest.raises(ValidationError) as exc_info:
-            UserCreate(username="testuser", password="")
+            UserCreate(email="test@example.com", password="", name="Test User")
         assert "Password cannot be empty" in str(exc_info.value)
 
     def test_user_create_short_password(self):
         """Test UserCreate validator rejects password with 6 or fewer chars."""
         with pytest.raises(ValidationError) as exc_info:
-            UserCreate(username="testuser", password="123456")
+            UserCreate(email="test@example.com", password="123456", name="Test User")
         assert "Password must be more than 6 characters long" in str(exc_info.value)
+
+    def test_user_create_empty_name(self):
+        """Test UserCreate validator rejects empty name."""
+        with pytest.raises(ValidationError) as exc_info:
+            UserCreate(email="test@example.com", password="password123", name="")
+        assert "Name cannot be empty" in str(exc_info.value)
+
+    def test_user_create_short_name(self):
+        """Test UserCreate validator rejects name with fewer than 2 chars."""
+        with pytest.raises(ValidationError) as exc_info:
+            UserCreate(email="test@example.com", password="password123", name="A")
+        assert "Name must be at least 2 characters long" in str(exc_info.value)
 
 
 class TestUtilsAdditionalCoverage:

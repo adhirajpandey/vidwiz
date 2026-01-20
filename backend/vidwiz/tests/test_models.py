@@ -4,7 +4,8 @@ from sqlalchemy.exc import IntegrityError
 from vidwiz.shared.models import User, Video, Note, db
 
 # Test constants
-DEFAULT_USERNAME = "testuser"
+DEFAULT_EMAIL = "testuser@example.com"
+DEFAULT_NAME = "Test User"
 DEFAULT_PASSWORD = "hashed_password"
 TEST_VIDEO_ID = "vid123"
 TEST_VIDEO_TITLE = "Test Video"
@@ -14,21 +15,22 @@ class TestUserModel:
     def test_user_creation(self, app):
         """Test basic user creation"""
         with app.app_context():
-            user = User(username=DEFAULT_USERNAME, password_hash=DEFAULT_PASSWORD)
+            user = User(email=DEFAULT_EMAIL, name=DEFAULT_NAME, password_hash=DEFAULT_PASSWORD)
             db.session.add(user)
             db.session.commit()
 
             assert user.id is not None
-            assert user.username == DEFAULT_USERNAME
+            assert user.email == DEFAULT_EMAIL
+            assert user.name == DEFAULT_NAME
             assert user.password_hash == DEFAULT_PASSWORD
             assert user.created_at is not None
             assert isinstance(user.created_at, datetime)
 
-    def test_user_unique_username(self, app):
-        """Test that usernames must be unique"""
+    def test_user_unique_email(self, app):
+        """Test that emails must be unique"""
         with app.app_context():
-            user1 = User(username="testuser", password_hash="hash1")
-            user2 = User(username="testuser", password_hash="hash2")
+            user1 = User(email="testuser@example.com", name="User One", password_hash="hash1")
+            user2 = User(email="testuser@example.com", name="User Two", password_hash="hash2")
 
             db.session.add(user1)
             db.session.commit()
@@ -40,7 +42,7 @@ class TestUserModel:
     def test_user_relationships(self, app):
         """Test user relationships with videos and notes"""
         with app.app_context():
-            user = User(username="testuser", password_hash="hashed_password")
+            user = User(email="testuser@example.com", name="Test User", password_hash="hashed_password")
             db.session.add(user)
             db.session.commit()
 
@@ -64,7 +66,7 @@ class TestVideoModel:
     def test_video_creation(self, app):
         """Test basic video creation"""
         with app.app_context():
-            user = User(username="testuser", password_hash="hashed_password")
+            user = User(email="testuser@example.com", name="Test User", password_hash="hashed_password")
             db.session.add(user)
             db.session.commit()
 
@@ -86,7 +88,7 @@ class TestVideoModel:
     def test_video_unique_video_id(self, app):
         """Test that video_id must be unique"""
         with app.app_context():
-            user = User(username="testuser", password_hash="hashed_password")
+            user = User(email="testuser@example.com", name="Test User", password_hash="hashed_password")
             db.session.add(user)
             db.session.commit()
 
@@ -103,7 +105,7 @@ class TestVideoModel:
     def test_video_defaults(self, app):
         """Test video default values"""
         with app.app_context():
-            user = User(username="testuser", password_hash="hashed_password")
+            user = User(email="testuser@example.com", name="Test User", password_hash="hashed_password")
             db.session.add(user)
             db.session.commit()
 
@@ -116,7 +118,7 @@ class TestVideoModel:
     def test_video_relationships(self, app):
         """Test video relationships with user and notes"""
         with app.app_context():
-            user = User(username="testuser", password_hash="hashed_password")
+            user = User(email="testuser@example.com", name="Test User", password_hash="hashed_password")
             db.session.add(user)
             db.session.commit()
 
@@ -142,7 +144,7 @@ class TestNoteModel:
     def test_note_creation(self, app):
         """Test basic note creation"""
         with app.app_context():
-            user = User(username="testuser", password_hash="hashed_password")
+            user = User(email="testuser@example.com", name="Test User", password_hash="hashed_password")
             db.session.add(user)
             db.session.commit()
 
@@ -172,7 +174,7 @@ class TestNoteModel:
     def test_note_defaults(self, app):
         """Test note default values"""
         with app.app_context():
-            user = User(username="testuser", password_hash="hashed_password")
+            user = User(email="testuser@example.com", name="Test User", password_hash="hashed_password")
             db.session.add(user)
             db.session.commit()
 
@@ -191,7 +193,7 @@ class TestNoteModel:
     def test_note_relationships(self, app):
         """Test note relationships with user and video"""
         with app.app_context():
-            user = User(username="testuser", password_hash="hashed_password")
+            user = User(email="testuser@example.com", name="Test User", password_hash="hashed_password")
             db.session.add(user)
             db.session.commit()
 
@@ -206,7 +208,7 @@ class TestNoteModel:
             db.session.commit()
 
             # Test user relationship
-            assert note.user.username == "testuser"
+            assert note.user.email == "testuser@example.com"
 
             # Test video relationship
             assert note.video.title == "Test Video"
@@ -214,7 +216,7 @@ class TestNoteModel:
     def test_cascade_delete(self, app):
         """Test cascade delete behavior"""
         with app.app_context():
-            user = User(username="testuser", password_hash="hashed_password")
+            user = User(email="testuser@example.com", name="Test User", password_hash="hashed_password")
             db.session.add(user)
             db.session.commit()
 

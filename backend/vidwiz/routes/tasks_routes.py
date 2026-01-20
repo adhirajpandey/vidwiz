@@ -117,7 +117,7 @@ def submit_transcript_result():
     Endpoint for workers to submit transcript processing results.
     """
     try:
-        data = request.json
+        data = request.get_json(silent=True)
         if not data:
             logger.warning("Submit transcript result missing JSON body")
             return jsonify({"error": "Request body must be JSON"}), 400
@@ -304,7 +304,7 @@ def submit_metadata_result():
     Endpoint for workers to submit metadata processing results.
     """
     try:
-        data = request.json
+        data = request.get_json(silent=True)
         if not data:
             logger.warning("Submit metadata result missing JSON body")
             return jsonify({"error": "Request body must be JSON"}), 400

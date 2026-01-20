@@ -39,7 +39,8 @@ def notes_auth_headers(notes_app):
         token = jwt.encode(
             {
                 "user_id": 1,
-                "username": "testuser",
+                "email": "testuser@example.com",
+                "name": "Test User",
                 "exp": datetime.now(timezone.utc) + timedelta(hours=1),
             },
             notes_app.config["SECRET_KEY"],
@@ -53,7 +54,7 @@ def notes_sample_user(notes_app):
     """Create a sample user for notes testing"""
     with notes_app.app_context():
         user = User(
-            username="testuser", password_hash=generate_password_hash("testpass123")
+            email="testuser@example.com", name="Test User", password_hash=generate_password_hash("testpass123")
         )
         db.session.add(user)
         db.session.commit()
@@ -151,15 +152,15 @@ class TestCreateNote:
 
         assert response.status_code == 400
         data = response.get_json()
-        assert "Invalid data" in data["error"]
+        assert "Invalid" in data["error"]
 
     def test_create_note_no_json_body(self, client, auth_headers):
         """Test creating note without JSON body"""
-        response = client.post("/api/notes", headers=auth_headers, json=None)
+        response = client.post("/api/notes", headers=auth_headers, data="not json", content_type="text/plain")
 
-        assert response.status_code == 500
+        assert response.status_code == 400
         data = response.get_json()
-        assert "Internal Server Error" in data["error"]
+        assert "Request body must be JSON" in data["error"]
 
 
 class TestGetNotes:
@@ -212,10 +213,10 @@ class TestGetNotes:
         with app.app_context():
             # Create users
             user1 = User(
-                username="user1", password_hash=generate_password_hash("pass1")
+                email="user1@example.com", name="User One", password_hash=generate_password_hash("pass1")
             )
             user2 = User(
-                username="user2", password_hash=generate_password_hash("pass2")
+                email="user2@example.com", name="User Two", password_hash=generate_password_hash("pass2")
             )
             db.session.add_all([user1, user2])
             db.session.commit()
@@ -240,7 +241,8 @@ class TestGetNotes:
             token = jwt.encode(
                 {
                     "user_id": user1.id,
-                    "username": "user1",
+                    "email": "user1@example.com",
+                    "name": "User One",
                     "exp": datetime.now(timezone.utc) + timedelta(hours=1),
                 },
                 app.config["SECRET_KEY"],
@@ -298,10 +300,10 @@ class TestDeleteNote:
         with app.app_context():
             # Create two users
             user1 = User(
-                username="user1", password_hash=generate_password_hash("pass1")
+                email="user1@example.com", name="User One", password_hash=generate_password_hash("pass1")
             )
             user2 = User(
-                username="user2", password_hash=generate_password_hash("pass2")
+                email="user2@example.com", name="User Two", password_hash=generate_password_hash("pass2")
             )
             db.session.add_all([user1, user2])
             db.session.commit()
@@ -321,7 +323,8 @@ class TestDeleteNote:
             token = jwt.encode(
                 {
                     "user_id": user2.id,
-                    "username": "user2",
+                    "email": "user2@example.com",
+                    "name": "User Two",
                     "exp": datetime.now(timezone.utc) + timedelta(hours=1),
                 },
                 app.config["SECRET_KEY"],

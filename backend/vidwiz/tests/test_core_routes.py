@@ -31,7 +31,7 @@ class TestSearchRoute:
         """Test search with matching results"""
         with app.app_context():
             # Create test data
-            user = User(username="testuser", password_hash="hashed")
+            user = User(email="testuser@example.com", name="Test User", password_hash="hashed")
             db.session.add(user)
             db.session.commit()
 
@@ -59,7 +59,7 @@ class TestSearchRoute:
     def test_search_no_results(self, client, auth_headers, app):
         """Test search with no matching results"""
         with app.app_context():
-            user = User(username="testuser", password_hash="hashed")
+            user = User(email="testuser@example.com", name="Test User", password_hash="hashed")
             db.session.add(user)
             db.session.commit()
 
@@ -91,7 +91,7 @@ class TestSearchRoute:
     def test_search_case_insensitive(self, client, auth_headers, app):
         """Test search is case insensitive"""
         with app.app_context():
-            user = User(username="testuser", password_hash="hashed")
+            user = User(email="testuser@example.com", name="Test User", password_hash="hashed")
             db.session.add(user)
             db.session.commit()
 
@@ -120,7 +120,7 @@ class TestSearchRoute:
     def test_search_partial_match(self, client, auth_headers, app):
         """Test search with partial title match"""
         with app.app_context():
-            user = User(username="testuser", password_hash="hashed")
+            user = User(email="testuser@example.com", name="Test User", password_hash="hashed")
             db.session.add(user)
             db.session.commit()
 
@@ -143,7 +143,7 @@ class TestSearchRoute:
     def test_search_only_videos_with_notes(self, client, auth_headers, app):
         """Test search only returns videos that have notes"""
         with app.app_context():
-            user = User(username="testuser", password_hash="hashed")
+            user = User(email="testuser@example.com", name="Test User", password_hash="hashed")
             db.session.add(user)
             db.session.commit()
 
@@ -174,8 +174,8 @@ class TestSearchRoute:
         """Test search only returns videos belonging to the authenticated user"""
         with app.app_context():
             # Create two users
-            user1 = User(username="user1", password_hash="hashed")
-            user2 = User(username="user2", password_hash="hashed")
+            user1 = User(email="user1@example.com", name="User One", password_hash="hashed")
+            user2 = User(email="user2@example.com", name="User Two", password_hash="hashed")
             db.session.add_all([user1, user2])
             db.session.commit()
 
@@ -215,7 +215,7 @@ class TestSignupRoute:
         """Test successful user signup"""
         response = client.post(
             "/api/user/signup",
-            json={"username": "newuser", "password": "newpassword"},
+            json={"email": "newuser@example.com", "password": "newpassword", "name": "New User"},
             content_type="application/json",
         )
 
@@ -224,41 +224,42 @@ class TestSignupRoute:
         data = response.get_json()
         assert data["message"] == "User created successfully"
 
-    def test_signup_missing_username(self, client):
-        """Test signup with missing username"""
+    def test_signup_missing_email(self, client):
+        """Test signup with missing email"""
         response = client.post(
             "/api/user/signup",
-            json={"password": "newpassword"},
+            json={"password": "newpassword", "name": "New User"},
             content_type="application/json",
         )
         assert response.status_code == 400
         data = response.get_json()
-        assert "Invalid data" in data["error"]
+        assert "Invalid" in data["error"]
 
     def test_signup_missing_password(self, client):
         """Test signup with missing password"""
         response = client.post(
             "/api/user/signup",
-            json={"username": "newuser"},
+            json={"email": "newuser@example.com", "name": "New User"},
             content_type="application/json",
         )
         assert response.status_code == 400
         data = response.get_json()
-        assert "Invalid data" in data["error"]
+        assert "Invalid" in data["error"]
 
-    def test_signup_duplicate_username(self, client, sample_user):
-        """Test signup with existing username"""
+    def test_signup_duplicate_email(self, client, sample_user):
+        """Test signup with existing email"""
         response = client.post(
             "/api/user/signup",
             json={
-                "username": "testuser",  # Username from sample_user fixture
+                "email": "testuser@example.com",  # Email from sample_user fixture
                 "password": "newpassword",
+                "name": "Test User",
             },
             content_type="application/json",
         )
         assert response.status_code == 400
         data = response.get_json()
-        assert data["error"] == "Username already exists."
+        assert data["error"] == "Email already exists."
 
 
 class TestLoginRoute:
@@ -273,7 +274,7 @@ class TestLoginRoute:
         """Test successful login"""
         response = client.post(
             "/api/user/login",
-            json={"username": "testuser", "password": "testpassword"},
+            json={"email": "testuser@example.com", "password": "testpassword"},
             content_type="application/json",
         )
         assert response.status_code == 200
@@ -286,12 +287,12 @@ class TestLoginRoute:
             payload = jwt.decode(
                 token, client.application.config["SECRET_KEY"], algorithms=["HS256"]
             )
-            assert payload["username"] == "testuser"
+            assert payload["email"] == "testuser@example.com"
             # Check that user_id is a positive integer (don't rely on detached instance)
             assert isinstance(payload["user_id"], int) and payload["user_id"] > 0
 
-    def test_login_missing_username(self, client):
-        """Test login with missing username"""
+    def test_login_missing_email(self, client):
+        """Test login with missing email"""
         response = client.post(
             "/api/user/login",
             json={"password": "testpassword"},
@@ -299,51 +300,51 @@ class TestLoginRoute:
         )
         assert response.status_code == 400
         data = response.get_json()
-        assert "Invalid data" in data["error"]
+        assert "Invalid" in data["error"]
 
     def test_login_missing_password(self, client):
         """Test login with missing password"""
         response = client.post(
             "/api/user/login",
-            json={"username": "testuser"},
+            json={"email": "testuser@example.com"},
             content_type="application/json",
         )
         assert response.status_code == 400
         data = response.get_json()
-        assert "Invalid data" in data["error"]
+        assert "Invalid" in data["error"]
 
-    def test_login_invalid_username(self, client):
-        """Test login with invalid username"""
+    def test_login_invalid_email(self, client):
+        """Test login with invalid email"""
         response = client.post(
             "/api/user/login",
-            json={"username": "nonexistent", "password": "testpassword"},
+            json={"email": "nonexistent@example.com", "password": "testpassword"},
             content_type="application/json",
         )
         assert response.status_code == 401
         data = response.get_json()
-        assert data["error"] == "Invalid username or password."
+        assert data["error"] == "Invalid email or password."
 
     def test_login_invalid_password(self, client, sample_user):
         """Test login with invalid password"""
         response = client.post(
             "/api/user/login",
-            json={"username": "testuser", "password": "wrongpassword"},
+            json={"email": "testuser@example.com", "password": "wrongpassword"},
             content_type="application/json",
         )
         assert response.status_code == 401
         data = response.get_json()
-        assert data["error"] == "Invalid username or password."
+        assert data["error"] == "Invalid email or password."
 
     def test_login_empty_credentials(self, client):
         """Test login with empty credentials"""
         response = client.post(
             "/api/user/login",
-            json={"username": "", "password": ""},
+            json={"email": "", "password": ""},
             content_type="application/json",
         )
         assert response.status_code == 400
         data = response.get_json()
-        assert "Invalid data" in data["error"]
+        assert "Invalid" in data["error"]
 
 
 

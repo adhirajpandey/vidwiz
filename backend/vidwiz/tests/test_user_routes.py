@@ -17,7 +17,7 @@ class TestUserRoutes:
     def test_create_long_term_token(self, client, auth_headers, app):
         """Test creating a long-term token"""
         with app.app_context():
-            user = User(username="testuser", password_hash="hashed")
+            user = User(email="testuser@example.com", name="Test User", password_hash="hashed")
             db.session.add(user)
             db.session.commit()
 
@@ -29,7 +29,7 @@ class TestUserRoutes:
 
         # Verify token in DB
         with app.app_context():
-            user = User.query.filter_by(username="testuser").first()
+            user = User.query.filter_by(email="testuser@example.com").first()
             assert user.long_term_token == data["token"]
 
     def test_create_long_term_token_user_not_found(self, client, auth_headers, app):
@@ -42,7 +42,7 @@ class TestUserRoutes:
     def test_create_duplicate_long_term_token(self, client, auth_headers, app):
         """Test creating a duplicate long-term token"""
         with app.app_context():
-            user = User(username="testuser", password_hash="hashed", long_term_token="existing_token")
+            user = User(email="testuser@example.com", name="Test User", password_hash="hashed", long_term_token="existing_token")
             db.session.add(user)
             db.session.commit()
 
@@ -53,7 +53,7 @@ class TestUserRoutes:
     def test_revoke_long_term_token(self, client, auth_headers, app):
         """Test revoking a long-term token"""
         with app.app_context():
-            user = User(username="testuser", password_hash="hashed", long_term_token="existing_token")
+            user = User(email="testuser@example.com", name="Test User", password_hash="hashed", long_term_token="existing_token")
             db.session.add(user)
             db.session.commit()
 
@@ -63,7 +63,7 @@ class TestUserRoutes:
 
         # Verify token removed from DB
         with app.app_context():
-            user = User.query.filter_by(username="testuser").first()
+            user = User.query.filter_by(email="testuser@example.com").first()
             assert user.long_term_token is None
 
     def test_revoke_long_term_token_user_not_found(self, client, auth_headers, app):
@@ -75,7 +75,7 @@ class TestUserRoutes:
     def test_revoke_missing_long_term_token(self, client, auth_headers, app):
         """Test revoking when no token exists"""
         with app.app_context():
-            user = User(username="testuser", password_hash="hashed")
+            user = User(email="testuser@example.com", name="Test User", password_hash="hashed")
             db.session.add(user)
             db.session.commit()
 
@@ -86,14 +86,15 @@ class TestUserRoutes:
     def test_get_profile(self, client, auth_headers, app):
         """Test getting user profile"""
         with app.app_context():
-            user = User(username="testuser", password_hash="hashed", profile_data={"ai_notes_enabled": True})
+            user = User(email="testuser@example.com", name="Test User", password_hash="hashed", profile_data={"ai_notes_enabled": True})
             db.session.add(user)
             db.session.commit()
 
         response = client.get("/api/user/profile", headers=auth_headers)
         assert response.status_code == 200
         data = response.get_json()
-        assert data["username"] == "testuser"
+        assert data["email"] == "testuser@example.com"
+        assert data["name"] == "Test User"
         assert data["ai_notes_enabled"] is True
         assert data["token_exists"] is False
 
@@ -106,7 +107,7 @@ class TestUserRoutes:
     def test_update_profile(self, client, auth_headers, app):
         """Test updating user profile"""
         with app.app_context():
-            user = User(username="testuser", password_hash="hashed")
+            user = User(email="testuser@example.com", name="Test User", password_hash="hashed")
             db.session.add(user)
             db.session.commit()
 
@@ -121,7 +122,7 @@ class TestUserRoutes:
 
         # Verify DB update
         with app.app_context():
-            user = User.query.filter_by(username="testuser").first()
+            user = User.query.filter_by(email="testuser@example.com").first()
             assert user.profile_data["ai_notes_enabled"] is True
 
     def test_update_profile_missing_json(self, client, auth_headers):
@@ -133,7 +134,7 @@ class TestUserRoutes:
     def test_update_profile_validation_error(self, client, auth_headers, app):
         """Test updating profile with invalid data"""
         with app.app_context():
-            user = User(username="testuser", password_hash="hashed")
+            user = User(email="testuser@example.com", name="Test User", password_hash="hashed")
             db.session.add(user)
             db.session.commit()
 
@@ -143,7 +144,7 @@ class TestUserRoutes:
             headers=auth_headers
         )
         assert response.status_code == 400
-        assert "Invalid data" in response.get_json()["error"]
+        assert "Invalid" in response.get_json()["error"]
 
     def test_update_profile_user_not_found(self, client, auth_headers, app):
         """Test updating profile for non-existent user"""

@@ -108,7 +108,7 @@ def test_update_note_success(client, auth_headers, app, sample_user):
 def test_user_isolation(client, auth_headers, app, sample_user):
     """Test that users can only access their own notes"""
     with app.app_context():
-        user2 = User(username="user2", password_hash="hashed2")
+        user2 = User(email="user2@example.com", name="User Two", password_hash="hashed2")
         video = Video(video_id="vid123", title="Test Video")
         note1 = Note(
             video_id="vid123", text="User 1 note", timestamp="00:01:00", user_id=1

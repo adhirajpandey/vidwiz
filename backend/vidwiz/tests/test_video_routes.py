@@ -50,7 +50,8 @@ class TestVideoRoutes:
         with app.app_context():
             video = Video(video_id="ai_vid_1", title="AI Video")
             user = User(
-                username="ai_user",
+                email="ai_user@example.com",
+                name="AI User",
                 password_hash="pass",
                 profile_data={"ai_notes_enabled": True}
             )
@@ -83,7 +84,8 @@ class TestVideoRoutes:
         with app.app_context():
             video = Video(video_id="no_notes_vid", title="No Notes Video")
             user = User(
-                username="no_ai_user",
+                email="no_ai_user@example.com",
+                name="No AI User",
                 password_hash="pass",
                 profile_data={"ai_notes_enabled": False} # AI disabled
             )

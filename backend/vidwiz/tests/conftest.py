@@ -14,7 +14,8 @@ from vidwiz.shared.models import User, Video, db
 TEST_SECRET_KEY = "test_secret_key"
 ADMIN_TEST_TOKEN = "admin_test_token"
 DEFAULT_USER_ID = 1
-DEFAULT_USERNAME = "testuser"
+DEFAULT_EMAIL = "testuser@example.com"
+DEFAULT_NAME = "Test User"
 DEFAULT_PASSWORD = "testpassword"
 
 
@@ -57,7 +58,8 @@ def auth_headers(app):
         token = jwt.encode(
             {
                 "user_id": DEFAULT_USER_ID,
-                "username": DEFAULT_USERNAME,
+                "email": DEFAULT_EMAIL,
+                "name": DEFAULT_NAME,
                 "exp": datetime.now(timezone.utc) + timedelta(hours=1),
             },
             app.config["SECRET_KEY"],
@@ -77,7 +79,8 @@ def sample_user(app):
     """Create a sample user for testing"""
     with app.app_context():
         user = User(
-            username=DEFAULT_USERNAME,
+            email=DEFAULT_EMAIL,
+            name=DEFAULT_NAME,
             password_hash=generate_password_hash(DEFAULT_PASSWORD),
         )
         db.session.add(user)
@@ -106,7 +109,8 @@ def auth_headers_user2(app):
         token = jwt.encode(
             {
                 "user_id": 2,
-                "username": "testuser2",
+                "email": "testuser2@example.com",
+                "name": "Test User 2",
                 "exp": datetime.now(timezone.utc) + timedelta(hours=1),
             },
             app.config["SECRET_KEY"],
@@ -120,11 +124,14 @@ def sample_users(app):
     """Create multiple sample users for testing"""
     with app.app_context():
         user1 = User(
-            username=DEFAULT_USERNAME,
+            email=DEFAULT_EMAIL,
+            name=DEFAULT_NAME,
             password_hash=generate_password_hash(DEFAULT_PASSWORD),
         )
         user2 = User(
-            username="testuser2", password_hash=generate_password_hash("testpass2")
+            email="testuser2@example.com",
+            name="Test User 2",
+            password_hash=generate_password_hash("testpass2"),
         )
         db.session.add_all([user1, user2])
         db.session.commit()
@@ -145,13 +152,14 @@ def sample_videos(app):
         return videos
 
 
-def create_jwt_token(app, user_id=DEFAULT_USER_ID, username=DEFAULT_USERNAME, hours=1):
+def create_jwt_token(app, user_id=DEFAULT_USER_ID, email=DEFAULT_EMAIL, name=DEFAULT_NAME, hours=1):
     """Helper function to create JWT tokens"""
     with app.app_context():
         token = jwt.encode(
             {
                 "user_id": user_id,
-                "username": username,
+                "email": email,
+                "name": name,
                 "exp": datetime.now(timezone.utc) + timedelta(hours=hours),
             },
             app.config["SECRET_KEY"],
@@ -179,10 +187,10 @@ def create_test_note(
     )
 
 
-def create_test_user_with_context(app, username="testuser", password="testpass"):
+def create_test_user_with_context(app, email="testuser@example.com", name="Test User", password="testpass"):
     """Helper function to create a user within app context"""
     with app.app_context():
-        user = User(username=username, password_hash=generate_password_hash(password))
+        user = User(email=email, name=name, password_hash=generate_password_hash(password))
         db.session.add(user)
         db.session.commit()
         return user

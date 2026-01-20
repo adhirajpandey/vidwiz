@@ -37,7 +37,7 @@ class TestUserWorkflow:
         # 1. Register new user
         response = client.post(
             "/api/user/signup",
-            json={"username": "integrationuser", "password": "securepassword123"},
+            json={"email": "integrationuser@example.com", "password": "securepassword123", "name": "Integration User"},
             content_type="application/json",
         )
         assert response.status_code == 201  # Success response
@@ -45,7 +45,7 @@ class TestUserWorkflow:
         # 2. Login with new user
         response = client.post(
             "/api/user/login",
-            json={"username": "integrationuser", "password": "securepassword123"},
+            json={"email": "integrationuser@example.com", "password": "securepassword123"},
             content_type="application/json",
         )
         assert response.status_code == 200
@@ -67,7 +67,7 @@ class TestUserWorkflow:
         with app.app_context():
             # Setup user
             user = User(
-                username="videouser", password_hash=generate_password_hash("password")
+                email="videouser@example.com", name="Video User", password_hash=generate_password_hash("password")
             )
             db.session.add(user)
             db.session.commit()
@@ -77,7 +77,8 @@ class TestUserWorkflow:
             token = jwt.encode(
                 {
                     "user_id": user_id,
-                    "username": "videouser",
+                    "email": "videouser@example.com",
+                    "name": "Video User",
                     "exp": datetime.now(timezone.utc) + timedelta(hours=1),
                 },
                 app.config["SECRET_KEY"],
@@ -157,10 +158,10 @@ class TestUserWorkflow:
         with app.app_context():
             # Create two users
             user1 = User(
-                username="user1", password_hash=generate_password_hash("password1")
+                email="user1@example.com", name="User One", password_hash=generate_password_hash("password1")
             )
             user2 = User(
-                username="user2", password_hash=generate_password_hash("password2")
+                email="user2@example.com", name="User Two", password_hash=generate_password_hash("password2")
             )
             db.session.add_all([user1, user2])
             db.session.commit()
@@ -169,7 +170,8 @@ class TestUserWorkflow:
             token1 = jwt.encode(
                 {
                     "user_id": 1,
-                    "username": "user1",
+                    "email": "user1@example.com",
+                    "name": "User One",
                     "exp": datetime.now(timezone.utc) + timedelta(hours=1),
                 },
                 app.config["SECRET_KEY"],
@@ -178,7 +180,8 @@ class TestUserWorkflow:
             token2 = jwt.encode(
                 {
                     "user_id": 2,
-                    "username": "user2",
+                    "email": "user2@example.com",
+                    "name": "User Two",
                     "exp": datetime.now(timezone.utc) + timedelta(hours=1),
                 },
                 app.config["SECRET_KEY"],
@@ -236,7 +239,7 @@ class TestUserWorkflow:
         """Test various error scenarios in workflows"""
         with app.app_context():
             user = User(
-                username="erroruser", password_hash=generate_password_hash("password")
+                email="erroruser@example.com", name="Error User", password_hash=generate_password_hash("password")
             )
             db.session.add(user)
             db.session.commit()
@@ -244,7 +247,8 @@ class TestUserWorkflow:
             token = jwt.encode(
                 {
                     "user_id": 1,
-                    "username": "erroruser",
+                    "email": "erroruser@example.com",
+                    "name": "Error User",
                     "exp": datetime.now(timezone.utc) + timedelta(hours=1),
                 },
                 app.config["SECRET_KEY"],
@@ -290,7 +294,7 @@ class TestUserWorkflow:
         """Test workflow with larger amounts of data"""
         with app.app_context():
             user = User(
-                username="bulkuser", password_hash=generate_password_hash("password")
+                email="bulkuser@example.com", name="Bulk User", password_hash=generate_password_hash("password")
             )
             db.session.add(user)
             db.session.commit()
@@ -298,7 +302,8 @@ class TestUserWorkflow:
             token = jwt.encode(
                 {
                     "user_id": 1,
-                    "username": "bulkuser",
+                    "email": "bulkuser@example.com",
+                    "name": "Bulk User",
                     "exp": datetime.now(timezone.utc) + timedelta(hours=1),
                 },
                 app.config["SECRET_KEY"],
@@ -354,7 +359,7 @@ class TestUserWorkflow:
         """Test various authentication edge cases in workflows"""
         with app.app_context():
             user = User(
-                username="authuser", password_hash=generate_password_hash("password")
+                email="authuser@example.com", name="Auth User", password_hash=generate_password_hash("password")
             )
             db.session.add(user)
             db.session.commit()
@@ -363,7 +368,8 @@ class TestUserWorkflow:
         expired_token = jwt.encode(
             {
                 "user_id": 1,
-                "username": "authuser",
+                "email": "authuser@example.com",
+                "name": "Auth User",
                 "exp": datetime.now(timezone.utc) - timedelta(hours=1),
             },
             app.config["SECRET_KEY"],
@@ -378,7 +384,8 @@ class TestUserWorkflow:
         invalid_token = jwt.encode(
             {
                 "user_id": 1,
-                "username": "authuser",
+                "email": "authuser@example.com",
+                "name": "Auth User",
                 "exp": datetime.now(timezone.utc) + timedelta(hours=1),
             },
             "wrong_secret",
@@ -403,7 +410,8 @@ class TestUserWorkflow:
         token_wrong_user = jwt.encode(
             {
                 "user_id": 99999,
-                "username": "nonexistent",
+                "email": "nonexistent@example.com",
+                "name": "Nonexistent",
                 "exp": datetime.now(timezone.utc) + timedelta(hours=1),
             },
             app.config["SECRET_KEY"],
@@ -423,7 +431,7 @@ class TestDataConsistency:
         """Test that cascade deletes work correctly"""
         with app.app_context():
             user = User(
-                username="deleteuser", password_hash=generate_password_hash("password")
+                email="deleteuser@example.com", name="Delete User", password_hash=generate_password_hash("password")
             )
             db.session.add(user)
             db.session.commit()
@@ -461,7 +469,7 @@ class TestPerformance:
         """Test search performance with many videos"""
         with app.app_context():
             user = User(
-                username="perfuser", password_hash=generate_password_hash("password")
+                email="perfuser@example.com", name="Perf User", password_hash=generate_password_hash("password")
             )
             db.session.add(user)
             db.session.commit()
@@ -495,7 +503,8 @@ class TestPerformance:
             token = jwt.encode(
                 {
                     "user_id": 1,
-                    "username": "perfuser",
+                    "email": "perfuser@example.com",
+                    "name": "Perf User",
                     "exp": datetime.now(timezone.utc) + timedelta(hours=1),
                 },
                 app.config["SECRET_KEY"],
@@ -518,7 +527,7 @@ class TestAPIConsistency:
         """Test that creating notes and retrieving videos maintains consistency"""
         with app.app_context():
             # Create user
-            user = User(username="testuser", password_hash="hashed_password")
+            user = User(email="testuser@example.com", name="Test User", password_hash="hashed_password")
             db.session.add(user)
             db.session.commit()
 
@@ -526,7 +535,8 @@ class TestAPIConsistency:
             token = jwt.encode(
                 {
                     "user_id": user.id,
-                    "username": user.username,
+                    "email": user.email,
+                    "name": user.name,
                     "exp": datetime.now(timezone.utc) + timedelta(hours=1),
                 },
                 app.config["SECRET_KEY"],
@@ -561,8 +571,8 @@ class TestAPIConsistency:
         """Test that user isolation is maintained across all endpoints"""
         with app.app_context():
             # Create two users
-            user1 = User(username="user1", password_hash="hash1")
-            user2 = User(username="user2", password_hash="hash2")
+            user1 = User(email="user1@example.com", name="User One", password_hash="hash1")
+            user2 = User(email="user2@example.com", name="User Two", password_hash="hash2")
             db.session.add_all([user1, user2])
             db.session.commit()
 
@@ -570,7 +580,8 @@ class TestAPIConsistency:
             token1 = jwt.encode(
                 {
                     "user_id": user1.id,
-                    "username": user1.username,
+                    "email": user1.email,
+                    "name": user1.name,
                     "exp": datetime.now(timezone.utc) + timedelta(hours=1),
                 },
                 app.config["SECRET_KEY"],
@@ -579,7 +590,8 @@ class TestAPIConsistency:
             token2 = jwt.encode(
                 {
                     "user_id": user2.id,
-                    "username": user2.username,
+                    "email": user2.email,
+                    "name": user2.name,
                     "exp": datetime.now(timezone.utc) + timedelta(hours=1),
                 },
                 app.config["SECRET_KEY"],
@@ -624,14 +636,15 @@ class TestAPIConsistency:
         """Test data integrity during concurrent-like operations"""
         with app.app_context():
             # Create user
-            user = User(username="testuser", password_hash="hashed_password")
+            user = User(email="testuser@example.com", name="Test User", password_hash="hashed_password")
             db.session.add(user)
             db.session.commit()
 
             token = jwt.encode(
                 {
                     "user_id": user.id,
-                    "username": user.username,
+                    "email": user.email,
+                    "name": user.name,
                     "exp": datetime.now(timezone.utc) + timedelta(hours=1),
                 },
                 app.config["SECRET_KEY"],

@@ -18,7 +18,7 @@ logger = get_logger("vidwiz.routes.notes_routes")
 @jwt_or_lt_token_required
 def create_note():
     try:
-        data = request.json
+        data = request.get_json(silent=True)
         if not data:
             logger.warning("Create note missing JSON body")
             return jsonify({"error": "Request body must be JSON"}), 400
@@ -129,7 +129,7 @@ def delete_note(note_id):
 @jwt_or_admin_required
 def update_note(note_id):
     try:
-        data = request.json
+        data = request.get_json(silent=True)
         if not data:
             logger.warning("Update note missing JSON body")
             return jsonify({"error": "Request body must be JSON"}), 400
@@ -163,3 +163,4 @@ def update_note(note_id):
         db.session.rollback()
         logger.exception(f"Error in update_note: {e}")
         return jsonify({"error": "An unexpected error occurred"}), 500
+

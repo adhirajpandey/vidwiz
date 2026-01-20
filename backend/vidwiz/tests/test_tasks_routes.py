@@ -121,8 +121,8 @@ class TestTasksRoutes:
         """Test submitting result from wrong worker fails"""
         with app.app_context():
             # Create users
-            user1 = User(username="user1", password_hash=generate_password_hash("pass"))
-            user2 = User(username="user2", password_hash=generate_password_hash("pass"))
+            user1 = User(email="user1@example.com", name="User One", password_hash=generate_password_hash("pass"))
+            user2 = User(email="user2@example.com", name="User Two", password_hash=generate_password_hash("pass"))
             db.session.add_all([user1, user2])
             db.session.commit()
 
@@ -141,7 +141,8 @@ class TestTasksRoutes:
             token = jwt.encode(
                 {
                     "user_id": user2.id,
-                    "username": "user2",
+                    "email": "user2@example.com",
+                    "name": "User Two",
                     "exp": datetime.now(timezone.utc) + timedelta(hours=1),
                 },
                 app.config["SECRET_KEY"],
