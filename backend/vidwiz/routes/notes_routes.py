@@ -26,7 +26,7 @@ def create_note():
             note_data = NoteCreate(**data)
         except ValidationError as e:
             logger.warning(f"Create note validation error: {e}")
-            return jsonify({"error": f"Invalid data: {str(e)}"}), 400
+            return jsonify({"error": "Invalid request data"}), 400
 
         # Check if video exists
         video = Video.query.filter_by(video_id=note_data.video_id).first()
@@ -86,7 +86,7 @@ def create_note():
     except Exception as e:
         db.session.rollback()
         logger.exception(f"Error in create_note: {e}")
-        return jsonify({"error": f"Internal Server Error: {str(e)}"}), 500
+        return jsonify({"error": "An unexpected error occurred"}), 500
 
 
 @notes_bp.route("/notes/<string:video_id>", methods=["GET"])
@@ -102,7 +102,7 @@ def get_notes(video_id):
         ), 200
     except Exception as e:
         logger.exception(f"Error in get_notes: {e}")
-        return jsonify({"error": f"Internal Server Error: {str(e)}"}), 500
+        return jsonify({"error": "An unexpected error occurred"}), 500
 
 
 @notes_bp.route("/notes/<int:note_id>", methods=["DELETE"])
@@ -122,7 +122,7 @@ def delete_note(note_id):
     except Exception as e:
         db.session.rollback()
         logger.exception(f"Error in delete_note: {e}")
-        return jsonify({"error": f"Internal Server Error: {str(e)}"}), 500
+        return jsonify({"error": "An unexpected error occurred"}), 500
 
 
 @notes_bp.route("/notes/<int:note_id>", methods=["PATCH"])
@@ -137,7 +137,7 @@ def update_note(note_id):
             update_data = NoteUpdate(**data)
         except ValidationError as e:
             logger.warning(f"Update note validation error: {e}")
-            return jsonify({"error": f"Invalid data: {str(e)}"}), 400
+            return jsonify({"error": "Invalid request data"}), 400
 
         if request.is_admin:
             # Admin access - can update any note
@@ -162,4 +162,4 @@ def update_note(note_id):
     except Exception as e:
         db.session.rollback()
         logger.exception(f"Error in update_note: {e}")
-        return jsonify({"error": f"Internal Server Error: {str(e)}"}), 500
+        return jsonify({"error": "An unexpected error occurred"}), 500

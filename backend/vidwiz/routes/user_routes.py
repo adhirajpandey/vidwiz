@@ -36,7 +36,7 @@ def signup():
         user_data = UserCreate(**data)
     except ValidationError as e:
         logger.warning(f"Signup validation error: {e}")
-        return jsonify({"error": f"Invalid data: {str(e)}"}), 400
+        return jsonify({"error": "Invalid request data"}), 400
 
     if User.query.filter_by(email=user_data.email).first():
         logger.info(f"Signup attempt with existing email='{user_data.email}'")
@@ -67,7 +67,7 @@ def login():
         login_data = UserLogin(**data)
     except ValidationError as e:
         logger.warning(f"Login validation error: {e}")
-        return jsonify({"error": f"Invalid data: {str(e)}"}), 400
+        return jsonify({"error": "Invalid request data"}), 400
 
     user = User.query.filter_by(email=login_data.email).first()
     if not user or not user.password_hash or not check_password_hash(user.password_hash, login_data.password):
@@ -139,7 +139,7 @@ def create_long_term_token():
     except Exception as e:
         db.session.rollback()
         logger.exception(f"Error in create_long_term_token: {e}")
-        return jsonify({"error": f"Internal Server Error: {str(e)}"}), 500
+        return jsonify({"error": "An unexpected error occurred"}), 500
 
 
 @user_bp.route("/user/token", methods=["DELETE"])
@@ -171,7 +171,7 @@ def revoke_long_term_token():
     except Exception as e:
         db.session.rollback()
         logger.exception(f"Error in revoke_long_term_token: {e}")
-        return jsonify({"error": f"Internal Server Error: {str(e)}"}), 500
+        return jsonify({"error": "An unexpected error occurred"}), 500
 
 
 @user_bp.route("/user/profile", methods=["GET"])
@@ -207,7 +207,7 @@ def get_profile():
 
     except Exception as e:
         logger.exception(f"Error in get_profile: {e}")
-        return jsonify({"error": f"Internal Server Error: {str(e)}"}), 500
+        return jsonify({"error": "An unexpected error occurred"}), 500
 
 @user_bp.route("/user/profile", methods=["PATCH"])
 @jwt_or_lt_token_required
@@ -223,7 +223,7 @@ def update_profile():
             update_data = UserProfileUpdate(**data)
         except ValidationError as e:
             logger.warning(f"Update profile validation error: {e}")
-            return jsonify({"error": f"Invalid data: {str(e)}"}), 400
+            return jsonify({"error": "Invalid request data"}), 400
 
         user = User.query.get(request.user_id)
         if not user:
@@ -264,7 +264,7 @@ def update_profile():
     except Exception as e:
         db.session.rollback()
         logger.exception(f"Error in update_profile: {e}")
-        return jsonify({"error": f"Internal Server Error: {str(e)}"}), 500
+        return jsonify({"error": "An unexpected error occurred"}), 500
 
 
 @user_bp.route("/user/google/login", methods=["POST"])
@@ -364,4 +364,4 @@ def google_login():
     except Exception as e:
         db.session.rollback()
         logger.exception(f"Error in google_login: {e}")
-        return jsonify({"error": f"Internal Server Error: {str(e)}"}), 500
+        return jsonify({"error": "An unexpected error occurred"}), 500
