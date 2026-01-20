@@ -11,6 +11,10 @@ VidWiz helps users take timestamped notes on YouTube videos. The system stores n
 - Document notable behavioral changes in the README when needed.
 
 ## Project Structure & Module Organization
+- `README.md`: Project overview and setup.
+- `AGENTS.md`: Guidelines for coding agents.
+- `.github/workflows/deploy.yml`: workflow for deployment.
+- `.github/workflows/build.yml`: workflow for building and pushing Docker image.  
 - `backend/`: Flask API and supporting files.
   - `vidwiz/`: Flask app package.
     - `routes/`: API route handlers.
@@ -28,10 +32,7 @@ VidWiz helps users take timestamped notes on YouTube videos. The system stores n
   - `manifest.json`: Extension manifest.
   - `popup.*`: Popup UI assets/scripts.
   - `icons/`: Extension icons.
-- Root: Docker Compose files for local/prod orchestration.
-  - `docker-compose.yml`: Local dev orchestration.
-  - `docker-compose.prod.yml`: Production orchestration.
-  - `README.md`: Project overview and setup.
+- `docker-compose.yml`: Docker orchestration for deployment.
 
 ## Build, Test, and Development Commands
 - `cd backend && poetry install`: Install backend dependencies.

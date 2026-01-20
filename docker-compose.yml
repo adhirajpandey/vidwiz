@@ -1,14 +1,12 @@
 services:
   application:
     container_name: vidwiz-app
-    build:
-      context: .
-      dockerfile: backend/Dockerfile
+    image: adhirajpandey/vidwiz:latest
     env_file:
-      - backend/.env
+      - .env
     restart: unless-stopped
     ports:
-      - "5000:5000"
+      - "5006:5000"
     depends_on:
       - database
 
@@ -16,8 +14,10 @@ services:
     image: postgres:15
     container_name: vidwiz-db
     restart: unless-stopped
+    ports:
+      - "5433:5432"
     env_file:
-      - backend/.env
+      - .env
     volumes:
       - ./init:/docker-entrypoint-initdb.d
       - pgdata:/var/lib/postgresql/data

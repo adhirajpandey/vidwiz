@@ -28,8 +28,8 @@ jobs:
             cp ${{ secrets.SERVER_REPO_PATH }}/projects/vidwiz/.env ${{ secrets.VIDWIZ_REPO_PATH }}/.env
             cd ${{ secrets.VIDWIZ_REPO_PATH }} && git pull
             docker pull adhirajpandey/vidwiz:latest
-            docker compose -f docker-compose.prod.yml down || true
-            docker compose -f docker-compose.prod.yml up -d
+            docker compose down || true
+            docker compose up -d
             sudo systemctl daemon-reload
             sudo systemctl restart vidwiz-transcript-helper.service
             sudo systemctl restart vidwiz-metadata-helper.service
