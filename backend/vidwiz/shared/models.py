@@ -37,9 +37,10 @@ class Video(db.Model):
     __tablename__ = "videos"
     id = Column(Integer, primary_key=True)
     video_id = Column(Text, unique=True, nullable=False)
-    title = Column(Text, nullable=False)
+    title = Column(Text, nullable=True)
     video_metadata = Column(JSON, nullable=True)
     transcript_available = Column(Boolean, default=False)
+    summary = Column(Text, nullable=True)
     created_at = Column(TIMESTAMP(timezone=True), default=func.now())
     updated_at = Column(
         TIMESTAMP(timezone=True), default=func.now(), onupdate=func.now()

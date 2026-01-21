@@ -9,6 +9,7 @@ from vidwiz.routes.core_routes import core_bp
 from vidwiz.routes.user_routes import user_bp
 from vidwiz.routes.tasks_routes import tasks_bp
 from vidwiz.routes.frontend_routes import frontend_bp
+from vidwiz.routes.wiz_routes import wiz_bp
 
 from vidwiz.shared.models import db
 from sqlalchemy import text
@@ -70,6 +71,7 @@ def create_app(config=None):
     app.register_blueprint(video_bp, url_prefix="/api")
     app.register_blueprint(notes_bp, url_prefix="/api")
     app.register_blueprint(tasks_bp, url_prefix="/api")
+    app.register_blueprint(wiz_bp, url_prefix="/api")
     app.register_blueprint(frontend_bp)
 
     return app

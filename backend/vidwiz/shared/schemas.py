@@ -230,3 +230,18 @@ class TokenResponse(BaseModel):
 class TokenRevokeResponse(BaseModel):
     message: str
     model_config = {"from_attributes": True}
+
+
+class WizInitRequest(BaseModel):
+    video_id: str
+
+    @field_validator("video_id")
+    @classmethod
+    def validate_video_id(cls, v):
+        if not v or not v.strip():
+            raise ValueError("video_id cannot be empty")
+        return v.strip()
+
+    model_config = {
+        "extra": "forbid",
+    }
