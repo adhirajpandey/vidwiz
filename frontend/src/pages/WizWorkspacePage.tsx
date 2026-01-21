@@ -1,6 +1,7 @@
 import { useState, useRef, useEffect } from 'react';
 import { useParams } from 'react-router-dom';
-import { Send, AlertCircle, Sparkles, RotateCcw, ExternalLink } from 'lucide-react';
+import { Send, AlertCircle, Sparkles, RotateCcw } from 'lucide-react';
+import WatchYouTubeButton from '../components/WatchYouTubeButton';
 
 interface Message {
   id: string;
@@ -310,15 +311,7 @@ function WizWorkspacePage() {
                   </>
                 )}
               </div>
-              <a
-                href={`https://www.youtube.com/watch?v=${videoId}`}
-                target="_blank"
-                rel="noopener noreferrer"
-                className="flex-shrink-0 inline-flex items-center gap-2 px-3 py-2 text-xs font-medium text-foreground/70 bg-secondary/50 hover:bg-secondary border border-border hover:border-border/80 rounded-lg transition-all"
-              >
-                <ExternalLink className="w-3.5 h-3.5" />
-                <span className="hidden sm:inline">Watch on YouTube</span>
-              </a>
+              <WatchYouTubeButton videoId={videoId || ''} variant="red" />
             </div>
 
             {/* Metadata Stats */}
