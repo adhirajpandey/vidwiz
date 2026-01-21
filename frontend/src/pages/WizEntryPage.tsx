@@ -4,6 +4,7 @@ import { Sparkles, ArrowRight, MessageSquare, Clock, Brain, AlertCircle } from '
 import AmbientBackground from '../components/ui/AmbientBackground';
 import GradientText from '../components/ui/GradientText';
 import GlassCard from '../components/ui/GlassCard';
+import config from '../config';
 
 /**
  * Extracts a YouTube video ID from various URL formats or raw ID.
@@ -76,13 +77,14 @@ function extractVideoId(input: string): string | null {
   return null;
 }
 
+
 function WizEntryPage() {
   const navigate = useNavigate();
   const [inputValue, setInputValue] = useState('');
   const [error, setError] = useState<string | null>(null);
   const [isLoading, setIsLoading] = useState(false);
 
-  const handleSubmit = (e: React.FormEvent) => {
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setError(null);
     
@@ -107,7 +109,26 @@ function WizEntryPage() {
     }
     
     setIsLoading(true);
-    navigate(`/wiz/${videoId}`);
+
+    try {
+      const response = await fetch(`${config.API_URL}/wiz/init`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({ video_id: videoId }),
+      });
+
+      if (!response.ok) {
+        throw new Error('Failed to initialize session');
+      }
+
+      navigate(`/wiz/${videoId}`);
+    } catch (err) {
+      console.error('Wiz init error:', err);
+      setError('Failed to start session. Please try again.');
+      setIsLoading(false);
+    }
   };
 
   return (
