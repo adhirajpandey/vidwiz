@@ -40,7 +40,7 @@ function parseTimestampCitations(content: string, onTimestampClick: (seconds: nu
       <button
         key={match.index}
         onClick={() => onTimestampClick(totalSeconds)}
-        className="inline-flex items-center px-2 py-0.5 mx-0.5 rounded-md bg-violet-500/20 text-violet-300 hover:bg-violet-500/30 hover:text-violet-200 transition-all text-sm font-mono border border-violet-500/20 hover:border-violet-500/40"
+        className="inline-flex items-center px-2 py-0.5 mx-0.5 rounded-md bg-violet-500/10 text-violet-600 dark:text-violet-300 hover:bg-violet-500/20 transition-all text-sm font-mono border border-violet-500/20"
       >
         {match[0]}
       </button>
@@ -134,15 +134,15 @@ function WizWorkspacePage() {
   };
 
   return (
-    <div className="max-w-screen-2xl mx-auto px-4 md:px-6 py-6">
+    <div className="max-w-screen-2xl mx-auto px-4 md:px-6 py-5">
       {/* Main Content - Split View: Chat Left, Video Right */}
-      <div className="flex flex-col-reverse lg:flex-row lg:items-stretch gap-6 lg:h-[calc(100vh-10rem)]">
+      <div className="flex flex-col-reverse lg:flex-row lg:items-stretch gap-6 lg:h-[calc(100vh-6.5rem)]">
         
         {/* Left Pane - Chat */}
-        <div className="w-full lg:w-[45%] flex flex-col rounded-2xl bg-white/[0.02] border border-white/[0.06] overflow-hidden min-h-[500px]">
+        <div className="w-full lg:w-[45%] flex flex-col rounded-2xl bg-card border border-border overflow-hidden min-h-[500px]">
           
           {/* Chat Header */}
-          <div className="flex items-center justify-between px-4 py-3 border-b border-white/[0.06]">
+          <div className="flex items-center justify-between px-4 py-3 border-b border-border">
             <div className="flex items-center gap-2">
               <div className="w-8 h-8 rounded-lg bg-gradient-to-br from-violet-500/20 to-fuchsia-500/20 flex items-center justify-center border border-violet-500/20">
                 <Sparkles className="w-4 h-4 text-violet-400" />
@@ -152,7 +152,7 @@ function WizWorkspacePage() {
             {messages.length > 0 && (
               <button
                 onClick={handleNewChat}
-                className="inline-flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg text-xs text-foreground/60 hover:text-foreground hover:bg-white/[0.04] transition-all"
+                className="inline-flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg text-xs text-foreground/60 hover:text-foreground hover:bg-muted transition-all"
               >
                 <RotateCcw className="w-3.5 h-3.5" />
                 <span>New</span>
@@ -162,14 +162,14 @@ function WizWorkspacePage() {
 
           {/* Transcript Status Banner */}
           {transcriptStatus === 'loading' && (
-            <div className="flex items-center justify-center gap-3 px-4 py-3 bg-gradient-to-r from-violet-500/10 to-fuchsia-500/10 border-b border-white/[0.06]">
+            <div className="flex items-center justify-center gap-3 px-4 py-3 bg-gradient-to-r from-violet-500/10 to-fuchsia-500/10 border-b border-border">
               <div className="w-4 h-4 rounded-full border-2 border-violet-400/30 border-t-violet-400 animate-spin" />
               <span className="text-sm text-violet-300">Preparing transcript...</span>
             </div>
           )}
           
           {transcriptStatus === 'error' && (
-            <div className="flex items-center justify-center gap-3 px-4 py-3 bg-red-500/10 border-b border-white/[0.06]">
+            <div className="flex items-center justify-center gap-3 px-4 py-3 bg-destructive/10 border-b border-border">
               <AlertCircle className="w-4 h-4 text-red-400" />
               <span className="text-sm text-red-300">Failed to load transcript</span>
               <button className="ml-2 text-sm text-red-400 hover:text-red-300 underline underline-offset-2">
@@ -195,7 +195,7 @@ function WizWorkspacePage() {
                       <button
                         key={suggestion}
                         onClick={() => setInputValue(suggestion)}
-                        className="px-3 py-2 text-xs rounded-lg bg-white/[0.03] border border-white/[0.08] text-foreground/60 hover:text-foreground hover:bg-white/[0.06] hover:border-white/[0.12] transition-all"
+                        className="px-3 py-2 text-xs rounded-lg bg-secondary/50 border border-border text-foreground/60 hover:text-foreground hover:bg-secondary hover:border-border/80 transition-all"
                       >
                         {suggestion}
                       </button>
@@ -213,7 +213,7 @@ function WizWorkspacePage() {
                     className={`max-w-[88%] rounded-2xl px-4 py-3 ${
                       message.role === 'user'
                         ? 'bg-gradient-to-r from-violet-600 to-violet-500 text-white'
-                        : 'bg-white/[0.04] border border-white/[0.08]'
+                        : 'bg-muted border border-border'
                     }`}
                   >
                     <div className="text-sm leading-relaxed whitespace-pre-wrap">
@@ -227,7 +227,7 @@ function WizWorkspacePage() {
 
               {isLoading && (
                 <div className="flex justify-start">
-                  <div className="bg-white/[0.04] border border-white/[0.08] rounded-2xl px-4 py-3">
+                  <div className="bg-muted border border-border rounded-2xl px-4 py-3">
                     <div className="flex items-center gap-3">
                       <div className="flex gap-1">
                         <div className="w-2 h-2 rounded-full bg-violet-400 animate-bounce" style={{ animationDelay: '0ms' }} />
@@ -245,7 +245,7 @@ function WizWorkspacePage() {
           </div>
 
           {/* Input Area */}
-          <div className="p-4 border-t border-white/[0.06]">
+          <div className="p-4 border-t border-border">
             <form onSubmit={handleSubmit} className="flex gap-3">
               <input
                 ref={inputRef}
@@ -258,7 +258,7 @@ function WizWorkspacePage() {
                     : 'Waiting for transcript...'
                 }
                 disabled={transcriptStatus !== 'ready' || isLoading}
-                className="flex-1 px-4 py-3 bg-white/[0.03] border border-white/[0.08] rounded-xl text-foreground placeholder:text-foreground/40 focus:outline-none focus:border-violet-500/50 focus:ring-2 focus:ring-violet-500/20 transition-all disabled:opacity-50 disabled:cursor-not-allowed"
+                className="flex-1 px-4 py-3 bg-muted/50 border border-input rounded-xl text-foreground placeholder:text-muted-foreground focus:outline-none focus:border-violet-500/50 focus:ring-2 focus:ring-violet-500/20 transition-all disabled:opacity-50 disabled:cursor-not-allowed"
               />
               <button
                 type="submit"
@@ -272,7 +272,7 @@ function WizWorkspacePage() {
         </div>
 
         {/* Right Pane - Video + Details */}
-        <div className="w-full lg:w-[55%] flex flex-col rounded-2xl bg-white/[0.02] border border-white/[0.06] overflow-hidden">
+        <div className="w-full lg:w-[55%] flex flex-col rounded-2xl bg-card border border-border overflow-hidden">
           {/* Video Player */}
           <div className="relative w-full bg-black flex-shrink-0">
             <div className="aspect-video">
@@ -305,8 +305,8 @@ function WizWorkspacePage() {
                   </>
                 ) : (
                   <>
-                    <div className="h-6 w-3/4 bg-white/[0.04] rounded-lg animate-pulse" />
-                    <div className="h-4 w-1/2 bg-white/[0.04] rounded-lg animate-pulse" />
+                    <div className="h-6 w-3/4 bg-muted rounded-lg animate-pulse" />
+                    <div className="h-4 w-1/2 bg-muted rounded-lg animate-pulse" />
                   </>
                 )}
               </div>
@@ -314,7 +314,7 @@ function WizWorkspacePage() {
                 href={`https://www.youtube.com/watch?v=${videoId}`}
                 target="_blank"
                 rel="noopener noreferrer"
-                className="flex-shrink-0 inline-flex items-center gap-2 px-3 py-2 text-xs font-medium text-foreground/70 bg-white/[0.04] hover:bg-white/[0.08] border border-white/[0.08] hover:border-white/[0.12] rounded-lg transition-all"
+                className="flex-shrink-0 inline-flex items-center gap-2 px-3 py-2 text-xs font-medium text-foreground/70 bg-secondary/50 hover:bg-secondary border border-border hover:border-border/80 rounded-lg transition-all"
               >
                 <ExternalLink className="w-3.5 h-3.5" />
                 <span className="hidden sm:inline">Watch on YouTube</span>
@@ -322,19 +322,19 @@ function WizWorkspacePage() {
             </div>
 
             {/* Metadata Stats */}
-            <div className="flex items-center gap-4 text-sm py-3 border-y border-white/[0.06]">
+            <div className="flex items-center gap-4 text-sm py-3 border-y border-border">
               {metadata ? (
                 <>
                   <div className="flex items-center gap-1.5">
                     <span className="text-foreground/50">Views:</span>
                     <span className="text-foreground/80 font-medium">1.2M</span>
                   </div>
-                  <div className="w-px h-4 bg-white/[0.08]" />
+                  <div className="w-px h-4 bg-border" />
                   <div className="flex items-center gap-1.5">
                     <span className="text-foreground/50">Likes:</span>
                     <span className="text-foreground/80 font-medium">45K</span>
                   </div>
-                  <div className="w-px h-4 bg-white/[0.08]" />
+                  <div className="w-px h-4 bg-border" />
                   <div className="flex items-center gap-1.5">
                     <span className="text-foreground/50">Published:</span>
                     <span className="text-foreground/80 font-medium">Jan 19, 2026</span>
@@ -342,9 +342,9 @@ function WizWorkspacePage() {
                 </>
               ) : (
                 <div className="flex gap-4">
-                  <div className="h-4 w-20 bg-white/[0.04] rounded animate-pulse" />
-                  <div className="h-4 w-16 bg-white/[0.04] rounded animate-pulse" />
-                  <div className="h-4 w-24 bg-white/[0.04] rounded animate-pulse" />
+                  <div className="h-4 w-20 bg-muted rounded animate-pulse" />
+                  <div className="h-4 w-16 bg-muted rounded animate-pulse" />
+                  <div className="h-4 w-24 bg-muted rounded animate-pulse" />
                 </div>
               )}
             </div>
@@ -361,9 +361,9 @@ function WizWorkspacePage() {
                 </p>
               ) : (
                 <div className="space-y-2">
-                  <div className="h-4 w-full bg-white/[0.04] rounded animate-pulse" />
-                  <div className="h-4 w-full bg-white/[0.04] rounded animate-pulse" />
-                  <div className="h-4 w-3/4 bg-white/[0.04] rounded animate-pulse" />
+                  <div className="h-4 w-full bg-muted rounded animate-pulse" />
+                  <div className="h-4 w-full bg-muted rounded animate-pulse" />
+                  <div className="h-4 w-3/4 bg-muted rounded animate-pulse" />
                 </div>
               )}
             </div>

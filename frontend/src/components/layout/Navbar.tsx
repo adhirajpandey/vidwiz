@@ -100,7 +100,7 @@ export default function Navbar() {
   return (
     <nav className="fixed top-0 w-full z-50 select-none">
       {/* Subtle gradient background with glassmorphism */}
-      <div className="absolute inset-0 bg-background/70 backdrop-blur-xl border-b border-white/[0.06]"></div>
+      <div className="absolute inset-0 bg-background/70 backdrop-blur-xl border-b border-border"></div>
       
       {/* Ambient top glow */}
       <div className="absolute inset-x-0 -top-20 h-20 bg-gradient-to-b from-red-500/5 to-transparent pointer-events-none"></div>
@@ -125,8 +125,8 @@ export default function Navbar() {
                 to="/dashboard" 
                 className={`group inline-flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-medium transition-all duration-200 ${
                   isActive('/dashboard') 
-                    ? 'bg-white/[0.08] text-foreground' 
-                    : 'text-foreground/60 hover:text-foreground hover:bg-white/[0.04]'
+                    ? 'bg-accent text-accent-foreground' 
+                    : 'text-foreground/60 hover:text-accent-foreground hover:bg-accent/50'
                 }`}
               >
                 <LayoutDashboard className={`w-4 h-4 transition-colors ${isActive('/dashboard') ? 'text-red-400' : 'group-hover:text-red-400'}`} />
@@ -136,8 +136,8 @@ export default function Navbar() {
                 to="/wiz" 
                 className={`group inline-flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-medium transition-all duration-200 ${
                   location.pathname.startsWith('/wiz')
-                    ? 'bg-white/[0.08] text-foreground' 
-                    : 'text-foreground/60 hover:text-foreground hover:bg-white/[0.04]'
+                    ? 'bg-accent text-accent-foreground' 
+                    : 'text-foreground/60 hover:text-accent-foreground hover:bg-accent/50'
                 }`}
               >
                 <Sparkles className={`w-4 h-4 transition-colors ${location.pathname.startsWith('/wiz') ? 'text-violet-400' : 'group-hover:text-violet-400'}`} />
@@ -149,13 +149,13 @@ export default function Navbar() {
               <>
                 <a 
                   href="#features" 
-                  className="px-4 py-2 rounded-lg text-sm font-medium text-foreground/60 hover:text-foreground hover:bg-white/[0.04] transition-all duration-200"
+                  className="px-4 py-2 rounded-lg text-sm font-medium text-foreground/60 hover:text-accent-foreground hover:bg-accent/50 transition-all duration-200"
                 >
                   Features
                 </a>
                 <a 
                   href="#how-it-works" 
-                  className="px-4 py-2 rounded-lg text-sm font-medium text-foreground/60 hover:text-foreground hover:bg-white/[0.04] transition-all duration-200"
+                  className="px-4 py-2 rounded-lg text-sm font-medium text-foreground/60 hover:text-accent-foreground hover:bg-accent/50 transition-all duration-200"
                 >
                   How It Works
                 </a>
@@ -170,7 +170,7 @@ export default function Navbar() {
           <button
             aria-label="Toggle theme"
             onClick={toggleTheme}
-            className="relative h-9 w-9 inline-flex items-center justify-center rounded-lg bg-white/[0.04] hover:bg-white/[0.08] border border-white/[0.08] hover:border-white/[0.12] text-foreground/70 hover:text-foreground transition-all duration-200 cursor-pointer"
+            className="relative h-9 w-9 inline-flex items-center justify-center rounded-lg hover:bg-accent hover:text-accent-foreground border border-border hover:border-accent-foreground/20 text-foreground/70 transition-all duration-200 cursor-pointer"
           >
             {theme === 'dark' ? (
               <Sun className="w-4 h-4 transition-transform duration-200 hover:rotate-45" />
@@ -184,7 +184,7 @@ export default function Navbar() {
             <div className="relative" ref={dropdownRef}>
               <button
                 onClick={() => setIsDropdownOpen(!isDropdownOpen)}
-                className="group flex items-center gap-2 px-2 py-1.5 rounded-lg hover:bg-white/[0.04] transition-all duration-200 cursor-pointer"
+                className="group flex items-center gap-2 px-2 py-1.5 rounded-lg hover:bg-accent transition-all duration-200 cursor-pointer"
                 aria-label="User menu"
               >
                 {/* Avatar */}
@@ -212,9 +212,9 @@ export default function Navbar() {
 
               {/* Dropdown Menu */}
               {isDropdownOpen && (
-                <div className="absolute right-0 mt-2 w-56 rounded-xl bg-card/95 backdrop-blur-xl border border-white/[0.08] shadow-2xl shadow-black/20 overflow-hidden animate-in fade-in slide-in-from-top-2 duration-200">
+                <div className="absolute right-0 mt-2 w-56 rounded-xl bg-popover/95 backdrop-blur-xl border border-border shadow-2xl shadow-black/20 overflow-hidden animate-in fade-in slide-in-from-top-2 duration-200">
                   {/* User Info Header */}
-                  <div className="px-4 py-3 border-b border-white/[0.06] bg-white/[0.02]">
+                  <div className="px-4 py-3 border-b border-border bg-muted/30">
                     <div className="flex items-center gap-3">
                       {profileImageUrl ? (
                         <img 
@@ -244,15 +244,15 @@ export default function Navbar() {
                       onClick={() => setIsDropdownOpen(false)}
                       className={`flex items-center gap-3 px-4 py-2.5 text-sm transition-all duration-150 ${
                         isActive('/profile')
-                          ? 'bg-white/[0.06] text-foreground'
-                          : 'text-foreground/70 hover:text-foreground hover:bg-white/[0.04]'
+                          ? 'bg-accent text-accent-foreground'
+                          : 'text-foreground/70 hover:text-accent-foreground hover:bg-accent/50'
                       }`}
                     >
                       <User className={`w-4 h-4 ${isActive('/profile') ? 'text-red-400' : ''}`} />
                       <span>Profile</span>
                     </Link>
                     
-                    <div className="my-1.5 mx-3 border-t border-white/[0.06]"></div>
+                    <div className="my-1.5 mx-3 border-t border-border"></div>
                     
                     <button
                       onClick={handleLogout}

@@ -122,8 +122,8 @@ function WizEntryPage() {
             
             {/* Badge */}
             <div className="mb-8 animate-in fade-in slide-in-from-bottom-4 duration-700 select-none">
-              <div className="inline-flex items-center gap-2 px-4 py-2 rounded-full bg-white/[0.03] border border-white/[0.08] hover:border-white/[0.15] transition-colors cursor-default">
-                <Sparkles className="w-4 h-4 text-violet-400 fill-violet-400/20" />
+              <div className="inline-flex items-center gap-2 px-4 py-2 rounded-full bg-secondary/50 border border-border hover:border-border/80 transition-colors cursor-default">
+                <Sparkles className="w-4 h-4 text-violet-500 dark:text-violet-400 fill-violet-500/10 dark:fill-violet-400/20" />
                 <span className="text-sm font-medium text-foreground/80">AI-Powered Video Chat</span>
               </div>
             </div>
@@ -148,7 +148,7 @@ function WizEntryPage() {
                 {/* Glow behind card */}
                 <div className="absolute -inset-1 bg-gradient-to-r from-violet-500/20 via-red-500/20 to-violet-500/20 rounded-3xl blur-xl opacity-50"></div>
                 
-                <GlassCard className="relative rounded-2xl md:rounded-3xl p-6 md:p-8 bg-black/60 border-white/10">
+                <GlassCard className="relative rounded-2xl md:rounded-3xl p-6 md:p-8 bg-card/90 backdrop-blur-xl border-border shadow-xl">
                   <form onSubmit={handleSubmit} className="space-y-6">
                     <div>
                       <label htmlFor="video-input" className="block text-sm font-medium text-foreground/70 mb-3 text-left">
@@ -163,7 +163,7 @@ function WizEntryPage() {
                           setError(null);
                         }}
                         placeholder="https://youtube.com/watch?v=... or video ID"
-                        className="w-full px-5 py-4 bg-white/[0.03] border border-white/[0.08] rounded-xl text-foreground placeholder:text-foreground/40 focus:outline-none focus:border-violet-500/50 focus:ring-2 focus:ring-violet-500/20 transition-all"
+                        className="w-full px-5 py-4 bg-muted/50 border border-input rounded-xl text-foreground placeholder:text-muted-foreground focus:outline-none focus:border-violet-500/50 focus:ring-2 focus:ring-violet-500/20 transition-all"
                         autoComplete="off"
                         autoFocus
                       />
@@ -195,7 +195,7 @@ function WizEntryPage() {
                   </form>
                   
                   {/* Supported formats hint */}
-                  <div className="mt-6 pt-6 border-t border-white/[0.05]">
+                  <div className="mt-6 pt-6 border-t border-border">
                     <p className="text-xs text-foreground/40 text-center">
                       Supports youtube.com, youtu.be, Shorts, Live, and direct video IDs
                     </p>
@@ -211,7 +211,7 @@ function WizEntryPage() {
           <div className="grid md:grid-cols-3 gap-6">
             
             {/* Feature 1 */}
-            <div className="group relative p-6 rounded-2xl bg-white/[0.02] border border-white/[0.08] hover:bg-white/[0.04] hover:border-white/[0.12] transition-all duration-300 select-none">
+            <div className="group relative p-6 rounded-2xl bg-card border border-border hover:bg-muted/30 hover:border-border/80 transition-all duration-300 select-none">
               <div className="w-12 h-12 bg-violet-500/10 rounded-xl flex items-center justify-center mb-4 text-violet-400 group-hover:scale-110 transition-transform duration-300">
                 <MessageSquare className="w-6 h-6" />
               </div>
@@ -222,7 +222,7 @@ function WizEntryPage() {
             </div>
 
             {/* Feature 2 */}
-            <div className="group relative p-6 rounded-2xl bg-white/[0.02] border border-white/[0.08] hover:bg-white/[0.04] hover:border-white/[0.12] transition-all duration-300 select-none">
+            <div className="group relative p-6 rounded-2xl bg-card border border-border hover:bg-muted/30 hover:border-border/80 transition-all duration-300 select-none">
               <div className="w-12 h-12 bg-red-500/10 rounded-xl flex items-center justify-center mb-4 text-red-400 group-hover:scale-110 transition-transform duration-300">
                 <Clock className="w-6 h-6" />
               </div>
@@ -233,7 +233,7 @@ function WizEntryPage() {
             </div>
 
             {/* Feature 3 */}
-            <div className="group relative p-6 rounded-2xl bg-white/[0.02] border border-white/[0.08] hover:bg-white/[0.04] hover:border-white/[0.12] transition-all duration-300 select-none">
+            <div className="group relative p-6 rounded-2xl bg-card border border-border hover:bg-muted/30 hover:border-border/80 transition-all duration-300 select-none">
               <div className="w-12 h-12 bg-emerald-500/10 rounded-xl flex items-center justify-center mb-4 text-emerald-400 group-hover:scale-110 transition-transform duration-300">
                 <Brain className="w-6 h-6" />
               </div>

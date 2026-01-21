@@ -39,7 +39,7 @@ export default function NoteCard({ note, onUpdate, onDelete }: NoteCardProps) {
   const youtubeUrl = `https://www.youtube.com/watch?v=${note.video_id}&t=${timestampToSeconds(note.timestamp)}s`;
 
   return (
-    <div className="group bg-white/[0.02] hover:bg-white/[0.04] rounded-lg md:rounded-xl p-3 md:p-4 transition-all duration-200 border border-white/[0.04] hover:border-white/[0.08] select-none">
+    <div className="group bg-card hover:bg-muted/30 rounded-lg md:rounded-xl p-3 md:p-4 transition-all duration-200 border border-border hover:border-border/80 select-none">
       <div className="flex items-center gap-3">
         {/* Left side: Timestamp + Source indicator */}
         <div className="flex items-center gap-2 flex-shrink-0">
@@ -83,7 +83,7 @@ export default function NoteCard({ note, onUpdate, onDelete }: NoteCardProps) {
               <textarea
                 value={editText}
                 onChange={(e) => setEditText(e.target.value)}
-                className="w-full p-2.5 md:p-3 rounded-lg bg-black/30 border border-white/10 text-sm text-foreground placeholder-foreground/30 focus:outline-none focus:border-blue-500/40 focus:ring-1 focus:ring-blue-500/20 transition-all resize-none"
+                className="w-full p-2.5 md:p-3 rounded-lg bg-muted/50 border border-input text-sm text-foreground placeholder:text-muted-foreground focus:outline-none focus:border-blue-500/40 focus:ring-1 focus:ring-blue-500/20 transition-all resize-none"
                 style={{ minHeight: '70px' }}
                 autoFocus
               />
@@ -97,7 +97,7 @@ export default function NoteCard({ note, onUpdate, onDelete }: NoteCardProps) {
                 </button>
                 <button 
                   onClick={handleCancel} 
-                  className="inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium text-foreground/70 bg-white/5 hover:bg-white/10 border border-white/10 rounded-md transition-colors cursor-pointer"
+                  className="inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium text-foreground/70 bg-secondary hover:bg-secondary/80 border border-border rounded-md transition-colors cursor-pointer"
                 >
                   <FaTimes className="w-2.5 h-2.5" />
                   Cancel
