@@ -1,6 +1,6 @@
 import { useEffect, useState, useRef } from 'react';
 import { Link, useLocation, useNavigate } from 'react-router-dom';
-import { Moon, Sun, LogOut, LayoutDashboard, User, ChevronDown } from 'lucide-react';
+import { Moon, Sun, LogOut, LayoutDashboard, User, ChevronDown, Sparkles } from 'lucide-react';
 import vidwizLogo from '../../public/vidwiz.png';
 
 export default function Navbar() {
@@ -105,7 +105,7 @@ export default function Navbar() {
       {/* Ambient top glow */}
       <div className="absolute inset-x-0 -top-20 h-20 bg-gradient-to-b from-red-500/5 to-transparent pointer-events-none"></div>
       
-      <div className="relative max-w-7xl mx-auto px-4 md:px-6 py-3 md:py-4 flex items-center justify-between">
+      <div className="relative max-w-screen-2xl mx-auto px-4 md:px-6 py-3 md:py-4 flex items-center justify-between">
         {/* Logo */}
         <Link to="/" className="group flex items-center gap-2.5">
           <div className="relative">
@@ -120,17 +120,30 @@ export default function Navbar() {
         {/* Navigation Links - Center */}
         <div className="hidden md:flex items-center gap-1">
           {isLoggedIn ? (
-            <Link 
-              to="/dashboard" 
-              className={`group inline-flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-medium transition-all duration-200 ${
-                isActive('/dashboard') 
-                  ? 'bg-white/[0.08] text-foreground' 
-                  : 'text-foreground/60 hover:text-foreground hover:bg-white/[0.04]'
-              }`}
-            >
-              <LayoutDashboard className={`w-4 h-4 transition-colors ${isActive('/dashboard') ? 'text-red-400' : 'group-hover:text-red-400'}`} />
-              Dashboard
-            </Link>
+            <>
+              <Link 
+                to="/dashboard" 
+                className={`group inline-flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-medium transition-all duration-200 ${
+                  isActive('/dashboard') 
+                    ? 'bg-white/[0.08] text-foreground' 
+                    : 'text-foreground/60 hover:text-foreground hover:bg-white/[0.04]'
+                }`}
+              >
+                <LayoutDashboard className={`w-4 h-4 transition-colors ${isActive('/dashboard') ? 'text-red-400' : 'group-hover:text-red-400'}`} />
+                Dashboard
+              </Link>
+              <Link 
+                to="/wiz" 
+                className={`group inline-flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-medium transition-all duration-200 ${
+                  location.pathname.startsWith('/wiz')
+                    ? 'bg-white/[0.08] text-foreground' 
+                    : 'text-foreground/60 hover:text-foreground hover:bg-white/[0.04]'
+                }`}
+              >
+                <Sparkles className={`w-4 h-4 transition-colors ${location.pathname.startsWith('/wiz') ? 'text-violet-400' : 'group-hover:text-violet-400'}`} />
+                Wiz
+              </Link>
+            </>
           ) : (
             location.pathname === '/' && (
               <>

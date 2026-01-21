@@ -18,7 +18,7 @@ export default function Layout({ children }: { children: ReactNode }) {
         <div className="absolute inset-x-0 top-0 h-px bg-gradient-to-r from-transparent via-red-500/20 to-transparent"></div>
         <div className="absolute inset-x-0 bottom-0 h-32 bg-gradient-to-t from-red-500/[0.02] to-transparent pointer-events-none"></div>
         
-        <div className="relative max-w-7xl mx-auto px-4 md:px-6 py-10 md:py-14">
+        <div className="relative max-w-screen-2xl mx-auto px-4 md:px-6 py-10 md:py-14">
           {/* Main Footer Content */}
           <div className="flex flex-col gap-8">
             {/* Top Section */}
