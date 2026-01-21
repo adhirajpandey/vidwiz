@@ -1,7 +1,8 @@
 import { useState, useRef, useEffect } from 'react';
 import { useParams } from 'react-router-dom';
-import { Send, AlertCircle, Sparkles, RotateCcw } from 'lucide-react';
-import WatchYouTubeButton from '../components/WatchYouTubeButton';
+import { Send, Sparkles, RotateCcw } from 'lucide-react';
+import { FaExternalLinkAlt } from 'react-icons/fa';
+import config from '../config';
 
 interface Message {
   id: string;
@@ -11,11 +12,23 @@ interface Message {
   createdAt: Date;
 }
 
-interface VideoMetadata {
-  title: string;
-  channel: string;
-  duration: string;
-  thumbnail: string;
+interface VideoData {
+  video_id: string;
+  title: string | null;
+  transcript_available: boolean;
+  metadata: {
+    title?: string;
+    channel?: string;
+    channel_url?: string;
+    uploader?: string;
+    uploader_url?: string;
+    duration_string?: string;
+    thumbnail?: string;
+    view_count?: number;
+    like_count?: number;
+    upload_date?: string;
+  } | null;
+  summary: string | null;
 }
 
 /**
@@ -62,11 +75,16 @@ function WizWorkspacePage() {
   const [messages, setMessages] = useState<Message[]>([]);
   const [inputValue, setInputValue] = useState('');
   const [isLoading, setIsLoading] = useState(false);
-  const [transcriptStatus, setTranscriptStatus] = useState<'loading' | 'ready' | 'error'>('loading');
-  const [metadata, setMetadata] = useState<VideoMetadata | null>(null);
+  const [videoData, setVideoData] = useState<VideoData | null>(null);
+  const [isPolling, setIsPolling] = useState(true);
+  const [showRefreshModal, setShowRefreshModal] = useState(false);
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const playerRef = useRef<HTMLIFrameElement>(null);
   const inputRef = useRef<HTMLInputElement>(null);
+  const pollingStartTime = useRef<number>(Date.now());
+
+  // Computed status
+  const transcriptStatus = videoData?.transcript_available ? 'ready' : 'loading';
 
   useEffect(() => {
     if (messages.length > 0) {
@@ -74,18 +92,55 @@ function WizWorkspacePage() {
     }
   }, [messages]);
 
+  // Poll for video status every 5 seconds until all data is available or 1 minute timeout
   useEffect(() => {
-    const timer = setTimeout(() => {
-      setTranscriptStatus('ready');
-      setMetadata({
-        title: 'Video Title Will Load Here',
-        channel: 'Channel Name',
-        duration: '12:34',
-        thumbnail: `https://img.youtube.com/vi/${videoId}/maxresdefault.jpg`,
-      });
-    }, 1500);
-    return () => clearTimeout(timer);
-  }, [videoId]);
+    if (!videoId) return;
+
+    const POLLING_TIMEOUT_MS = 60000; // 1 minute
+
+    const fetchVideoStatus = async () => {
+      try {
+        const response = await fetch(`${config.API_URL}/wiz/video/${videoId}`);
+        if (response.ok) {
+          const data: VideoData = await response.json();
+          setVideoData(data);
+
+          // Stop polling if all data is available
+          if (data.transcript_available && data.metadata && data.summary) {
+            setIsPolling(false);
+          }
+        }
+      } catch (error) {
+        console.error('Failed to fetch video status:', error);
+      }
+    };
+
+    // Initial fetch
+    fetchVideoStatus();
+
+    // Set up polling
+    let intervalId: number | undefined;
+    if (isPolling) {
+      intervalId = window.setInterval(() => {
+        // Check if 1 minute has passed
+        if (Date.now() - pollingStartTime.current >= POLLING_TIMEOUT_MS) {
+          setIsPolling(false);
+          // If transcript still not available after timeout, show refresh modal
+          if (!videoData?.transcript_available) {
+            setShowRefreshModal(true);
+          }
+          return;
+        }
+        fetchVideoStatus();
+      }, 5000);
+    }
+
+    return () => {
+      if (intervalId) {
+        clearInterval(intervalId);
+      }
+    };
+  }, [videoId, isPolling, videoData?.transcript_available]);
 
   const seekToTimestamp = (seconds: number) => {
     if (playerRef.current?.contentWindow) {
@@ -136,6 +191,31 @@ function WizWorkspacePage() {
 
   return (
     <div className="max-w-screen-2xl mx-auto px-4 md:px-6 py-5">
+      {/* Refresh Modal */}
+      {showRefreshModal && (
+        <div className="fixed inset-0 bg-black/50 backdrop-blur-sm flex items-center justify-center z-50">
+          <div className="bg-card rounded-2xl p-6 max-w-md w-full mx-4 border border-border shadow-2xl">
+            <div className="text-center">
+              <div className="w-16 h-16 mx-auto mb-4 rounded-full bg-orange-500/10 flex items-center justify-center">
+                <svg className="w-8 h-8 text-orange-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" />
+                </svg>
+              </div>
+              <h3 className="text-lg font-semibold text-foreground mb-2">Transcript Not Available</h3>
+              <p className="text-sm text-foreground/60 mb-6">
+                The transcript for this video is still processing. Please refresh the page to check again.
+              </p>
+              <button
+                onClick={() => window.location.reload()}
+                className="w-full px-4 py-3 bg-gradient-to-r from-violet-600 to-violet-500 hover:from-violet-500 hover:to-violet-400 text-white font-semibold rounded-xl transition-all"
+              >
+                Refresh Page
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
       {/* Main Content - Split View: Chat Left, Video Right */}
       <div className="flex flex-col-reverse lg:flex-row lg:items-stretch gap-6 lg:h-[calc(100vh-6.5rem)]">
         
@@ -169,15 +249,6 @@ function WizWorkspacePage() {
             </div>
           )}
           
-          {transcriptStatus === 'error' && (
-            <div className="flex items-center justify-center gap-3 px-4 py-3 bg-destructive/10 border-b border-border">
-              <AlertCircle className="w-4 h-4 text-red-400" />
-              <span className="text-sm text-red-300">Failed to load transcript</span>
-              <button className="ml-2 text-sm text-red-400 hover:text-red-300 underline underline-offset-2">
-                Retry
-              </button>
-            </div>
-          )}
 
           {/* Messages Area */}
           <div className="flex-1 overflow-y-auto">
@@ -289,55 +360,103 @@ function WizWorkspacePage() {
           </div>
 
           {/* Scrollable Content Area */}
-          <div className="flex-1 overflow-y-auto p-4 space-y-4">
+          <div className="flex-1 overflow-y-auto p-5 space-y-5">
             {/* Video Title & Channel */}
             <div className="flex items-start justify-between gap-4">
-              <div className="space-y-2 flex-1 min-w-0">
-                {metadata ? (
+              <div className="space-y-3 flex-1 min-w-0">
+                {videoData?.metadata ? (
                   <>
-                    <h2 className="text-lg font-semibold text-foreground leading-snug">
-                      {metadata.title}
+                    <h2 className="text-xl font-bold text-foreground leading-tight">
+                      {videoData.metadata.title || videoData.title || 'Untitled Video'}
                     </h2>
-                    <div className="flex items-center gap-2 text-sm text-foreground/50">
-                      <span className="text-foreground/70">{metadata.channel}</span>
-                      <span className="w-1 h-1 rounded-full bg-foreground/30" />
-                      <span>{metadata.duration}</span>
+                    {/* Channel badge - same style as VideoPage */}
+                    <div className="flex flex-wrap items-center gap-2.5">
+                      {(videoData.metadata.channel || videoData.metadata.uploader) && (
+                        (videoData.metadata.channel_url || videoData.metadata.uploader_url) ? (
+                          <a 
+                            href={videoData.metadata.channel_url || videoData.metadata.uploader_url}
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            className="inline-flex items-center px-3 py-1.5 rounded-lg text-sm font-semibold bg-gradient-to-r from-red-500/20 to-red-600/10 text-red-400 border border-red-500/20 hover:from-red-500/30 hover:to-red-600/20 hover:border-red-500/30 transition-all duration-200 cursor-pointer"
+                          >
+                            {videoData.metadata.channel || videoData.metadata.uploader}
+                            <FaExternalLinkAlt className="w-2.5 h-2.5 ml-1.5 opacity-60" />
+                          </a>
+                        ) : (
+                          <span className="inline-flex items-center px-3 py-1.5 rounded-lg text-sm font-semibold bg-gradient-to-r from-red-500/20 to-red-600/10 text-red-400 border border-red-500/20 select-none">
+                            {videoData.metadata.channel || videoData.metadata.uploader}
+                          </span>
+                        )
+                      )}
+                      {videoData.metadata.duration_string && (
+                        <span className="inline-flex items-center px-2.5 py-1 rounded-lg text-sm text-foreground/60 bg-muted/50 border border-border">{videoData.metadata.duration_string}</span>
+                      )}
                     </div>
                   </>
                 ) : (
                   <>
-                    <div className="h-6 w-3/4 bg-muted rounded-lg animate-pulse" />
-                    <div className="h-4 w-1/2 bg-muted rounded-lg animate-pulse" />
+                    <div className="h-7 w-3/4 bg-muted rounded-lg animate-pulse" />
+                    <div className="h-5 w-1/2 bg-muted rounded-lg animate-pulse" />
                   </>
                 )}
               </div>
-              <WatchYouTubeButton videoId={videoId || ''} variant="red" />
             </div>
 
-            {/* Metadata Stats */}
-            <div className="flex items-center gap-4 text-sm py-3 border-y border-border">
-              {metadata ? (
+            {/* Metadata Stats - Modern SaaS style */}
+            <div className="flex flex-wrap items-center gap-2.5">
+              {videoData?.metadata ? (
                 <>
-                  <div className="flex items-center gap-1.5">
-                    <span className="text-foreground/50">Views:</span>
-                    <span className="text-foreground/80 font-medium">1.2M</span>
-                  </div>
-                  <div className="w-px h-4 bg-border" />
-                  <div className="flex items-center gap-1.5">
-                    <span className="text-foreground/50">Likes:</span>
-                    <span className="text-foreground/80 font-medium">45K</span>
-                  </div>
-                  <div className="w-px h-4 bg-border" />
-                  <div className="flex items-center gap-1.5">
-                    <span className="text-foreground/50">Published:</span>
-                    <span className="text-foreground/80 font-medium">Jan 19, 2026</span>
-                  </div>
+                  {videoData.metadata.view_count !== undefined && (
+                    <div className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg bg-muted/50 border border-border">
+                      <svg className="w-3.5 h-3.5 text-foreground/50" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z" />
+                      </svg>
+                      <span className="text-sm font-medium text-foreground/70">
+                        {videoData.metadata.view_count.toLocaleString()}
+                      </span>
+                    </div>
+                  )}
+                  {videoData.metadata.like_count !== undefined && (
+                    <div className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg bg-muted/50 border border-border">
+                      <svg className="w-3.5 h-3.5 text-foreground/50" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4.318 6.318a4.5 4.5 0 000 6.364L12 20.364l7.682-7.682a4.5 4.5 0 00-6.364-6.364L12 7.636l-1.318-1.318a4.5 4.5 0 00-6.364 0z" />
+                      </svg>
+                      <span className="text-sm font-medium text-foreground/70">
+                        {videoData.metadata.like_count.toLocaleString()}
+                      </span>
+                    </div>
+                  )}
+                  {videoData.metadata.upload_date && (
+                    <div className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg bg-muted/50 border border-border">
+                      <svg className="w-3.5 h-3.5 text-foreground/50" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z" />
+                      </svg>
+                      <span className="text-sm font-medium text-foreground/70">
+                        {(() => {
+                          // Format YYYYMMDD to readable date
+                          const d = videoData.metadata.upload_date;
+                          if (d && d.length === 8) {
+                            const year = d.slice(0, 4);
+                            const month = d.slice(4, 6);
+                            const day = d.slice(6, 8);
+                            return new Date(`${year}-${month}-${day}`).toLocaleDateString('en-US', {
+                              year: 'numeric',
+                              month: 'short',
+                              day: 'numeric'
+                            });
+                          }
+                          return d;
+                        })()}
+                      </span>
+                    </div>
+                  )}
                 </>
               ) : (
-                <div className="flex gap-4">
-                  <div className="h-4 w-20 bg-muted rounded animate-pulse" />
-                  <div className="h-4 w-16 bg-muted rounded animate-pulse" />
-                  <div className="h-4 w-24 bg-muted rounded animate-pulse" />
+                <div className="flex gap-3">
+                  <div className="h-7 w-20 bg-muted rounded-lg animate-pulse" />
+                  <div className="h-7 w-16 bg-muted rounded-lg animate-pulse" />
+                  <div className="h-7 w-24 bg-muted rounded-lg animate-pulse" />
                 </div>
               )}
             </div>
@@ -348,16 +467,19 @@ function WizWorkspacePage() {
                 <Sparkles className="w-4 h-4 text-violet-400" />
                 <span className="text-sm font-medium text-foreground/80">AI Summary</span>
               </div>
-              {metadata ? (
+              {videoData?.summary ? (
                 <p className="text-sm text-foreground/60 leading-relaxed">
-                  This video provides an in-depth exploration of the latest developments in web development frameworks and modern deployment strategies. The speaker begins by introducing the current landscape of frontend technologies and the challenges developers face when choosing between different solutions. Key topics covered include performance optimizations through edge computing, the evolution of server-side rendering approaches, and how new frameworks are addressing common pain points in developer experience. The discussion also touches on build times, bundle sizes, and the importance of developer tooling in modern web development workflows. Main takeaways include practical recommendations for project architecture, when to choose different rendering strategies, and how to evaluate new technologies for production use cases.
+                  {videoData.summary}
                 </p>
-              ) : (
-                <div className="space-y-2">
+              ) : isPolling ? (
+                <div className="space-y-2.5">
                   <div className="h-4 w-full bg-muted rounded animate-pulse" />
                   <div className="h-4 w-full bg-muted rounded animate-pulse" />
-                  <div className="h-4 w-3/4 bg-muted rounded animate-pulse" />
+                  <div className="h-4 w-full bg-muted rounded animate-pulse" />
+                  <div className="h-4 w-full bg-muted rounded animate-pulse" />
                 </div>
+              ) : (
+                <p className="text-sm text-foreground/50 italic">No summary available for this video.</p>
               )}
             </div>
           </div>

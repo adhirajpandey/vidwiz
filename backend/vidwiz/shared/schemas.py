@@ -24,6 +24,7 @@ class VideoRead(BaseModel):
     title: Optional[str]
     metadata: Optional[dict] = Field(default=None, validation_alias="video_metadata")
     transcript_available: bool
+    summary: Optional[str] = None
     created_at: datetime
     updated_at: datetime
     model_config = {"from_attributes": True}
@@ -245,3 +246,12 @@ class WizInitRequest(BaseModel):
     model_config = {
         "extra": "forbid",
     }
+
+
+class WizVideoStatusResponse(BaseModel):
+    video_id: str
+    title: Optional[str] = None
+    transcript_available: bool
+    metadata: Optional[dict] = None
+    summary: Optional[str] = None
+    model_config = {"from_attributes": True}

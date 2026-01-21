@@ -5,7 +5,7 @@ from vidwiz.shared.tasks import (
     create_metadata_task,
     create_summary_task,
 )
-from vidwiz.shared.schemas import WizInitRequest
+from vidwiz.shared.schemas import WizInitRequest, WizVideoStatusResponse
 from vidwiz.shared.models import Video, Task, TaskStatus, db
 from vidwiz.shared.config import (
     FETCH_TRANSCRIPT_TASK_TYPE,
@@ -110,4 +110,33 @@ def init_wiz_session():
 
     except Exception as e:
         logger.exception(f"Unexpected error in init_wiz_session: {e}")
+        return jsonify({"error": "Internal Server Error"}), 500
+
+
+@wiz_bp.route("/wiz/video/<video_id>", methods=["GET"])
+def get_wiz_video_status(video_id):
+    """
+    Get video status for wiz workspace.
+    Returns transcript_available, metadata, and summary status.
+    No authentication required for wiz feature.
+    """
+    try:
+        video = Video.query.filter_by(video_id=video_id).first()
+        if not video:
+            logger.warning(f"Wiz video not found video_id={video_id}")
+            return jsonify({"error": "Video not found"}), 404
+
+        response_data = WizVideoStatusResponse(
+            video_id=video.video_id,
+            title=video.title,
+            transcript_available=video.transcript_available,
+            metadata=video.video_metadata,
+            summary=video.summary,
+        )
+
+        logger.info(f"Fetched wiz video status for video_id={video_id}")
+        return jsonify(response_data.model_dump()), 200
+
+    except Exception as e:
+        logger.exception(f"Unexpected error in get_wiz_video_status: {e}")
         return jsonify({"error": "Internal Server Error"}), 500
