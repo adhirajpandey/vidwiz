@@ -1,4 +1,4 @@
-from flask import Blueprint, jsonify
+from flask import Blueprint, jsonify, request
 from vidwiz.shared.models import Video, Note, User, db
 from vidwiz.shared.schemas import VideoRead, NoteRead
 from vidwiz.shared.utils import jwt_or_lt_token_required, admin_required
@@ -72,4 +72,33 @@ def get_video_notes(video_id):
         )
     except Exception as e:
         logger.exception(f"Unexpected error in get_video_notes: {e}")
+        return jsonify({"error": "Internal Server Error"}), 500
+
+
+@video_bp.route("/videos/<video_id>", methods=["PATCH"])
+@admin_required
+def update_video(video_id):
+    """Update video fields (summary). Admin-only endpoint for Lambda."""
+    try:
+        data = request.get_json(silent=True)
+        if not data:
+            logger.warning(f"Update video missing JSON body video_id={video_id}")
+            return jsonify({"error": "Request body must be JSON"}), 400
+
+        video = Video.query.filter_by(video_id=video_id).first()
+        if not video:
+            logger.warning(f"Update video not found video_id={video_id}")
+            return jsonify({"error": "Video not found"}), 404
+
+        # Update summary if provided
+        if "summary" in data:
+            video.summary = data["summary"]
+            logger.info(f"Updated video summary video_id={video_id}")
+
+        db.session.commit()
+        return jsonify(VideoRead.model_validate(video).model_dump()), 200
+
+    except Exception as e:
+        db.session.rollback()
+        logger.exception(f"Unexpected error in update_video: {e}")
         return jsonify({"error": "Internal Server Error"}), 500

@@ -3,14 +3,13 @@ from vidwiz.shared.logging import get_logger
 from vidwiz.shared.tasks import (
     create_transcript_task,
     create_metadata_task,
-    create_summary_task,
 )
+from vidwiz.shared.utils import push_video_to_summary_sqs
 from vidwiz.shared.schemas import WizInitRequest, WizVideoStatusResponse
 from vidwiz.shared.models import Video, Task, TaskStatus, db
 from vidwiz.shared.config import (
     FETCH_TRANSCRIPT_TASK_TYPE,
     FETCH_METADATA_TASK_TYPE,
-    GENERATE_SUMMARY_TASK_TYPE,
 )
 from pydantic import ValidationError
 
@@ -63,7 +62,7 @@ def init_wiz_session():
 
             create_transcript_task(video_id)
             create_metadata_task(video_id)
-            create_summary_task(video_id)
+            push_video_to_summary_sqs(video_id)
 
             return (
                 jsonify(
@@ -89,9 +88,9 @@ def init_wiz_session():
             create_metadata_task(video_id)
             tasks_queued.append("metadata")
 
-        # Summary: if summary is null and no active task
-        if video.summary is None and not has_active_task(video_id, GENERATE_SUMMARY_TASK_TYPE):
-            create_summary_task(video_id)
+        # Summary: if summary is null, push to SQS for generation
+        if video.summary is None:
+            push_video_to_summary_sqs(video_id)
             tasks_queued.append("summary")
 
         message = f"Tasks queued: {', '.join(tasks_queued)}" if tasks_queued else "No new tasks needed."
