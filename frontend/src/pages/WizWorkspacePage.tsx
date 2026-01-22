@@ -32,34 +32,23 @@ interface VideoData {
 }
 
 /**
- * Parses timestamp citations from message content and makes them clickable
+ * Parses bold markdown (**text**) and renders as bold
  */
-function parseTimestampCitations(content: string, onTimestampClick: (seconds: number) => void): React.ReactNode {
-  const timestampRegex = /\[(\d{1,2}):(\d{2})(?::(\d{2}))?\]/g;
+function parseBoldText(content: string, keyPrefix: string = ''): React.ReactNode {
+  const boldRegex = /\*\*(.+?)\*\*/g;
   const parts: React.ReactNode[] = [];
   let lastIndex = 0;
   let match;
 
-  while ((match = timestampRegex.exec(content)) !== null) {
+  while ((match = boldRegex.exec(content)) !== null) {
     if (match.index > lastIndex) {
       parts.push(content.slice(lastIndex, match.index));
     }
-
-    const hours = match[3] ? parseInt(match[1]) : 0;
-    const minutes = match[3] ? parseInt(match[2]) : parseInt(match[1]);
-    const seconds = match[3] ? parseInt(match[3]) : parseInt(match[2]);
-    const totalSeconds = hours * 3600 + minutes * 60 + seconds;
-
     parts.push(
-      <button
-        key={match.index}
-        onClick={() => onTimestampClick(totalSeconds)}
-        className="inline-flex items-center px-2 py-0.5 mx-0.5 rounded-md bg-violet-500/10 text-violet-600 dark:text-violet-300 hover:bg-violet-500/20 transition-all text-sm font-mono border border-violet-500/20"
-      >
-        {match[0]}
-      </button>
+      <strong key={`${keyPrefix}-bold-${match.index}`} className="font-semibold">
+        {match[1]}
+      </strong>
     );
-
     lastIndex = match.index + match[0].length;
   }
 
@@ -68,6 +57,55 @@ function parseTimestampCitations(content: string, onTimestampClick: (seconds: nu
   }
 
   return parts.length > 0 ? parts : content;
+}
+
+/**
+ * Parses timestamp citations from message content and makes them clickable
+ * Supports formats: [mm:ss], [hh:mm:ss], [mm:ss-mm:ss], [hh:mm:ss-hh:mm:ss]
+ * Also parses bold markdown (**text**)
+ */
+function parseTimestampCitations(content: string, onTimestampClick: (seconds: number) => void): React.ReactNode {
+  // Matches [mm:ss], [hh:mm:ss], or ranges like [mm:ss-mm:ss]
+  const timestampRegex = /\[(\d{1,2}):(\d{2})(?::(\d{2}))?(?:-(\d{1,2}):(\d{2})(?::(\d{2}))?)?\]/g;
+  const parts: React.ReactNode[] = [];
+  let lastIndex = 0;
+  let match;
+
+  while ((match = timestampRegex.exec(content)) !== null) {
+    if (match.index > lastIndex) {
+      // Parse bold in text between timestamps
+      parts.push(parseBoldText(content.slice(lastIndex, match.index), `pre-${match.index}`));
+    }
+
+    // Parse start timestamp (always use start time for navigation)
+    const hasHours = match[3] !== undefined;
+    const hours = hasHours ? parseInt(match[1]) : 0;
+    const minutes = hasHours ? parseInt(match[2]) : parseInt(match[1]);
+    const seconds = hasHours ? parseInt(match[3]) : parseInt(match[2]);
+    const totalSeconds = hours * 3600 + minutes * 60 + seconds;
+
+    // Display without brackets
+    const displayText = match[0].slice(1, -1); // Remove [ and ]
+
+    parts.push(
+      <button
+        key={match.index}
+        onClick={() => onTimestampClick(totalSeconds)}
+        className="inline-flex items-center px-2 py-0.5 mx-0.5 rounded-md bg-violet-500/10 text-violet-600 dark:text-violet-300 hover:bg-violet-500/20 transition-all text-sm font-mono border border-violet-500/20"
+      >
+        {displayText}
+      </button>
+    );
+
+    lastIndex = match.index + match[0].length;
+  }
+
+  if (lastIndex < content.length) {
+    // Parse bold in remaining text
+    parts.push(parseBoldText(content.slice(lastIndex), `post-${lastIndex}`));
+  }
+
+  return parts.length > 0 ? parts : parseBoldText(content, 'no-ts');
 }
 
 function WizWorkspacePage() {
@@ -88,7 +126,7 @@ function WizWorkspacePage() {
 
   useEffect(() => {
     if (messages.length > 0) {
-      messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
+      messagesEndRef.current?.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
     }
   }, [messages]);
 
@@ -171,17 +209,105 @@ function WizWorkspacePage() {
     setInputValue('');
     setIsLoading(true);
 
-    setTimeout(() => {
-      const assistantMessage: Message = {
-        id: (Date.now() + 1).toString(),
-        role: 'assistant',
-        content: `This is a simulated response to: "${trimmed}"\n\nIn the actual implementation, this would be grounded in the video transcript. For example, the speaker mentions this topic at [2:34] and elaborates further at [5:12].`,
-        createdAt: new Date(),
+    // Create assistant message placeholder for streaming
+    const assistantMessageId = (Date.now() + 1).toString();
+    const assistantMessage: Message = {
+      id: assistantMessageId,
+      role: 'assistant',
+      content: '',
+      createdAt: new Date(),
+    };
+    setMessages((prev) => [...prev, assistantMessage]);
+
+    try {
+      // Get auth token or guest session ID
+      const token = localStorage.getItem('token');
+      let guestSessionId = sessionStorage.getItem('guestSessionId');
+      if (!token && !guestSessionId) {
+        guestSessionId = crypto.randomUUID();
+        sessionStorage.setItem('guestSessionId', guestSessionId);
+      }
+
+      const headers: Record<string, string> = {
+        'Content-Type': 'application/json',
       };
-      setMessages((prev) => [...prev, assistantMessage]);
+      if (token) {
+        headers['Authorization'] = `Bearer ${token}`;
+      } else if (guestSessionId) {
+        headers['X-Guest-Session-ID'] = guestSessionId;
+      }
+
+      const response = await fetch(`${config.API_URL}/wiz/chat`, {
+        method: 'POST',
+        headers,
+        body: JSON.stringify({
+          video_id: videoId,
+          message: trimmed,
+        }),
+      });
+
+      if (!response.ok) {
+        const errorData = await response.json();
+        throw new Error(errorData.error || 'Chat request failed');
+      }
+
+      // Handle SSE streaming
+      const reader = response.body?.getReader();
+      const decoder = new TextDecoder();
+
+      if (!reader) {
+        throw new Error('No response body');
+      }
+
+      let fullContent = '';
+      while (true) {
+        const { done, value } = await reader.read();
+        if (done) break;
+
+        const chunk = decoder.decode(value, { stream: true });
+        const lines = chunk.split('\n');
+
+        for (const line of lines) {
+          if (line.startsWith('data: ')) {
+            const data = line.slice(6);
+            if (data === '[DONE]') {
+              break;
+            }
+            try {
+              const parsed = JSON.parse(data);
+              if (parsed.content) {
+                fullContent += parsed.content;
+                // Update message content in real-time
+                setMessages((prev) =>
+                  prev.map((msg) =>
+                    msg.id === assistantMessageId
+                      ? { ...msg, content: fullContent }
+                      : msg
+                  )
+                );
+              } else if (parsed.error) {
+                throw new Error(parsed.error);
+              }
+            } catch {
+              // Ignore parse errors for incomplete chunks
+            }
+          }
+        }
+      }
+    } catch (error) {
+      console.error('Chat error:', error);
+      // Update assistant message with error
+      setMessages((prev) =>
+        prev.map((msg) =>
+          msg.id === assistantMessageId
+            ? { ...msg, content: `Error: ${error instanceof Error ? error.message : 'Something went wrong'}` }
+            : msg
+        )
+      );
+    } finally {
       setIsLoading(false);
       inputRef.current?.focus();
-    }, 1500);
+    }
   };
 
   const handleNewChat = () => {

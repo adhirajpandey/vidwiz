@@ -115,6 +115,53 @@ def jwt_or_admin_required(f):
     return decorated_function
 
 
+def get_transcript_from_s3(video_id: str) -> list | None:
+    """
+    Get transcript from S3 cache.
+
+    Args:
+        video_id: Unique identifier for the video
+
+    Returns:
+        List of transcript segments or None if not found
+    """
+    if not S3_BUCKET_NAME:
+        logger.debug("Skipping S3 fetch: S3_BUCKET_NAME not set")
+        return None
+
+    transcript_key = f"transcripts/{video_id}.json"
+    try:
+        s3_client = boto3.client(
+            "s3",
+            aws_access_key_id=current_app.config["AWS_ACCESS_KEY_ID"],
+            aws_secret_access_key=current_app.config["AWS_SECRET_ACCESS_KEY"],
+            region_name=current_app.config["AWS_REGION"],
+        )
+        logger.info(
+            "Fetching transcript from S3",
+            extra={
+                "bucket": S3_BUCKET_NAME,
+                "key": transcript_key,
+                "video_id": video_id,
+            },
+        )
+
+        response = s3_client.get_object(Bucket=S3_BUCKET_NAME, Key=transcript_key)
+        transcript_data = json.loads(response["Body"].read().decode("utf-8"))
+
+        logger.info(
+            "Successfully loaded transcript from S3",
+            extra={"video_id": video_id, "segment_count": len(transcript_data)},
+        )
+        return transcript_data
+
+    except Exception as e:
+        logger.warning(
+            "Transcript not found in S3", extra={"video_id": video_id, "error": str(e)}
+        )
+        return None
+
+
 def store_transcript_in_s3(video_id: str, transcript):
     """Store transcript in S3."""
     if not S3_BUCKET_NAME:
@@ -151,9 +198,17 @@ def store_transcript_in_s3(video_id: str, transcript):
         return None
 
 
+
 def push_note_to_sqs(note_data):
     """
-    Pushes note data to an AWS SQS queue.
+    Alias for push_note_to_ai_note_sqs to maintain backward compatibility.
+    """
+    return push_note_to_ai_note_sqs(note_data)
+
+
+def push_note_to_ai_note_sqs(note_data):
+    """
+    Pushes note data to the AI Note generation SQS queue.
     Args:
         note_data (dict): The note data to send.
     Returns:
@@ -168,13 +223,41 @@ def push_note_to_sqs(note_data):
             region_name=current_app.config["AWS_REGION"],
         )
         response = sqs.send_message(
-            QueueUrl=current_app.config["SQS_QUEUE_URL"],
+            QueueUrl=current_app.config["SQS_AI_NOTE_QUEUE_URL"],
             MessageBody=json.dumps(note_data, default=str),
         )
-        logger.info(f"Note data pushed to SQS: {response}")
+        logger.info(f"Note data pushed to AI Note SQS: {response}")
         return response
     except Exception as e:
-        logger.error(f"Error pushing note data to SQS: {e}")
+        logger.error(f"Error pushing note data to AI Note SQS: {e}")
+        return None
+
+
+def push_video_to_summary_sqs(video_id: str):
+    """
+    Pushes video_id to the Summary generation SQS queue.
+    Args:
+        video_id (str): The video ID to process for summary generation.
+    Returns:
+        dict: Response from SQS send_message, or None if error.
+    """
+
+    try:
+        sqs = boto3.client(
+            "sqs",
+            aws_access_key_id=current_app.config["AWS_ACCESS_KEY_ID"],
+            aws_secret_access_key=current_app.config["AWS_SECRET_ACCESS_KEY"],
+            region_name=current_app.config["AWS_REGION"],
+        )
+        message_data = {"video_id": video_id}
+        response = sqs.send_message(
+            QueueUrl=current_app.config["SQS_SUMMARY_QUEUE_URL"],
+            MessageBody=json.dumps(message_data),
+        )
+        logger.info(f"Video ID pushed to Summary SQS: {response}")
+        return response
+    except Exception as e:
+        logger.error(f"Error pushing video ID to Summary SQS: {e}")
         return None
 
 
@@ -185,7 +268,8 @@ def check_required_env_vars():
         "AWS_ACCESS_KEY_ID",
         "AWS_SECRET_ACCESS_KEY",
         "AWS_REGION",
-        "SQS_QUEUE_URL",
+        "SQS_AI_NOTE_QUEUE_URL",
+        "SQS_SUMMARY_QUEUE_URL",
         "S3_BUCKET_NAME",
         "ADMIN_TOKEN",
     ]

@@ -36,7 +36,8 @@ def create_app(config=None):
     AWS_ACCESS_KEY_ID = os.getenv("AWS_ACCESS_KEY_ID", None)
     AWS_SECRET_ACCESS_KEY = os.getenv("AWS_SECRET_ACCESS_KEY", None)
 
-    SQS_QUEUE_URL = os.getenv("SQS_QUEUE_URL", None)
+    SQS_AI_NOTE_QUEUE_URL = os.getenv("SQS_AI_NOTE_QUEUE_URL", None)
+    SQS_SUMMARY_QUEUE_URL = os.getenv("SQS_SUMMARY_QUEUE_URL", None)
     S3_BUCKET_NAME = os.getenv("S3_BUCKET_NAME", None)
     JWT_EXPIRY_HOURS = int(os.getenv("JWT_EXPIRY_HOURS", "24"))
 
@@ -50,7 +51,8 @@ def create_app(config=None):
         app.config["AWS_ACCESS_KEY_ID"] = AWS_ACCESS_KEY_ID
         app.config["AWS_SECRET_ACCESS_KEY"] = AWS_SECRET_ACCESS_KEY
         app.config["AWS_REGION"] = AWS_REGION
-        app.config["SQS_QUEUE_URL"] = SQS_QUEUE_URL
+        app.config["SQS_AI_NOTE_QUEUE_URL"] = SQS_AI_NOTE_QUEUE_URL
+        app.config["SQS_SUMMARY_QUEUE_URL"] = SQS_SUMMARY_QUEUE_URL
         app.config["S3_BUCKET_NAME"] = S3_BUCKET_NAME
         app.config["ADMIN_TOKEN"] = ADMIN_TOKEN
         app.config["JWT_EXPIRY_HOURS"] = JWT_EXPIRY_HOURS

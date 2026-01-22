@@ -140,3 +140,233 @@ def get_wiz_video_status(video_id):
     except Exception as e:
         logger.exception(f"Unexpected error in get_wiz_video_status: {e}")
         return jsonify({"error": "Internal Server Error"}), 500
+
+
+@wiz_bp.route("/wiz/chat", methods=["POST"])
+def chat_wiz():
+    """
+    Chat with the Wiz for a specific video.
+    Supports authenticated users (JWT) and guest users (guest_session_id).
+    Enforces quotas: 20/day for users, 5/day for guests.
+    Streams response using SSE.
+    """
+    from vidwiz.shared.models import Conversation, Message, User, db
+    from vidwiz.shared.utils import get_transcript_from_s3
+    from vidwiz.shared.config import FETCH_TRANSCRIPT_TASK_TYPE
+    import jwt
+    from flask import Response, stream_with_context, current_app
+    import requests
+    import os
+    import json
+    from datetime import datetime, timezone
+
+    # 1. Authentication & Identity Resolution
+    user_id = None
+    guest_session_id = None
+
+    auth_header = request.headers.get("Authorization", "")
+    if auth_header.startswith("Bearer "):
+        token = auth_header.split(" ", 1)[1]
+        try:
+            payload = jwt.decode(
+                token, current_app.config["SECRET_KEY"], algorithms=["HS256"]
+            )
+            user_id = payload["user_id"]
+        except Exception as e:
+            logger.error(f"JWT Decode Error: {e}")
+            pass  # Invalid token, treat as guest if session id present? Or fail?
+
+    if not user_id:
+        # Check for guest session id
+        guest_session_id = request.headers.get("X-Guest-Session-ID")
+        if not guest_session_id:
+            return jsonify({"error": "Unauthorized. Missing Auth or Guest ID"}), 401
+
+    # 2. Input Validation
+    data = request.get_json(silent=True)
+    if not data or "video_id" not in data or "message" not in data:
+        return jsonify({"error": "Missing video_id or message"}), 400
+
+    video_id = data["video_id"]
+    user_message = data["message"]
+
+    # 3. Quota Check
+    today = datetime.now(timezone.utc).replace(
+        hour=0, minute=0, second=0, microsecond=0
+    )
+
+    if user_id:
+        # Check user quota
+        msg_count = (
+            Message.query.join(Conversation)
+            .filter(
+                Conversation.user_id == user_id,
+                Message.role == "user",
+                Message.created_at >= today,
+            )
+            .count()
+        )
+        if msg_count >= 20:
+            return jsonify({"error": "Daily limit reached (20 messages/day)"}), 429
+    else:
+        # Check guest quota
+        msg_count = (
+            Message.query.join(Conversation)
+            .filter(
+                Conversation.guest_session_id == guest_session_id,
+                Message.role == "user",
+                Message.created_at >= today,
+            )
+            .count()
+        )
+        if msg_count >= 5:
+            return jsonify({"error": "Daily guest limit reached (5 messages/day)"}), 429
+
+    # 4. Transcript Gating
+    video = Video.query.filter_by(video_id=video_id).first()
+    if not video:
+        return jsonify({"error": "Video not found"}), 404
+
+    # Check transcript availability (DB flag primary, S3 fallback if needed, but DB should be sync)
+    if not video.transcript_available:
+        # If task is still running
+        if has_active_task(video_id, FETCH_TRANSCRIPT_TASK_TYPE):
+            return jsonify({"status": "processing", "message": "Transcript processing"}), 202
+        return jsonify(
+            {"error": "Transcript unavailable. Please init session first."}
+        ), 400
+
+    transcript = get_transcript_from_s3(video_id)
+    if not transcript:
+        # Should not happen if video.transcript_available is True, but good safety
+        return jsonify({"error": "Transcript data missing"}), 404
+
+    # 5. Conversation Context
+    # Find or create conversation
+    if user_id:
+        conversation = Conversation.query.filter_by(
+            video_id=video_id, user_id=user_id
+        ).first()
+    else:
+        conversation = Conversation.query.filter_by(
+            video_id=video_id, guest_session_id=guest_session_id
+        ).first()
+
+    if not conversation:
+        conversation = Conversation(
+            video_id=video_id, user_id=user_id, guest_session_id=guest_session_id
+        )
+        db.session.add(conversation)
+        db.session.commit()
+
+    # Save User Message
+    new_message = Message(
+        conversation_id=conversation.id, role="user", content=user_message
+    )
+    db.session.add(new_message)
+    db.session.commit()
+
+    # 6. Prepare LLM Context
+    # Fetch recent history
+    history = (
+        Message.query.filter_by(conversation_id=conversation.id)
+        .order_by(Message.created_at.desc())
+        .limit(10)
+        .all()
+    )
+    history.reverse()  # Oldest first
+
+    # Construct Prompt
+    # Simplify transcript content for context (truncating if too large? For now assume it fits or use RAG later)
+    # Current "Wiz" instruction says: strictly limited to the video transcript.
+    # We will dump the transcript text.
+    transcript_text = "\n".join(
+        [f"{int(s['offset'] // 60)}:{int(s['offset'] % 60):02d} {s['text']}" for s in transcript]
+    )
+
+    system_prompt = f"""You are Wiz, an AI assistant dedicated to this specific video: "{video.title}".
+Your context is strictly limited to the provided video transcript.
+Answer the user's question based ONLY on the transcript.
+If the answer is not in the transcript, say so.
+Use inline timestamp citations like [mm:ss] when referencing specific parts.
+Transcript:
+{transcript_text}
+"""
+
+    messages_payload = [{"role": "user", "parts": [{"text": system_prompt}]}]
+    # Add history
+    for msg in history:
+        # Skip the system prompt we just added (or rather, the message we just saved is in history)
+        # We need to map role: 'assistant' -> 'model'
+        role = "model" if msg.role == "assistant" else "user"
+        # Avoid duplicating the very last user message which we already have in 'history' DB fetch?
+        # Yes, 'history' includes 'new_message'.
+        # But we constructed system prompt as the FIRST user message context.
+        # So we should probably treat system prompt as context, and then append history.
+        # But Gemini API often expects system instruction separate or just a long context.
+        # Let's just append history.
+        messages_payload.append({"role": role, "parts": [{"text": msg.content}]})
+
+    # Remove the last message from payload if it duplicates what we want to send?
+    # Actually, we can just send the whole history.
+    # Wait, 'system_prompt' is huge. We should make it the first part of the request.
+
+    # Refined payload strategy:
+    gemini_payload = {
+        "contents": messages_payload,
+        "generationConfig": {"maxOutputTokens": 1000},
+    }
+
+    GEN_API_KEY = os.getenv("GEMINI_API_KEY")
+    if not GEN_API_KEY:
+        logger.error("GEMINI_API_KEY not set")
+        return jsonify({"error": "Server configuration error"}), 500
+
+    def generate():
+        url = f"https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:streamGenerateContent?key={GEN_API_KEY}&alt=sse"
+        headers = {"Content-Type": "application/json"}
+        
+        full_response_text = ""
+        
+        try:
+            with requests.post(url, json=gemini_payload, headers=headers, stream=True) as r:
+                r.raise_for_status()
+                for line in r.iter_lines():
+                    if line:
+                        decoded_line = line.decode('utf-8')
+                        
+                        # Gemini SSE format with alt=sse: "data: {json}"
+                        if decoded_line.startswith('data: '):
+                            json_str = decoded_line[6:]  # Strip 'data: '
+                            try:
+                                chunk_data = json.loads(json_str)
+                                # Extract text from chunk
+                                if "candidates" in chunk_data and chunk_data["candidates"]:
+                                    cand = chunk_data["candidates"][0]
+                                    if "content" in cand and "parts" in cand["content"]:
+                                        for part in cand["content"]["parts"]:
+                                            if "text" in part:
+                                                text_chunk = part["text"]
+                                                full_response_text += text_chunk
+                                                yield f"data: {json.dumps({'content': text_chunk})}\n\n"
+                            except json.JSONDecodeError as parse_err:
+                                logger.warning(f"JSON parse error: {parse_err}")
+                                pass
+        except Exception as e:
+            logger.error(f"Gemini stream error: {e}")
+            yield f"data: {json.dumps({'error': 'Stream error'})}\n\n"
+        
+        # Save complete assistant message
+        if full_response_text:
+             with current_app.app_context():
+                bot_msg = Message(
+                    conversation_id=conversation.id,
+                    role="assistant",
+                    content=full_response_text
+                )
+                db.session.add(bot_msg)
+                db.session.commit()
+        
+        yield "data: [DONE]\n\n"
+
+    return Response(stream_with_context(generate()), mimetype="text/event-stream")
