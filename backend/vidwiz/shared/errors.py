@@ -98,6 +98,13 @@ class RateLimitError(APIError):
         super().__init__(message, ErrorCode.RATE_LIMIT_EXCEEDED, 429, details)
 
 
+class InternalServerError(APIError):
+    """Raised for internal server configuration or processing errors."""
+
+    def __init__(self, message: str = "Internal server error", details: list = None):
+        super().__init__(message, ErrorCode.INTERNAL_ERROR, 500, details)
+
+
 # =============================================================================
 # Response Helpers
 # =============================================================================

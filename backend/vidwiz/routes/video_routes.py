@@ -1,6 +1,6 @@
 from flask import Blueprint, jsonify, request
 from vidwiz.shared.models import Video, Note, User, db
-from vidwiz.shared.schemas import VideoRead, NoteRead, VideoPatch
+from vidwiz.shared.schemas import VideoRead, NoteRead, VideoPatch, VideoNotesResponse
 from vidwiz.shared.errors import (
     handle_validation_error,
     NotFoundError,
@@ -59,16 +59,12 @@ def get_video_notes(video_id):
         f"AI-note-task: returning {len(notes_data)} notes for video_id={video_id}"
     )
 
-    return (
-        jsonify(
-            {
-                "video_id": video_id,
-                "notes": notes_data,
-                "message": "Successfully retrieved notes for AI note generation.",
-            }
-        ),
-        200,
+    response_data = VideoNotesResponse(
+        video_id=video_id,
+        notes=notes_data,
+        message="Successfully retrieved notes for AI note generation.",
     )
+    return jsonify(response_data.model_dump()), 200
 
 
 @video_bp.route("/videos/<video_id>", methods=["PATCH"])

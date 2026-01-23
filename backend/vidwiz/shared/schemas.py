@@ -351,3 +351,46 @@ class SearchResponse(BaseModel):
     page: int
     per_page: int
     total_pages: int
+
+
+class WizChatRequest(BaseModel):
+    """Request body for wiz chat endpoint."""
+
+    video_id: str
+    message: str
+
+    @field_validator("video_id", "message")
+    @classmethod
+    def validate_not_empty(cls, v):
+        if not v or not v.strip():
+            raise ValueError("Field cannot be empty")
+        return v.strip()
+
+    model_config = {
+        "extra": "forbid",
+    }
+
+
+class GoogleLoginRequest(BaseModel):
+    """Request body for Google login endpoint."""
+
+    credential: str
+
+    @field_validator("credential")
+    @classmethod
+    def validate_not_empty(cls, v):
+        if not v or not v.strip():
+            raise ValueError("Credential cannot be empty")
+        return v
+
+    model_config = {
+        "extra": "forbid",
+    }
+
+
+class VideoNotesResponse(BaseModel):
+    """Response for AI note task endpoint."""
+
+    video_id: str
+    notes: list
+    message: str

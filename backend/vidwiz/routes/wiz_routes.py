@@ -1,24 +1,35 @@
-from flask import Blueprint, request, jsonify
-from vidwiz.shared.logging import get_logger
-from vidwiz.shared.tasks import (
-    create_transcript_task,
-    create_metadata_task,
-)
-from vidwiz.shared.utils import push_video_to_summary_sqs, require_json_body
-from vidwiz.shared.schemas import WizInitRequest, WizVideoStatusResponse, WizInitResponse, WizChatProcessingResponse
-from vidwiz.shared.models import Video, Task, TaskStatus, db
-from vidwiz.shared.errors import (
-    handle_validation_error,
-    NotFoundError,
-    BadRequestError,
-    UnauthorizedError,
-    RateLimitError,
-)
-from vidwiz.shared.config import (
-    FETCH_TRANSCRIPT_TASK_TYPE,
-    FETCH_METADATA_TASK_TYPE,
-)
+import json
+import os
+from datetime import datetime, timezone
+
+import jwt
+import requests
+from flask import Blueprint, Response, current_app, jsonify, request, stream_with_context
 from pydantic import ValidationError
+
+from vidwiz.shared.config import (
+    FETCH_METADATA_TASK_TYPE,
+    FETCH_TRANSCRIPT_TASK_TYPE,
+)
+from vidwiz.shared.errors import (
+    BadRequestError,
+    InternalServerError,
+    NotFoundError,
+    RateLimitError,
+    UnauthorizedError,
+    handle_validation_error,
+)
+from vidwiz.shared.logging import get_logger
+from vidwiz.shared.models import Conversation, Message, Task, TaskStatus, User, Video, db
+from vidwiz.shared.schemas import (
+    WizChatProcessingResponse,
+    WizChatRequest,
+    WizInitRequest,
+    WizInitResponse,
+    WizVideoStatusResponse,
+)
+from vidwiz.shared.tasks import create_metadata_task, create_transcript_task
+from vidwiz.shared.utils import get_transcript_from_s3, push_video_to_summary_sqs, require_json_body
 
 logger = get_logger("vidwiz.routes.wiz_routes")
 
@@ -143,16 +154,6 @@ def chat_wiz():
     Enforces quotas: 20/day for users, 5/day for guests.
     Streams response using SSE.
     """
-    from vidwiz.shared.models import Conversation, Message, User, db
-    from vidwiz.shared.utils import get_transcript_from_s3
-    from vidwiz.shared.config import FETCH_TRANSCRIPT_TASK_TYPE
-    import jwt
-    from flask import Response, stream_with_context, current_app
-    import requests
-    import os
-    import json
-    from datetime import datetime, timezone
-
     # 1. Authentication & Identity Resolution
     user_id = None
     guest_session_id = None
@@ -176,11 +177,14 @@ def chat_wiz():
             raise UnauthorizedError("Missing Auth or Guest ID")
 
     # 2. Input Validation
-    if "video_id" not in request.json_data or "message" not in request.json_data:
-        raise BadRequestError("Missing video_id or message")
+    try:
+        chat_data = WizChatRequest.model_validate(request.json_data)
+    except ValidationError as e:
+        logger.warning(f"Wiz chat validation error: {e}")
+        return handle_validation_error(e)
 
-    video_id = request.json_data["video_id"]
-    user_message = request.json_data["message"]
+    video_id = chat_data.video_id
+    user_message = chat_data.message
 
     # 3. Quota Check
     today = datetime.now(timezone.utc).replace(
@@ -310,7 +314,7 @@ Transcript:
     GEN_API_KEY = os.getenv("GEMINI_API_KEY")
     if not GEN_API_KEY:
         logger.error("GEMINI_API_KEY not set")
-        return jsonify({"error": "Server configuration error"}), 500
+        raise InternalServerError("Server configuration error")
 
     def generate():
         url = f"https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:streamGenerateContent?key={GEN_API_KEY}&alt=sse"

@@ -10,6 +10,7 @@ from vidwiz.shared.schemas import (
     TokenRevokeResponse,
     MessageResponse,
     LoginResponse,
+    GoogleLoginRequest,
 )
 from vidwiz.shared.errors import (
     handle_validation_error,
@@ -17,6 +18,7 @@ from vidwiz.shared.errors import (
     BadRequestError,
     UnauthorizedError,
     ConflictError,
+    InternalServerError,
 )
 from sqlalchemy.orm.attributes import flag_modified
 from werkzeug.security import generate_password_hash, check_password_hash
@@ -86,7 +88,7 @@ def login():
     )
 
     logger.info(f"Login success email='{login_data.email}', user_id={user.id}")
-    return jsonify(LoginResponse(token=token).model_dump())
+    return jsonify(LoginResponse(token=token).model_dump()), 200
 
 
 @user_bp.route("/user/token", methods=["POST"])
@@ -186,7 +188,7 @@ def get_profile():
     }
 
     validated_profile = UserProfileRead.model_validate(profile_data)
-    logger.debug(f"Profile fetched for user_id={user.id}")
+    logger.info(f"Profile fetched for user_id={user.id}")
     return jsonify(validated_profile.model_dump()), 200
 
 
@@ -245,16 +247,18 @@ def google_login():
     Handle Google Sign-In from the frontend.
     Frontend sends Google ID token (credential), backend verifies it and creates/logs in user.
     """
-    credential = request.json_data.get("credential")
-    if not credential:
-        logger.warning("Google login attempt missing credential")
-        raise BadRequestError("Missing Google credential")
+    try:
+        google_data = GoogleLoginRequest.model_validate(request.json_data)
+    except ValidationError as e:
+        logger.warning(f"Google login validation error: {e}")
+        return handle_validation_error(e)
+
+    credential = google_data.credential
 
     google_client_id = current_app.config.get("GOOGLE_CLIENT_ID")
     if not google_client_id:
         logger.error("GOOGLE_CLIENT_ID not configured")
-        # Let global handler catch this as internal error
-        raise Exception("Google OAuth not configured")
+        raise InternalServerError("Google OAuth not configured")
 
     try:
         # Verify the Google ID token
@@ -323,7 +327,7 @@ def google_login():
         )
 
         logger.info(f"Google login success for user_id={user.id}, email='{user.email}'")
-        return jsonify(LoginResponse(token=token).model_dump())
+        return jsonify(LoginResponse(token=token).model_dump()), 200
 
     except ValueError as e:
         # Invalid token
