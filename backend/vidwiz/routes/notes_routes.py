@@ -1,6 +1,6 @@
 from flask import Blueprint, request, jsonify
 from vidwiz.shared.models import Note, Video, User, db
-from vidwiz.shared.schemas import NoteRead, NoteCreate, NoteUpdate
+from vidwiz.shared.schemas import NoteRead, NoteCreate, NoteUpdate, MessageResponse
 from vidwiz.shared.errors import (
     handle_validation_error,
     NotFoundError,
@@ -109,7 +109,7 @@ def delete_note(note_id):
     db.session.delete(note)
     db.session.commit()
     logger.info(f"Deleted note_id={note_id} for user_id={request.user_id}")
-    return jsonify({"message": "Note deleted successfully"}), 200
+    return jsonify(MessageResponse(message="Note deleted successfully").model_dump()), 200
 
 
 @notes_bp.route("/notes/<int:note_id>", methods=["PATCH"])

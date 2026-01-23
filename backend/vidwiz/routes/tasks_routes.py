@@ -1,7 +1,7 @@
 from flask import Blueprint, jsonify, request, current_app
 from vidwiz.shared.models import Task, TaskStatus, db, Video
 from vidwiz.shared.utils import store_transcript_in_s3, jwt_or_admin_required, require_json_body
-from vidwiz.shared.schemas import TranscriptResult, MetadataResult
+from vidwiz.shared.schemas import TranscriptResult, MetadataResult, TaskRetrievedResponse, TaskTimeoutResponse, TaskSubmitResponse
 from vidwiz.shared.errors import (
     handle_validation_error,
     NotFoundError,
@@ -94,20 +94,23 @@ def get_transcript_task():
             )
 
             return jsonify(
-                {
-                    "task_id": task.id,
-                    "task_type": task.task_type,
-                    "task_details": task.task_details,
-                    "retry_count": task.retry_count,
-                    "message": "Transcript task retrieved successfully",
-                }
+                TaskRetrievedResponse(
+                    task_id=task.id,
+                    task_type=task.task_type,
+                    task_details=task.task_details,
+                    retry_count=task.retry_count,
+                    message="Transcript task retrieved successfully",
+                ).model_dump()
             ), 200
 
         time.sleep(TRANSCRIPT_POLL_INTERVAL)
 
     logger.info("No transcript tasks available within timeout window")
     return jsonify(
-        {"message": "No transcript tasks available for processing", "timeout": True}
+        TaskTimeoutResponse(
+            message="No transcript tasks available for processing",
+            timeout=True,
+        ).model_dump()
     ), 204
 
 
@@ -199,11 +202,11 @@ def submit_transcript_result():
     )
 
     return jsonify(
-        {
-            "message": "Transcript result submitted successfully",
-            "task_id": task.id,
-            "status": task.status.value,
-        }
+        TaskSubmitResponse(
+            message="Transcript result submitted successfully",
+            task_id=task.id,
+            status=task.status.value,
+        ).model_dump()
     ), 200
 
 
@@ -267,20 +270,23 @@ def get_metadata_task():
             )
 
             return jsonify(
-                {
-                    "task_id": task.id,
-                    "task_type": task.task_type,
-                    "task_details": task.task_details,
-                    "retry_count": task.retry_count,
-                    "message": "Metadata task retrieved successfully",
-                }
+                TaskRetrievedResponse(
+                    task_id=task.id,
+                    task_type=task.task_type,
+                    task_details=task.task_details,
+                    retry_count=task.retry_count,
+                    message="Metadata task retrieved successfully",
+                ).model_dump()
             ), 200
 
         time.sleep(METADATA_POLL_INTERVAL)
 
     logger.info("No metadata tasks available within timeout window")
     return jsonify(
-        {"message": "No metadata tasks available for processing", "timeout": True}
+        TaskTimeoutResponse(
+            message="No metadata tasks available for processing",
+            timeout=True,
+        ).model_dump()
     ), 204
 
 
@@ -373,10 +379,10 @@ def submit_metadata_result():
     )
 
     return jsonify(
-        {
-            "message": "Metadata result submitted successfully",
-            "task_id": task.id,
-            "status": task.status.value,
-        }
+        TaskSubmitResponse(
+            message="Metadata result submitted successfully",
+            task_id=task.id,
+            status=task.status.value,
+        ).model_dump()
     ), 200
 

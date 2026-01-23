@@ -5,7 +5,7 @@ from vidwiz.shared.tasks import (
     create_metadata_task,
 )
 from vidwiz.shared.utils import push_video_to_summary_sqs, require_json_body
-from vidwiz.shared.schemas import WizInitRequest, WizVideoStatusResponse
+from vidwiz.shared.schemas import WizInitRequest, WizVideoStatusResponse, WizInitResponse, WizChatProcessingResponse
 from vidwiz.shared.models import Video, Task, TaskStatus, db
 from vidwiz.shared.errors import (
     handle_validation_error,
@@ -68,11 +68,11 @@ def init_wiz_session():
 
         return (
             jsonify(
-                {
-                    "message": "Video created. All tasks queued.",
-                    "video_id": video_id,
-                    "is_new": True,
-                }
+                WizInitResponse(
+                    message="Video created. All tasks queued.",
+                    video_id=video_id,
+                    is_new=True,
+                ).model_dump()
             ),
             200,
         )
@@ -99,12 +99,12 @@ def init_wiz_session():
 
     return (
         jsonify(
-            {
-                "message": message,
-                "video_id": video_id,
-                "is_new": False,
-                "tasks_queued": tasks_queued,
-            }
+            WizInitResponse(
+                message=message,
+                video_id=video_id,
+                is_new=False,
+                tasks_queued=tasks_queued if tasks_queued else None,
+            ).model_dump()
         ),
         200,
     )
@@ -223,7 +223,7 @@ def chat_wiz():
     if not video.transcript_available:
         # If task is still running
         if has_active_task(video_id, FETCH_TRANSCRIPT_TASK_TYPE):
-            return jsonify({"status": "processing", "message": "Transcript processing"}), 202
+            return jsonify(WizChatProcessingResponse(status="processing", message="Transcript processing").model_dump()), 202
         raise BadRequestError("Transcript unavailable. Please init session first.")
 
     transcript = get_transcript_from_s3(video_id)

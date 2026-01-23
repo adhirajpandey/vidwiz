@@ -276,3 +276,78 @@ class WizVideoStatusResponse(BaseModel):
     metadata: Optional[dict] = None
     summary: Optional[str] = None
     model_config = {"from_attributes": True}
+
+
+# ============================================================================
+# Standardized Response Schemas
+# ============================================================================
+
+
+class MessageResponse(BaseModel):
+    """Generic response with a message."""
+
+    message: str
+
+
+class LoginResponse(BaseModel):
+    """Response for login endpoints."""
+
+    token: str
+
+
+class TaskRetrievedResponse(BaseModel):
+    """Response when a task is successfully retrieved for processing."""
+
+    task_id: int
+    task_type: str
+    task_details: dict
+    retry_count: int
+    message: str
+
+
+class TaskTimeoutResponse(BaseModel):
+    """Response when no tasks are available within timeout."""
+
+    message: str
+    timeout: bool = True
+
+
+class TaskSubmitResponse(BaseModel):
+    """Response after submitting a task result."""
+
+    message: str
+    task_id: int
+    status: str
+
+
+class WizInitResponse(BaseModel):
+    """Response for wiz session initialization."""
+
+    message: str
+    video_id: str
+    is_new: bool
+    tasks_queued: Optional[list[str]] = None
+
+
+class WizChatProcessingResponse(BaseModel):
+    """Response when transcript is still processing."""
+
+    status: str
+    message: str
+
+
+class VideoSearchItem(BaseModel):
+    """Single video item in search results."""
+
+    video_id: str
+    video_title: Optional[str] = None
+
+
+class SearchResponse(BaseModel):
+    """Paginated search response."""
+
+    videos: list[VideoSearchItem]
+    total: int
+    page: int
+    per_page: int
+    total_pages: int

@@ -8,6 +8,8 @@ from vidwiz.shared.schemas import (
     UserProfileUpdate,
     TokenResponse,
     TokenRevokeResponse,
+    MessageResponse,
+    LoginResponse,
 )
 from vidwiz.shared.errors import (
     handle_validation_error,
@@ -54,7 +56,7 @@ def signup():
         f"User created successfully email='{user_data.email}', id={user.id}"
     )
 
-    return jsonify({"message": "User created successfully"}), 201
+    return jsonify(MessageResponse(message="User created successfully").model_dump()), 201
 
 
 @user_bp.route("/user/login", methods=["POST"])
@@ -84,7 +86,7 @@ def login():
     )
 
     logger.info(f"Login success email='{login_data.email}', user_id={user.id}")
-    return jsonify({"token": token})
+    return jsonify(LoginResponse(token=token).model_dump())
 
 
 @user_bp.route("/user/token", methods=["POST"])
@@ -321,7 +323,7 @@ def google_login():
         )
 
         logger.info(f"Google login success for user_id={user.id}, email='{user.email}'")
-        return jsonify({"token": token})
+        return jsonify(LoginResponse(token=token).model_dump())
 
     except ValueError as e:
         # Invalid token
