@@ -115,6 +115,40 @@ def jwt_or_admin_required(f):
     return decorated_function
 
 
+def require_json_body(f):
+    """
+    Decorator to ensure request has a valid JSON body.
+    
+    Raises BadRequestError if:
+    - Content-Type is not application/json
+    - Request body is empty or not valid JSON
+    
+    Sets request.json_data with the parsed JSON for use in the route.
+    
+    Usage:
+        @app.route('/api/resource', methods=['POST'])
+        @jwt_or_lt_token_required
+        @require_json_body
+        def create_resource():
+            data = request.json_data  # Already validated
+            ...
+    """
+    from vidwiz.shared.errors import BadRequestError
+    
+    @wraps(f)
+    def decorated_function(*args, **kwargs):
+        data = request.get_json(silent=True)
+        if not data:
+            logger.warning(f"Missing JSON body for {request.endpoint}")
+            raise BadRequestError("Request body must be JSON")
+        
+        # Store parsed JSON for use in route
+        request.json_data = data
+        return f(*args, **kwargs)
+    
+    return decorated_function
+
+
 def get_transcript_from_s3(video_id: str) -> list | None:
     """
     Get transcript from S3 cache.

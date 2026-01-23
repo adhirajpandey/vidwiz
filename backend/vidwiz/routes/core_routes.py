@@ -1,6 +1,7 @@
 from flask import Blueprint, jsonify, request
 from vidwiz.shared.utils import jwt_or_lt_token_required
 from vidwiz.shared.models import Video, Note
+from vidwiz.shared.errors import BadRequestError
 from vidwiz.shared.logging import get_logger
 
 core_bp = Blueprint("core", __name__)
@@ -18,7 +19,7 @@ def get_search_results():
         per_page = int(request.args.get("per_page", 10))
     except ValueError:
         logger.warning("Invalid pagination parameters")
-        return jsonify({"error": "Invalid pagination parameters"}), 400
+        raise BadRequestError("Invalid pagination parameters")
 
     # Validate pagination bounds
     if page < 1:

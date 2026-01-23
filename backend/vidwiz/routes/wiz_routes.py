@@ -4,9 +4,16 @@ from vidwiz.shared.tasks import (
     create_transcript_task,
     create_metadata_task,
 )
-from vidwiz.shared.utils import push_video_to_summary_sqs
+from vidwiz.shared.utils import push_video_to_summary_sqs, require_json_body
 from vidwiz.shared.schemas import WizInitRequest, WizVideoStatusResponse
 from vidwiz.shared.models import Video, Task, TaskStatus, db
+from vidwiz.shared.errors import (
+    handle_validation_error,
+    NotFoundError,
+    BadRequestError,
+    UnauthorizedError,
+    RateLimitError,
+)
 from vidwiz.shared.config import (
     FETCH_TRANSCRIPT_TASK_TYPE,
     FETCH_METADATA_TASK_TYPE,
@@ -30,86 +37,77 @@ def has_active_task(video_id: str, task_type: str) -> bool:
 
 
 @wiz_bp.route("/wiz/init", methods=["POST"])
+@require_json_body
 def init_wiz_session():
     """
     Initialize a wiz session for a video.
     This triggers background tasks for transcript, metadata, and summary generation.
     """
     try:
-        data = request.get_json(silent=True)
-        if not data:
-            logger.warning("Wiz init missing JSON body")
-            return jsonify({"error": "Request body must be JSON"}), 400
+        wiz_request = WizInitRequest.model_validate(request.json_data)
+    except ValidationError as e:
+        logger.warning(f"Wiz init validation error: {e}")
+        return handle_validation_error(e)
 
-        try:
-            wiz_request = WizInitRequest(**data)
-        except ValidationError as e:
-            logger.warning(f"Wiz init validation error: {e}")
-            return jsonify({"error": "Invalid request data"}), 400
+    video_id = wiz_request.video_id
+    logger.info(f"Initializing wiz session for video_id={video_id}")
 
-        video_id = wiz_request.video_id
-        logger.info(f"Initializing wiz session for video_id={video_id}")
+    # Check if video exists
+    video = Video.query.filter_by(video_id=video_id).first()
 
-        # Check if video exists
-        video = Video.query.filter_by(video_id=video_id).first()
+    if not video:
+        # Create new video and queue all tasks
+        logger.info(f"Creating new video for video_id={video_id}")
+        video = Video(video_id=video_id)
+        db.session.add(video)
+        db.session.commit()
 
-        if not video:
-            # Create new video and queue all tasks
-            logger.info(f"Creating new video for video_id={video_id}")
-            video = Video(video_id=video_id)
-            db.session.add(video)
-            db.session.commit()
-
-            create_transcript_task(video_id)
-            create_metadata_task(video_id)
-            push_video_to_summary_sqs(video_id)
-
-            return (
-                jsonify(
-                    {
-                        "message": "Video created. All tasks queued.",
-                        "video_id": video_id,
-                        "is_new": True,
-                    }
-                ),
-                200,
-            )
-
-        # Video exists, check each task condition
-        tasks_queued = []
-
-        # Transcript: if not available and no active task
-        if not video.transcript_available and not has_active_task(video_id, FETCH_TRANSCRIPT_TASK_TYPE):
-            create_transcript_task(video_id)
-            tasks_queued.append("transcript")
-
-        # Metadata: if video_metadata is null and no active task
-        if video.video_metadata is None and not has_active_task(video_id, FETCH_METADATA_TASK_TYPE):
-            create_metadata_task(video_id)
-            tasks_queued.append("metadata")
-
-        # Summary: if summary is null, push to SQS for generation
-        if video.summary is None:
-            push_video_to_summary_sqs(video_id)
-            tasks_queued.append("summary")
-
-        message = f"Tasks queued: {', '.join(tasks_queued)}" if tasks_queued else "No new tasks needed."
+        create_transcript_task(video_id)
+        create_metadata_task(video_id)
+        push_video_to_summary_sqs(video_id)
 
         return (
             jsonify(
                 {
-                    "message": message,
+                    "message": "Video created. All tasks queued.",
                     "video_id": video_id,
-                    "is_new": False,
-                    "tasks_queued": tasks_queued,
+                    "is_new": True,
                 }
             ),
             200,
         )
 
-    except Exception as e:
-        logger.exception(f"Unexpected error in init_wiz_session: {e}")
-        return jsonify({"error": "Internal Server Error"}), 500
+    # Video exists, check each task condition
+    tasks_queued = []
+
+    # Transcript: if not available and no active task
+    if not video.transcript_available and not has_active_task(video_id, FETCH_TRANSCRIPT_TASK_TYPE):
+        create_transcript_task(video_id)
+        tasks_queued.append("transcript")
+
+    # Metadata: if video_metadata is null and no active task
+    if video.video_metadata is None and not has_active_task(video_id, FETCH_METADATA_TASK_TYPE):
+        create_metadata_task(video_id)
+        tasks_queued.append("metadata")
+
+    # Summary: if summary is null, push to SQS for generation
+    if video.summary is None:
+        push_video_to_summary_sqs(video_id)
+        tasks_queued.append("summary")
+
+    message = f"Tasks queued: {', '.join(tasks_queued)}" if tasks_queued else "No new tasks needed."
+
+    return (
+        jsonify(
+            {
+                "message": message,
+                "video_id": video_id,
+                "is_new": False,
+                "tasks_queued": tasks_queued,
+            }
+        ),
+        200,
+    )
 
 
 @wiz_bp.route("/wiz/video/<video_id>", methods=["GET"])
@@ -119,29 +117,25 @@ def get_wiz_video_status(video_id):
     Returns transcript_available, metadata, and summary status.
     No authentication required for wiz feature.
     """
-    try:
-        video = Video.query.filter_by(video_id=video_id).first()
-        if not video:
-            logger.warning(f"Wiz video not found video_id={video_id}")
-            return jsonify({"error": "Video not found"}), 404
+    video = Video.query.filter_by(video_id=video_id).first()
+    if not video:
+        logger.warning(f"Wiz video not found video_id={video_id}")
+        raise NotFoundError("Video not found")
 
-        response_data = WizVideoStatusResponse(
-            video_id=video.video_id,
-            title=video.title,
-            transcript_available=video.transcript_available,
-            metadata=video.video_metadata,
-            summary=video.summary,
-        )
+    response_data = WizVideoStatusResponse(
+        video_id=video.video_id,
+        title=video.title,
+        transcript_available=video.transcript_available,
+        metadata=video.video_metadata,
+        summary=video.summary,
+    )
 
-        logger.info(f"Fetched wiz video status for video_id={video_id}")
-        return jsonify(response_data.model_dump()), 200
-
-    except Exception as e:
-        logger.exception(f"Unexpected error in get_wiz_video_status: {e}")
-        return jsonify({"error": "Internal Server Error"}), 500
+    logger.info(f"Fetched wiz video status for video_id={video_id}")
+    return jsonify(response_data.model_dump()), 200
 
 
 @wiz_bp.route("/wiz/chat", methods=["POST"])
+@require_json_body
 def chat_wiz():
     """
     Chat with the Wiz for a specific video.
@@ -179,15 +173,14 @@ def chat_wiz():
         # Check for guest session id
         guest_session_id = request.headers.get("X-Guest-Session-ID")
         if not guest_session_id:
-            return jsonify({"error": "Unauthorized. Missing Auth or Guest ID"}), 401
+            raise UnauthorizedError("Missing Auth or Guest ID")
 
     # 2. Input Validation
-    data = request.get_json(silent=True)
-    if not data or "video_id" not in data or "message" not in data:
-        return jsonify({"error": "Missing video_id or message"}), 400
+    if "video_id" not in request.json_data or "message" not in request.json_data:
+        raise BadRequestError("Missing video_id or message")
 
-    video_id = data["video_id"]
-    user_message = data["message"]
+    video_id = request.json_data["video_id"]
+    user_message = request.json_data["message"]
 
     # 3. Quota Check
     today = datetime.now(timezone.utc).replace(
@@ -206,7 +199,7 @@ def chat_wiz():
             .count()
         )
         if msg_count >= 20:
-            return jsonify({"error": "Daily limit reached (20 messages/day)"}), 429
+            raise RateLimitError("Daily limit reached (20 messages/day)")
     else:
         # Check guest quota
         msg_count = (
@@ -219,26 +212,24 @@ def chat_wiz():
             .count()
         )
         if msg_count >= 5:
-            return jsonify({"error": "Daily guest limit reached (5 messages/day)"}), 429
+            raise RateLimitError("Daily guest limit reached (5 messages/day)")
 
     # 4. Transcript Gating
     video = Video.query.filter_by(video_id=video_id).first()
     if not video:
-        return jsonify({"error": "Video not found"}), 404
+        raise NotFoundError("Video not found")
 
     # Check transcript availability (DB flag primary, S3 fallback if needed, but DB should be sync)
     if not video.transcript_available:
         # If task is still running
         if has_active_task(video_id, FETCH_TRANSCRIPT_TASK_TYPE):
             return jsonify({"status": "processing", "message": "Transcript processing"}), 202
-        return jsonify(
-            {"error": "Transcript unavailable. Please init session first."}
-        ), 400
+        raise BadRequestError("Transcript unavailable. Please init session first.")
 
     transcript = get_transcript_from_s3(video_id)
     if not transcript:
         # Should not happen if video.transcript_available is True, but good safety
-        return jsonify({"error": "Transcript data missing"}), 404
+        raise NotFoundError("Transcript data missing")
 
     # 5. Conversation Context
     # Find or create conversation

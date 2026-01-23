@@ -12,6 +12,7 @@ from vidwiz.routes.frontend_routes import frontend_bp
 from vidwiz.routes.wiz_routes import wiz_bp
 
 from vidwiz.shared.models import db
+from vidwiz.shared.errors import register_error_handlers
 from sqlalchemy import text
 
 from dotenv import load_dotenv
@@ -75,6 +76,9 @@ def create_app(config=None):
     app.register_blueprint(tasks_bp, url_prefix="/api")
     app.register_blueprint(wiz_bp, url_prefix="/api")
     app.register_blueprint(frontend_bp)
+
+    # Register global error handlers
+    register_error_handlers(app)
 
     return app
 
