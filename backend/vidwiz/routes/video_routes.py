@@ -1,6 +1,7 @@
 from flask import Blueprint, jsonify, request
 from vidwiz.shared.models import Video, Note, User, db
-from vidwiz.shared.schemas import VideoRead, NoteRead
+from vidwiz.shared.schemas import VideoRead, NoteRead, VideoPatch
+from pydantic import ValidationError
 from vidwiz.shared.utils import jwt_or_lt_token_required, admin_required
 from vidwiz.shared.logging import get_logger
 
@@ -85,14 +86,21 @@ def update_video(video_id):
             logger.warning(f"Update video missing JSON body video_id={video_id}")
             return jsonify({"error": "Request body must be JSON"}), 400
 
+        # Validate input using VideoPatch schema
+        try:
+            patch_data = VideoPatch.model_validate(data)
+        except ValidationError as e:
+            logger.warning(f"Update video validation failed video_id={video_id}: {e}")
+            return jsonify({"error": e.errors()}), 400
+
         video = Video.query.filter_by(video_id=video_id).first()
         if not video:
             logger.warning(f"Update video not found video_id={video_id}")
             return jsonify({"error": "Video not found"}), 404
 
         # Update summary if provided
-        if "summary" in data:
-            video.summary = data["summary"]
+        if patch_data.summary is not None:
+            video.summary = patch_data.summary
             logger.info(f"Updated video summary video_id={video_id}")
 
         db.session.commit()

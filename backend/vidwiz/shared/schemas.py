@@ -40,6 +40,27 @@ class VideoUpdate(BaseModel):
     }
 
 
+class VideoPatch(BaseModel):
+    """Schema for admin PATCH /videos/<video_id> endpoint (e.g., Lambda updating summary)."""
+
+    summary: Optional[str] = None
+
+    @field_validator("summary")
+    @classmethod
+    def validate_summary(cls, v):
+        if v is not None:
+            if not isinstance(v, str):
+                raise ValueError("summary must be a string")
+            if len(v) > 10000:
+                raise ValueError("summary must be less than 10000 characters")
+        return v
+
+    model_config = {
+        "from_attributes": True,
+        "extra": "forbid",
+    }
+
+
 class NoteCreate(BaseModel):
     video_id: str
     video_title: Optional[str] = None
