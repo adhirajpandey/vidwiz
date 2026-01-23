@@ -110,7 +110,58 @@ def jwt_or_admin_required(f):
             logger.warning("Auth (admin/JWT) failed: invalid or expired token")
             return jsonify({"error": "Invalid or expired token"}), 401
 
+
         return f(*args, **kwargs)
+
+    return decorated_function
+
+
+def jwt_or_guest_required(f):
+    """
+    Decorator that allows access if:
+    1. Valid JWT token is provided (sets request.user_id, request.guest_session_id=None)
+    2. Valid Guest Session ID is provided (sets request.user_id=None, request.guest_session_id=value)
+    
+    If both provided, JWT takes precedence.
+    """
+    from vidwiz.shared.errors import UnauthorizedError
+    
+    @wraps(f)
+    def decorated_function(*args, **kwargs):
+        # Initialize request attributes
+        request.user_id = None
+        request.guest_session_id = None
+        
+        # 1. Try JWT Auth
+        auth_header = request.headers.get("Authorization", "")
+        jwt_success = False
+        if auth_header.startswith("Bearer "):
+            token = auth_header.split(" ", 1)[1]
+            try:
+                payload = jwt.decode(
+                    token, current_app.config["SECRET_KEY"], algorithms=["HS256"]
+                )
+                request.user_id = payload["user_id"]
+                logger.debug(f"JWT auth succeeded for user_id={request.user_id}")
+                jwt_success = True
+            except Exception as e:
+                logger.warning(f"JWT auth failed in mixed auth route: {e}")
+                pass
+        
+        if jwt_success:
+             # Important: Execute the route function OUTSIDE the try/except block
+             # to prevent catching route exceptions (like NotFoundError) as auth failures.
+             return f(*args, **kwargs)
+        
+        # 2. Try Guest Auth
+        guest_id = request.headers.get("X-Guest-Session-ID")
+        if guest_id:
+            request.guest_session_id = guest_id
+            logger.debug(f"Guest auth succeeded for guest_session_id={guest_id}")
+            return f(*args, **kwargs)
+            
+        logger.warning("Auth (JWT/Guest) failed: No valid credentials provided")
+        raise UnauthorizedError("Missing Auth or Guest ID")
 
     return decorated_function
 
@@ -306,6 +357,7 @@ def check_required_env_vars():
         "SQS_SUMMARY_QUEUE_URL",
         "S3_BUCKET_NAME",
         "ADMIN_TOKEN",
+        "GEMINI_API_KEY",
     ]
     missing = [var for var in required_env_vars if os.getenv(var) is None]
     if missing:
