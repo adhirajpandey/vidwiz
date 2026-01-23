@@ -20,7 +20,7 @@ def test_wiz_chat_guest_quota(client, app):
             db.session.commit()
     
     # Mock transcript retrieval and GEMINI_API_KEY
-    with patch("vidwiz.shared.utils.get_transcript_from_s3") as mock_get_transcript, \
+    with patch("vidwiz.routes.wiz_routes.get_transcript_from_s3") as mock_get_transcript, \
          patch.dict(os.environ, {"GEMINI_API_KEY": "test-key"}):
         
         mock_get_transcript.return_value = [{"offset": 0, "text": "Hello world"}]
@@ -51,7 +51,7 @@ def test_wiz_chat_guest_quota(client, app):
                 headers=headers
             )
             assert response.status_code == 429
-            assert "limit reached" in response.json["error"]
+            assert "limit reached" in response.json["error"]["message"]
 
 
 
@@ -81,7 +81,7 @@ def test_wiz_chat_user_quota(client, app):
             db.session.commit()
 
     # Mock transcript retrieval and GEMINI_API_KEY
-    with patch("vidwiz.shared.utils.get_transcript_from_s3") as mock_get_transcript, \
+    with patch("vidwiz.routes.wiz_routes.get_transcript_from_s3") as mock_get_transcript, \
          patch.dict(os.environ, {"GEMINI_API_KEY": "test-key"}):
         
         mock_get_transcript.return_value = [{"offset": 0, "text": "Hello world"}]
@@ -112,7 +112,7 @@ def test_wiz_chat_user_quota(client, app):
                 headers=auth_headers
             )
             assert response.status_code == 429
-            assert "limit reached" in response.json["error"]
+            assert "limit reached" in response.json["error"]["message"]
 
 
 def test_wiz_chat_transcript_missing(client, app):
@@ -136,4 +136,4 @@ def test_wiz_chat_transcript_missing(client, app):
     # Should be 400 or 202 depending on active task status
     # Since no task is active in this test setup, it returns 400 with "init session first" message
     assert response.status_code == 400
-    assert "Transcript unavailable" in response.json["error"]
+    assert "Transcript unavailable" in response.json["error"]["message"]

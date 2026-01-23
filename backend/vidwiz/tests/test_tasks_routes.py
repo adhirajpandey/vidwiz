@@ -162,7 +162,7 @@ class TestTasksRoutes:
 
         assert response.status_code == 403
         data = response.get_json()
-        assert "different worker" in data["error"]
+        assert "different worker" in data["error"]["message"]
 
     def test_get_transcript_task_no_auth(self, client):
         """Test getting transcript task without authentication"""
@@ -325,7 +325,7 @@ class TestTasksRoutes:
             }
         )
         assert response.status_code == 400
-        assert "mismatch" in response.get_json()["error"]
+        assert "mismatch" in response.get_json()["error"]["message"]
 
     def test_submit_transcript_result_task_not_in_progress(self, client, auth_headers, app, sample_user):
         """Test submitting result for task not in progress"""
@@ -350,4 +350,4 @@ class TestTasksRoutes:
             }
         )
         assert response.status_code == 400
-        assert "not in progress" in response.get_json()["error"]
+        assert "not in progress" in response.get_json()["error"]["message"]

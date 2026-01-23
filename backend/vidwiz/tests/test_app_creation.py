@@ -39,6 +39,9 @@ class TestAppCreation:
             "SQS_QUEUE_URL": "http://localhost/mock-sqs",
             "S3_BUCKET_NAME": "test-bucket",
             "ADMIN_TOKEN": "admin-token",
+            "GEMINI_API_KEY": "test-gemini-key",
+            "SQS_AI_NOTE_QUEUE_URL": "test-ai-queue-url",
+            "SQS_SUMMARY_QUEUE_URL": "test-summary-queue-url",
         }
         with patch.dict(os.environ, required_env, clear=True):
             app = create_app()
@@ -59,6 +62,9 @@ class TestAppCreation:
             "SQS_QUEUE_URL": "http://localhost/mock-sqs",
             "S3_BUCKET_NAME": "test-bucket",
             "ADMIN_TOKEN": "admin-token",
+            "GEMINI_API_KEY": "test-gemini-key",
+            "SQS_AI_NOTE_QUEUE_URL": "test-ai-queue-url",
+            "SQS_SUMMARY_QUEUE_URL": "test-summary-queue-url",
         }
         with patch.dict(os.environ, required_env, clear=True):
             with pytest.raises(ValueError) as excinfo:

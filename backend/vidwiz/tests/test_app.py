@@ -34,7 +34,7 @@ def test_create_note_invalid_data(client, auth_headers, sample_user):
     """Test creating note with missing required fields"""
     payload = {"text": "Missing video_id and timestamp"}
     response = client.post("/api/notes", json=payload, headers=auth_headers)
-    assert response.status_code == 400
+    assert response.status_code == 422
 
 
 def test_get_notes_success(client, auth_headers, app, sample_user):
