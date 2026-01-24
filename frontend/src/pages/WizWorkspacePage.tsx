@@ -4,6 +4,7 @@ import { Send, Sparkles, RotateCcw } from 'lucide-react';
 import { FaExternalLinkAlt } from 'react-icons/fa';
 import config from '../config';
 import GuestLimitModal from '../components/GuestLimitModal';
+import RegisteredLimitModal from '../components/RegisteredLimitModal';
 
 interface Message {
   id: string;
@@ -118,6 +119,8 @@ function WizWorkspacePage() {
   const [isPolling, setIsPolling] = useState(true);
   const [showRefreshModal, setShowRefreshModal] = useState(false);
   const [showGuestLimit, setShowGuestLimit] = useState(false);
+  const [showRegisteredLimit, setShowRegisteredLimit] = useState(false);
+  const [resetSeconds, setResetSeconds] = useState(0);
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const playerRef = useRef<HTMLIFrameElement>(null);
   const inputRef = useRef<HTMLInputElement>(null);
@@ -255,8 +258,19 @@ function WizWorkspacePage() {
       });
 
       if (response.status === 429) {
-        setShowGuestLimit(true);
-        throw new Error('Guest daily limit exceeded');
+        const errorData = await response.json();
+        
+        if (token) {
+          // Registered user limit
+          const seconds = errorData.error?.details?.reset_in_seconds || 86400; // Default to 24h if missing
+          setResetSeconds(seconds);
+          setShowRegisteredLimit(true);
+          throw new Error('Daily limit reached');
+        } else {
+          // Guest limit
+          setShowGuestLimit(true);
+          throw new Error('Guest daily limit exceeded');
+        }
       }
 
       if (!response.ok) {
@@ -375,6 +389,13 @@ function WizWorkspacePage() {
       <GuestLimitModal 
         isOpen={showGuestLimit} 
         onClose={() => setShowGuestLimit(false)} 
+      />
+
+      {/* Registered User Limit Modal */}
+      <RegisteredLimitModal
+        isOpen={showRegisteredLimit}
+        onClose={() => setShowRegisteredLimit(false)}
+        resetInSeconds={resetSeconds}
       />
 
       {/* Main Content - Split View: Chat Left, Video Right */}

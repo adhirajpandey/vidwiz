@@ -1,6 +1,6 @@
 import json
 import os
-from datetime import datetime, timezone
+from datetime import datetime, timezone, timedelta
 
 from flask import Blueprint, Response, current_app, jsonify, request, stream_with_context
 from google import genai
@@ -77,7 +77,17 @@ def check_daily_quota(user_id: int | None, guest_session_id: str | None):
 
     msg_count = query.count()
     if msg_count >= limit:
-        raise RateLimitError(f"Daily limit reached ({limit} {limit_msg_suffix})")
+        # Calculate time until next midnight (reset)
+        # today is defined at top of function as 00:00 UTC
+        tomorrow_midnight = today + timedelta(days=1)
+        now = datetime.now(timezone.utc)
+        
+        seconds_until_reset = int((tomorrow_midnight - now).total_seconds())
+        
+        raise RateLimitError(
+            f"Daily limit reached ({limit} {limit_msg_suffix})",
+            details={"reset_in_seconds": seconds_until_reset}
+        )
 
 
 
