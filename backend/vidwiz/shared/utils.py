@@ -21,6 +21,8 @@ def jwt_or_lt_token_required(f):
             return jsonify({"error": "Missing or invalid Authorization header"}), 401
         token = auth_header.split(" ", 1)[1]
 
+        auth_success = False
+
         # First try to decode as JWT
         try:
             payload = jwt.decode(
@@ -28,11 +30,14 @@ def jwt_or_lt_token_required(f):
             )
             request.user_id = payload["user_id"]
             logger.debug(f"JWT auth succeeded for user_id={request.user_id}")
-            return f(*args, **kwargs)
+            auth_success = True
         except Exception:
             # JWT decoding failed, try to check if it's a long term token
             logger.debug("JWT decode failed; attempting long-term token auth")
             pass
+        
+        if auth_success:
+             return f(*args, **kwargs)
 
         # Check if token matches any user's long_term_token
         try:

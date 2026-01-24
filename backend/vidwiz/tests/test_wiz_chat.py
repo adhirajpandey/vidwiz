@@ -4,6 +4,7 @@ from unittest.mock import patch, MagicMock
 from vidwiz.shared.models import Conversation, Message, Video, db
 from datetime import datetime, timezone
 import os
+from google.genai import types
 
 
 def test_wiz_chat_guest_quota(client, app):
@@ -21,37 +22,37 @@ def test_wiz_chat_guest_quota(client, app):
     
     # Mock transcript retrieval and GEMINI_API_KEY
     with patch("vidwiz.routes.wiz_routes.get_transcript_from_s3") as mock_get_transcript, \
-         patch.dict(os.environ, {"GEMINI_API_KEY": "test-key"}):
+         patch.dict(os.environ, {"GEMINI_API_KEY": "test-key"}), \
+         patch("vidwiz.routes.wiz_routes.genai.Client") as mock_genai_client:
         
         mock_get_transcript.return_value = [{"offset": 0, "text": "Hello world"}]
         
-        # Mock requests.post for Gemini
-        with patch("requests.post") as mock_post:
-            mock_response = MagicMock()
-            mock_response.iter_lines.return_value = [
-                b'data: {"candidates": [{"content": {"parts": [{"text": "AI Response"}]}}]}\n\n',
-                b'data: [DONE]\n\n'
-            ]
-            mock_response.status_code = 200
-            mock_post.return_value.__enter__.return_value = mock_response
+        # Mock GenAI Client
+        mock_chat = MagicMock()
+        mock_genai_client.return_value.chats.create.return_value = mock_chat
+        
+        # Mock streaming response
+        mock_chunk = MagicMock()
+        mock_chunk.text = "AI Response"
+        mock_chat.send_message_stream.return_value = [mock_chunk]
 
-            # Send 5 messages (allowed)
-            for i in range(5):
-                response = client.post(
-                    "/api/wiz/chat",
-                    json={"video_id": video_id, "message": f"msg {i}"},
-                    headers=headers
-                )
-                assert response.status_code == 200
-
-            # Send 6th message (blocked)
+        # Send 5 messages (allowed)
+        for i in range(5):
             response = client.post(
                 "/api/wiz/chat",
-                json={"video_id": video_id, "message": "msg 6"},
+                json={"video_id": video_id, "message": f"msg {i}"},
                 headers=headers
             )
-            assert response.status_code == 429
-            assert "limit reached" in response.json["error"]["message"]
+            assert response.status_code == 200
+
+        # Send 6th message (blocked)
+        response = client.post(
+            "/api/wiz/chat",
+            json={"video_id": video_id, "message": "msg 6"},
+            headers=headers
+        )
+        assert response.status_code == 429
+        assert "limit reached" in response.json["error"]["message"]
 
 
 
@@ -82,37 +83,37 @@ def test_wiz_chat_user_quota(client, app):
 
     # Mock transcript retrieval and GEMINI_API_KEY
     with patch("vidwiz.routes.wiz_routes.get_transcript_from_s3") as mock_get_transcript, \
-         patch.dict(os.environ, {"GEMINI_API_KEY": "test-key"}):
+         patch.dict(os.environ, {"GEMINI_API_KEY": "test-key"}), \
+         patch("vidwiz.routes.wiz_routes.genai.Client") as mock_genai_client:
         
         mock_get_transcript.return_value = [{"offset": 0, "text": "Hello world"}]
         
-        # Mock requests.post for Gemini
-        with patch("requests.post") as mock_post:
-            mock_response = MagicMock()
-            mock_response.iter_lines.return_value = [
-                b'data: {"candidates": [{"content": {"parts": [{"text": "AI Response"}]}}]}\n\n',
-                b'data: [DONE]\n\n'
-            ]
-            mock_response.status_code = 200
-            mock_post.return_value.__enter__.return_value = mock_response
+        # Mock GenAI Client
+        mock_chat = MagicMock()
+        mock_genai_client.return_value.chats.create.return_value = mock_chat
+        
+        # Mock streaming response
+        mock_chunk = MagicMock()
+        mock_chunk.text = "AI Response"
+        mock_chat.send_message_stream.return_value = [mock_chunk]
 
-            # Send 20 messages (allowed)
-            for i in range(20):
-                response = client.post(
-                    "/api/wiz/chat",
-                    json={"video_id": video_id, "message": f"msg {i}"},
-                    headers=auth_headers
-                )
-                assert response.status_code == 200
-
-            # Send 21st message (blocked)
+        # Send 20 messages (allowed)
+        for i in range(20):
             response = client.post(
                 "/api/wiz/chat",
-                json={"video_id": video_id, "message": "msg 21"},
+                json={"video_id": video_id, "message": f"msg {i}"},
                 headers=auth_headers
             )
-            assert response.status_code == 429
-            assert "limit reached" in response.json["error"]["message"]
+            assert response.status_code == 200
+
+        # Send 21st message (blocked)
+        response = client.post(
+            "/api/wiz/chat",
+            json={"video_id": video_id, "message": "msg 21"},
+            headers=auth_headers
+        )
+        assert response.status_code == 429
+        assert "limit reached" in response.json["error"]["message"]
 
 
 def test_wiz_chat_transcript_missing(client, app):

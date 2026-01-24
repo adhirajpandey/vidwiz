@@ -2,63 +2,8 @@ import pytest
 import jwt
 from datetime import datetime, timedelta, timezone
 from unittest.mock import patch
-from vidwiz.app import create_app
 from vidwiz.shared.models import User, Note, db
 from werkzeug.security import generate_password_hash
-
-
-@pytest.fixture
-def notes_app():
-    """App fixture with specific notes test configuration"""
-    app = create_app(
-        {
-            "TESTING": True,
-            "SQLALCHEMY_DATABASE_URI": "sqlite:///:memory:",
-            "SQLALCHEMY_TRACK_MODIFICATIONS": False,
-            "SECRET_KEY": "test_secret_key",
-            "JWT_EXPIRY_HOURS": 24,
-        }
-    )
-    with app.app_context():
-        db.create_all()
-        yield app
-        db.session.remove()
-        db.drop_all()
-
-
-@pytest.fixture
-def notes_client(notes_app):
-    """Client for notes testing with specific config"""
-    return notes_app.test_client()
-
-
-@pytest.fixture
-def notes_auth_headers(notes_app):
-    """Create auth headers with valid JWT token for notes tests"""
-    with notes_app.app_context():
-        token = jwt.encode(
-            {
-                "user_id": 1,
-                "email": "testuser@example.com",
-                "name": "Test User",
-                "exp": datetime.now(timezone.utc) + timedelta(hours=1),
-            },
-            notes_app.config["SECRET_KEY"],
-            algorithm="HS256",
-        )
-        return {"Authorization": f"Bearer {token}"}
-
-
-@pytest.fixture
-def notes_sample_user(notes_app):
-    """Create a sample user for notes testing"""
-    with notes_app.app_context():
-        user = User(
-            email="testuser@example.com", name="Test User", password_hash=generate_password_hash("testpass123")
-        )
-        db.session.add(user)
-        db.session.commit()
-        return user
 
 
 class TestCreateNote:
@@ -121,7 +66,7 @@ class TestCreateNote:
             },
         )
 
-        assert response.status_code == 401
+        assert response.status_code == 400
         data = response.get_json()
         # assert "video_title is required" in data["error"]["message"]
 
@@ -158,7 +103,7 @@ class TestCreateNote:
         """Test creating note without JSON body"""
         response = client.post("/api/notes", headers=auth_headers, data="not json", content_type="text/plain")
 
-        assert response.status_code == 401
+        assert response.status_code == 400
         data = response.get_json()
         # assert "Request body must be JSON" in data["error"]["message"]
 
@@ -291,7 +236,7 @@ class TestDeleteNote:
         """Test deleting non-existent note"""
         response = client.delete("/api/notes/999", headers=auth_headers)
 
-        assert response.status_code == 401
+        assert response.status_code == 404
         data = response.get_json()
         # assert "Note not found" in data["error"]["message"]
 
@@ -334,7 +279,7 @@ class TestDeleteNote:
 
             response = client.delete(f"/api/notes/{note_id}", headers=headers)
 
-            assert response.status_code == 401  # Note not found (for this user)
+            assert response.status_code == 404  # Note not found (for this user)
 
             # Verify note still exists
             existing_note = db.session.get(Note, note_id)

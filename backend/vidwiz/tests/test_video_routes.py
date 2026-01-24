@@ -29,7 +29,7 @@ class TestVideoRoutes:
     def test_get_video_not_found(self, client, auth_headers):
         """Test retrieving a non-existent video"""
         response = client.get("/api/videos/non_existent", headers=auth_headers)
-        assert response.status_code == 401
+        assert response.status_code == 404
         # assert "Video not found" in response.get_json()["error"]["message"]
 
     def test_get_video_unauthorized(self, client):
@@ -42,7 +42,7 @@ class TestVideoRoutes:
         with patch("vidwiz.shared.models.Video.query") as mock_query:
             mock_query.filter_by.side_effect = Exception("Database error")
             response = client.get("/api/videos/test_vid_1", headers=auth_headers)
-            assert response.status_code == 401
+            assert response.status_code == 500
             # assert "Internal Server Error" in response.get_json()["error"]["message"]
 
     @pytest.mark.skipif(True, reason="SQLite doesn't support JSON operators")

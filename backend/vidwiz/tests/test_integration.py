@@ -1,32 +1,8 @@
 import pytest
 import jwt
 from datetime import datetime, timedelta, timezone
-from vidwiz.app import create_app
 from vidwiz.shared.models import User, Video, Note, db
 from werkzeug.security import generate_password_hash
-
-
-@pytest.fixture
-def app():
-    app = create_app(
-        {
-            "TESTING": True,
-            "SQLALCHEMY_DATABASE_URI": "sqlite:///:memory:",
-            "SQLALCHEMY_TRACK_MODIFICATIONS": False,
-            "SECRET_KEY": "test_secret_key",
-            "JWT_EXPIRY_HOURS": 24,
-        }
-    )
-    with app.app_context():
-        db.create_all()
-        yield app
-        db.session.remove()
-        db.drop_all()
-
-
-@pytest.fixture
-def client(app):
-    return app.test_client()
 
 
 class TestUserWorkflow:
@@ -246,7 +222,7 @@ class TestUserWorkflow:
 
             token = jwt.encode(
                 {
-                    "user_id": 1,
+                    "user_id": user.id,
                     "email": "erroruser@example.com",
                     "name": "Error User",
                     "exp": datetime.now(timezone.utc) + timedelta(hours=1),
@@ -268,21 +244,17 @@ class TestUserWorkflow:
 
         # 2. Try to access non-existent video
         response = client.get("/api/videos/nonexistent", headers=auth_headers)
-        # 2. Try to access non-existent video
-        response = client.get("/api/videos/nonexistent", headers=auth_headers)
-        # 2. Try to access non-existent video
-        response = client.get("/api/videos/nonexistent", headers=auth_headers)
         assert response.status_code == 404
 
         # 3. Try to delete non-existent note
         response = client.delete("/api/notes/99999", headers=auth_headers)
-        assert response.status_code == 401 # Should ideally be 404
+        assert response.status_code == 404
 
         # 4. Try to update non-existent note
         response = client.patch(
             "/api/notes/99999", json={"text": "valid update"}, headers=auth_headers
         )
-        assert response.status_code == 401 # Should ideally be 404
+        assert response.status_code == 404
 
         # 5. Try to access protected endpoints without auth
         response = client.get("/api/search?query=test")
