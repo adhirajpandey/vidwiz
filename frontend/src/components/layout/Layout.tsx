@@ -8,7 +8,7 @@ import { FaGithub } from 'react-icons/fa';
 
 export default function Layout({ children }: { children: ReactNode }) {
   return (
-    <div className="flex flex-col">
+    <div className="flex flex-col min-h-screen bg-background text-foreground">
       <Navbar />
       {/* Main content - min-height ensures footer is below fold */}
       <main className="pt-16 min-h-screen">{children}</main>

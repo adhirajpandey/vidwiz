@@ -8,7 +8,7 @@ export default function Navbar() {
     if (typeof document !== 'undefined') {
       return document.documentElement.classList.contains('dark') ? 'dark' : 'light';
     }
-    return 'light';
+    return 'dark';
   });
   const location = useLocation();
   const navigate = useNavigate();
