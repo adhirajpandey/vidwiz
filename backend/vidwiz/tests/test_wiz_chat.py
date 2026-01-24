@@ -11,7 +11,7 @@ def test_wiz_chat_guest_quota(client, app):
     """Test guest quota limits (5 messages/day)"""
     guest_id = "guest_123"
     headers = {"X-Guest-Session-ID": guest_id}
-    video_id = "test_video_123"
+    video_id = "a1b2c3d4e5f"
     
     # Ensure video exists
     with app.app_context():
@@ -58,7 +58,7 @@ def test_wiz_chat_guest_quota(client, app):
 
 def test_wiz_chat_user_quota(client, app):
     """Test authenticated user quota limits (20 messages/day)"""
-    video_id = "test_video_123"
+    video_id = "a1b2c3d4e5f"
     
     # Generate token locally to ensure validity
     import jwt
@@ -118,7 +118,7 @@ def test_wiz_chat_user_quota(client, app):
 
 def test_wiz_chat_transcript_missing(client, app):
     """Test behavior when transcript is missing"""
-    video_id = "test_video_missing_transcript"
+    video_id = "m1n2b3v4c5x"
     
     # Create video with no transcript
     with app.app_context():
@@ -138,3 +138,86 @@ def test_wiz_chat_transcript_missing(client, app):
     # Since no task is active in this test setup, it returns 400 with "init session first" message
     assert response.status_code == 400
     assert "Transcript unavailable" in response.json["error"]["message"]
+
+
+def test_wiz_conversation_create_and_chat_roundtrip(client, app):
+    """Create a conversation and reuse it for chat."""
+    video_id = "z9y8x7w6v5u"
+    guest_id = "guest_convo"
+    headers = {"X-Guest-Session-ID": guest_id}
+
+    with app.app_context():
+        if not Video.query.filter_by(video_id=video_id).first():
+            video = Video(video_id=video_id, title="Test", transcript_available=True)
+            db.session.add(video)
+            db.session.commit()
+
+    convo_response = client.post(
+        "/api/wiz/conversation",
+        json={"video_id": video_id},
+        headers=headers,
+    )
+    assert convo_response.status_code == 200
+    conversation_id = convo_response.json["conversation_id"]
+
+    with patch("vidwiz.routes.wiz_routes.get_transcript_from_s3") as mock_get_transcript, \
+         patch("vidwiz.routes.wiz_routes.genai.Client") as mock_genai_client:
+        mock_get_transcript.return_value = [{"offset": 0, "text": "Hello world"}]
+
+        mock_chat = MagicMock()
+        mock_genai_client.return_value.chats.create.return_value = mock_chat
+
+        mock_chunk = MagicMock()
+        mock_chunk.text = "AI Response"
+        mock_chat.send_message_stream.return_value = [mock_chunk]
+
+        response = client.post(
+            "/api/wiz/chat",
+            json={
+                "video_id": video_id,
+                "message": "msg 1",
+                "conversation_id": conversation_id,
+            },
+            headers=headers,
+        )
+        assert response.status_code == 200
+
+    with app.app_context():
+        message = Message.query.filter_by(conversation_id=conversation_id).first()
+        assert message is not None
+        assert message.role == "user"
+
+
+def test_wiz_chat_conversation_scoped_to_guest(client, app):
+    """Reject conversation access from a different guest session."""
+    video_id = "p0o9i8u7y6t"
+    guest_a = {"X-Guest-Session-ID": "guest_a"}
+    guest_b = {"X-Guest-Session-ID": "guest_b"}
+
+    with app.app_context():
+        if not Video.query.filter_by(video_id=video_id).first():
+            video = Video(video_id=video_id, title="Test", transcript_available=True)
+            db.session.add(video)
+            db.session.commit()
+
+    convo_response = client.post(
+        "/api/wiz/conversation",
+        json={"video_id": video_id},
+        headers=guest_a,
+    )
+    assert convo_response.status_code == 200
+    conversation_id = convo_response.json["conversation_id"]
+
+    with patch("vidwiz.routes.wiz_routes.get_transcript_from_s3") as mock_get_transcript:
+        mock_get_transcript.return_value = [{"offset": 0, "text": "Hello world"}]
+
+        response = client.post(
+            "/api/wiz/chat",
+            json={
+                "video_id": video_id,
+                "message": "msg 1",
+                "conversation_id": conversation_id,
+            },
+            headers=guest_b,
+        )
+        assert response.status_code == 404

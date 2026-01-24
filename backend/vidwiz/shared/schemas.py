@@ -2,6 +2,52 @@ from pydantic import BaseModel, field_validator, Field
 from typing import Optional
 from datetime import datetime
 from enum import Enum
+from urllib.parse import urlparse, parse_qs
+import re
+
+
+YOUTUBE_VIDEO_ID_PATTERN = re.compile(r"^[a-zA-Z0-9_-]{11}$")
+
+
+def normalize_youtube_video_id(value: str) -> str:
+    if not value or not value.strip():
+        raise ValueError("video_id cannot be empty")
+
+    trimmed = value.strip()
+
+    if "list=" in trimmed:
+        raise ValueError("playlist URLs are not supported")
+
+    if YOUTUBE_VIDEO_ID_PATTERN.match(trimmed):
+        return trimmed
+
+    url_to_parse = trimmed
+    if not re.match(r"^https?://", url_to_parse):
+        url_to_parse = f"https://{url_to_parse}"
+
+    parsed = urlparse(url_to_parse)
+    hostname = (parsed.hostname or "").lower()
+    if hostname.startswith("www."):
+        hostname = hostname[4:]
+
+    if "youtube.com" in hostname and parsed.path == "/watch":
+        video_id = parse_qs(parsed.query).get("v", [None])[0]
+        if video_id and YOUTUBE_VIDEO_ID_PATTERN.match(video_id):
+            return video_id
+
+    if "youtube.com" in hostname:
+        for prefix in ("/shorts/", "/live/", "/embed/"):
+            if parsed.path.startswith(prefix):
+                video_id = parsed.path.split(prefix, 1)[1].split("/")[0]
+                if video_id and YOUTUBE_VIDEO_ID_PATTERN.match(video_id):
+                    return video_id
+
+    if hostname == "youtu.be":
+        video_id = parsed.path.lstrip("/").split("/")[0]
+        if video_id and YOUTUBE_VIDEO_ID_PATTERN.match(video_id):
+            return video_id
+
+    raise ValueError("video_id must be a valid YouTube video ID")
 
 
 class TaskStatus(str, Enum):
@@ -260,9 +306,7 @@ class WizInitRequest(BaseModel):
     @field_validator("video_id")
     @classmethod
     def validate_video_id(cls, v):
-        if not v or not v.strip():
-            raise ValueError("video_id cannot be empty")
-        return v.strip()
+        return normalize_youtube_video_id(v)
 
     model_config = {
         "extra": "forbid",
@@ -329,6 +373,28 @@ class WizInitResponse(BaseModel):
     tasks_queued: Optional[list[str]] = None
 
 
+class WizConversationCreateRequest(BaseModel):
+    """Request body to create a new Wiz conversation."""
+
+    video_id: str
+
+    @field_validator("video_id")
+    @classmethod
+    def validate_video_id(cls, v):
+        return normalize_youtube_video_id(v)
+
+    model_config = {
+        "extra": "forbid",
+    }
+
+
+class WizConversationResponse(BaseModel):
+    """Response for Wiz conversation creation."""
+
+    conversation_id: int
+    video_id: str
+
+
 class WizChatProcessingResponse(BaseModel):
     """Response when transcript is still processing."""
 
@@ -358,13 +424,28 @@ class WizChatRequest(BaseModel):
 
     video_id: str
     message: str
+    conversation_id: Optional[int] = None
 
-    @field_validator("video_id", "message")
+    @field_validator("video_id")
     @classmethod
-    def validate_not_empty(cls, v):
+    def validate_video_id(cls, v):
+        return normalize_youtube_video_id(v)
+
+    @field_validator("message")
+    @classmethod
+    def validate_message(cls, v):
         if not v or not v.strip():
-            raise ValueError("Field cannot be empty")
+            raise ValueError("message cannot be empty")
         return v.strip()
+
+    @field_validator("conversation_id")
+    @classmethod
+    def validate_conversation_id(cls, v):
+        if v is None:
+            return v
+        if not isinstance(v, int) or v <= 0:
+            raise ValueError("conversation_id must be a positive integer")
+        return v
 
     model_config = {
         "extra": "forbid",

@@ -34,6 +34,11 @@ interface VideoData {
   summary: string | null;
 }
 
+interface ConversationResponse {
+  conversation_id: number;
+  video_id: string;
+}
+
 /**
  * Parses bold markdown (**text**) and renders as bold
  */
@@ -155,6 +160,8 @@ function WizWorkspacePage() {
   const [inputValue, setInputValue] = useState('');
   const [isLoading, setIsLoading] = useState(false);
   const [videoData, setVideoData] = useState<VideoData | null>(null);
+  const [conversationId, setConversationId] = useState<number | null>(null);
+  const [isCreatingConversation, setIsCreatingConversation] = useState(false);
   const [isPolling, setIsPolling] = useState(true);
   const [showRefreshModal, setShowRefreshModal] = useState(false);
   const [showGuestLimit, setShowGuestLimit] = useState(false);
@@ -213,6 +220,7 @@ function WizWorkspacePage() {
     setMessages([]);
     setVideoData(null);
     setIsPolling(true);
+    setConversationId(null);
     // Reset refs
     pollingStartTime.current = Date.now();
   }, [videoId]);
@@ -296,6 +304,56 @@ function WizWorkspacePage() {
 
   // ... (keeping existing handlers)
 
+  const getAuthHeaders = () => {
+    const token = localStorage.getItem('token');
+    let guestSessionId = sessionStorage.getItem('guestSessionId');
+    if (!token && !guestSessionId) {
+      guestSessionId = crypto.randomUUID();
+      sessionStorage.setItem('guestSessionId', guestSessionId);
+    }
+
+    const headers: Record<string, string> = {
+      'Content-Type': 'application/json',
+    };
+    if (token) {
+      headers['Authorization'] = `Bearer ${token}`;
+    } else if (guestSessionId) {
+      headers['X-Guest-Session-ID'] = guestSessionId;
+    }
+
+    return headers;
+  };
+
+  const createNewConversation = async () => {
+    if (!videoId || isCreatingConversation) return null;
+    setIsCreatingConversation(true);
+    try {
+      const response = await fetch(`${config.API_URL}/wiz/conversation`, {
+        method: 'POST',
+        headers: getAuthHeaders(),
+        body: JSON.stringify({ video_id: videoId }),
+      });
+
+      if (!response.ok) {
+        console.error('Failed to create conversation:', response.statusText);
+        return null;
+      }
+
+      const data: ConversationResponse = await response.json();
+      setConversationId(data.conversation_id);
+      return data.conversation_id;
+    } catch (error) {
+      console.error('Failed to create conversation:', error);
+      return null;
+    } finally {
+      setIsCreatingConversation(false);
+    }
+  };
+
+  useEffect(() => {
+    if (!videoId) return;
+    createNewConversation();
+  }, [videoId]);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -324,36 +382,25 @@ function WizWorkspacePage() {
     setMessages((prev) => [...prev, assistantMessage]);
 
     try {
-      // Get auth token or guest session ID
-      const token = localStorage.getItem('token');
-      let guestSessionId = sessionStorage.getItem('guestSessionId');
-      if (!token && !guestSessionId) {
-        guestSessionId = crypto.randomUUID();
-        sessionStorage.setItem('guestSessionId', guestSessionId);
-      }
-
-      const headers: Record<string, string> = {
-        'Content-Type': 'application/json',
-      };
-      if (token) {
-        headers['Authorization'] = `Bearer ${token}`;
-      } else if (guestSessionId) {
-        headers['X-Guest-Session-ID'] = guestSessionId;
+      let activeConversationId = conversationId;
+      if (!activeConversationId) {
+        activeConversationId = await createNewConversation();
       }
 
       const response = await fetch(`${config.API_URL}/wiz/chat`, {
         method: 'POST',
-        headers,
+        headers: getAuthHeaders(),
         body: JSON.stringify({
           video_id: videoId,
           message: trimmed,
+          ...(activeConversationId ? { conversation_id: activeConversationId } : {}),
         }),
       });
 
       if (response.status === 429) {
         const errorData = await response.json();
         
-        if (token) {
+        if (localStorage.getItem('token')) {
           // Registered user limit
           const seconds = errorData.error?.details?.reset_in_seconds || 86400; // Default to 24h if missing
           setResetSeconds(seconds);
@@ -448,6 +495,8 @@ function WizWorkspacePage() {
 
   const handleNewChat = () => {
     setMessages([]);
+    setConversationId(null);
+    createNewConversation();
     inputRef.current?.focus();
   };
 

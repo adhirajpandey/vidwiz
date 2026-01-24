@@ -1,5 +1,6 @@
 from flask import Blueprint, jsonify, request
 from vidwiz.shared.models import Video, Note, User, db
+from sqlalchemy.orm import joinedload
 from vidwiz.shared.schemas import VideoRead, NoteRead, VideoPatch, VideoNotesResponse
 from vidwiz.shared.errors import (
     handle_validation_error,
@@ -36,17 +37,35 @@ def get_video_notes(video_id):
         raise NotFoundError("Video not found")
 
     # Get notes for this video where users have AI notes enabled and the note text is empty or None
-    notes = (
-        Note.query.join(User, Note.user_id == User.id)
-        .filter(
-            Note.video_id == video_id,
-            User.profile_data.op("->>")('"ai_notes_enabled"')
-            .cast(db.Boolean)
-            .is_(True),
-            db.or_(Note.text.is_(None), Note.text == ""),
+    bind = db.session.get_bind() or db.engine
+    if bind and bind.dialect.name == "sqlite":
+        notes = (
+            Note.query.options(joinedload(Note.user))
+            .filter(
+                Note.video_id == video_id,
+                db.or_(Note.text.is_(None), Note.text == ""),
+            )
+            .all()
         )
-        .all()
-    )
+        notes = [
+            note
+            for note in notes
+            if note.user
+            and note.user.profile_data
+            and note.user.profile_data.get("ai_notes_enabled", False)
+        ]
+    else:
+        notes = (
+            Note.query.join(User, Note.user_id == User.id)
+            .filter(
+                Note.video_id == video_id,
+                User.profile_data.op("->>")('"ai_notes_enabled"')
+                .cast(db.Boolean)
+                .is_(True),
+                db.or_(Note.text.is_(None), Note.text == ""),
+            )
+            .all()
+        )
 
     # Check if any notes were found
     if len(notes) == 0:
@@ -91,4 +110,3 @@ def update_video(video_id):
 
     db.session.commit()
     return jsonify(VideoRead.model_validate(video).model_dump()), 200
-

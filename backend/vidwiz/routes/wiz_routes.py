@@ -26,6 +26,8 @@ from vidwiz.shared.models import Conversation, Message, Task, TaskStatus, User, 
 from vidwiz.shared.schemas import (
     WizChatProcessingResponse,
     WizChatRequest,
+    WizConversationCreateRequest,
+    WizConversationResponse,
     WizInitRequest,
     WizInitResponse,
     WizVideoStatusResponse,
@@ -200,6 +202,40 @@ def get_wiz_video_status(video_id):
     return jsonify(response_data.model_dump()), 200
 
 
+@wiz_bp.route("/wiz/conversation", methods=["POST"])
+@jwt_or_guest_required
+@require_json_body
+def create_wiz_conversation():
+    """
+    Create a new Wiz conversation for a video.
+    """
+    user_id = request.user_id
+    guest_session_id = request.guest_session_id
+
+    try:
+        convo_request = WizConversationCreateRequest.model_validate(request.json_data)
+    except ValidationError as e:
+        logger.warning(f"Wiz conversation validation error: {e}")
+        return handle_validation_error(e)
+
+    video = Video.query.filter_by(video_id=convo_request.video_id).first()
+    if not video:
+        raise NotFoundError("Video not found")
+
+    conversation = create_conversation(
+        convo_request.video_id, user_id, guest_session_id
+    )
+
+    return (
+        jsonify(
+            WizConversationResponse(
+                conversation_id=conversation.id, video_id=conversation.video_id
+            ).model_dump()
+        ),
+        200,
+    )
+
+
 
 def get_valid_transcript_or_raise(video_id: str):
     """
@@ -228,26 +264,36 @@ def get_valid_transcript_or_raise(video_id: str):
     return video, transcript
 
 
-def get_or_create_conversation(video_id: str, user_id: int | None, guest_session_id: str | None) -> Conversation:
+def create_conversation(video_id: str, user_id: int | None, guest_session_id: str | None) -> Conversation:
     """
-    Find or create a conversation for the user/guest and video.
+    Create a new conversation for the user/guest and video.
+    """
+    conversation = Conversation(
+        video_id=video_id, user_id=user_id, guest_session_id=guest_session_id
+    )
+    db.session.add(conversation)
+    db.session.commit()
+    return conversation
+
+
+def get_conversation_for_identity(
+    conversation_id: int, video_id: str, user_id: int | None, guest_session_id: str | None
+) -> Conversation:
+    """
+    Fetch a conversation by ID scoped to the current user/guest and video.
     """
     if user_id:
         conversation = Conversation.query.filter_by(
-            video_id=video_id, user_id=user_id
+            id=conversation_id, video_id=video_id, user_id=user_id
         ).first()
     else:
         conversation = Conversation.query.filter_by(
-            video_id=video_id, guest_session_id=guest_session_id
+            id=conversation_id, video_id=video_id, guest_session_id=guest_session_id
         ).first()
 
     if not conversation:
-        conversation = Conversation(
-            video_id=video_id, user_id=user_id, guest_session_id=guest_session_id
-        )
-        db.session.add(conversation)
-        db.session.commit()
-    
+        raise NotFoundError("Conversation not found")
+
     return conversation
 
 
@@ -378,6 +424,7 @@ def chat_wiz():
 
     video_id = chat_data.video_id
     user_message = chat_data.message
+    conversation_id = chat_data.conversation_id
 
     # 3. Quota Check
     check_daily_quota(user_id, guest_session_id)
@@ -396,7 +443,12 @@ def chat_wiz():
     video, transcript = result
 
     # 5. Conversation Context
-    conversation = get_or_create_conversation(video_id, user_id, guest_session_id)
+    if conversation_id:
+        conversation = get_conversation_for_identity(
+            conversation_id, video_id, user_id, guest_session_id
+        )
+    else:
+        conversation = create_conversation(video_id, user_id, guest_session_id)
 
     # Save User Message
     new_message = save_chat_message(conversation.id, DB_ROLE_USER, user_message)
@@ -434,7 +486,4 @@ def chat_wiz():
         ),
         mimetype="text/event-stream",
     )
-
-
-
 
