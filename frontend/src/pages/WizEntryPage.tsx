@@ -2,7 +2,7 @@ import { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { Sparkles, ArrowRight, MessageSquare, Clock, Brain, AlertCircle } from 'lucide-react';
 import AmbientBackground from '../components/ui/AmbientBackground';
-import GradientText from '../components/ui/GradientText';
+
 import GlassCard from '../components/ui/GlassCard';
 import config from '../config';
 
