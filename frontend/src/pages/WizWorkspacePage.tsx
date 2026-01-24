@@ -91,7 +91,7 @@ function parseTimestampCitations(content: string, onTimestampClick: (seconds: nu
       <button
         key={match.index}
         onClick={() => onTimestampClick(totalSeconds)}
-        className="inline-flex items-center px-2 py-0.5 mx-0.5 rounded-md bg-violet-500/10 text-violet-600 dark:text-violet-300 hover:bg-violet-500/20 transition-all text-sm font-mono border border-violet-500/20"
+        className="inline-flex items-center align-middle px-1.5 py-0.5 mx-0.5 my-0.5 rounded-md bg-violet-500/10 text-violet-600 dark:text-violet-300 hover:bg-violet-500/20 transition-all text-sm font-mono border border-violet-500/20"
       >
         {displayText}
       </button>
@@ -181,6 +181,9 @@ function WizWorkspacePage() {
   }, [videoId, isPolling, videoData?.transcript_available]);
 
   const seekToTimestamp = (seconds: number) => {
+    // Scroll video into view (especially for mobile)
+    playerRef.current?.scrollIntoView({ behavior: 'smooth', block: 'center' });
+
     if (playerRef.current?.contentWindow) {
       playerRef.current.contentWindow.postMessage(
         JSON.stringify({
@@ -192,6 +195,9 @@ function WizWorkspacePage() {
       );
     }
   };
+
+  // ... (keeping existing handlers)
+
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -247,8 +253,22 @@ function WizWorkspacePage() {
       });
 
       if (!response.ok) {
-        const errorData = await response.json();
-        throw new Error(errorData.error || 'Chat request failed');
+        let errorMessage = 'Chat request failed';
+        try {
+          const errorData = await response.json();
+          if (errorData.error) {
+            // Handle both { error: "msg" } and { error: { message: "msg" } }
+            errorMessage = typeof errorData.error === 'string' 
+              ? errorData.error 
+              : (errorData.error.message || errorMessage);
+          } else if (errorData.message) {
+            errorMessage = errorData.message;
+          }
+        } catch {
+          // If JSON parsing fails, stick with default message or status text
+          errorMessage = response.statusText || errorMessage;
+        }
+        throw new Error(errorMessage);
       }
 
       // Handle SSE streaming
@@ -285,6 +305,8 @@ function WizWorkspacePage() {
                       : msg
                   )
                 );
+                // Stop showing "Thinking..." as soon as we have content
+                setIsLoading(false);
               } else if (parsed.error) {
                 throw new Error(parsed.error);
               }
@@ -346,7 +368,7 @@ function WizWorkspacePage() {
       <div className="flex flex-col-reverse lg:flex-row lg:items-stretch gap-6 lg:h-[calc(100vh-6.5rem)]">
         
         {/* Left Pane - Chat */}
-        <div className="w-full lg:w-[45%] flex flex-col rounded-2xl bg-card border border-border overflow-hidden min-h-[500px]">
+        <div className="w-full lg:w-[45%] flex flex-col rounded-2xl bg-card border border-border overflow-hidden h-[500px] lg:h-auto lg:min-h-0">
           
           {/* Chat Header */}
           <div className="flex items-center justify-between px-4 py-3 border-b border-border">
@@ -402,7 +424,11 @@ function WizWorkspacePage() {
                 </div>
               )}
 
-              {messages.map((message) => (
+              {messages.map((message) => {
+                // Don't render empty assistant messages (placeholders for streaming)
+                if (message.role === 'assistant' && !message.content) return null;
+
+                return (
                 <div
                   key={message.id}
                   className={`flex ${message.role === 'user' ? 'justify-end' : 'justify-start'}`}
@@ -414,14 +440,14 @@ function WizWorkspacePage() {
                         : 'bg-muted border border-border'
                     }`}
                   >
-                    <div className="text-sm leading-relaxed whitespace-pre-wrap">
+                    <div className="text-sm leading-loose whitespace-pre-wrap">
                       {message.role === 'assistant'
                         ? parseTimestampCitations(message.content, seekToTimestamp)
                         : message.content}
                     </div>
                   </div>
                 </div>
-              ))}
+              ); })}
 
               {isLoading && (
                 <div className="flex justify-start">

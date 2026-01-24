@@ -277,11 +277,9 @@ Transcript:
 
 
 def stream_wiz_response(
-    video: Video,
+    video_title: str,
     transcript: list,
-    history_msgs: list[Message],
-    latest_user_message_id: int,
-    user_message_content: str,
+    history: list[dict],
     conversation_id: int,
     app,
 ):
@@ -298,19 +296,21 @@ def stream_wiz_response(
         yield f"data: {json.dumps({'error': 'Configuration error'})}\n\n"
         return
 
-    system_instruction = build_system_instruction(video.title, transcript)
+    system_instruction = build_system_instruction(video_title, transcript)
     
     client = genai.Client(api_key=api_key)
 
     # Build history for SDK
     gemini_history = []
-    for msg in history_msgs:
-        if msg.id == latest_user_message_id:
-            continue
+    # All messages except the last one are history
+    # The last message is the current user message
+    history_to_process = history[:-1]
+    user_message_content = history[-1]["content"]
 
-        role = GEMINI_ROLE_MODEL if msg.role == DB_ROLE_ASSISTANT else GEMINI_ROLE_USER
+    for msg in history_to_process:
+        role = GEMINI_ROLE_MODEL if msg["role"] == DB_ROLE_ASSISTANT else GEMINI_ROLE_USER
         gemini_history.append(
-            types.Content(role=role, parts=[types.Part(text=msg.content)])
+            types.Content(role=role, parts=[types.Part(text=msg["content"])])
         )
 
     try:
@@ -402,17 +402,22 @@ def chat_wiz():
     history_msgs.reverse()  # Oldest first
 
 
+    # Prepare prompt data (extract from models before streaming)
+    video_title = video.title
+    history_serializable = [
+        {"role": msg.role, "content": msg.content}
+        for msg in history_msgs
+    ]
+
     # App context for generator
     app = current_app._get_current_object()
 
     return Response(
         stream_with_context(
             stream_wiz_response(
-                video=video,
+                video_title=video_title,
                 transcript=transcript,
-                history_msgs=history_msgs,
-                latest_user_message_id=new_message.id,
-                user_message_content=user_message,
+                history=history_serializable,
                 conversation_id=conversation.id,
                 app=app,
             )
