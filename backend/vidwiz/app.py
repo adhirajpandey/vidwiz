@@ -1,6 +1,6 @@
 import os
 import sys
-from flask import Flask, send_from_directory
+from flask import Flask
 from flask_cors import CORS
 
 from vidwiz.routes.video_routes import video_bp

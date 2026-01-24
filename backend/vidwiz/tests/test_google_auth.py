@@ -1,5 +1,4 @@
 
-import pytest
 from vidwiz.app import create_app
 
 def test_google_auth_route_exists():

@@ -1,6 +1,6 @@
 import pytest
 from unittest.mock import patch, MagicMock
-from flask import Flask, jsonify
+from flask import Flask
 from vidwiz.shared.utils import (
     jwt_or_lt_token_required,
     admin_required,
@@ -9,7 +9,6 @@ from vidwiz.shared.utils import (
     push_note_to_sqs,
     check_required_env_vars
 )
-from vidwiz.shared.models import User, db
 import jwt
 import os
 

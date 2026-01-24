@@ -1,4 +1,3 @@
-import pytest
 from vidwiz.shared.models import User, db
 import jwt
 

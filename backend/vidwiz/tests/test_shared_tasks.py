@@ -1,5 +1,4 @@
-import pytest
-from unittest.mock import patch, MagicMock
+from unittest.mock import patch
 from vidwiz.shared.tasks import create_transcript_task, create_metadata_task
 from vidwiz.shared.config import FETCH_TRANSCRIPT_TASK_TYPE, FETCH_METADATA_TASK_TYPE
 
@@ -20,7 +19,7 @@ class TestSharedTasks:
             mock_session.commit.assert_called()
 
     def test_create_transcript_task_failure(self):
-        with patch("vidwiz.shared.models.Task") as MockTask, \
+        with patch("vidwiz.shared.models.Task"), \
              patch("vidwiz.shared.models.db.session") as mock_session:
 
             mock_session.commit.side_effect = Exception("DB Error")
@@ -45,7 +44,7 @@ class TestSharedTasks:
 
     def test_create_metadata_task_custom_type(self):
         with patch("vidwiz.shared.models.Task") as MockTask, \
-             patch("vidwiz.shared.models.db.session") as mock_session:
+             patch("vidwiz.shared.models.db.session"):
 
             create_metadata_task("vid123", task_type="custom_type")
 

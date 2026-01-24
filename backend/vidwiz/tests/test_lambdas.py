@@ -1,9 +1,7 @@
 import pytest
-from unittest.mock import patch, MagicMock, Mock
+from unittest.mock import patch, MagicMock
 import os
-import json
 import sys
-from importlib import import_module
 
 # Mock AWS Lambda Powertools
 class MockLogger:

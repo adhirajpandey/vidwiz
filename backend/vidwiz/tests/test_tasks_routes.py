@@ -1,7 +1,7 @@
 import jwt
 import os
 from datetime import datetime, timedelta, timezone
-from unittest.mock import patch, MagicMock
+from unittest.mock import patch
 from vidwiz.shared.models import User, Video, Task, TaskStatus, db
 from vidwiz.shared.config import FETCH_TRANSCRIPT_TASK_TYPE, FETCH_METADATA_TASK_TYPE
 from werkzeug.security import generate_password_hash

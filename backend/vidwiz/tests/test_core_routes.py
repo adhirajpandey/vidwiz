@@ -1,4 +1,3 @@
-import jwt
 from vidwiz.shared.models import User, Video, Note, db
 
 # Test constants

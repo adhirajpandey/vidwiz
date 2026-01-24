@@ -5,7 +5,6 @@ from vidwiz.shared.schemas import VideoRead, NoteRead, VideoPatch, VideoNotesRes
 from vidwiz.shared.errors import (
     handle_validation_error,
     NotFoundError,
-    BadRequestError,
 )
 from pydantic import ValidationError
 from vidwiz.shared.utils import jwt_or_lt_token_required, admin_required, require_json_body

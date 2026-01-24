@@ -1,9 +1,8 @@
 
 import pytest
 from unittest.mock import patch, MagicMock
-import sys
 import os
-from flask import Flask, jsonify
+from flask import Flask
 from pydantic import ValidationError
 
 from vidwiz.app import verify_database_connection, main
@@ -16,9 +15,7 @@ from vidwiz.shared.utils import (
 )
 from vidwiz.shared.schemas import (
     NoteCreate,
-    NoteUpdate,
     TranscriptResult,
-    MetadataResult,
     UserCreate,
 )
 
@@ -37,7 +34,7 @@ class TestAppCoverage:
         with pytest.raises(SystemExit) as pytest_wrapped_e:
             verify_database_connection(app)
         
-        assert pytest_wrapped_e.type == SystemExit
+        assert pytest_wrapped_e.type is SystemExit
         assert pytest_wrapped_e.value.code == 1
         mock_logger.exception.assert_called_once()
 

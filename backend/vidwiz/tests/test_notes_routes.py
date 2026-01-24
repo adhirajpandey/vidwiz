@@ -1,4 +1,3 @@
-import pytest
 import jwt
 from datetime import datetime, timedelta, timezone
 from unittest.mock import patch
@@ -67,7 +66,7 @@ class TestCreateNote:
         )
 
         assert response.status_code == 400
-        data = response.get_json()
+        response.get_json()
         # assert "video_title is required" in data["error"]["message"]
 
     def test_create_note_no_auth(self, client):
@@ -104,7 +103,7 @@ class TestCreateNote:
         response = client.post("/api/notes", headers=auth_headers, data="not json", content_type="text/plain")
 
         assert response.status_code == 400
-        data = response.get_json()
+        response.get_json()
         # assert "Request body must be JSON" in data["error"]["message"]
 
 
@@ -237,7 +236,7 @@ class TestDeleteNote:
         response = client.delete("/api/notes/999", headers=auth_headers)
 
         assert response.status_code == 404
-        data = response.get_json()
+        response.get_json()
         # assert "Note not found" in data["error"]["message"]
 
     def test_delete_note_wrong_user(self, client, app, sample_video):

@@ -1,10 +1,8 @@
 
-import pytest
 from unittest.mock import patch, MagicMock
-from vidwiz.shared.models import Conversation, Message, Video, db
+from vidwiz.shared.models import Message, Video, db
 from datetime import datetime, timezone
 import os
-from google.genai import types
 
 
 def test_wiz_chat_guest_quota(client, app):

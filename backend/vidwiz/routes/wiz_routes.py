@@ -1,5 +1,4 @@
 import json
-import os
 from datetime import datetime, timezone, timedelta
 
 from flask import Blueprint, Response, current_app, jsonify, request, stream_with_context
@@ -22,7 +21,7 @@ from vidwiz.shared.errors import (
     handle_validation_error,
 )
 from vidwiz.shared.logging import get_logger
-from vidwiz.shared.models import Conversation, Message, Task, TaskStatus, User, Video, db
+from vidwiz.shared.models import Conversation, Message, Task, TaskStatus, Video, db
 from vidwiz.shared.schemas import (
     WizChatProcessingResponse,
     WizChatRequest,
@@ -447,7 +446,7 @@ def chat_wiz():
         conversation = create_conversation(video_id, user_id, guest_session_id)
 
     # Save User Message
-    new_message = save_chat_message(conversation.id, DB_ROLE_USER, user_message)
+    save_chat_message(conversation.id, DB_ROLE_USER, user_message)
 
     # 6. Prepare LLM Context
     # Fetch recent history

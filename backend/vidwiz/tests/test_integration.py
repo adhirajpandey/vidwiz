@@ -1,4 +1,3 @@
-import pytest
 import jwt
 from datetime import datetime, timedelta, timezone
 from vidwiz.shared.models import User, Video, Note, db
