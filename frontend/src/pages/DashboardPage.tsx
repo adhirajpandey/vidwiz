@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, Link } from 'react-router-dom';
 import config from '../config';
 import VideoCard from '../components/VideoCard';
 import { FaSearch, FaYoutube, FaVideo, FaChevronLeft, FaChevronRight } from 'react-icons/fa';

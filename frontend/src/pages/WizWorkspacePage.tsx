@@ -1,8 +1,9 @@
 import { useState, useRef, useEffect } from 'react';
-import { useParams } from 'react-router-dom';
+import { useParams, useNavigate, useLocation } from 'react-router-dom';
 import { Send, Sparkles, RotateCcw } from 'lucide-react';
 import { FaExternalLinkAlt } from 'react-icons/fa';
 import config from '../config';
+import { extractVideoId } from '../lib/videoUtils';
 import GuestLimitModal from '../components/GuestLimitModal';
 import RegisteredLimitModal from '../components/RegisteredLimitModal';
 
@@ -111,7 +112,15 @@ function parseTimestampCitations(content: string, onTimestampClick: (seconds: nu
 }
 
 function WizWorkspacePage() {
-  const { videoId } = useParams<{ videoId: string }>();
+  const params = useParams();
+  const location = useLocation();
+  
+  // Reconstruct full input by adding query params back to the path
+  const rawInput = (params['*'] || '') + location.search;
+  const videoId = extractVideoId(rawInput);
+  
+  const navigate = useNavigate();
+
   const [messages, setMessages] = useState<Message[]>([]);
   const [inputValue, setInputValue] = useState('');
   const [isLoading, setIsLoading] = useState(false);
@@ -125,6 +134,38 @@ function WizWorkspacePage() {
   const playerRef = useRef<HTMLIFrameElement>(null);
   const inputRef = useRef<HTMLInputElement>(null);
   const pollingStartTime = useRef<number>(Date.now());
+  const hasAutoInited = useRef(false);
+
+  // Handle URL normalization and redirects
+  useEffect(() => {
+    if (!rawInput) {
+      navigate('/wiz', { replace: true });
+      return;
+    }
+    
+    // If extraction failed or returned null
+    if (!videoId) {
+      // Invalid ID or URL
+      navigate('/wiz', { replace: true });
+      return;
+    }
+
+    // If the raw input is different from the clean ID (e.g. it was a full URL),
+    // redirect to the clean ID version
+    if (videoId !== rawInput) {
+      navigate(`/wiz/${videoId}`, { replace: true });
+    }
+  }, [rawInput, videoId, navigate]);
+
+  // Reset state when videoId changes
+  useEffect(() => {
+    setMessages([]);
+    setVideoData(null);
+    setIsPolling(true);
+    // Reset refs
+    pollingStartTime.current = Date.now();
+    hasAutoInited.current = false;
+  }, [videoId]);
 
   // Computed status
   const transcriptStatus = videoData?.transcript_available ? 'ready' : 'loading';
@@ -144,6 +185,35 @@ function WizWorkspacePage() {
     const fetchVideoStatus = async () => {
       try {
         const response = await fetch(`${config.API_URL}/wiz/video/${videoId}`);
+        
+        if (response.status === 404) {
+          // Auto-initialize if video doesn't exist yet
+          if (!hasAutoInited.current) {
+            hasAutoInited.current = true;
+            console.log('Video not found, auto-initializing...');
+            
+            try {
+              const initResponse = await fetch(`${config.API_URL}/wiz/init`, {
+                method: 'POST',
+                headers: {
+                  'Content-Type': 'application/json',
+                  // Pass auth headers if available, though not strictly required for init
+                  ...(localStorage.getItem('token') ? { 'Authorization': `Bearer ${localStorage.getItem('token')}` } : {})
+                },
+                body: JSON.stringify({ video_id: videoId }),
+              });
+              
+              if (initResponse.ok) {
+                // Retry status fetch immediately
+                fetchVideoStatus();
+                return;
+              }
+            } catch (err) {
+              console.error('Auto-init failed:', err);
+            }
+          }
+        }
+
         if (response.ok) {
           const data: VideoData = await response.json();
           setVideoData(data);

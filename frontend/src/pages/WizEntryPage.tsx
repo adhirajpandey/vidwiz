@@ -6,76 +6,7 @@ import GradientText from '../components/ui/GradientText';
 import GlassCard from '../components/ui/GlassCard';
 import config from '../config';
 
-/**
- * Extracts a YouTube video ID from various URL formats or raw ID.
- * Returns null if invalid or if it's a playlist URL.
- */
-function extractVideoId(input: string): string | null {
-  const trimmed = input.trim();
-  
-  if (!trimmed) return null;
-  
-  // Reject playlist URLs
-  if (trimmed.includes('list=')) {
-    return null;
-  }
-  
-  // Check if it's a raw video ID (11 characters, alphanumeric with - and _)
-  const rawIdPattern = /^[a-zA-Z0-9_-]{11}$/;
-  if (rawIdPattern.test(trimmed)) {
-    return trimmed;
-  }
-  
-  try {
-    const url = new URL(trimmed);
-    const hostname = url.hostname.replace('www.', '');
-    
-    // youtube.com/watch?v=VIDEO_ID
-    if (hostname === 'youtube.com' && url.pathname === '/watch') {
-      const videoId = url.searchParams.get('v');
-      if (videoId && rawIdPattern.test(videoId)) {
-        return videoId;
-      }
-    }
-    
-    // youtube.com/shorts/VIDEO_ID
-    if (hostname === 'youtube.com' && url.pathname.startsWith('/shorts/')) {
-      const videoId = url.pathname.split('/shorts/')[1]?.split('?')[0];
-      if (videoId && rawIdPattern.test(videoId)) {
-        return videoId;
-      }
-    }
-    
-    // youtube.com/live/VIDEO_ID
-    if (hostname === 'youtube.com' && url.pathname.startsWith('/live/')) {
-      const videoId = url.pathname.split('/live/')[1]?.split('?')[0];
-      if (videoId && rawIdPattern.test(videoId)) {
-        return videoId;
-      }
-    }
-    
-    // youtube.com/embed/VIDEO_ID
-    if (hostname === 'youtube.com' && url.pathname.startsWith('/embed/')) {
-      const videoId = url.pathname.split('/embed/')[1]?.split('?')[0];
-      if (videoId && rawIdPattern.test(videoId)) {
-        return videoId;
-      }
-    }
-    
-    // youtu.be/VIDEO_ID
-    if (hostname === 'youtu.be') {
-      const videoId = url.pathname.slice(1).split('?')[0];
-      if (videoId && rawIdPattern.test(videoId)) {
-        return videoId;
-      }
-    }
-  } catch {
-    // Not a valid URL, already checked for raw ID above
-    return null;
-  }
-  
-  return null;
-}
+import { extractVideoId } from '../lib/videoUtils';
 
 
 function WizEntryPage() {
@@ -111,11 +42,18 @@ function WizEntryPage() {
     setIsLoading(true);
 
     try {
+      const token = localStorage.getItem('token');
+      const headers: HeadersInit = {
+        'Content-Type': 'application/json',
+      };
+
+      if (token) {
+        headers['Authorization'] = `Bearer ${token}`;
+      }
+
       const response = await fetch(`${config.API_URL}/wiz/init`, {
         method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
+        headers,
         body: JSON.stringify({ video_id: videoId }),
       });
 
@@ -152,9 +90,9 @@ function WizEntryPage() {
             {/* Headline */}
             <h1 className="max-w-3xl text-4xl md:text-6xl lg:text-7xl font-bold tracking-tight mb-6 leading-[1.1] animate-in fade-in slide-in-from-bottom-8 duration-1000 select-none">
               Meet{' '}
-              <GradientText>
+              <span className="bg-gradient-to-r from-violet-500 to-violet-400 bg-clip-text text-transparent">
                 Wiz
-              </GradientText>
+              </span>
             </h1>
 
             {/* Subheadline */}

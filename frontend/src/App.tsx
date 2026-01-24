@@ -20,7 +20,7 @@ function App() {
           <Route path="/login" element={<LoginPage />} />
           <Route path="/signup" element={<SignupPage />} />
           <Route path="/wiz" element={<WizEntryPage />} />
-          <Route path="/wiz/:videoId" element={<WizWorkspacePage />} />
+          <Route path="/wiz/*" element={<WizWorkspacePage />} />
           <Route path="/dashboard" element={<ProtectedRoute><DashboardPage /></ProtectedRoute>} />
           <Route path="/profile" element={<ProtectedRoute><ProfilePage /></ProtectedRoute>} />
           <Route path="/dashboard/:videoId" element={<ProtectedRoute><VideoPage /></ProtectedRoute>} />
