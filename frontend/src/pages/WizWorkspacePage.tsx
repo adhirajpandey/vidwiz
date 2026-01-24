@@ -41,18 +41,18 @@ function parseBoldText(content: string, keyPrefix: string = ''): React.ReactNode
   const boldRegex = /\*\*(.+?)\*\*/g;
   const parts: React.ReactNode[] = [];
   let lastIndex = 0;
-  let match;
+  let match: RegExpExecArray | null;
 
   while ((match = boldRegex.exec(content)) !== null) {
-    if (match.index > lastIndex) {
-      parts.push(content.slice(lastIndex, match.index));
+    if (match!.index > lastIndex) {
+      parts.push(content.slice(lastIndex, match!.index));
     }
     parts.push(
-      <strong key={`${keyPrefix}-bold-${match.index}`} className="font-semibold">
-        {match[1]}
+      <strong key={`${keyPrefix}-bold-${match!.index}`} className="font-semibold">
+        {match![1]}
       </strong>
     );
-    lastIndex = match.index + match[0].length;
+    lastIndex = match!.index + match![0].length;
   }
 
   if (lastIndex < content.length) {
@@ -68,39 +68,69 @@ function parseBoldText(content: string, keyPrefix: string = ''): React.ReactNode
  * Also parses bold markdown (**text**)
  */
 function parseTimestampCitations(content: string, onTimestampClick: (seconds: number) => void): React.ReactNode {
-  // Matches [mm:ss], [hh:mm:ss], or ranges like [mm:ss-mm:ss]
-  const timestampRegex = /\[(\d{1,2}):(\d{2})(?::(\d{2}))?(?:-(\d{1,2}):(\d{2})(?::(\d{2}))?)?\]/g;
+  // Matches [ ... ] blocks containing digits, colons, dashes, commas, spaces
+  const citationBlockRegex = /\[([\d:, \-]+)\]/g;
+  
+  // Regex to validate individual timestamps/ranges inside the block
+  // Matches mm:ss, hh:mm:ss, or ranges of those
+  const timestampPattern = /^\s*(\d{1,2}):(\d{2})(?::(\d{2}))?(?:\s*-\s*(\d{1,2}):(\d{2})(?::(\d{2}))?)?\s*$/;
+
   const parts: React.ReactNode[] = [];
   let lastIndex = 0;
-  let match;
+  let match: RegExpExecArray | null;
 
-  while ((match = timestampRegex.exec(content)) !== null) {
+  while ((match = citationBlockRegex.exec(content)) !== null) {
     if (match.index > lastIndex) {
-      // Parse bold in text between timestamps
+      // Parse bold in text between citation blocks
       parts.push(parseBoldText(content.slice(lastIndex, match.index), `pre-${match.index}`));
     }
 
-    // Parse start timestamp (always use start time for navigation)
-    const hasHours = match[3] !== undefined;
-    const hours = hasHours ? parseInt(match[1]) : 0;
-    const minutes = hasHours ? parseInt(match[2]) : parseInt(match[1]);
-    const seconds = hasHours ? parseInt(match[3]) : parseInt(match[2]);
-    const totalSeconds = hours * 3600 + minutes * 60 + seconds;
+    const innerContent = match[1];
+    const timestampParts = innerContent.split(',');
+    
+    const blockElements: React.ReactNode[] = [];
+    
+    // Add opening bracket
+    blockElements.push(<span key={`open-${match!.index}`}>[</span>);
 
-    // Display without brackets
-    const displayText = match[0].slice(1, -1); // Remove [ and ]
+    timestampParts.forEach((part, idx) => {
+      const trimmed = part.trim();
+      const tsMatch = timestampPattern.exec(trimmed);
 
-    parts.push(
-      <button
-        key={match.index}
-        onClick={() => onTimestampClick(totalSeconds)}
-        className="inline-flex items-center align-middle px-1.5 py-0.5 mx-0.5 my-0.5 rounded-md bg-violet-500/10 text-violet-600 dark:text-violet-300 hover:bg-violet-500/20 transition-all text-sm font-mono border border-violet-500/20"
-      >
-        {displayText}
-      </button>
-    );
+      if (idx > 0) {
+        blockElements.push(<span key={`comma-${match!.index}-${idx}`}>, </span>);
+      }
 
-    lastIndex = match.index + match[0].length;
+      if (tsMatch) {
+         // Parse start timestamp (always use start time for navigation)
+        const hasHours = tsMatch[3] !== undefined;
+        const hours = hasHours ? parseInt(tsMatch[1]) : 0;
+        const minutes = hasHours ? parseInt(tsMatch[2]) : parseInt(tsMatch[1]);
+        const seconds = hasHours ? parseInt(tsMatch[3]) : parseInt(tsMatch[2]);
+        const totalSeconds = hours * 3600 + minutes * 60 + seconds;
+
+        blockElements.push(
+          <button
+            key={`btn-${match!.index}-${idx}`}
+            onClick={() => onTimestampClick(totalSeconds)}
+            className="inline-flex items-center align-middle px-1.5 py-0.5 mx-0.5 rounded-md bg-violet-500/10 text-violet-600 dark:text-violet-300 hover:bg-violet-500/20 transition-all text-sm font-mono border border-violet-500/20 cursor-pointer"
+          >
+            {trimmed}
+          </button>
+        );
+      } else {
+        // If part doesn't look like a timestamp, just render text
+        blockElements.push(<span key={`text-${match!.index}-${idx}`}>{trimmed}</span>);
+      }
+    });
+
+    // Add closing bracket
+    blockElements.push(<span key={`close-${match!.index}`}>]</span>);
+
+    // Push the whole constructed block
+    parts.push(<span key={`block-${match!.index}`}>{blockElements}</span>);
+
+    lastIndex = match!.index + match![0].length;
   }
 
   if (lastIndex < content.length) {
