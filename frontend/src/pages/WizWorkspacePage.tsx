@@ -3,6 +3,7 @@ import { useParams } from 'react-router-dom';
 import { Send, Sparkles, RotateCcw } from 'lucide-react';
 import { FaExternalLinkAlt } from 'react-icons/fa';
 import config from '../config';
+import GuestLimitModal from '../components/GuestLimitModal';
 
 interface Message {
   id: string;
@@ -116,6 +117,7 @@ function WizWorkspacePage() {
   const [videoData, setVideoData] = useState<VideoData | null>(null);
   const [isPolling, setIsPolling] = useState(true);
   const [showRefreshModal, setShowRefreshModal] = useState(false);
+  const [showGuestLimit, setShowGuestLimit] = useState(false);
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const playerRef = useRef<HTMLIFrameElement>(null);
   const inputRef = useRef<HTMLInputElement>(null);
@@ -252,6 +254,11 @@ function WizWorkspacePage() {
         }),
       });
 
+      if (response.status === 429) {
+        setShowGuestLimit(true);
+        throw new Error('Guest daily limit exceeded');
+      }
+
       if (!response.ok) {
         let errorMessage = 'Chat request failed';
         try {
@@ -363,6 +370,12 @@ function WizWorkspacePage() {
           </div>
         </div>
       )}
+
+      {/* Guest Limit Modal */}
+      <GuestLimitModal 
+        isOpen={showGuestLimit} 
+        onClose={() => setShowGuestLimit(false)} 
+      />
 
       {/* Main Content - Split View: Chat Left, Video Right */}
       <div className="flex flex-col-reverse lg:flex-row lg:items-stretch gap-6 lg:h-[calc(100vh-6.5rem)]">
