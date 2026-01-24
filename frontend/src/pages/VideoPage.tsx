@@ -10,6 +10,7 @@ interface Video {
   video_id: string;
   title: string;
   metadata?: {
+    title?: string;
     channel?: string;
     channel_url?: string;
     uploader?: string;
@@ -222,7 +223,7 @@ export default function VideoPage() {
               <div className="p-6">
                 {/* Title and Action */}
                 <div className="flex flex-col sm:flex-row sm:items-start justify-between gap-4 mb-4">
-                  <h2 className="text-xl md:text-2xl font-bold text-foreground leading-tight tracking-tight select-none flex-1">{video.title}</h2>
+                  <h2 className="text-xl md:text-2xl font-bold text-foreground leading-tight tracking-tight select-none flex-1">{video.title || video.metadata?.title || 'Untitled Video'}</h2>
                   <div className="flex-shrink-0 sm:mt-1 w-full sm:w-auto">
                     <WatchYouTubeButton videoId={video.video_id} variant="red" className="w-full sm:w-auto justify-center" />
                   </div>

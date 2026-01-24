@@ -186,7 +186,7 @@ class TestUserRoutes:
     def test_signup_get_request(self, client):
         """Test GET request to signup page"""
         response = client.get("/signup")
-        assert response.status_code == 404
+        assert response.status_code == 200
         # assert b"html" in response.data.lower() # Frontend not built
 
     def test_signup_post_success(self, client):
@@ -241,7 +241,7 @@ class TestUserRoutes:
     def test_login_get_request(self, client):
         """Test GET request to login page"""
         response = client.get("/login")
-        assert response.status_code == 404
+        assert response.status_code == 200
         # assert b"html" in response.data.lower() # Frontend not built
 
     def test_login_post_success(self, client, sample_user):

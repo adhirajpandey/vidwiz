@@ -69,7 +69,11 @@ def get_search_results():
     videos = base_query.offset((page - 1) * per_page).limit(per_page).all()
 
     videos_data = [
-        VideoSearchItem(video_id=video.video_id, video_title=video.title)
+        VideoSearchItem(
+            video_id=video.video_id,
+            video_title=video.title,
+            metadata=video.video_metadata,
+        )
         for video in videos
     ]
 

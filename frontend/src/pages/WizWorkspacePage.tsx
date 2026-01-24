@@ -695,7 +695,7 @@ function WizWorkspacePage() {
                 {videoData?.metadata ? (
                   <>
                     <h2 className="text-xl font-bold text-foreground leading-tight">
-                      {videoData.metadata.title || videoData.title || 'Untitled Video'}
+                      {videoData.title || videoData.metadata.title || 'Untitled Video'}
                     </h2>
                     {/* Channel badge - same style as VideoPage */}
                     <div className="flex flex-wrap items-center gap-2.5">

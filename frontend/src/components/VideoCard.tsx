@@ -6,6 +6,7 @@ interface VideoCardProps {
     video_id: string;
     video_title: string;
     metadata?: {
+      title?: string;
       channel?: string;
       thumbnail?: string;
       duration_string?: string;
@@ -55,7 +56,7 @@ export default function VideoCard({ video }: VideoCardProps) {
             rel="noopener noreferrer"
             className="block text-sm md:text-base font-medium text-foreground hover:text-red-400 transition-colors duration-200 line-clamp-2 leading-snug"
           >
-            {video.video_title}
+            {video.video_title || video.metadata?.title || 'Untitled Video'}
             <FaExternalLinkAlt className="inline-block w-2.5 h-2.5 ml-1.5 opacity-0 group-hover:opacity-50 transition-opacity" />
           </a>
           

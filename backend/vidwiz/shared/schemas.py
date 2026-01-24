@@ -407,6 +407,7 @@ class VideoSearchItem(BaseModel):
 
     video_id: str
     video_title: Optional[str] = None
+    metadata: Optional[dict] = None
 
 
 class SearchResponse(BaseModel):

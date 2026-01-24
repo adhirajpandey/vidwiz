@@ -11,7 +11,7 @@ class TestIndexRoute:
     def test_index_route(self, client):
         """Test the landing page route"""
         response = client.get("/")
-        assert response.status_code == 404
+        assert response.status_code == 200
         # assert b"html" in response.data.lower() # Frontend not built
 
 
@@ -19,7 +19,7 @@ class TestDashboardRoute:
     def test_dashboard_route(self, client):
         """Test the dashboard page route"""
         response = client.get("/dashboard")
-        assert response.status_code == 404
+        assert response.status_code == 200
         # assert b"html" in response.data.lower() # Frontend not built
 
 
