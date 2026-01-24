@@ -9,8 +9,10 @@ from vidwiz.routes.core_routes import core_bp
 from vidwiz.routes.user_routes import user_bp
 from vidwiz.routes.tasks_routes import tasks_bp
 from vidwiz.routes.frontend_routes import frontend_bp
+from vidwiz.routes.wiz_routes import wiz_bp
 
 from vidwiz.shared.models import db
+from vidwiz.shared.errors import register_error_handlers
 from sqlalchemy import text
 
 from dotenv import load_dotenv
@@ -35,30 +37,36 @@ def create_app(config=None):
     AWS_ACCESS_KEY_ID = os.getenv("AWS_ACCESS_KEY_ID", None)
     AWS_SECRET_ACCESS_KEY = os.getenv("AWS_SECRET_ACCESS_KEY", None)
 
-    SQS_QUEUE_URL = os.getenv("SQS_QUEUE_URL", None)
+    SQS_AI_NOTE_QUEUE_URL = os.getenv("SQS_AI_NOTE_QUEUE_URL", None)
+    SQS_SUMMARY_QUEUE_URL = os.getenv("SQS_SUMMARY_QUEUE_URL", None)
     S3_BUCKET_NAME = os.getenv("S3_BUCKET_NAME", None)
     JWT_EXPIRY_HOURS = int(os.getenv("JWT_EXPIRY_HOURS", "24"))
 
     GOOGLE_CLIENT_ID = os.getenv("GOOGLE_CLIENT_ID", None)
+    GEMINI_API_KEY = os.getenv("GEMINI_API_KEY", None)
 
-    # Only check and set required env vars if no config dict is provided - for test etc
+    # Only validate required env vars if no config dict is provided - for test etc
     if config is None:
         check_required_env_vars()
-        app.config["SQLALCHEMY_DATABASE_URI"] = DB_URL
-        app.config["SECRET_KEY"] = SECRET_KEY
-        app.config["AWS_ACCESS_KEY_ID"] = AWS_ACCESS_KEY_ID
-        app.config["AWS_SECRET_ACCESS_KEY"] = AWS_SECRET_ACCESS_KEY
-        app.config["AWS_REGION"] = AWS_REGION
-        app.config["SQS_QUEUE_URL"] = SQS_QUEUE_URL
-        app.config["S3_BUCKET_NAME"] = S3_BUCKET_NAME
-        app.config["ADMIN_TOKEN"] = ADMIN_TOKEN
-        app.config["JWT_EXPIRY_HOURS"] = JWT_EXPIRY_HOURS
-        app.config["GOOGLE_CLIENT_ID"] = GOOGLE_CLIENT_ID
-        app.config["SQLALCHEMY_ENGINE_OPTIONS"] = {
-            "pool_recycle": 7200,
-        }
-        
-    else:
+
+    app.config["SQLALCHEMY_DATABASE_URI"] = DB_URL
+    app.config["SECRET_KEY"] = SECRET_KEY
+    app.config["AWS_ACCESS_KEY_ID"] = AWS_ACCESS_KEY_ID
+    app.config["AWS_SECRET_ACCESS_KEY"] = AWS_SECRET_ACCESS_KEY
+    app.config["AWS_REGION"] = AWS_REGION
+    app.config["SQS_AI_NOTE_QUEUE_URL"] = SQS_AI_NOTE_QUEUE_URL
+    app.config["SQS_SUMMARY_QUEUE_URL"] = SQS_SUMMARY_QUEUE_URL
+    app.config["S3_BUCKET_NAME"] = S3_BUCKET_NAME
+    app.config["ADMIN_TOKEN"] = ADMIN_TOKEN
+    app.config["JWT_EXPIRY_HOURS"] = JWT_EXPIRY_HOURS
+    app.config["JWT_EXPIRY_HOURS"] = JWT_EXPIRY_HOURS
+    app.config["GOOGLE_CLIENT_ID"] = GOOGLE_CLIENT_ID
+    app.config["GEMINI_API_KEY"] = GEMINI_API_KEY
+    app.config["SQLALCHEMY_ENGINE_OPTIONS"] = {
+        "pool_recycle": 7200,
+    }
+
+    if config is not None:
         app.config.update(config)
 
     db.init_app(app)
@@ -70,7 +78,11 @@ def create_app(config=None):
     app.register_blueprint(video_bp, url_prefix="/api")
     app.register_blueprint(notes_bp, url_prefix="/api")
     app.register_blueprint(tasks_bp, url_prefix="/api")
+    app.register_blueprint(wiz_bp, url_prefix="/api")
     app.register_blueprint(frontend_bp)
+
+    # Register global error handlers
+    register_error_handlers(app)
 
     return app
 

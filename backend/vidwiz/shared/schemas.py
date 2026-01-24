@@ -2,6 +2,52 @@ from pydantic import BaseModel, field_validator, Field
 from typing import Optional
 from datetime import datetime
 from enum import Enum
+from urllib.parse import urlparse, parse_qs
+import re
+
+
+YOUTUBE_VIDEO_ID_PATTERN = re.compile(r"^[a-zA-Z0-9_-]{11}$")
+
+
+def normalize_youtube_video_id(value: str) -> str:
+    if not value or not value.strip():
+        raise ValueError("video_id cannot be empty")
+
+    trimmed = value.strip()
+
+    if "list=" in trimmed:
+        raise ValueError("playlist URLs are not supported")
+
+    if YOUTUBE_VIDEO_ID_PATTERN.match(trimmed):
+        return trimmed
+
+    url_to_parse = trimmed
+    if not re.match(r"^https?://", url_to_parse):
+        url_to_parse = f"https://{url_to_parse}"
+
+    parsed = urlparse(url_to_parse)
+    hostname = (parsed.hostname or "").lower()
+    if hostname.startswith("www."):
+        hostname = hostname[4:]
+
+    if "youtube.com" in hostname and parsed.path == "/watch":
+        video_id = parse_qs(parsed.query).get("v", [None])[0]
+        if video_id and YOUTUBE_VIDEO_ID_PATTERN.match(video_id):
+            return video_id
+
+    if "youtube.com" in hostname:
+        for prefix in ("/shorts/", "/live/", "/embed/"):
+            if parsed.path.startswith(prefix):
+                video_id = parsed.path.split(prefix, 1)[1].split("/")[0]
+                if video_id and YOUTUBE_VIDEO_ID_PATTERN.match(video_id):
+                    return video_id
+
+    if hostname == "youtu.be":
+        video_id = parsed.path.lstrip("/").split("/")[0]
+        if video_id and YOUTUBE_VIDEO_ID_PATTERN.match(video_id):
+            return video_id
+
+    raise ValueError("video_id must be a valid YouTube video ID")
 
 
 class TaskStatus(str, Enum):
@@ -24,6 +70,7 @@ class VideoRead(BaseModel):
     title: Optional[str]
     metadata: Optional[dict] = Field(default=None, validation_alias="video_metadata")
     transcript_available: bool
+    summary: Optional[str] = None
     created_at: datetime
     updated_at: datetime
     model_config = {"from_attributes": True}
@@ -32,6 +79,27 @@ class VideoRead(BaseModel):
 class VideoUpdate(BaseModel):
     title: Optional[str] = None
     transcript_available: Optional[bool] = None
+
+    model_config = {
+        "from_attributes": True,
+        "extra": "forbid",
+    }
+
+
+class VideoPatch(BaseModel):
+    """Schema for admin PATCH /videos/<video_id> endpoint (e.g., Lambda updating summary)."""
+
+    summary: Optional[str] = None
+
+    @field_validator("summary")
+    @classmethod
+    def validate_summary(cls, v):
+        if v is not None:
+            if not isinstance(v, str):
+                raise ValueError("summary must be a string")
+            if len(v) > 10000:
+                raise ValueError("summary must be less than 10000 characters")
+        return v
 
     model_config = {
         "from_attributes": True,
@@ -230,3 +298,180 @@ class TokenResponse(BaseModel):
 class TokenRevokeResponse(BaseModel):
     message: str
     model_config = {"from_attributes": True}
+
+
+class WizInitRequest(BaseModel):
+    video_id: str
+
+    @field_validator("video_id")
+    @classmethod
+    def validate_video_id(cls, v):
+        return normalize_youtube_video_id(v)
+
+    model_config = {
+        "extra": "forbid",
+    }
+
+
+class WizVideoStatusResponse(BaseModel):
+    video_id: str
+    title: Optional[str] = None
+    transcript_available: bool
+    metadata: Optional[dict] = None
+    summary: Optional[str] = None
+    model_config = {"from_attributes": True}
+
+
+# ============================================================================
+# Standardized Response Schemas
+# ============================================================================
+
+
+class MessageResponse(BaseModel):
+    """Generic response with a message."""
+
+    message: str
+
+
+class LoginResponse(BaseModel):
+    """Response for login endpoints."""
+
+    token: str
+
+
+class TaskRetrievedResponse(BaseModel):
+    """Response when a task is successfully retrieved for processing."""
+
+    task_id: int
+    task_type: str
+    task_details: dict
+    retry_count: int
+    message: str
+
+
+class TaskTimeoutResponse(BaseModel):
+    """Response when no tasks are available within timeout."""
+
+    message: str
+    timeout: bool = True
+
+
+class TaskSubmitResponse(BaseModel):
+    """Response after submitting a task result."""
+
+    message: str
+    task_id: int
+    status: str
+
+
+class WizInitResponse(BaseModel):
+    """Response for wiz session initialization."""
+
+    message: str
+    video_id: str
+    is_new: bool
+    tasks_queued: Optional[list[str]] = None
+
+
+class WizConversationCreateRequest(BaseModel):
+    """Request body to create a new Wiz conversation."""
+
+    video_id: str
+
+    @field_validator("video_id")
+    @classmethod
+    def validate_video_id(cls, v):
+        return normalize_youtube_video_id(v)
+
+    model_config = {
+        "extra": "forbid",
+    }
+
+
+class WizConversationResponse(BaseModel):
+    """Response for Wiz conversation creation."""
+
+    conversation_id: int
+    video_id: str
+
+
+class WizChatProcessingResponse(BaseModel):
+    """Response when transcript is still processing."""
+
+    status: str
+    message: str
+
+
+class VideoSearchItem(BaseModel):
+    """Single video item in search results."""
+
+    video_id: str
+    video_title: Optional[str] = None
+
+
+class SearchResponse(BaseModel):
+    """Paginated search response."""
+
+    videos: list[VideoSearchItem]
+    total: int
+    page: int
+    per_page: int
+    total_pages: int
+
+
+class WizChatRequest(BaseModel):
+    """Request body for wiz chat endpoint."""
+
+    video_id: str
+    message: str
+    conversation_id: Optional[int] = None
+
+    @field_validator("video_id")
+    @classmethod
+    def validate_video_id(cls, v):
+        return normalize_youtube_video_id(v)
+
+    @field_validator("message")
+    @classmethod
+    def validate_message(cls, v):
+        if not v or not v.strip():
+            raise ValueError("message cannot be empty")
+        return v.strip()
+
+    @field_validator("conversation_id")
+    @classmethod
+    def validate_conversation_id(cls, v):
+        if v is None:
+            return v
+        if not isinstance(v, int) or v <= 0:
+            raise ValueError("conversation_id must be a positive integer")
+        return v
+
+    model_config = {
+        "extra": "forbid",
+    }
+
+
+class GoogleLoginRequest(BaseModel):
+    """Request body for Google login endpoint."""
+
+    credential: str
+
+    @field_validator("credential")
+    @classmethod
+    def validate_not_empty(cls, v):
+        if not v or not v.strip():
+            raise ValueError("Credential cannot be empty")
+        return v
+
+    model_config = {
+        "extra": "forbid",
+    }
+
+
+class VideoNotesResponse(BaseModel):
+    """Response for AI note task endpoint."""
+
+    video_id: str
+    notes: list
+    message: str

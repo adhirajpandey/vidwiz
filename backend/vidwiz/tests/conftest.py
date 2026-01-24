@@ -34,8 +34,11 @@ def app():
             "AWS_SECRET_ACCESS_KEY": "test-secret-key",
             "AWS_REGION": "us-test-1",
             "SQS_QUEUE_URL": "http://localhost/mock-sqs",
+            "SQS_AI_NOTE_QUEUE_URL": "test_sqs_ai_note_queue_url",
+            "SQS_SUMMARY_QUEUE_URL": "test_sqs_summary_queue_url",
             "S3_BUCKET_NAME": "test-bucket",
             "ADMIN_TOKEN": ADMIN_TEST_TOKEN,
+            "GEMINI_API_KEY": "test_gemini_key",
         }
     )
     with app.app_context():

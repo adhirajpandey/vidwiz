@@ -37,9 +37,10 @@ class Video(db.Model):
     __tablename__ = "videos"
     id = Column(Integer, primary_key=True)
     video_id = Column(Text, unique=True, nullable=False)
-    title = Column(Text, nullable=False)
+    title = Column(Text, nullable=True)
     video_metadata = Column(JSON, nullable=True)
     transcript_available = Column(Boolean, default=False)
+    summary = Column(Text, nullable=True)
     created_at = Column(TIMESTAMP(timezone=True), default=func.now())
     updated_at = Column(
         TIMESTAMP(timezone=True), default=func.now(), onupdate=func.now()
@@ -76,4 +77,32 @@ class User(db.Model):
     profile_data = Column(JSON, nullable=True)
     created_at = Column(TIMESTAMP(timezone=True), default=func.now())
     notes = relationship("Note", back_populates="user", cascade="all, delete-orphan")
+
+
+class Conversation(db.Model):
+    __tablename__ = "conversations"
+    id = Column(Integer, primary_key=True)
+    video_id = Column(Text, nullable=False)
+    user_id = Column(Integer, ForeignKey("users.id"), nullable=True)
+    guest_session_id = Column(Text, nullable=True)
+    created_at = Column(TIMESTAMP(timezone=True), default=func.now())
+    updated_at = Column(
+        TIMESTAMP(timezone=True), default=func.now(), onupdate=func.now()
+    )
+    messages = relationship(
+        "Message", back_populates="conversation", cascade="all, delete-orphan"
+    )
+
+
+class Message(db.Model):
+    __tablename__ = "messages"
+    id = Column(Integer, primary_key=True)
+    conversation_id = Column(
+        Integer, ForeignKey("conversations.id"), nullable=False
+    )
+    role = Column(Text, nullable=False)  # 'user' or 'assistant'
+    content = Column(Text, nullable=False)
+    metadata_ = Column("metadata", JSON, nullable=True)  # citations etc.
+    created_at = Column(TIMESTAMP(timezone=True), default=func.now())
+    conversation = relationship("Conversation", back_populates="messages")
 

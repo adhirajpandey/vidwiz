@@ -24,6 +24,10 @@ class TestUtils:
         app.config["AWS_SECRET_ACCESS_KEY"] = "test_secret_key"
         app.config["AWS_REGION"] = "test-region"
         app.config["SQS_QUEUE_URL"] = "http://sqs-url"
+        app.config["SQS_AI_NOTE_QUEUE_URL"] = "http://sqs-ai-url"
+        app.config["SQS_SUMMARY_QUEUE_URL"] = "http://sqs-summary-url"
+        app.config["GEMINI_API_KEY"] = "test-gemini-key"
+        # Need context for URL map generation if needed, but for utils mostly fine
         return app
 
     def test_jwt_or_lt_token_required_valid_jwt(self, mock_app):
@@ -135,7 +139,10 @@ class TestUtils:
             "AWS_REGION": "region",
             "SQS_QUEUE_URL": "url",
             "S3_BUCKET_NAME": "bucket",
-            "ADMIN_TOKEN": "token"
+            "ADMIN_TOKEN": "token",
+            "GEMINI_API_KEY": "key",
+            "SQS_AI_NOTE_QUEUE_URL": "url",
+            "SQS_SUMMARY_QUEUE_URL": "url"
         }
         with patch.dict(os.environ, env_vars):
             check_required_env_vars() # Should not raise

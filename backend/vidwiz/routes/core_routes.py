@@ -1,6 +1,8 @@
 from flask import Blueprint, jsonify, request
 from vidwiz.shared.utils import jwt_or_lt_token_required
 from vidwiz.shared.models import Video, Note
+from vidwiz.shared.errors import BadRequestError
+from vidwiz.shared.schemas import SearchResponse, VideoSearchItem
 from vidwiz.shared.logging import get_logger
 
 core_bp = Blueprint("core", __name__)
@@ -18,7 +20,7 @@ def get_search_results():
         per_page = int(request.args.get("per_page", 10))
     except ValueError:
         logger.warning("Invalid pagination parameters")
-        return jsonify({"error": "Invalid pagination parameters"}), 400
+        raise BadRequestError("Invalid pagination parameters")
 
     # Validate pagination bounds
     if page < 1:
@@ -50,13 +52,15 @@ def get_search_results():
 
     if total == 0:
         logger.info("Search returned 0 videos")
-        return jsonify({
-            "videos": [],
-            "total": 0,
-            "page": page,
-            "per_page": per_page,
-            "total_pages": 0
-        }), 200
+        return jsonify(
+            SearchResponse(
+                videos=[],
+                total=0,
+                page=page,
+                per_page=per_page,
+                total_pages=0,
+            ).model_dump()
+        ), 200
 
     # Calculate total pages
     total_pages = (total + per_page - 1) // per_page
@@ -65,16 +69,18 @@ def get_search_results():
     videos = base_query.offset((page - 1) * per_page).limit(per_page).all()
 
     videos_data = [
-        {"video_id": video.video_id, "video_title": video.title}
+        VideoSearchItem(video_id=video.video_id, video_title=video.title)
         for video in videos
     ]
 
     logger.info(f"Search returned {len(videos_data)} videos (page {page}/{total_pages}, total={total})")
 
-    return jsonify({
-        "videos": videos_data,
-        "total": total,
-        "page": page,
-        "per_page": per_page,
-        "total_pages": total_pages
-    }), 200
+    return jsonify(
+        SearchResponse(
+            videos=videos_data,
+            total=total,
+            page=page,
+            per_page=per_page,
+            total_pages=total_pages,
+        ).model_dump()
+    ), 200

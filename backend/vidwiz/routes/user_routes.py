@@ -1,5 +1,5 @@
 from flask import Blueprint, jsonify, request
-from vidwiz.shared.utils import jwt_or_lt_token_required
+from vidwiz.shared.utils import jwt_or_lt_token_required, require_json_body
 from vidwiz.shared.models import User, db
 from vidwiz.shared.schemas import (
     UserCreate,
@@ -8,6 +8,17 @@ from vidwiz.shared.schemas import (
     UserProfileUpdate,
     TokenResponse,
     TokenRevokeResponse,
+    MessageResponse,
+    LoginResponse,
+    GoogleLoginRequest,
+)
+from vidwiz.shared.errors import (
+    handle_validation_error,
+    NotFoundError,
+    BadRequestError,
+    UnauthorizedError,
+    ConflictError,
+    InternalServerError,
 )
 from sqlalchemy.orm.attributes import flag_modified
 from werkzeug.security import generate_password_hash, check_password_hash
@@ -18,29 +29,23 @@ from pydantic import ValidationError
 from vidwiz.shared.logging import get_logger
 from google.oauth2 import id_token
 from google.auth.transport import requests as google_requests
-import secrets
 
 user_bp = Blueprint("user", __name__)
 logger = get_logger("vidwiz.routes.user_routes")
 
 
 @user_bp.route("/user/signup", methods=["POST"])
+@require_json_body
 def signup():
-    # Allow silent failure so we can check if data is None and return our custom error
-    data = request.get_json(silent=True)
-    if not data:
-        logger.warning("Signup attempt missing JSON body")
-        return jsonify({"error": "Request body must be JSON"}), 400
-
     try:
-        user_data = UserCreate(**data)
+        user_data = UserCreate.model_validate(request.json_data)
     except ValidationError as e:
         logger.warning(f"Signup validation error: {e}")
-        return jsonify({"error": "Invalid request data"}), 400
+        return handle_validation_error(e)
 
     if User.query.filter_by(email=user_data.email).first():
         logger.info(f"Signup attempt with existing email='{user_data.email}'")
-        return jsonify({"error": "Email already exists."}), 400
+        raise ConflictError("Email already exists")
 
     user = User(
         email=user_data.email,
@@ -53,26 +58,22 @@ def signup():
         f"User created successfully email='{user_data.email}', id={user.id}"
     )
 
-    return jsonify({"message": "User created successfully"}), 201
+    return jsonify(MessageResponse(message="User created successfully").model_dump()), 201
 
 
 @user_bp.route("/user/login", methods=["POST"])
+@require_json_body
 def login():
-    data = request.get_json(silent=True)
-    if not data:
-        logger.warning("Login attempt missing JSON body")
-        return jsonify({"error": "Request body must be JSON"}), 400
-
     try:
-        login_data = UserLogin(**data)
+        login_data = UserLogin.model_validate(request.json_data)
     except ValidationError as e:
         logger.warning(f"Login validation error: {e}")
-        return jsonify({"error": "Invalid request data"}), 400
+        return handle_validation_error(e)
 
     user = User.query.filter_by(email=login_data.email).first()
     if not user or not user.password_hash or not check_password_hash(user.password_hash, login_data.password):
         logger.warning(f"Invalid login for email='{login_data.email}'")
-        return jsonify({"error": "Invalid email or password."}), 401
+        raise UnauthorizedError("Invalid email or password")
 
     token = jwt.encode(
         {
@@ -87,206 +88,177 @@ def login():
     )
 
     logger.info(f"Login success email='{login_data.email}', user_id={user.id}")
-    return jsonify({"token": token})
+    return jsonify(LoginResponse(token=token).model_dump()), 200
 
 
 @user_bp.route("/user/token", methods=["POST"])
 @jwt_or_lt_token_required
 def create_long_term_token():
     """Generate a new long-term token"""
-    try:
-        user = User.query.get(request.user_id)
-        if not user:
-            logger.warning(
-                f"Long-term token creation for missing user_id={request.user_id}"
-            )
-            return jsonify({"error": "User not found"}), 404
+    user = User.query.get(request.user_id)
+    if not user:
+        logger.warning(
+            f"Long-term token creation for missing user_id={request.user_id}"
+        )
+        raise NotFoundError("User not found")
 
-        if user.long_term_token:
-            logger.warning(
-                f"User_id={user.id} attempted to create duplicate long-term token"
-            )
-            return jsonify(
-                {
-                    "error": "A long-term token already exists. Please revoke the existing token before generating a new one."
-                }
-            ), 400
-
-        long_term_token = jwt.encode(
-            {
-                "user_id": user.id,
-                "email": user.email,
-                "type": "long_term",  # Add type to distinguish from regular tokens
-                "iat": datetime.now(timezone.utc).timestamp(),
-            },
-            current_app.config["SECRET_KEY"],
-            algorithm="HS256",
+    if user.long_term_token:
+        logger.warning(
+            f"User_id={user.id} attempted to create duplicate long-term token"
+        )
+        raise BadRequestError(
+            "A long-term token already exists. Please revoke the existing token before generating a new one."
         )
 
-        # Store the token in the user's record
-        user.long_term_token = long_term_token
-        db.session.commit()
-        logger.info(f"Long-term token generated for user_id={user.id}")
+    long_term_token = jwt.encode(
+        {
+            "user_id": user.id,
+            "email": user.email,
+            "type": "long_term",  # Add type to distinguish from regular tokens
+            "iat": datetime.now(timezone.utc).timestamp(),
+        },
+        current_app.config["SECRET_KEY"],
+        algorithm="HS256",
+    )
 
-        # Validate response using schema
-        response_data = {
-            "message": "Long-term token generated successfully",
-            "token": long_term_token,
-        }
-        validated_response = TokenResponse(**response_data)
-        return jsonify(validated_response.model_dump()), 200
+    # Store the token in the user's record
+    user.long_term_token = long_term_token
+    db.session.commit()
+    logger.info(f"Long-term token generated for user_id={user.id}")
 
-    except Exception as e:
-        db.session.rollback()
-        logger.exception(f"Error in create_long_term_token: {e}")
-        return jsonify({"error": "An unexpected error occurred"}), 500
+    # Validate response using schema
+    response_data = {
+        "message": "Long-term token generated successfully",
+        "token": long_term_token,
+    }
+    validated_response = TokenResponse.model_validate(response_data)
+    return jsonify(validated_response.model_dump()), 200
 
 
 @user_bp.route("/user/token", methods=["DELETE"])
 @jwt_or_lt_token_required
 def revoke_long_term_token():
     """Revoke the existing long-term token"""
-    try:
-        user = User.query.get(request.user_id)
-        if not user:
-            logger.warning(
-                f"Long-term token revocation for missing user_id={request.user_id}"
-            )
-            return jsonify({"error": "User not found"}), 404
+    user = User.query.get(request.user_id)
+    if not user:
+        logger.warning(
+            f"Long-term token revocation for missing user_id={request.user_id}"
+        )
+        raise NotFoundError("User not found")
 
-        if not user.long_term_token:
-            logger.warning(
-                f"Token revoke requested but none exists for user_id={user.id}"
-            )
-            return jsonify({"error": "No long-term token found"}), 404
+    if not user.long_term_token:
+        logger.warning(
+            f"Token revoke requested but none exists for user_id={user.id}"
+        )
+        raise NotFoundError("No long-term token found")
 
-        user.long_term_token = None
-        db.session.commit()
-        logger.info(f"Long-term token revoked for user_id={user.id}")
+    user.long_term_token = None
+    db.session.commit()
+    logger.info(f"Long-term token revoked for user_id={user.id}")
 
-        response_data = {"message": "Long-term token revoked successfully"}
-        validated_response = TokenRevokeResponse(**response_data)
-        return jsonify(validated_response.model_dump()), 200
-
-    except Exception as e:
-        db.session.rollback()
-        logger.exception(f"Error in revoke_long_term_token: {e}")
-        return jsonify({"error": "An unexpected error occurred"}), 500
+    response_data = {"message": "Long-term token revoked successfully"}
+    validated_response = TokenRevokeResponse.model_validate(response_data)
+    return jsonify(validated_response.model_dump()), 200
 
 
 @user_bp.route("/user/profile", methods=["GET"])
 @jwt_or_lt_token_required
 def get_profile():
     """Get user profile data"""
-    try:
-        user = User.query.get(request.user_id)
-        if not user:
-            logger.warning(f"Profile requested for missing user_id={request.user_id}")
-            return jsonify({"error": "User not found"}), 404
+    user = User.query.get(request.user_id)
+    if not user:
+        logger.warning(f"Profile requested for missing user_id={request.user_id}")
+        raise NotFoundError("User not found")
 
-        ai_notes_enabled = False
-        if user.profile_data and isinstance(user.profile_data, dict):
-            ai_notes_enabled = user.profile_data.get("ai_notes_enabled", False)
+    ai_notes_enabled = False
+    if user.profile_data and isinstance(user.profile_data, dict):
+        ai_notes_enabled = user.profile_data.get("ai_notes_enabled", False)
 
-        token_exists = user.long_term_token is not None
+    token_exists = user.long_term_token is not None
 
-        profile_data = {
-            "id": user.id,
-            "email": user.email,
-            "name": user.name,
-            "profile_image_url": user.profile_image_url,
-            "ai_notes_enabled": ai_notes_enabled,
-            "token_exists": token_exists,
-            "long_term_token": user.long_term_token,
-            "created_at": user.created_at,
-        }
+    profile_data = {
+        "id": user.id,
+        "email": user.email,
+        "name": user.name,
+        "profile_image_url": user.profile_image_url,
+        "ai_notes_enabled": ai_notes_enabled,
+        "token_exists": token_exists,
+        "long_term_token": user.long_term_token,
+        "created_at": user.created_at,
+    }
 
-        validated_profile = UserProfileRead(**profile_data)
-        logger.debug(f"Profile fetched for user_id={user.id}")
-        return jsonify(validated_profile.model_dump()), 200
+    validated_profile = UserProfileRead.model_validate(profile_data)
+    logger.info(f"Profile fetched for user_id={user.id}")
+    return jsonify(validated_profile.model_dump()), 200
 
-    except Exception as e:
-        logger.exception(f"Error in get_profile: {e}")
-        return jsonify({"error": "An unexpected error occurred"}), 500
 
 @user_bp.route("/user/profile", methods=["PATCH"])
 @jwt_or_lt_token_required
+@require_json_body
 def update_profile():
     """Update user profile data (name, ai_notes_enabled). Email is immutable."""
     try:
-        data = request.get_json(silent=True)
-        if not data:
-            logger.warning("Update profile missing JSON body")
-            return jsonify({"error": "Request body must be JSON"}), 400
+        update_data = UserProfileUpdate.model_validate(request.json_data)
+    except ValidationError as e:
+        logger.warning(f"Update profile validation error: {e}")
+        return handle_validation_error(e)
 
-        try:
-            update_data = UserProfileUpdate(**data)
-        except ValidationError as e:
-            logger.warning(f"Update profile validation error: {e}")
-            return jsonify({"error": "Invalid request data"}), 400
+    user = User.query.get(request.user_id)
+    if not user:
+        logger.warning(f"Update profile for missing user_id={request.user_id}")
+        raise NotFoundError("User not found")
 
-        user = User.query.get(request.user_id)
-        if not user:
-            logger.warning(f"Update profile for missing user_id={request.user_id}")
-            return jsonify({"error": "User not found"}), 404
+    # Update fields if provided
+    if update_data.name is not None:
+        user.name = update_data.name
+    if update_data.ai_notes_enabled is not None:
+        if user.profile_data is None:
+            user.profile_data = {}
+        user.profile_data["ai_notes_enabled"] = update_data.ai_notes_enabled
+        flag_modified(user, "profile_data")
 
-        # Update fields if provided
-        if update_data.name is not None:
-            user.name = update_data.name
-        if update_data.ai_notes_enabled is not None:
-            if user.profile_data is None:
-                user.profile_data = {}
-            user.profile_data["ai_notes_enabled"] = update_data.ai_notes_enabled
-            flag_modified(user, "profile_data")
+    db.session.commit()
+    logger.info(f"Updated profile for user_id={user.id}")
 
-        db.session.commit()
-        logger.info(f"Updated profile for user_id={user.id}")
+    # Return updated profile data
+    ai_notes_enabled = False
+    if user.profile_data and isinstance(user.profile_data, dict):
+        ai_notes_enabled = user.profile_data.get("ai_notes_enabled", False)
 
-        # Return updated profile data
-        ai_notes_enabled = False
-        if user.profile_data and isinstance(user.profile_data, dict):
-            ai_notes_enabled = user.profile_data.get("ai_notes_enabled", False)
+    token_exists = user.long_term_token is not None
+    profile_data = {
+        "id": user.id,
+        "email": user.email,
+        "name": user.name,
+        "profile_image_url": user.profile_image_url,
+        "ai_notes_enabled": ai_notes_enabled,
+        "token_exists": token_exists,
+        "created_at": user.created_at,
+    }
 
-        token_exists = user.long_term_token is not None
-        profile_data = {
-            "id": user.id,
-            "email": user.email,
-            "name": user.name,
-            "profile_image_url": user.profile_image_url,
-            "ai_notes_enabled": ai_notes_enabled,
-            "token_exists": token_exists,
-            "created_at": user.created_at,
-        }
-
-        validated_profile = UserProfileRead(**profile_data)
-        return jsonify(validated_profile.model_dump()), 200
-
-    except Exception as e:
-        db.session.rollback()
-        logger.exception(f"Error in update_profile: {e}")
-        return jsonify({"error": "An unexpected error occurred"}), 500
+    validated_profile = UserProfileRead.model_validate(profile_data)
+    return jsonify(validated_profile.model_dump()), 200
 
 
 @user_bp.route("/user/google/login", methods=["POST"])
+@require_json_body
 def google_login():
     """
     Handle Google Sign-In from the frontend.
     Frontend sends Google ID token (credential), backend verifies it and creates/logs in user.
     """
-    data = request.get_json(silent=True)
-    if not data:
-        logger.warning("Google login attempt missing JSON body")
-        return jsonify({"error": "Request body must be JSON"}), 400
+    try:
+        google_data = GoogleLoginRequest.model_validate(request.json_data)
+    except ValidationError as e:
+        logger.warning(f"Google login validation error: {e}")
+        return handle_validation_error(e)
 
-    credential = data.get("credential")
-    if not credential:
-        logger.warning("Google login attempt missing credential")
-        return jsonify({"error": "Missing Google credential"}), 400
+    credential = google_data.credential
 
     google_client_id = current_app.config.get("GOOGLE_CLIENT_ID")
     if not google_client_id:
         logger.error("GOOGLE_CLIENT_ID not configured")
-        return jsonify({"error": "Google OAuth not configured"}), 500
+        raise InternalServerError("Google OAuth not configured")
 
     try:
         # Verify the Google ID token
@@ -302,7 +274,7 @@ def google_login():
         
         if not email:
             logger.warning("Google login without email - email is required")
-            return jsonify({"error": "Email is required for Google Sign-In"}), 400
+            raise BadRequestError("Email is required for Google Sign-In")
         
         name = idinfo.get("name", email.split("@")[0])
         picture = idinfo.get("picture")  # Profile image URL from Google
@@ -355,13 +327,10 @@ def google_login():
         )
 
         logger.info(f"Google login success for user_id={user.id}, email='{user.email}'")
-        return jsonify({"token": token})
+        return jsonify(LoginResponse(token=token).model_dump()), 200
 
     except ValueError as e:
         # Invalid token
         logger.warning(f"Invalid Google token: {e}")
-        return jsonify({"error": "Invalid Google credential"}), 401
-    except Exception as e:
-        db.session.rollback()
-        logger.exception(f"Error in google_login: {e}")
-        return jsonify({"error": "An unexpected error occurred"}), 500
+        raise UnauthorizedError("Invalid Google credential")
+

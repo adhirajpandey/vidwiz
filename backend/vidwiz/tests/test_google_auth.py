@@ -4,7 +4,11 @@ from vidwiz.app import create_app
 
 def test_google_auth_route_exists():
     """Test that the Google Auth route is registered."""
-    app = create_app()
+    app = create_app({
+        "TESTING": True, 
+        "GOOGLE_CLIENT_ID": "test-client-id",
+        "SQLALCHEMY_DATABASE_URI": "sqlite:///:memory:"
+    })
     
     # Check if the route is in the url_map
     routes = [str(p) for p in app.url_map.iter_rules()]
@@ -12,6 +16,10 @@ def test_google_auth_route_exists():
 
 def test_google_config_loaded():
     """Test that Google config variables are loaded (even if None)."""
-    app = create_app()
+    app = create_app({
+        "TESTING": True, 
+        "GOOGLE_CLIENT_ID": "test-client-id",
+        "SQLALCHEMY_DATABASE_URI": "sqlite:///:memory:"
+    })
     assert "GOOGLE_CLIENT_ID" in app.config
     # It might be None since we haven't set the env var yet, but the key should exist

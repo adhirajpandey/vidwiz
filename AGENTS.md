@@ -7,7 +7,10 @@ VidWiz helps users take timestamped notes on YouTube videos. The system stores n
 - Plan changes thoughtfully before actual implementation.
 - Keep changes minimal and focused on the request.
 - In case of any doubts, ask the user for clarification.
+- Always use existing patterns in the codebase.
+- Always make sure that UI code is consistent for light and dark mode.
 - Add tests for backend behavior changes when feasible.
+- In case of adding test cases, don't update app code just to pass the test cases.
 - Document notable behavioral changes in the README when needed.
 
 ## Project Structure & Module Organization

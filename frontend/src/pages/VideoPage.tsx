@@ -4,6 +4,7 @@ import config from '../config';
 import NoteCard from '../components/NoteCard';
 import { useToast } from '../hooks/useToast';
 import { FaExclamationTriangle, FaPlay, FaEye, FaHeart, FaExternalLinkAlt } from 'react-icons/fa';
+import WatchYouTubeButton from '../components/WatchYouTubeButton';
 
 interface Video {
   video_id: string;
@@ -219,8 +220,13 @@ export default function VideoPage() {
               
               {/* Content section */}
               <div className="p-6">
-                {/* Title */}
-                <h2 className="text-xl md:text-2xl font-bold text-foreground mb-4 leading-tight tracking-tight select-none">{video.title}</h2>
+                {/* Title and Action */}
+                <div className="flex flex-col sm:flex-row sm:items-start justify-between gap-4 mb-4">
+                  <h2 className="text-xl md:text-2xl font-bold text-foreground leading-tight tracking-tight select-none flex-1">{video.title}</h2>
+                  <div className="flex-shrink-0 sm:mt-1 w-full sm:w-auto">
+                    <WatchYouTubeButton videoId={video.video_id} variant="red" className="w-full sm:w-auto justify-center" />
+                  </div>
+                </div>
                 
                 {/* Stats bar with glassmorphism */}
                 {video.metadata && (
@@ -262,18 +268,7 @@ export default function VideoPage() {
                   </div>
                 )}
                 
-                {/* CTA Button */}
-                <a 
-                  id="watch-button" 
-                  href={`https://www.youtube.com/watch?v=${video.video_id}`} 
-                  target="_blank" 
-                  rel="noopener noreferrer" 
-                  className="group/btn inline-flex items-center justify-center gap-2.5 px-6 py-3 text-sm font-semibold text-white bg-gradient-to-r from-red-600 via-red-500 to-red-600 bg-[length:200%_100%] rounded-xl hover:bg-right transition-all duration-500 shadow-lg shadow-red-500/25 hover:shadow-xl hover:shadow-red-500/30 cursor-pointer"
-                >
-                  <FaPlay className="w-3.5 h-3.5 transition-transform duration-300 group-hover/btn:scale-110" />
-                  <span>Watch on YouTube</span>
-                  <FaExternalLinkAlt className="w-3 h-3 opacity-60" />
-                </a>
+
               </div>
             </div>
           </div>

@@ -18,14 +18,14 @@ export default function VideoCard({ video }: VideoCardProps) {
     `https://img.youtube.com/vi/${video.video_id}/mqdefault.jpg`;
 
   return (
-    <div className="group relative bg-gradient-to-r from-white/[0.04] to-white/[0.02] hover:from-white/[0.08] hover:to-white/[0.04] rounded-xl border border-white/[0.06] hover:border-white/[0.12] transition-all duration-300 overflow-hidden select-none">
+    <div className="group relative bg-card hover:bg-muted/50 rounded-xl border border-border hover:border-border/80 transition-all duration-300 overflow-hidden select-none">
       <div className="flex items-center gap-3 md:gap-4 p-3 md:p-4">
         {/* Thumbnail */}
         <a
           href={`https://www.youtube.com/watch?v=${video.video_id}`}
           target="_blank"
           rel="noopener noreferrer"
-          className="relative flex-shrink-0 w-24 md:w-32 aspect-video rounded-lg overflow-hidden group/thumb"
+          className="relative flex-shrink-0 w-24 md:w-32 aspect-video rounded-lg overflow-hidden group/thumb bg-muted"
         >
           <img 
             src={thumbnailUrl} 
