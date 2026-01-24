@@ -164,7 +164,6 @@ function WizWorkspacePage() {
   const playerRef = useRef<HTMLIFrameElement>(null);
   const inputRef = useRef<HTMLInputElement>(null);
   const pollingStartTime = useRef<number>(Date.now());
-  const hasAutoInited = useRef(false);
 
   // Handle URL normalization and redirects
   useEffect(() => {
@@ -187,6 +186,28 @@ function WizWorkspacePage() {
     }
   }, [rawInput, videoId, navigate]);
 
+  // Proactively initialize the wiz session for this video
+  useEffect(() => {
+    if (!videoId) return;
+
+    const initVideo = async () => {
+      try {
+        await fetch(`${config.API_URL}/wiz/init`, {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            ...(localStorage.getItem('token') ? { 'Authorization': `Bearer ${localStorage.getItem('token')}` } : {})
+          },
+          body: JSON.stringify({ video_id: videoId }),
+        });
+      } catch (err) {
+        console.error('Proactive wiz init failed:', err);
+      }
+    };
+
+    initVideo();
+  }, [videoId]);
+
   // Reset state when videoId changes
   useEffect(() => {
     setMessages([]);
@@ -194,7 +215,6 @@ function WizWorkspacePage() {
     setIsPolling(true);
     // Reset refs
     pollingStartTime.current = Date.now();
-    hasAutoInited.current = false;
   }, [videoId]);
 
   // Computed status
@@ -216,33 +236,6 @@ function WizWorkspacePage() {
       try {
         const response = await fetch(`${config.API_URL}/wiz/video/${videoId}`);
         
-        if (response.status === 404) {
-          // Auto-initialize if video doesn't exist yet
-          if (!hasAutoInited.current) {
-            hasAutoInited.current = true;
-            console.log('Video not found, auto-initializing...');
-            
-            try {
-              const initResponse = await fetch(`${config.API_URL}/wiz/init`, {
-                method: 'POST',
-                headers: {
-                  'Content-Type': 'application/json',
-                  // Pass auth headers if available, though not strictly required for init
-                  ...(localStorage.getItem('token') ? { 'Authorization': `Bearer ${localStorage.getItem('token')}` } : {})
-                },
-                body: JSON.stringify({ video_id: videoId }),
-              });
-              
-              if (initResponse.ok) {
-                // Retry status fetch immediately
-                fetchVideoStatus();
-                return;
-              }
-            } catch (err) {
-              console.error('Auto-init failed:', err);
-            }
-          }
-        }
 
         if (response.ok) {
           const data: VideoData = await response.json();
