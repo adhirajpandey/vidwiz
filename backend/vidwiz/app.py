@@ -45,27 +45,28 @@ def create_app(config=None):
     GOOGLE_CLIENT_ID = os.getenv("GOOGLE_CLIENT_ID", None)
     GEMINI_API_KEY = os.getenv("GEMINI_API_KEY", None)
 
-    # Only check and set required env vars if no config dict is provided - for test etc
+    # Only validate required env vars if no config dict is provided - for test etc
     if config is None:
         check_required_env_vars()
-        app.config["SQLALCHEMY_DATABASE_URI"] = DB_URL
-        app.config["SECRET_KEY"] = SECRET_KEY
-        app.config["AWS_ACCESS_KEY_ID"] = AWS_ACCESS_KEY_ID
-        app.config["AWS_SECRET_ACCESS_KEY"] = AWS_SECRET_ACCESS_KEY
-        app.config["AWS_REGION"] = AWS_REGION
-        app.config["SQS_AI_NOTE_QUEUE_URL"] = SQS_AI_NOTE_QUEUE_URL
-        app.config["SQS_SUMMARY_QUEUE_URL"] = SQS_SUMMARY_QUEUE_URL
-        app.config["S3_BUCKET_NAME"] = S3_BUCKET_NAME
-        app.config["ADMIN_TOKEN"] = ADMIN_TOKEN
-        app.config["JWT_EXPIRY_HOURS"] = JWT_EXPIRY_HOURS
-        app.config["JWT_EXPIRY_HOURS"] = JWT_EXPIRY_HOURS
-        app.config["GOOGLE_CLIENT_ID"] = GOOGLE_CLIENT_ID
-        app.config["GEMINI_API_KEY"] = GEMINI_API_KEY
-        app.config["SQLALCHEMY_ENGINE_OPTIONS"] = {
-            "pool_recycle": 7200,
-        }
-        
-    else:
+
+    app.config["SQLALCHEMY_DATABASE_URI"] = DB_URL
+    app.config["SECRET_KEY"] = SECRET_KEY
+    app.config["AWS_ACCESS_KEY_ID"] = AWS_ACCESS_KEY_ID
+    app.config["AWS_SECRET_ACCESS_KEY"] = AWS_SECRET_ACCESS_KEY
+    app.config["AWS_REGION"] = AWS_REGION
+    app.config["SQS_AI_NOTE_QUEUE_URL"] = SQS_AI_NOTE_QUEUE_URL
+    app.config["SQS_SUMMARY_QUEUE_URL"] = SQS_SUMMARY_QUEUE_URL
+    app.config["S3_BUCKET_NAME"] = S3_BUCKET_NAME
+    app.config["ADMIN_TOKEN"] = ADMIN_TOKEN
+    app.config["JWT_EXPIRY_HOURS"] = JWT_EXPIRY_HOURS
+    app.config["JWT_EXPIRY_HOURS"] = JWT_EXPIRY_HOURS
+    app.config["GOOGLE_CLIENT_ID"] = GOOGLE_CLIENT_ID
+    app.config["GEMINI_API_KEY"] = GEMINI_API_KEY
+    app.config["SQLALCHEMY_ENGINE_OPTIONS"] = {
+        "pool_recycle": 7200,
+    }
+
+    if config is not None:
         app.config.update(config)
 
     db.init_app(app)

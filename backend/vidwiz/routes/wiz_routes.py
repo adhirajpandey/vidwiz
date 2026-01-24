@@ -338,20 +338,11 @@ def stream_wiz_response(
     history: list[dict],
     conversation_id: int,
     app,
+    api_key: str,
 ):
     """
     Generator function to stream response from Gemini and save the assistant message.
     """
-    api_key = current_app.config.get("GEMINI_API_KEY")
-    if not api_key:
-        logger.error("GEMINI_API_KEY not set in app config")
-        # We can't raise HTTP error easily here as streaming started, 
-        # but we can yield an error message or just log and finish.
-        # However, checking it before calling this is better practice for the route.
-        # But since we are moving logic here, let's assume valid key or fail.
-        yield f"data: {json.dumps({'error': 'Configuration error'})}\n\n"
-        return
-
     system_instruction = build_system_instruction(video_title, transcript)
     
     client = genai.Client(api_key=api_key)
@@ -422,6 +413,11 @@ def chat_wiz():
         logger.warning(f"Wiz chat validation error: {e}")
         return handle_validation_error(e)
 
+    api_key = current_app.config.get("GEMINI_API_KEY")
+    if not api_key:
+        logger.error("GEMINI_API_KEY not set in app config")
+        raise InternalServerError("Gemini API key not configured")
+
     video_id = chat_data.video_id
     user_message = chat_data.message
     conversation_id = chat_data.conversation_id
@@ -482,8 +478,8 @@ def chat_wiz():
                 history=history_serializable,
                 conversation_id=conversation.id,
                 app=app,
+                api_key=api_key,
             )
         ),
         mimetype="text/event-stream",
     )
-
