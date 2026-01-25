@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
+import { Sparkles, ChevronDown, ChevronUp } from 'lucide-react';
 import config from '../config';
 import NoteCard from '../components/NoteCard';
 import { useToast } from '../hooks/useToast';
@@ -10,6 +11,7 @@ import { getToken, removeToken } from '../lib/authUtils';
 interface Video {
   video_id: string;
   title: string;
+  summary?: string | null;
   metadata?: {
     title?: string;
     channel?: string;
@@ -38,6 +40,7 @@ export default function VideoPage() {
   const [notes, setNotes] = useState<Note[]>([]);
   const [showDeleteModal, setShowDeleteModal] = useState(false);
   const [noteToDelete, setNoteToDelete] = useState<number | null>(null);
+  const [isSummaryExpanded, setIsSummaryExpanded] = useState(false);
   const navigate = useNavigate();
   const { addToast } = useToast();
 
@@ -281,7 +284,29 @@ export default function VideoPage() {
                     </div>
                   </div>
                 )}
-                
+
+                {/* AI Summary */}
+                {video.summary && (
+                  <div className="mt-5">
+                    <button
+                      onClick={() => setIsSummaryExpanded(!isSummaryExpanded)}
+                      className="flex items-center gap-2 mb-3 w-full text-left hover:opacity-80 transition-opacity cursor-pointer"
+                    >
+                      <Sparkles className="w-4 h-4 text-violet-400" />
+                      <span className="text-sm font-medium text-foreground/80">AI Summary</span>
+                      {isSummaryExpanded ? (
+                        <ChevronUp className="w-4 h-4 text-foreground/60 ml-auto" />
+                      ) : (
+                        <ChevronDown className="w-4 h-4 text-foreground/60 ml-auto" />
+                      )}
+                    </button>
+                    {isSummaryExpanded && (
+                      <p className="text-sm text-foreground/60 leading-relaxed">
+                        {video.summary}
+                      </p>
+                    )}
+                  </div>
+                )}
 
               </div>
             </div>
