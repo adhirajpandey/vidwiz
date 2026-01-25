@@ -5,7 +5,6 @@ import config from '../config';
 import NoteCard from '../components/NoteCard';
 import { useToast } from '../hooks/useToast';
 import { FaExclamationTriangle, FaPlay, FaEye, FaHeart, FaExternalLinkAlt } from 'react-icons/fa';
-import WatchYouTubeButton from '../components/WatchYouTubeButton';
 import { getToken, removeToken } from '../lib/authUtils';
 
 interface Video {
@@ -238,16 +237,13 @@ export default function VideoPage() {
               {/* Content section */}
               <div className="p-6">
                 {/* Title and Action */}
-                <div className="flex flex-col sm:flex-row sm:items-start justify-between gap-4 mb-4">
+                <div className="flex flex-col sm:flex-row sm:items-start justify-between gap-4 mb-3">
                   <h2 className="text-xl md:text-2xl font-bold text-foreground leading-tight tracking-tight select-none flex-1">{video.title || video.metadata?.title || 'Untitled Video'}</h2>
-                  <div className="flex-shrink-0 sm:mt-1 w-full sm:w-auto">
-                    <WatchYouTubeButton videoId={video.video_id} variant="red" className="w-full sm:w-auto justify-center" />
-                  </div>
                 </div>
                 
                 {/* Stats bar with glassmorphism */}
                 {video.metadata && (
-                  <div className="flex flex-wrap items-center gap-2 mb-5">
+                  <div className="flex flex-wrap items-center gap-2 mb-3">
                     {(video.metadata.channel || video.metadata.uploader) && (
                       (video.metadata.channel_url || video.metadata.uploader_url) ? (
                         <a 
@@ -285,9 +281,18 @@ export default function VideoPage() {
                   </div>
                 )}
 
+                {/* Open in Wiz Button */}
+                <button
+                  onClick={() => navigate(`/wiz/${video.video_id}`)}
+                  className="mb-3 inline-flex items-center gap-2 px-4 py-2 bg-gradient-to-r from-violet-600 to-indigo-600 hover:from-violet-500 hover:to-indigo-500 text-white text-sm font-medium rounded-lg transition-all duration-200 shadow-md shadow-violet-500/20 hover:shadow-lg hover:shadow-violet-500/30 active:scale-[0.95] cursor-pointer"
+                >
+                  <Sparkles className="w-3.5 h-3.5" />
+                  <span>Open in Wiz</span>
+                </button>
+
                 {/* AI Summary */}
                 {video.summary && (
-                  <div className="mt-5">
+                  <div className="mt-3">
                     <button
                       onClick={() => setIsSummaryExpanded(!isSummaryExpanded)}
                       className="flex items-center gap-2 mb-3 w-full text-left hover:opacity-80 transition-opacity cursor-pointer"
