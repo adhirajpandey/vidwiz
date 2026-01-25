@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react';
-import { Target, Sparkles, ArrowRight, CheckCircle2, Zap, Brain, LayoutDashboard, AlertCircle, MessageSquare, ChevronRight, Star } from 'lucide-react';
+import { Target, Sparkles, ArrowRight, CheckCircle2, Zap, Brain, LayoutDashboard, AlertCircle, MessageSquare, Star } from 'lucide-react';
 import { Link, useNavigate } from 'react-router-dom';
 import AmbientBackground from '../components/ui/AmbientBackground';
 import config from '../config';
@@ -136,22 +136,35 @@ function LandingPage() {
     <div className="relative overflow-hidden">
       <AmbientBackground />
 
-      <main className="relative z-10 pt-20 md:pt-24 pb-20">
+      <main className="relative z-10 pt-12 md:pt-24 pb-12 md:pb-20">
         
         {/* HERO SECTION */}
-        <section className="max-w-7xl mx-auto px-6 mb-24">
-          <div className="flex flex-col items-center text-center">
+        <section className="max-w-7xl mx-auto px-4 md:px-6 mb-12 md:mb-24 relative">
+          {/* Floating Orbs - Modern SaaS aesthetic */}
+          <div className="absolute -top-20 -left-20 w-72 h-72 bg-violet-500/30 rounded-full blur-[100px] animate-pulse pointer-events-none" />
+          <div className="absolute -top-10 -right-20 w-64 h-64 bg-red-500/20 rounded-full blur-[100px] animate-pulse pointer-events-none" style={{ animationDelay: '1s' }} />
+          <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-96 h-96 bg-fuchsia-500/10 rounded-full blur-[120px] pointer-events-none" />
+          
+          <div className="flex flex-col items-center text-center relative z-10">
             
             {/* Top Badge - Simplified */}
-            <div className="mb-6 animate-in fade-in slide-in-from-bottom-4 duration-700 select-none">
-              <div className="inline-flex items-center gap-2 px-3 py-1.5 rounded-full bg-white/50 dark:bg-white/[0.03] border border-gray-200 dark:border-white/[0.08] backdrop-blur-sm cursor-default hover:border-violet-500/20 transition-colors shadow-sm dark:shadow-none">
-                  <div className="w-1.5 h-1.5 rounded-full bg-red-500 shadow-[0_0_10px_rgba(239,68,68,0.5)] animate-pulse"></div>
-                  <span className="text-xs font-bold text-gray-800 dark:text-foreground/80 tracking-wide">v1.0 Live</span>
+            <div className="mb-4 md:mb-6 animate-in fade-in slide-in-from-bottom-4 duration-700 select-none">
+              <div className="group relative inline-flex items-center gap-2 px-4 py-2 rounded-full cursor-default">
+                {/* Gradient border effect */}
+                <div className="absolute inset-0 rounded-full bg-gradient-to-r from-violet-500/50 via-fuchsia-500/50 to-red-500/50 opacity-20 group-hover:opacity-40 transition-opacity" />
+                <div className="absolute inset-[1px] rounded-full bg-white/90 dark:bg-black/80 backdrop-blur-xl" />
+                <div className="relative flex items-center gap-2">
+                  <div className="relative">
+                    <div className="w-2 h-2 rounded-full bg-emerald-500 shadow-[0_0_10px_rgba(16,185,129,0.8)]" />
+                    <div className="absolute inset-0 w-2 h-2 rounded-full bg-emerald-500 animate-ping" />
+                  </div>
+                  <span className="text-xs font-bold text-gray-800 dark:text-foreground/90 tracking-wide uppercase">v1.0 Live</span>
+                </div>
               </div>
             </div>
 
             {/* Headline - Restored Brand Copy & Gradient */}
-            <h1 className="max-w-6xl text-6xl md:text-8xl font-bold tracking-tighter mb-8 leading-[1.05] animate-in fade-in slide-in-from-bottom-8 duration-1000 select-none">
+            <h1 className="max-w-6xl text-[2.75rem] md:text-8xl font-bold tracking-tighter mb-4 md:mb-8 leading-[1.05] animate-in fade-in slide-in-from-bottom-8 duration-1000 select-none">
               Video learning, <br />
               <span className="bg-gradient-to-r from-violet-500 via-fuchsia-500 to-red-500 bg-clip-text text-transparent bg-[length:200%_auto] animate-gradient drop-shadow-[0_0_30px_rgba(139,92,246,0.3)]">
                 truly unlocked.
@@ -159,19 +172,23 @@ function LandingPage() {
             </h1>
 
             {/* Subheadline - Restored Value Prop */}
-            <p className="max-w-3xl text-xl md:text-2xl text-gray-600 dark:text-foreground/60 mb-16 leading-relaxed animate-in fade-in slide-in-from-bottom-8 duration-1000 delay-200 select-none font-light">
+            <p className="max-w-3xl text-base md:text-2xl text-gray-600 dark:text-foreground/60 mb-8 md:mb-16 leading-relaxed animate-in fade-in slide-in-from-bottom-8 duration-1000 delay-200 select-none font-light">
               Transform passive watching into active learning. Chat with any video, generate smart notes, 
               and master content 10x faster.
             </p>
 
-            {/* Search/Try Wiz Input Section - Restored Violet Theme */}
-            <div className="w-full max-w-xl mx-auto mb-12 animate-in fade-in slide-in-from-bottom-8 duration-1000 delay-300 group">
+            {/* Search/Try Wiz Input Section - Modern SaaS Style */}
+            <div className="w-full max-w-xl mx-auto mb-6 md:mb-12 animate-in fade-in slide-in-from-bottom-8 duration-1000 delay-300 group">
                <div className="relative">
-                 {/* Glow - Restored Violet/Red */}
-                 <div className="absolute -inset-1 bg-gradient-to-r from-violet-600/20 via-red-500/20 to-violet-600/20 rounded-full blur-2xl opacity-30 group-hover:opacity-60 transition-opacity duration-500"></div>
+                 {/* Animated gradient border */}
+                 <div className="absolute -inset-[1px] bg-gradient-to-r from-violet-600 via-fuchsia-500 to-red-500 rounded-3xl sm:rounded-full opacity-0 group-hover:opacity-100 transition-opacity duration-500 blur-sm" />
+                 <div className="absolute -inset-[1px] bg-gradient-to-r from-violet-600 via-fuchsia-500 to-red-500 rounded-3xl sm:rounded-full opacity-20 group-hover:opacity-50 transition-opacity duration-500" />
                  
-                 <div className="relative rounded-full p-2 bg-white/80 dark:bg-black/40 backdrop-blur-xl border border-gray-200 dark:border-white/[0.08] shadow-2xl transition-all duration-300 group-hover:border-violet-500/30">
-                    <form onSubmit={handleSubmit} className="flex flex-col sm:flex-row gap-2">
+                 {/* Glow effect */}
+                 <div className="absolute -inset-4 bg-gradient-to-r from-violet-600/20 via-fuchsia-500/20 to-red-500/20 rounded-3xl sm:rounded-full blur-2xl opacity-0 group-hover:opacity-60 transition-opacity duration-500" />
+                 
+                 <div className="relative rounded-3xl sm:rounded-full p-4 sm:p-2 bg-white/95 dark:bg-gray-950/90 backdrop-blur-xl border border-gray-200/50 dark:border-white/[0.05] shadow-2xl transition-all duration-300">
+                    <form onSubmit={handleSubmit} className="flex flex-col sm:flex-row gap-3 sm:gap-2">
                        <input
                          type="text"
                          value={inputValue}
@@ -180,13 +197,13 @@ function LandingPage() {
                            setError(null);
                          }}
                          placeholder="Paste a YouTube link to start..."
-                         className="flex-1 px-6 py-4 bg-transparent border-none text-gray-900 dark:text-foreground placeholder:text-gray-500 dark:placeholder:text-muted-foreground/60 focus:outline-none focus:ring-0 text-lg"
+                         className="flex-1 px-4 md:px-6 py-3 md:py-4 bg-transparent border-none text-gray-900 dark:text-foreground placeholder:text-gray-400 dark:placeholder:text-muted-foreground/50 focus:outline-none focus:ring-0 text-base md:text-lg"
                          autoComplete="off"
                        />
                        <button
-                         type="submit"
-                         disabled={isLoading}
-                         className="sm:w-auto min-w-[160px] inline-flex items-center justify-center gap-2 px-8 py-4 text-base font-bold text-white bg-gradient-to-r from-violet-600 to-violet-500 rounded-full hover:scale-[1.02] active:scale-[0.98] transition-all duration-300 disabled:opacity-70 disabled:cursor-not-allowed shadow-[0_0_20px_-5px_rgba(139,92,246,0.3)] hover:shadow-[0_0_30px_-10px_rgba(139,92,246,0.5)]"
+                          type="submit"
+                          disabled={isLoading}
+                          className="relative overflow-hidden w-full sm:w-auto min-w-[160px] inline-flex items-center justify-center gap-2 px-6 md:px-8 py-3 md:py-4 text-sm md:text-base font-bold text-white bg-gradient-to-r from-violet-600 via-violet-500 to-fuchsia-500 rounded-full hover:scale-[1.02] active:scale-[0.98] transition-all duration-300 disabled:opacity-70 disabled:cursor-not-allowed shadow-lg shadow-violet-500/25 hover:shadow-xl hover:shadow-violet-500/30 before:absolute before:inset-0 before:-translate-x-full before:animate-[shimmer_2s_infinite] before:bg-gradient-to-r before:from-transparent before:via-white/20 before:to-transparent"
                        >
                          {isLoading ? (
                            <>
@@ -203,40 +220,32 @@ function LandingPage() {
                     </form>
                  </div>
                  
-                 {error && (
-                   <div className="flex items-center justify-center gap-2 mt-4 text-red-400 text-sm animate-in slide-in-from-top-2 fade-in">
-                     <AlertCircle className="w-4 h-4" />
-                     <span>{error}</span>
-                   </div>
-                 )}
                </div>
+                  {error && (
+                    <div className="flex items-center justify-center gap-2 mt-4 px-4 py-2 rounded-xl bg-red-500/10 border border-red-500/20 text-red-200 text-sm font-medium animate-in slide-in-from-top-2 fade-in backdrop-blur-sm">
+                      <AlertCircle className="w-4 h-4 text-red-400" />
+                      <span>{error}</span>
+                    </div>
+                  )}
             </div>
 
-            {/* Secondary Actions Row */}
-            <div className="flex flex-col items-center gap-3 animate-in fade-in slide-in-from-bottom-8 duration-1000 delay-500 w-full max-w-sm mx-auto">
-              {/* Secondary CTA */}
-              <Link 
-                to={isLoggedIn ? "/dashboard" : "/signup"} 
-                className="group flex items-center gap-2 px-6 py-3 rounded-full bg-accent/50 dark:bg-white/[0.03] hover:bg-accent dark:hover:bg-white/[0.08] border border-gray-200 dark:border-white/[0.08] hover:border-violet-500/30 transition-all duration-300 w-full justify-center"
-              >
-                <div className="p-1 rounded-full bg-violet-100 dark:bg-white/[0.05] group-hover:bg-violet-200 dark:group-hover:bg-violet-500/20 transition-colors">
-                  {isLoggedIn ? <LayoutDashboard className="w-4 h-3.5 text-violet-600 dark:text-violet-300" /> : <Zap className="w-4 h-3.5 text-violet-600 dark:text-violet-300" />}
-                </div>
-                <span className="text-sm font-semibold text-gray-800 dark:text-foreground/80 group-hover:text-gray-900 dark:group-hover:text-foreground transition-colors">
-                  {isLoggedIn ? "Open Dashboard" : "Start Smart Note Taking"}
-                </span>
-                {!isLoggedIn && <ChevronRight className="w-3.5 h-3.5 text-gray-500 dark:text-foreground/40 group-hover:translate-x-0.5 transition-transform" />}
-              </Link>
-
-              {/* GitHub Star */}
+            {/* GitHub Star - Prominent */}
+            <div className="animate-in fade-in slide-in-from-bottom-8 duration-1000 delay-500">
               <a 
                 href="https://github.com/adhirajpandey/vidwiz" 
                 target="_blank" 
                 rel="noopener noreferrer"
-                className="group flex items-center gap-2 px-6 py-3 rounded-full bg-accent/50 dark:bg-white/[0.03] hover:bg-accent dark:hover:bg-white/[0.08] border border-gray-200 dark:border-white/[0.08] hover:border-yellow-500/30 transition-all duration-300 w-full justify-center"
+                className="group relative inline-flex items-center gap-3 px-6 py-3 rounded-full text-sm font-semibold transition-all duration-300 hover:scale-105"
               >
-                 <Star className="w-4 h-3.5 text-gray-500 dark:text-foreground/60 group-hover:text-yellow-500 dark:group-hover:text-yellow-400 group-hover:fill-yellow-500 dark:group-hover:fill-yellow-400 transition-all duration-300" />
-                 <span className="text-sm font-semibold text-gray-700 dark:text-foreground/80 group-hover:text-gray-900 dark:group-hover:text-foreground transition-colors">Star on GitHub</span>
+                {/* Gradient glow on hover */}
+                <div className="absolute inset-0 rounded-full bg-gradient-to-r from-amber-500/30 to-yellow-500/30 opacity-0 group-hover:opacity-100 blur-xl transition-opacity" />
+                {/* Background layers */}
+                <div className="absolute inset-0 rounded-full bg-white/[0.03] backdrop-blur-sm border border-white/[0.08] group-hover:border-yellow-500/40 transition-colors" />
+                
+                <div className="relative flex items-center gap-2">
+                  <Star className="w-5 h-5 text-foreground/60 group-hover:text-yellow-400 group-hover:fill-yellow-400 transition-all duration-300" />
+                  <span className="text-foreground/80 group-hover:text-foreground transition-colors">Star on GitHub</span>
+                </div>
               </a>
             </div>
 
@@ -245,101 +254,60 @@ function LandingPage() {
 
 
         {/* VALUE PROPOSITION GRID */}
-        <section id="features" className="max-w-7xl mx-auto px-6 py-16 relative">
-           <div className="text-center mb-12 select-none relative">
-            {/* Subtle Title Glow */}
-            <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-48 h-20 bg-red-500/20 blur-[60px] pointer-events-none"></div>
-            <h2 className="text-4xl md:text-5xl font-bold mb-6 relative z-10">
-              Why <span className="text-red-500">VidWiz</span>?
+        <section id="features" className="max-w-7xl mx-auto px-4 md:px-6 py-16 md:py-24 relative">
+           <div className="text-center mb-12 md:mb-16 select-none relative">
+            <h2 className="text-3xl md:text-5xl font-bold mb-4 relative z-10">
+              Why <span className="bg-gradient-to-r from-red-500 via-fuchsia-500 to-violet-500 bg-clip-text text-transparent">VidWiz</span>?
             </h2>
-            <p className="text-xl text-foreground/50 max-w-2xl mx-auto relative z-10">
+            <p className="text-base md:text-xl text-gray-500 dark:text-foreground/50 max-w-2xl mx-auto relative z-10">
               Built for power users who want to extract maximum value from every minute of video.
             </p>
           </div>
 
-          <div className="grid md:grid-cols-3 gap-6">
+          <div className="grid md:grid-cols-2 lg:grid-cols-4 gap-4 md:gap-6">
             
             {/* Feature 1 */}
-            <div className="group relative p-8 rounded-3xl bg-white dark:bg-white/[0.02] border border-gray-200 dark:border-white/[0.08] shadow-lg shadow-gray-200/80 dark:shadow-none hover:border-violet-200 dark:hover:border-white/[0.12] transition-all duration-300 select-none overflow-hidden hover:shadow-xl hover:shadow-violet-500/10 dark:hover:shadow-[0_0_30px_-10px_rgba(255,255,255,0.05)]">
-               <div className="absolute top-0 right-0 w-32 h-32 bg-violet-500/5 rounded-bl-full -mr-8 -mt-8 transition-transform group-hover:scale-110"></div>
-               <div className="w-14 h-14 bg-violet-500/10 rounded-2xl flex items-center justify-center mb-6 text-violet-500 group-hover:scale-110 transition-transform duration-300 shadow-[0_0_20px_-5px_rgba(139,92,246,0.2)]">
-                 <MessageSquare className="w-7 h-7" />
+            <div className="group p-6 rounded-2xl bg-white/50 dark:bg-white/[0.02] border border-gray-100 dark:border-white/[0.06] hover:border-violet-200 dark:hover:border-violet-500/20 transition-all duration-300 select-none">
+               <div className="w-12 h-12 bg-violet-500/10 rounded-xl flex items-center justify-center mb-4 text-violet-500 group-hover:scale-110 transition-transform duration-300">
+                 <MessageSquare className="w-6 h-6" />
                </div>
-               <h3 className="text-2xl font-bold mb-3 text-gray-900 dark:text-white">Chat with Wiz</h3>
-               <p className="text-gray-600 dark:text-foreground/60 leading-relaxed">
-                 Meet Wiz, your AI video companion. Ask detailed questions and get answers grounded strictly in the transcript.
+               <h3 className="text-lg font-bold mb-2 text-gray-900 dark:text-white">Chat with Wiz</h3>
+               <p className="text-sm text-gray-500 dark:text-foreground/50 leading-relaxed">
+                 Ask detailed questions and get answers grounded in the transcript.
                </p>
             </div>
 
-            {/* Feature 2 Main */}
-            <div className="md:col-span-2 group relative p-8 rounded-3xl bg-gradient-to-br from-red-50/80 via-white to-white dark:from-red-500/5 dark:via-orange-500/5 dark:to-transparent border border-red-100 dark:border-white/[0.08] shadow-xl shadow-red-100/50 dark:shadow-none hover:border-red-200 dark:hover:border-red-500/20 transition-all duration-300 select-none overflow-hidden hover:shadow-2xl hover:shadow-red-500/10 dark:hover:shadow-[0_0_40px_-10px_rgba(239,68,68,0.1)]">
-               <div className="absolute inset-0 bg-white/[0.01] group-hover:bg-transparent transition-colors"></div>
-               <div className="flex flex-col md:flex-row gap-8 items-start md:items-center h-full">
-                 <div className="flex-1">
-                   <div className="w-14 h-14 bg-red-500/10 rounded-2xl flex items-center justify-center mb-6 text-red-400 group-hover:scale-110 transition-transform duration-300 shadow-[0_0_20px_-5px_rgba(239,68,68,0.2)]">
-                     <Brain className="w-7 h-7" />
-                   </div>
-                   <h3 className="text-2xl font-bold mb-3 text-gray-900 dark:text-white">AI Note Taking & Summaries</h3>
-                   <p className="text-gray-600 dark:text-foreground/60 leading-relaxed">
-                     Get instant AI summaries and generate timestamped notes automatically. Let Wiz capture the key points while you focus on learning.
-                   </p>
-                 </div>
-                 {/* Visual decoration */}
-                 <div className="hidden md:flex flex-1 items-center justify-center">
-                   <div className="relative w-48 h-48">
-                     <div className="absolute inset-0 bg-gradient-to-tr from-red-500 to-orange-500 rounded-full blur-[60px] opacity-20 animate-pulse"></div>
-                     <div className="relative z-10 p-6 rounded-2xl bg-black/40 backdrop-blur-xl border border-white/10 rotate-3 group-hover:rotate-0 transition-transform duration-500">
-                        <div className="h-2 w-24 bg-white/20 rounded mb-4"></div>
-                        <div className="space-y-2">
-                          <div className="h-2 w-full bg-white/10 rounded"></div>
-                          <div className="h-2 w-full bg-white/10 rounded"></div>
-                          <div className="h-2 w-2/3 bg-white/10 rounded"></div>
-                        </div>
-                     </div>
-                   </div>
-                 </div>
+            {/* Feature 2 */}
+            <div className="group p-6 rounded-2xl bg-white/50 dark:bg-white/[0.02] border border-gray-100 dark:border-white/[0.06] hover:border-red-200 dark:hover:border-red-500/20 transition-all duration-300 select-none">
+               <div className="w-12 h-12 bg-red-500/10 rounded-xl flex items-center justify-center mb-4 text-red-500 group-hover:scale-110 transition-transform duration-300">
+                 <Brain className="w-6 h-6" />
                </div>
+               <h3 className="text-lg font-bold mb-2 text-gray-900 dark:text-white">AI Summaries</h3>
+               <p className="text-sm text-gray-500 dark:text-foreground/50 leading-relaxed">
+                 Get instant summaries and timestamped notes automatically.
+               </p>
             </div>
 
             {/* Feature 3 */}
-            <div className="group relative p-8 rounded-3xl bg-white dark:bg-white/[0.02] border border-gray-200 dark:border-white/[0.08] shadow-lg shadow-gray-200/80 dark:shadow-none hover:border-blue-200 dark:hover:border-white/[0.12] transition-all duration-300 select-none overflow-hidden hover:shadow-xl hover:shadow-blue-500/10 dark:hover:shadow-[0_0_30px_-10px_rgba(255,255,255,0.05)]">
-               <div className="absolute bottom-0 right-0 w-32 h-32 bg-blue-500/5 rounded-tl-full -mr-8 -mb-8 transition-transform group-hover:scale-110"></div>
-               <div className="w-14 h-14 bg-blue-500/10 rounded-2xl flex items-center justify-center mb-6 text-blue-500 group-hover:scale-110 transition-transform duration-300 shadow-[0_0_20px_-5px_rgba(59,130,246,0.2)]">
-                 <Target className="w-7 h-7" />
+            <div className="group p-6 rounded-2xl bg-white/50 dark:bg-white/[0.02] border border-gray-100 dark:border-white/[0.06] hover:border-fuchsia-200 dark:hover:border-fuchsia-500/20 transition-all duration-300 select-none">
+               <div className="w-12 h-12 bg-fuchsia-500/10 rounded-xl flex items-center justify-center mb-4 text-fuchsia-500 group-hover:scale-110 transition-transform duration-300">
+                 <Target className="w-6 h-6" />
                </div>
-               <h3 className="text-2xl font-bold mb-3 text-gray-900 dark:text-white">Precision Timestamps</h3>
-               <p className="text-gray-600 dark:text-foreground/60 leading-relaxed">
-                 Every Wiz response and AI note links to the exact second in the video. Click to jump straight to the source context.
+               <h3 className="text-lg font-bold mb-2 text-gray-900 dark:text-white">Timestamps</h3>
+               <p className="text-sm text-gray-500 dark:text-foreground/50 leading-relaxed">
+                 Jump to the exact second in the video with precision links.
                </p>
             </div>
 
-             {/* Feature 4 */}
-            <div className="md:col-span-2 group relative p-8 rounded-3xl bg-gradient-to-br from-emerald-50/80 via-white to-white dark:from-emerald-500/5 dark:via-teal-500/5 dark:to-transparent border border-emerald-100 dark:border-white/[0.08] shadow-xl shadow-emerald-100/50 dark:shadow-none hover:border-emerald-200 dark:hover:border-emerald-500/20 transition-all duration-300 select-none overflow-hidden hover:shadow-2xl hover:shadow-emerald-500/10 dark:hover:shadow-[0_0_40px_-10px_rgba(16,185,129,0.1)]">
-               <div className="absolute inset-0 bg-white/[0.01] group-hover:bg-transparent transition-colors"></div>
-               <div className="flex flex-col md:flex-row gap-8 items-start md:items-center h-full">
-                 <div className="flex-1">
-                   <div className="w-14 h-14 bg-emerald-500/10 rounded-2xl flex items-center justify-center mb-6 text-emerald-500 group-hover:scale-110 transition-transform duration-300 shadow-[0_0_20px_-5px_rgba(16,185,129,0.2)]">
-                     <Zap className="w-7 h-7" />
-                   </div>
-                   <h3 className="text-2xl font-bold mb-3 text-gray-900 dark:text-white">Unified Knowledge Hub</h3>
-                   <p className="text-gray-600 dark:text-foreground/60 leading-relaxed">
-                     Your central workspace. Save your Wiz chats, organize your AI notes, and search through your entire video knowledge base.
-                   </p>
-                 </div>
-                 {/* Visual decoration - Matching Feature 2 style but with Emerald theme */}
-                 <div className="hidden md:flex flex-1 items-center justify-center">
-                   <div className="relative w-48 h-48">
-                     <div className="absolute inset-0 bg-gradient-to-tr from-emerald-500 to-teal-500 rounded-full blur-[60px] opacity-20 animate-pulse"></div>
-                     <div className="relative z-10 grid grid-cols-2 gap-3 p-4 rounded-2xl bg-black/40 backdrop-blur-xl border border-white/10 -rotate-3 group-hover:rotate-0 transition-transform duration-500">
-                        {[1, 2, 3, 4].map((i) => (
-                          <div key={i} className="h-12 w-12 rounded-lg bg-white/5 border border-white/10 flex items-center justify-center">
-                            <div className="h-6 w-6 rounded bg-emerald-500/20"></div>
-                          </div>
-                        ))}
-                     </div>
-                   </div>
-                 </div>
+            {/* Feature 4 */}
+            <div className="group p-6 rounded-2xl bg-white/50 dark:bg-white/[0.02] border border-gray-100 dark:border-white/[0.06] hover:border-amber-200 dark:hover:border-amber-500/20 transition-all duration-300 select-none">
+               <div className="w-12 h-12 bg-amber-500/10 rounded-xl flex items-center justify-center mb-4 text-amber-500 group-hover:scale-110 transition-transform duration-300">
+                 <Zap className="w-6 h-6" />
                </div>
+               <h3 className="text-lg font-bold mb-2 text-gray-900 dark:text-white">Knowledge Hub</h3>
+               <p className="text-sm text-gray-500 dark:text-foreground/50 leading-relaxed">
+                 Save chats, organize notes, and search your video library.
+               </p>
             </div>
 
           </div>
@@ -347,40 +315,32 @@ function LandingPage() {
 
 
         {/* HOW IT WORKS */}
-        <section id="how-it-works" className="max-w-7xl mx-auto px-6 py-20 select-none">
+        <section id="how-it-works" className="max-w-7xl mx-auto px-4 md:px-6 py-16 md:py-24 select-none">
           
-          <div className="text-center mb-16">
-            <h2 className="text-4xl md:text-5xl font-bold mb-4 text-gray-900 dark:text-white">Zero Friction Workflows</h2>
-            <p className="text-xl text-gray-500 dark:text-foreground/50">Two powerful ways to master any video.</p>
+          <div className="text-center mb-12 md:mb-16">
+            <h2 className="text-3xl md:text-5xl font-bold mb-4 text-gray-900 dark:text-white">How It Works</h2>
+            <p className="text-base md:text-xl text-gray-500 dark:text-foreground/50">Two powerful ways to master any video.</p>
           </div>
 
           {/* WORKFLOW 1: WIZ (Chat) */}
-          <div className="mb-24">
-             <div className="flex items-center gap-3 mb-10 justify-center md:justify-start">
-               <div className="p-2.5 bg-violet-100 dark:bg-violet-500/10 rounded-xl border border-violet-200 dark:border-violet-500/10">
-                 <Sparkles className="w-5 h-5 text-violet-700 dark:text-violet-400" />
+          <div className="mb-16 md:mb-20">
+             <div className="flex items-center gap-3 mb-8 justify-center md:justify-start">
+               <div className="p-2 bg-violet-500/10 rounded-lg">
+                 <Sparkles className="w-5 h-5 text-violet-500" />
                </div>
-               <h3 className="text-2xl font-bold text-violet-950 dark:text-violet-100">Interactive Chat</h3>
+               <h3 className="text-xl font-bold text-gray-900 dark:text-white">Interactive Chat</h3>
              </div>
              
-             <div className="grid md:grid-cols-3 gap-8 relative">
-                {/* Connecting Line */}
-                <div className="hidden md:block absolute top-8 left-[16%] right-[16%] h-0.5 bg-gradient-to-r from-violet-500/0 via-violet-300 dark:via-violet-500/20 to-violet-500/0"></div>
-                
+             <div className="grid md:grid-cols-3 gap-4 md:gap-6">
                 {[
-                  { num: '01', title: 'Bring Content', desc: 'Paste a YouTube link or use the extension to initialize Wiz.' },
-                  { num: '02', title: 'Ask Anything', desc: 'Challenge Wiz with complex questions about the video content.' },
-                  { num: '03', title: 'Deep Understanding', desc: 'Get instant answers with citations linking to exact timestamps.' }
+                  { num: '01', title: 'Paste Link', desc: 'Drop a YouTube URL to initialize Wiz.' },
+                  { num: '02', title: 'Ask Questions', desc: 'Challenge Wiz with any question about the content.' },
+                  { num: '03', title: 'Get Answers', desc: 'Receive answers with timestamps to the source.' }
                 ].map((step, i) => (
-                  <div key={i} className="relative pt-8 group">
-                    <div className="w-8 h-8 rounded-full bg-background border-4 border-violet-100 dark:border-violet-500/20 mx-auto absolute top-8 left-1/2 -translate-x-1/2 -translate-y-1/2 md:-translate-y-0 md:top-0 z-10 group-hover:border-violet-300 dark:group-hover:border-violet-500/50 transition-colors shadow-[0_0_15px_-5px_rgba(139,92,246,0.3)]">
-                      <div className="w-full h-full rounded-full bg-violet-500 scale-50"></div>
-                    </div>
-                    <div className="text-center p-6 rounded-2xl bg-white dark:bg-white/[0.01] hover:bg-white dark:hover:bg-white/[0.03] border border-gray-200 dark:border-transparent hover:border-violet-200 dark:hover:border-violet-500/10 transition-all duration-300 group-hover:-translate-y-1 shadow-lg shadow-gray-100/50 dark:shadow-none">
-                      <div className="text-4xl font-bold text-violet-500 dark:text-white/10 mb-4 font-mono group-hover:text-violet-600 dark:group-hover:text-violet-500/20 transition-colors">{step.num}</div>
-                      <h3 className="text-xl font-bold mb-2 text-gray-900 dark:text-white">{step.title}</h3>
-                      <p className="text-gray-600 dark:text-foreground/50 text-sm leading-relaxed">{step.desc}</p>
-                    </div>
+                  <div key={i} className="group p-6 rounded-2xl bg-white/50 dark:bg-white/[0.02] border border-gray-100 dark:border-white/[0.06] hover:border-violet-200 dark:hover:border-violet-500/20 transition-all duration-300">
+                    <div className="text-3xl font-bold text-violet-500/30 dark:text-violet-400/30 mb-3 font-mono">{step.num}</div>
+                    <h3 className="text-lg font-bold mb-2 text-gray-900 dark:text-white">{step.title}</h3>
+                    <p className="text-sm text-gray-500 dark:text-foreground/50">{step.desc}</p>
                   </div>
                 ))}
              </div>
@@ -388,31 +348,23 @@ function LandingPage() {
 
           {/* WORKFLOW 2: NOTES (Capture) */}
           <div>
-             <div className="flex items-center gap-3 mb-10 justify-center md:justify-start">
-               <div className="p-2.5 bg-red-100 dark:bg-red-500/10 rounded-xl border border-red-200 dark:border-red-500/10">
-                 <Brain className="w-5 h-5 text-red-700 dark:text-red-400" />
-               </div> 
-               <h3 className="text-2xl font-bold text-red-950 dark:text-red-100">Smart Note Taking</h3>
+             <div className="flex items-center gap-3 mb-8 justify-center md:justify-start">
+               <div className="p-2 bg-red-500/10 rounded-lg">
+                 <Brain className="w-5 h-5 text-red-500" />
+               </div>
+               <h3 className="text-xl font-bold text-gray-900 dark:text-white">Smart Note Taking</h3>
              </div>
 
-             <div className="grid md:grid-cols-3 gap-8 relative">
-                {/* Connecting Line */}
-                <div className="hidden md:block absolute top-8 left-[16%] right-[16%] h-0.5 bg-gradient-to-r from-red-500/0 via-red-300 dark:via-red-500/20 to-red-500/0"></div>
-                
+             <div className="grid md:grid-cols-3 gap-4 md:gap-6">
                 {[
-                  { num: '01', title: 'Start Watching', desc: 'Watch any video on your preffered device browser, mobile app ' },
-                  { num: '02', title: 'Auto-Capture', desc: 'Click once to generate AI notes and capture key insights.' },
-                  { num: '03', title: 'Build Knowledge', desc: 'Review your notes, search your library, and export anywhere.' }
+                  { num: '01', title: 'Watch Video', desc: 'Watch any YouTube video in your browser.' },
+                  { num: '02', title: 'Generate Notes', desc: 'Click once to capture AI-powered notes.' },
+                  { num: '03', title: 'Build Library', desc: 'Review, search, and export your knowledge.' }
                 ].map((step, i) => (
-                  <div key={i} className="relative pt-8 group">
-                    <div className="w-8 h-8 rounded-full bg-background border-4 border-red-100 dark:border-red-500/20 mx-auto absolute top-8 left-1/2 -translate-x-1/2 -translate-y-1/2 md:-translate-y-0 md:top-0 z-10 group-hover:border-red-300 dark:group-hover:border-red-500/50 transition-colors shadow-[0_0_15px_-5px_rgba(239,68,68,0.3)]">
-                      <div className="w-full h-full rounded-full bg-red-500 scale-50"></div>
-                    </div>
-                    <div className="text-center p-6 rounded-2xl bg-white dark:bg-white/[0.01] hover:bg-white dark:hover:bg-white/[0.03] border border-gray-200 dark:border-transparent hover:border-red-200 dark:hover:border-red-500/10 transition-all duration-300 group-hover:-translate-y-1 shadow-lg shadow-gray-100/50 dark:shadow-none">
-                      <div className="text-4xl font-bold text-red-500 dark:text-white/10 mb-4 font-mono group-hover:text-red-600 dark:group-hover:text-red-500/20 transition-colors">{step.num}</div>
-                      <h3 className="text-xl font-bold mb-2 text-gray-900 dark:text-white">{step.title}</h3>
-                      <p className="text-gray-600 dark:text-foreground/50 text-sm leading-relaxed">{step.desc}</p>
-                    </div>
+                  <div key={i} className="group p-6 rounded-2xl bg-white/50 dark:bg-white/[0.02] border border-gray-100 dark:border-white/[0.06] hover:border-red-200 dark:hover:border-red-500/20 transition-all duration-300">
+                    <div className="text-3xl font-bold text-red-500/30 dark:text-red-400/30 mb-3 font-mono">{step.num}</div>
+                    <h3 className="text-lg font-bold mb-2 text-gray-900 dark:text-white">{step.title}</h3>
+                    <p className="text-sm text-gray-500 dark:text-foreground/50">{step.desc}</p>
                   </div>
                 ))}
              </div>
@@ -422,47 +374,51 @@ function LandingPage() {
 
 
         {/* FINAL CTA */}
-        <section className="max-w-5xl mx-auto px-6 py-16">
-          <div className="relative rounded-3xl overflow-hidden p-12 md:p-20 text-center select-none group bg-gradient-to-b from-gray-50 to-white dark:bg-white/[0.02] dark:from-transparent dark:to-transparent border border-gray-200 dark:border-white/[0.08] shadow-2xl shadow-gray-200/50 dark:shadow-none hover:border-gray-300 dark:hover:border-white/[0.12] transition-all duration-500">
+        <section className="max-w-4xl mx-auto px-4 md:px-6 py-16 md:py-24">
+          <div className="relative rounded-2xl md:rounded-3xl overflow-hidden p-8 md:p-16 text-center select-none group">
             
-            {/* Ambient background glow - Subtler */}
-            <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[600px] h-[600px] bg-red-500/10 rounded-full blur-[120px] pointer-events-none group-hover:bg-red-500/15 transition-colors duration-500"></div>
+            {/* Gradient border */}
+            <div className="absolute inset-0 bg-gradient-to-br from-violet-500/20 via-fuchsia-500/20 to-red-500/20 rounded-2xl md:rounded-3xl" />
+            <div className="absolute inset-[1px] bg-white dark:bg-gray-950 rounded-2xl md:rounded-3xl" />
+            
+            {/* Ambient glow */}
+            <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[400px] h-[400px] bg-gradient-to-br from-violet-500/10 via-fuchsia-500/10 to-red-500/10 rounded-full blur-[80px] pointer-events-none" />
 
             <div className="relative z-10">
-              <h2 className="text-4xl md:text-6xl font-bold text-foreground mb-8 tracking-tight">
-                Ready to stop watching <br/> and start learning?
+              <h2 className="text-2xl md:text-5xl font-bold text-gray-900 dark:text-white mb-4 md:mb-6 tracking-tight">
+                Ready to start learning?
               </h2>
-              <p className="text-xl text-foreground/60 mb-12 max-w-2xl mx-auto">
-                Join the community of developers, students, and lifelong learners using VidWiz to build their second brain.
+              <p className="text-base md:text-lg text-gray-500 dark:text-foreground/50 mb-8 max-w-lg mx-auto">
+                Join developers, students, and lifelong learners using <span className="bg-gradient-to-r from-red-500 to-violet-500 bg-clip-text text-transparent font-semibold">VidWiz</span>.
               </p>
               
-              <div className="flex flex-col sm:flex-row items-center justify-center gap-4">
+              <div className="flex flex-col sm:flex-row items-center justify-center gap-3">
                 <Link 
                   to="/wiz" 
-                  className="min-w-[200px] px-8 py-4 bg-white dark:bg-white/[0.05] border border-gray-200 dark:border-white/[0.1] text-foreground hover:bg-gray-50 dark:hover:bg-white/[0.1] hover:border-violet-200 dark:hover:border-white/[0.2] rounded-xl font-bold text-lg transition-all transform hover:-translate-y-1 shadow-xl shadow-gray-200/50 dark:shadow-lg dark:shadow-white/5 inline-flex items-center justify-center gap-2"
+                  className="w-full sm:w-auto px-6 py-3 bg-white dark:bg-white/[0.05] border border-gray-200 dark:border-white/[0.1] text-gray-900 dark:text-white hover:border-violet-300 dark:hover:border-violet-500/30 rounded-xl font-semibold transition-all inline-flex items-center justify-center gap-2"
                 >
-                  <Sparkles className="w-5 h-5 text-violet-400" />
-                  Chat with Wiz
+                  <Sparkles className="w-4 h-4 text-violet-500" />
+                  Try Wiz
                 </Link>
 
                 <Link 
                   to={isLoggedIn ? "/dashboard" : "/signup"} 
-                  className="min-w-[200px] px-8 py-4 bg-gradient-to-r from-red-600 to-red-500 text-white rounded-xl font-bold text-lg hover:bg-red-600 transition-all transform hover:-translate-y-1 shadow-lg hover:shadow-red-500/25 inline-flex items-center justify-center gap-2"
+                  className="w-full sm:w-auto px-6 py-3 bg-gradient-to-r from-red-600 via-red-500 to-red-600 text-white rounded-xl font-semibold transition-all hover:bg-right duration-500 shadow-lg shadow-red-500/20 hover:shadow-red-500/30 inline-flex items-center justify-center gap-2 bg-[length:200%_100%]"
                 >
                   {isLoggedIn ? (
                     <>
-                      <LayoutDashboard className="w-5 h-5" />
-                      Open Dashboard
+                      <LayoutDashboard className="w-4 h-4" />
+                      Dashboard
                     </>
                   ) : (
-                    "Get Started for Free"
+                    "Get Started"
                   )}
                 </Link>
               </div>
               
-              <div className="flex items-center justify-center gap-2 text-foreground/60 mt-8">
-                <CheckCircle2 className="w-5 h-5 text-emerald-500" />
-                <span className="text-sm font-medium">No credit card required</span>
+              <div className="flex items-center justify-center gap-2 text-gray-400 dark:text-foreground/40 mt-6">
+                <CheckCircle2 className="w-4 h-4 text-emerald-500" />
+                <span className="text-xs font-medium">No credit card required</span>
               </div>
             </div>
           </div>

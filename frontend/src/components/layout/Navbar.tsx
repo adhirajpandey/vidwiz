@@ -92,7 +92,7 @@ export default function Navbar() {
             <div className="absolute inset-0 bg-red-500/20 rounded-lg blur-md opacity-0 group-hover:opacity-100 transition-opacity duration-300"></div>
             <img src={vidwizLogo} alt="VidWiz" className="relative w-8 h-8 md:w-9 md:h-9 transition-transform duration-300 group-hover:scale-105" />
           </div>
-          <span className="text-xl md:text-2xl font-bold tracking-tight bg-gradient-to-r from-foreground to-foreground/80 bg-clip-text text-transparent">
+          <span className="text-xl md:text-2xl font-bold tracking-tight bg-gradient-to-r from-red-500 to-violet-500 bg-clip-text text-transparent">
             VidWiz
           </span>
         </Link>
@@ -146,18 +146,20 @@ export default function Navbar() {
 
         {/* Right Actions */}
         <div className="flex items-center gap-2 md:gap-3">
-          {/* Theme Toggle */}
-          <button
-            aria-label="Toggle theme"
-            onClick={toggleTheme}
-            className="relative h-9 w-9 inline-flex items-center justify-center rounded-lg hover:bg-accent hover:text-accent-foreground border border-border hover:border-accent-foreground/20 text-foreground/70 transition-all duration-200 cursor-pointer"
-          >
-            {theme === 'dark' ? (
-              <Sun className="w-4 h-4 transition-transform duration-200 hover:rotate-45" />
-            ) : (
-              <Moon className="w-4 h-4 transition-transform duration-200 hover:-rotate-12" />
-            )}
-          </button>
+          {/* Theme Toggle - Hidden on landing and auth pages */}
+          {!['/', '/login', '/signup'].includes(location.pathname) && (
+            <button
+              aria-label="Toggle theme"
+              onClick={toggleTheme}
+              className="relative h-9 w-9 inline-flex items-center justify-center rounded-lg hover:bg-accent hover:text-accent-foreground border border-border hover:border-accent-foreground/20 text-foreground/70 transition-all duration-200 cursor-pointer"
+            >
+              {theme === 'dark' ? (
+                <Sun className="w-4 h-4 transition-transform duration-200 hover:rotate-45" />
+              ) : (
+                <Moon className="w-4 h-4 transition-transform duration-200 hover:-rotate-12" />
+              )}
+            </button>
+          )}
 
           {isLoggedIn ? (
             /* User Avatar Dropdown */
