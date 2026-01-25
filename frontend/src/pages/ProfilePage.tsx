@@ -5,6 +5,7 @@ import config from '../config';
 import { useToast } from '../hooks/useToast';
 import { FaExclamationTriangle, FaEye, FaEyeSlash, FaCopy, FaSpinner, FaKey, FaShieldAlt, FaSave, FaPen, FaTimes } from 'react-icons/fa';
 import { Settings, Zap, User as UserIcon, Calendar, Mail } from 'lucide-react';
+import { getToken, removeToken } from '../lib/authUtils';
 
 interface UserProfile {
   email: string;
@@ -30,7 +31,7 @@ export default function ProfilePage() {
   const { addToast } = useToast();
 
   const fetchProfile = async () => {
-    const token = localStorage.getItem('token');
+    const token = getToken();
     if (token) {
       try {
         const response = await fetch(`${config.API_URL}/user/profile`, {
@@ -46,7 +47,7 @@ export default function ProfilePage() {
           // Use the actual token from API response
           setApiToken(data.long_term_token || null);
         } else {
-          localStorage.removeItem('token');
+          removeToken();
           navigate('/login');
         }
       } catch (error) {
@@ -61,8 +62,14 @@ export default function ProfilePage() {
   }, [navigate]);
 
   const handleSaveDetails = async () => {
-    const token = localStorage.getItem('token');
-    if (!token || !user) return;
+    const token = getToken();
+    if (!token || !user) {
+      if (!token) {
+        removeToken();
+        navigate('/login');
+      }
+      return;
+    }
 
     setIsSavingDetails(true);
     try {
@@ -80,7 +87,7 @@ export default function ProfilePage() {
         setUser(data);
         addToast({ title: 'Success', message: 'Profile updated successfully', type: 'success' });
       } else if (response.status === 401) {
-        localStorage.removeItem('token');
+        removeToken();
         navigate('/login');
       } else {
         const errorData = await response.json();
@@ -96,101 +103,116 @@ export default function ProfilePage() {
 
   const handleAiNotesToggle = async () => {
     if (!user) return;
-    const token = localStorage.getItem('token');
-    if (token) {
-      try {
-        const response = await fetch(`${config.API_URL}/user/profile`, {
-          method: 'PATCH',
-          headers: {
-            'Content-Type': 'application/json',
-            Authorization: `Bearer ${token}`,
-          },
-          body: JSON.stringify({ ai_notes_enabled: !user.ai_notes_enabled }),
-        });
+    const token = getToken();
+    if (!token) {
+      removeToken();
+      navigate('/login');
+      return;
+    }
 
-        if (response.ok) {
-          const data = await response.json();
-          setUser(data);
-          addToast({ title: 'Success', message: 'Profile updated successfully', type: 'success' });
-        } else if (response.status === 401) {
-          localStorage.removeItem('token');
-          navigate('/login');
-        } else {
-          addToast({ title: 'Error', message: 'Failed to update AI notes setting', type: 'error' });
-        }
-      } catch (error) {
-        console.error('Failed to update profile', error);
+    try {
+      const response = await fetch(`${config.API_URL}/user/profile`, {
+        method: 'PATCH',
+        headers: {
+          'Content-Type': 'application/json',
+          Authorization: `Bearer ${token}`,
+        },
+        body: JSON.stringify({ ai_notes_enabled: !user.ai_notes_enabled }),
+      });
+
+      if (response.ok) {
+        const data = await response.json();
+        setUser(data);
+        addToast({ title: 'Success', message: 'Profile updated successfully', type: 'success' });
+      } else if (response.status === 401) {
+        removeToken();
+        navigate('/login');
+      } else {
         addToast({ title: 'Error', message: 'Failed to update AI notes setting', type: 'error' });
       }
+    } catch (error) {
+      console.error('Failed to update profile', error);
+      addToast({ title: 'Error', message: 'Failed to update AI notes setting', type: 'error' });
     }
   };
 
   const handleGenerateToken = async () => {
     setIsGeneratingToken(true);
-    const token = localStorage.getItem('token');
-    if (token) {
-      try {
-        const response = await fetch(`${config.API_URL}/user/token`, {
-          method: 'POST',
-          headers: {
-            Authorization: `Bearer ${token}`,
-          },
-        });
+    const token = getToken();
+    if (!token) {
+      removeToken();
+      navigate('/login');
+      setIsGeneratingToken(false);
+      return;
+    }
 
-        if (response.ok) {
-          const data = await response.json();
-          setApiToken(data.token);
-          setUser(prev => prev ? { ...prev, token_exists: true } : null);
-          addToast({ title: 'Success', message: data.message || 'API token generated successfully', type: 'success' });
-        } else if (response.status === 401) {
-          localStorage.removeItem('token');
-          navigate('/login');
-          return;
-        } else {
-          const errorData = await response.json();
-          addToast({ title: 'Error', message: errorData.error || 'Failed to generate token', type: 'error' });
-        }
-      } catch (error) {
-        console.error('Error generating token:', error);
-        addToast({ title: 'Error', message: 'Error generating token', type: 'error' });
-      } finally {
-        setIsGeneratingToken(false);
+    try {
+      const response = await fetch(`${config.API_URL}/user/token`, {
+        method: 'POST',
+        headers: {
+          Authorization: `Bearer ${token}`,
+        },
+      });
+
+      if (response.ok) {
+        const data = await response.json();
+        setApiToken(data.token);
+        setUser(prev => prev ? { ...prev, token_exists: true } : null);
+        addToast({ title: 'Success', message: data.message || 'API token generated successfully', type: 'success' });
+      } else if (response.status === 401) {
+        removeToken();
+        navigate('/login');
+        return;
+      } else {
+        const errorData = await response.json();
+        addToast({ title: 'Error', message: errorData.error || 'Failed to generate token', type: 'error' });
       }
+    } catch (error) {
+      console.error('Error generating token:', error);
+      addToast({ title: 'Error', message: 'Error generating token', type: 'error' });
+    } finally {
+      setIsGeneratingToken(false);
     }
   };
 
   const handleRevokeToken = async () => {
     setIsRevokingToken(true);
-    const token = localStorage.getItem('token');
-    if (token) {
-      try {
-        const response = await fetch(`${config.API_URL}/user/token`, {
-          method: 'DELETE',
-          headers: {
-            Authorization: `Bearer ${token}`,
-          },
-        });
+    const token = getToken();
+    if (!token) {
+      removeToken();
+      navigate('/login');
+      setIsRevokingToken(false);
+      setShowRevokeModal(false);
+      return;
+    }
 
-        if (response.ok) {
-          const data = await response.json();
-          setApiToken(null);
-          setUser(prev => prev ? { ...prev, token_exists: false } : null);
-          addToast({ title: 'Success', message: data.message || 'API token revoked successfully', type: 'success' });
-        } else if (response.status === 401) {
-          localStorage.removeItem('token');
-          navigate('/login');
-          return;
-        } else {
-          const errorData = await response.json();
-          addToast({ title: 'Error', message: errorData.error || 'Failed to revoke token', type: 'error' });
-        }
-      } catch (error) {
-        console.error('Error revoking token:', error);
-        addToast({ title: 'Error', message: 'Error revoking token', type: 'error' });
-      } finally {
-        setIsRevokingToken(false);
-        setShowRevokeModal(false);
+    try {
+      const response = await fetch(`${config.API_URL}/user/token`, {
+        method: 'DELETE',
+        headers: {
+          Authorization: `Bearer ${token}`,
+        },
+      });
+
+      if (response.ok) {
+        const data = await response.json();
+        setApiToken(null);
+        setUser(prev => prev ? { ...prev, token_exists: false } : null);
+        addToast({ title: 'Success', message: data.message || 'API token revoked successfully', type: 'success' });
+      } else if (response.status === 401) {
+        removeToken();
+        navigate('/login');
+        return;
+      } else {
+        const errorData = await response.json();
+        addToast({ title: 'Error', message: errorData.error || 'Failed to revoke token', type: 'error' });
       }
+    } catch (error) {
+      console.error('Error revoking token:', error);
+      addToast({ title: 'Error', message: 'Error revoking token', type: 'error' });
+    } finally {
+      setIsRevokingToken(false);
+      setShowRevokeModal(false);
     }
   };
 

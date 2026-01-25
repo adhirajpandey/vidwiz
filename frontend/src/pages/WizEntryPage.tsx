@@ -7,6 +7,7 @@ import GlassCard from '../components/ui/GlassCard';
 import config from '../config';
 
 import { extractVideoId } from '../lib/videoUtils';
+import { getAuthHeaders, removeToken } from '../lib/authUtils';
 
 
 function WizEntryPage() {
@@ -42,20 +43,17 @@ function WizEntryPage() {
     setIsLoading(true);
 
     try {
-      const token = localStorage.getItem('token');
-      const headers: HeadersInit = {
-        'Content-Type': 'application/json',
-      };
-
-      if (token) {
-        headers['Authorization'] = `Bearer ${token}`;
-      }
-
       const response = await fetch(`${config.API_URL}/wiz/init`, {
         method: 'POST',
-        headers,
+        headers: getAuthHeaders(),
         body: JSON.stringify({ video_id: videoId }),
       });
+
+      if (response.status === 401) {
+        removeToken();
+        navigate('/login');
+        return;
+      }
 
       if (!response.ok) {
         throw new Error('Failed to initialize session');

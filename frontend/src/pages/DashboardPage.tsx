@@ -4,6 +4,7 @@ import config from '../config';
 import VideoCard from '../components/VideoCard';
 import { FaSearch, FaYoutube, FaVideo, FaChevronLeft, FaChevronRight } from 'react-icons/fa';
 import { HiSparkles } from 'react-icons/hi2';
+import { getToken, getUserFromToken, removeToken } from '../lib/authUtils';
 
 export default function DashboardPage() {
   const [user, setUser] = useState<{ email: string; name?: string } | null>(null);
@@ -16,36 +17,13 @@ export default function DashboardPage() {
   const [totalVideos, setTotalVideos] = useState(0);
   const navigate = useNavigate();
 
-  // Decode JWT to get email and name
-  const decodeJwt = (token: string): { email?: string; name?: string } | null => {
-    try {
-      const base64Url = token.split('.')[1];
-      const base64 = base64Url.replace(/-/g, '+').replace(/_/g, '/');
-      const jsonPayload = decodeURIComponent(
-        atob(base64)
-          .split('')
-          .map((c) => '%' + ('00' + c.charCodeAt(0).toString(16)).slice(-2))
-          .join('')
-      );
-      return JSON.parse(jsonPayload);
-    } catch (error) {
-      console.error('Failed to decode JWT', error);
-      return null;
-    }
-  };
-
   useEffect(() => {
-    const token = localStorage.getItem('token');
-    if (token) {
-      const decoded = decodeJwt(token);
-      if (decoded?.email) {
-        setUser({ email: decoded.email, name: decoded.name });
-      } else {
-        // Invalid token, redirect to login
-        localStorage.removeItem('token');
-        navigate('/login');
-      }
+    const userInfo = getUserFromToken();
+    if (userInfo?.email) {
+      setUser({ email: userInfo.email, name: userInfo.name });
     } else {
+      // Invalid or expired token, redirect to login
+      removeToken();
       navigate('/login');
     }
   }, [navigate]);
@@ -60,7 +38,7 @@ export default function DashboardPage() {
 
   const fetchPage = async (page: number) => {
     setIsSearching(true);
-    const token = localStorage.getItem('token');
+    const token = getToken();
     if (token) {
       try {
         const response = await fetch(
@@ -79,7 +57,7 @@ export default function DashboardPage() {
           setTotalPages(data.total_pages);
           setTotalVideos(data.total);
         } else if (response.status === 401) {
-          localStorage.removeItem('token');
+          removeToken();
           navigate('/login');
           return;
         } else {

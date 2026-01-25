@@ -4,6 +4,7 @@ import { Lock, X, Mail } from 'lucide-react';
 import GoogleSignInButton from './GoogleSignInButton';
 import { useToast } from '../hooks/useToast';
 import config from '../config';
+import { setToken } from '../lib/authUtils';
 
 interface GuestLimitModalProps {
   isOpen: boolean;
@@ -31,7 +32,7 @@ const GuestLimitModal: React.FC<GuestLimitModalProps> = ({ isOpen, onClose }) =>
       const data = await response.json();
 
       if (response.ok) {
-        localStorage.setItem('token', data.token);
+        setToken(data.token);
         addToast({
           title: 'Welcome!',
           message: 'Signed in successfully',

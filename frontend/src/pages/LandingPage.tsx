@@ -3,6 +3,7 @@ import { Target, Sparkles, ArrowRight, CheckCircle2, Zap, Brain, LayoutDashboard
 import { Link, useNavigate } from 'react-router-dom';
 import AmbientBackground from '../components/ui/AmbientBackground';
 import config from '../config';
+import { isAuthenticated, getAuthHeaders } from '../lib/authUtils';
 
 /**
  * Extracts a YouTube video ID from various URL formats or raw ID.
@@ -83,8 +84,7 @@ function LandingPage() {
   const [isLoading, setIsLoading] = useState(false);
 
   useEffect(() => {
-    const token = localStorage.getItem('token');
-    setIsLoggedIn(!!token);
+    setIsLoggedIn(isAuthenticated());
   }, []);
 
   const handleSubmit = async (e: React.FormEvent) => {
@@ -114,18 +114,9 @@ function LandingPage() {
     setIsLoading(true);
 
     try {
-      const token = localStorage.getItem('token');
-      const headers: HeadersInit = {
-        'Content-Type': 'application/json',
-      };
-
-      if (token) {
-        headers['Authorization'] = `Bearer ${token}`;
-      }
-
       const response = await fetch(`${config.API_URL}/wiz/init`, {
         method: 'POST',
-        headers,
+        headers: getAuthHeaders(),
         body: JSON.stringify({ video_id: videoId }),
       });
 

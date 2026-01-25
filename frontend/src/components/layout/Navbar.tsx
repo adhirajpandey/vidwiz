@@ -2,6 +2,7 @@ import { useEffect, useState, useRef } from 'react';
 import { Link, useLocation, useNavigate } from 'react-router-dom';
 import { Moon, Sun, LogOut, LayoutDashboard, User, ChevronDown, Sparkles } from 'lucide-react';
 import vidwizLogo from '../../public/vidwiz.png';
+import { getUserFromToken, removeToken } from '../../lib/authUtils';
 
 export default function Navbar() {
   const [theme, setTheme] = useState<'light' | 'dark'>(() => {
@@ -18,33 +19,12 @@ export default function Navbar() {
   const [isDropdownOpen, setIsDropdownOpen] = useState(false);
   const dropdownRef = useRef<HTMLDivElement>(null);
 
-  // Decode JWT to get user info
-  const decodeJwt = (token: string): { email?: string; name?: string; profile_image_url?: string } | null => {
-    try {
-      const base64Url = token.split('.')[1];
-      const base64 = base64Url.replace(/-/g, '+').replace(/_/g, '/');
-      const jsonPayload = decodeURIComponent(
-        atob(base64)
-          .split('')
-          .map((c) => '%' + ('00' + c.charCodeAt(0).toString(16)).slice(-2))
-          .join('')
-      );
-      return JSON.parse(jsonPayload);
-    } catch (error) {
-      console.error('Failed to decode JWT', error);
-      return null;
-    }
-  };
-
   useEffect(() => {
-    const token = localStorage.getItem('token');
-    if (token) {
+    const userInfo = getUserFromToken();
+    if (userInfo) {
       setIsLoggedIn(true);
-      const decoded = decodeJwt(token);
-      if (decoded) {
-        setDisplayName(decoded.name || decoded.email || null);
-        setProfileImageUrl(decoded.profile_image_url || null);
-      }
+      setDisplayName(userInfo.name || userInfo.email || null);
+      setProfileImageUrl(userInfo.profile_image_url || null);
     } else {
       setIsLoggedIn(false);
       setDisplayName(null);
@@ -79,7 +59,7 @@ export default function Navbar() {
   const toggleTheme = () => setTheme(prev => (prev === 'dark' ? 'light' : 'dark'));
 
   const handleLogout = () => {
-    localStorage.removeItem('token');
+    removeToken();
     setIsLoggedIn(false);
     setDisplayName(null);
     setProfileImageUrl(null);

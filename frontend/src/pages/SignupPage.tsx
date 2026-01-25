@@ -8,6 +8,7 @@ import { ArrowRight, User, Lock, Check, Sparkles, Mail } from 'lucide-react';
 import AmbientBackground from '../components/ui/AmbientBackground';
 import GlassCard from '../components/ui/GlassCard';
 import GoogleSignInButton from '../components/GoogleSignInButton';
+import { setToken } from '../lib/authUtils';
 
 export default function SignupPage() {
   const [email, setEmail] = useState('');
@@ -122,7 +123,7 @@ export default function SignupPage() {
       const data = await response.json();
 
       if (response.ok) {
-        localStorage.setItem('token', data.token);
+        setToken(data.token);
         addToast({
           title: 'Welcome!',
           message: 'Account created with Google',

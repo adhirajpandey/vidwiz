@@ -5,6 +5,7 @@ import NoteCard from '../components/NoteCard';
 import { useToast } from '../hooks/useToast';
 import { FaExclamationTriangle, FaPlay, FaEye, FaHeart, FaExternalLinkAlt } from 'react-icons/fa';
 import WatchYouTubeButton from '../components/WatchYouTubeButton';
+import { getToken, removeToken } from '../lib/authUtils';
 
 interface Video {
   video_id: string;
@@ -42,7 +43,7 @@ export default function VideoPage() {
 
   useEffect(() => {
     const fetchVideoDetails = async () => {
-      const token = localStorage.getItem('token');
+      const token = getToken();
       if (token) {
         try {
           const response = await fetch(`${config.API_URL}/videos/${videoId}`, {
@@ -55,7 +56,7 @@ export default function VideoPage() {
             const data = await response.json();
             setVideo(data);
           } else if (response.status === 401) {
-            localStorage.removeItem('token');
+            removeToken();
             navigate('/login');
           } else {
             navigate('/dashboard');
@@ -67,7 +68,7 @@ export default function VideoPage() {
     };
 
     const getNotes = async () => {
-      const token = localStorage.getItem('token');
+      const token = getToken();
       if (token) {
         try {
           const response = await fetch(`${config.API_URL}/notes/${videoId}`, {
@@ -80,7 +81,7 @@ export default function VideoPage() {
             const data = await response.json();
             setNotes(data.sort((a: Note, b: Note) => timestampToSeconds(a.timestamp) - timestampToSeconds(b.timestamp)));
           } else if (response.status === 401) {
-            localStorage.removeItem('token');
+            removeToken();
             navigate('/login');
           } else {
             setNotes([]);
@@ -96,7 +97,13 @@ export default function VideoPage() {
   }, [videoId, navigate]);
 
   const handleUpdateNote = async (noteId: number, newText: string) => {
-    const token = localStorage.getItem('token');
+    const token = getToken();
+    if (!token) {
+      removeToken();
+      navigate('/login');
+      return;
+    }
+
     try {
       const response = await fetch(`${config.API_URL}/notes/${noteId}`, {
         method: 'PATCH',
@@ -111,7 +118,7 @@ export default function VideoPage() {
         setNotes(notes.map(n => n.id === noteId ? { ...n, text: newText, generated_by_ai: false } : n));
         addToast({ title: 'Success', message: 'Note updated successfully', type: 'success' });
       } else if (response.status === 401) {
-        localStorage.removeItem('token');
+        removeToken();
         navigate('/login');
       } else {
         addToast({ title: 'Error', message: 'Failed to update note', type: 'error' });
@@ -124,7 +131,13 @@ export default function VideoPage() {
 
   const handleDeleteNote = async () => {
     if (noteToDelete === null) return;
-    const token = localStorage.getItem('token');
+    const token = getToken();
+    if (!token) {
+      removeToken();
+      navigate('/login');
+      return;
+    }
+
     try {
       const response = await fetch(`${config.API_URL}/notes/${noteToDelete}`, {
         method: 'DELETE',
@@ -135,7 +148,7 @@ export default function VideoPage() {
         setNotes(notes.filter(n => n.id !== noteToDelete));
         addToast({ title: 'Success', message: 'Note deleted successfully', type: 'success' });
       } else if (response.status === 401) {
-        localStorage.removeItem('token');
+        removeToken();
         navigate('/login');
         return;
       } else {

@@ -8,6 +8,7 @@ import { ArrowRight, Mail, Lock } from 'lucide-react';
 import AmbientBackground from '../components/ui/AmbientBackground';
 import GlassCard from '../components/ui/GlassCard';
 import GoogleSignInButton from '../components/GoogleSignInButton';
+import { setToken } from '../lib/authUtils';
 
 export default function LoginPage() {
   const [email, setEmail] = useState('');
@@ -30,7 +31,7 @@ export default function LoginPage() {
       const data = await response.json();
 
       if (response.ok) {
-        localStorage.setItem('token', data.token);
+        setToken(data.token);
         addToast({
           title: 'Welcome back!',
           message: 'Login successful',
@@ -69,7 +70,7 @@ export default function LoginPage() {
       const data = await response.json();
 
       if (response.ok) {
-        localStorage.setItem('token', data.token);
+        setToken(data.token);
         addToast({
           title: 'Welcome!',
           message: 'Google sign-in successful',

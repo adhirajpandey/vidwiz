@@ -6,6 +6,7 @@ import config from '../config';
 import { extractVideoId } from '../lib/videoUtils';
 import GuestLimitModal from '../components/GuestLimitModal';
 import RegisteredLimitModal from '../components/RegisteredLimitModal';
+import { getAuthHeaders, getToken, removeToken } from '../lib/authUtils';
 
 interface Message {
   id: string;
@@ -201,10 +202,7 @@ function WizWorkspacePage() {
       try {
         await fetch(`${config.API_URL}/wiz/init`, {
           method: 'POST',
-          headers: {
-            'Content-Type': 'application/json',
-            ...(localStorage.getItem('token') ? { 'Authorization': `Bearer ${localStorage.getItem('token')}` } : {})
-          },
+          headers: getAuthHeaders(),
           body: JSON.stringify({ video_id: videoId }),
         });
       } catch (err) {
@@ -304,8 +302,8 @@ function WizWorkspacePage() {
 
   // ... (keeping existing handlers)
 
-  const getAuthHeaders = () => {
-    const token = localStorage.getItem('token');
+  const getWizAuthHeaders = () => {
+    const token = getToken();
     let guestSessionId = sessionStorage.getItem('guestSessionId');
     if (!token && !guestSessionId) {
       guestSessionId = crypto.randomUUID();
@@ -330,9 +328,15 @@ function WizWorkspacePage() {
     try {
       const response = await fetch(`${config.API_URL}/wiz/conversation`, {
         method: 'POST',
-        headers: getAuthHeaders(),
+        headers: getWizAuthHeaders(),
         body: JSON.stringify({ video_id: videoId }),
       });
+
+      if (response.status === 401) {
+        removeToken();
+        navigate('/login');
+        return null;
+      }
 
       if (!response.ok) {
         console.error('Failed to create conversation:', response.statusText);
@@ -389,7 +393,7 @@ function WizWorkspacePage() {
 
       const response = await fetch(`${config.API_URL}/wiz/chat`, {
         method: 'POST',
-        headers: getAuthHeaders(),
+        headers: getWizAuthHeaders(),
         body: JSON.stringify({
           video_id: videoId,
           message: trimmed,
@@ -397,10 +401,16 @@ function WizWorkspacePage() {
         }),
       });
 
+      if (response.status === 401) {
+        removeToken();
+        navigate('/login');
+        return;
+      }
+
       if (response.status === 429) {
         const errorData = await response.json();
         
-        if (localStorage.getItem('token')) {
+        if (getToken()) {
           // Registered user limit
           const seconds = errorData.error?.details?.reset_in_seconds || 86400; // Default to 24h if missing
           setResetSeconds(seconds);
