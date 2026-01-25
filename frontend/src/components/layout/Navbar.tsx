@@ -92,9 +92,6 @@ export default function Navbar() {
             <div className="absolute inset-0 bg-red-500/20 rounded-lg blur-md opacity-0 group-hover:opacity-100 transition-opacity duration-300"></div>
             <img src={vidwizLogo} alt="VidWiz" className="relative w-8 h-8 md:w-9 md:h-9 transition-transform duration-300 group-hover:scale-105" />
           </div>
-          <span className="text-xl md:text-2xl font-bold tracking-tight bg-gradient-to-r from-red-500 to-violet-500 bg-clip-text text-transparent">
-            VidWiz
-          </span>
         </Link>
 
         {/* Navigation Links - Center */}
