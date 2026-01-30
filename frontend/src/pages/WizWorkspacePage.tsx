@@ -744,7 +744,7 @@ function WizWorkspacePage() {
             <div className="flex flex-wrap items-center gap-2.5">
               {videoData?.metadata ? (
                 <>
-                  {videoData.metadata.view_count !== undefined && (
+                  {typeof videoData.metadata.view_count === 'number' && (
                     <div className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg bg-muted/50 border border-border">
                       <svg className="w-3.5 h-3.5 text-foreground/50" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                         <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
@@ -755,7 +755,7 @@ function WizWorkspacePage() {
                       </span>
                     </div>
                   )}
-                  {videoData.metadata.like_count !== undefined && (
+                  {typeof videoData.metadata.like_count === 'number' && (
                     <div className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg bg-muted/50 border border-border">
                       <svg className="w-3.5 h-3.5 text-foreground/50" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                         <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4.318 6.318a4.5 4.5 0 000 6.364L12 20.364l7.682-7.682a4.5 4.5 0 00-6.364-6.364L12 7.636l-1.318-1.318a4.5 4.5 0 00-6.364 0z" />
