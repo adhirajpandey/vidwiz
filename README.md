@@ -158,11 +158,14 @@ vidwiz/
 - [x] Multi-platform support (Extension, Web, iOS, Android)
 - [ ] Cloud-hosted SaaS offering with subscription model
 
+
+
+
+
 ## Demo
 
-<video src="https://github.com/user-attachments/assets/your-video-id/vidwiz.mp4" controls></video>
+<video src="https://github.com/user-attachments/assets/cf4a872f-b683-4566-9115-abf470ba8f54" controls></video>
 
-*Demo video: [vidwiz.mp4](frontend/src/public/vidwiz.mp4)*
 
 ## Screenshots
 
