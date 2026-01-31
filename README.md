@@ -1,39 +1,70 @@
 # VidWiz
 
 ## Description
-VidWiz is designed to enhance your YouTube learning and note-taking experience. It allows you to capture and organize your thoughts while watching YouTube videos/lectures/video essays, with a special focus on timestamp-based note-taking. The extension integrates seamlessly with YouTube's interface, making it easy to save notes at specific moments/timestamps in videos.
+VidWiz transforms how you learn from YouTube videos by combining two powerful AI-driven features:
 
-Additionally, it leverages AI to automatically generate comprehensive notes for any timestamp, providing intelligent summaries and insights from the video content at that specific moment.
+**Smart Notes** - Stop pausing to type. VidWiz automatically extracts insights and creates timestamp-linked notes, building your personal knowledge vault. AI captures the core concepts while you stay focused on learning.
 
-The extension is built with:
-- Frontend: **React (Vite)** with **TypeScript** and **Tailwind CSS**
-- Backend: **Flask (Python)** for REST API
-- Database: **PostgreSQL** for data storage
-- LLM: OpenAI/Gemini models for intelligent note generation
+**Wiz** - Ask questions instead of scrubbing through timelines. This conversational AI assistant understands video content semantically, providing context-aware answers with precise jump-links to relevant moments across your entire video library.
+
+The platform is built with:
+- **Frontend**: React (Vite) with TypeScript and Tailwind CSS
+- **Backend**: Flask (Python) REST API
+- **Database**: PostgreSQL for data persistence
+- **AI/LLM**: OpenAI/Gemini models for intelligent note generation and semantic search
+- **Cloud**: AWS (SQS for async processing, S3 for storage)
 
 [Check Screenshots](#screenshots)
 
 ## Features
-1. **Multi-Client Support**
-   - Use the extension with any Chromium-based browser.
-   - Use with Android devices via Macrodroid macros.
-   - Use with iOS devices via Shortcuts automation.
 
-2. **Interactive Dashboard**
-   - A glassmorphic UI with a consolidated view of all your notes.
-   - **Enhanced Video Details**: Rich metadata including thumbnails, channel info, view/like counts, and durations.
-   - **Smart Navigation**: Open videos directly at the precise note timestamp.
-   - **Fluid Interaction**: Seamless note CRUD with real-time feedback and modern transitions.
+### Two Powerful Learning Tools
 
-3. **AI Magic**
-   - Automatically generate accurate notes for any timestamp using LLMs.
-   - Set your custom AI provider and API key.
-   - Toggle the AI generation feature on or off.
+**1. Smart Notes - Automatic Knowledge Capture**
+   - **Auto-Extraction**: AI automatically captures core insights from any timestamp
+   - **Precision Timestamps**: Click any note to jump directly to that moment in the video
+   - **Knowledge Vault**: Search and manage your entire library of captured insights
+   - **Universal Export**: Export notes to Markdown, PDF, or Notion
+   - **Rich Metadata**: Thumbnails, channel info, view counts, and duration tracking
 
-4. **Self-Hosted**
-   - Full privacy with a self-hosted backend.
-   - Enhanced security over your data.
-   - No third-party data sharing.
+**2. Wiz - Conversational Video Intelligence**
+   - **Semantic Search**: Ask questions in plain English, get expert answers
+   - **Context-Aware**: Wiz understands the video content and watches alongside you
+   - **Deep Jump-Links**: Click on answers to play the exact video moment
+   - **Vault Access**: Query across your entire video library
+   - **Custom AI Integration**: Use your own OpenAI or Gemini API key
+
+### Multi-Platform Access
+   - **Browser Extension**: Works with any Chromium-based browser (Chrome, Edge, Brave, etc.)
+   - **Web Dashboard**: Modern glassmorphic UI for managing notes and videos
+   - **Android**: Integration via Macrodroid macros
+   - **iOS**: Integration via Shortcuts automation
+
+### Privacy & Control
+   - **Self-Hosted**: Full control over your data with your own backend
+   - **Enhanced Security**: No third-party data sharing
+   - **Configurable AI**: Choose your AI provider and manage API keys
+
+## Architecture
+
+VidWiz uses a modern cloud-native architecture for scalability and performance:
+
+```
+Clients (Extension/Web/Mobile)
+    ↓
+Flask REST API
+    ↓
+PostgreSQL ←→ AWS Services
+                  ├─ SQS (Async task queues)
+                  └─ S3 (Storage)
+```
+
+**AWS Integration**:
+- **SQS (Simple Queue Service)**: Handles asynchronous AI note generation and video summarization tasks
+- **S3 (Simple Storage Service)**: Stores generated artifacts and processed outputs
+- **Lambda-ready**: Backend includes Lambda functions for serverless processing
+
+> **Note**: AWS services are used for async processing to prevent blocking the main application flow. AI note generation can take several seconds, so tasks are queued via SQS and processed asynchronously.
 
 ## Quick start (Docker Compose)
 Prereqs: Docker, Docker Compose
@@ -50,8 +81,12 @@ ADMIN_TOKEN=change-admin-token
 AWS_ACCESS_KEY_ID=your-key
 AWS_SECRET_ACCESS_KEY=your-secret
 AWS_REGION=ap-south-1
-SQS_QUEUE_URL=https://sqs.ap-south-1.amazonaws.com/123456789012/vidwiz
+SQS_AI_NOTE_QUEUE_URL=https://sqs.ap-south-1.amazonaws.com/123456789012/vidwiz-ai-notes
+SQS_SUMMARY_QUEUE_URL=https://sqs.ap-south-1.amazonaws.com/123456789012/vidwiz-summary
 S3_BUCKET_NAME=vidwiz
+
+# AI/LLM
+GEMINI_API_KEY=your-gemini-api-key
 
 # Postgres container
 POSTGRES_DB=vidwiz
@@ -92,31 +127,53 @@ The extension will then show the note-taking interface when on YouTube videos.
 ## Running tests
 - Backend: `cd backend && poetry run pytest`
 
+## Project Structure
+```
+vidwiz/
+├── backend/              # Flask API
+│   ├── vidwiz/
+│   │   ├── routes/      # API endpoints
+│   │   ├── lambdas/     # AWS Lambda functions
+│   │   ├── services/    # Helper services
+│   │   ├── shared/      # Utilities and models
+│   │   └── tests/       # Pytest test suites
+│   └── wsgi.py          # Flask entrypoint
+├── frontend/            # React + Vite web app
+│   └── src/
+│       ├── pages/       # Route-level views
+│       ├── components/  # Reusable UI components
+│       └── public/      # Static assets
+└── extension/           # Chromium browser extension
+    ├── manifest.json
+    ├── popup.*
+    └── icons/
+```
+
 ## Roadmap
-- [x] Better UI/UX for Dashboard
-- [x] Improve note CRUD functionality
-- [x] AI generated note
+- [x] Smart Notes feature with AI auto-extraction
+- [x] Wiz conversational AI assistant
 - [x] Lambda workflow optimization
-- [x] SQS Implementation
-- [x] UI/UX Improvements
-- [ ] Cloud Hosted Offering - Subscription model   
+- [x] SQS async task processing
+- [x] Glassmorphic UI/UX redesign
+- [x] Multi-platform support (Extension, Web, iOS, Android)
+- [ ] Cloud-hosted SaaS offering with subscription model
+
+## Demo
+
+<video src="https://github.com/user-attachments/assets/your-video-id/vidwiz.mp4" controls></video>
+
+*Demo video: [vidwiz.mp4](frontend/src/public/vidwiz.mp4)*
 
 ## Screenshots
 
-### Dashboard
-<img width="1280" height="900" alt="Screenshot 2026-01-16 011505" src="https://github.com/user-attachments/assets/52de59e9-b19b-46db-a22b-64f1652c58a0" />
+### Smart Notes Feature
+![Smart Notes](frontend/src/public/smart-notes.png)
+*Rich note-taking with timestamp navigation and video metadata*
 
-### Video Notes
-<img width="1280" height="900" alt="Screenshot 2026-01-16 011644" src="https://github.com/user-attachments/assets/365917cf-4c58-41a8-adb5-60d84a5b2a7b" />
-
+### Ask Wiz - AI Assistant
+![Ask Wiz](frontend/src/public/wiz.png)
+*AI-powered note generation and intelligent assistance for your learning journey*
 
 ### Extension
 <img width="369" height="450" alt="Screenshot 2026-01-16 011711" src="https://github.com/user-attachments/assets/d52c10c5-fcaa-4d0b-8dae-e2f63b7c2f66" />
-
-
-### Mobile View
-<img width="422" height="816" alt="Screenshot 2026-01-16 011748" src="https://github.com/user-attachments/assets/acd8755c-bf89-4223-919d-6fe56602e189" />
-
-
-
 
