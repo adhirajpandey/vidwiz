@@ -1,4 +1,4 @@
-name: Deploy
+name: deploy to raspi
 
 on:
   workflow_dispatch:

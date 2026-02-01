@@ -3,7 +3,7 @@ Description=Vidwiz Transcript Helper Service
 
 [Service]
 EnvironmentFile=/home/adhiraj/projects/vidwiz/.env
-ExecStart=/usr/bin/python /home/adhiraj/projects/vidwiz/backend/vidwiz/scripts/transcript-helper.py
+ExecStart=/usr/bin/python /home/adhiraj/projects/vidwiz/backend/vidwiz/workers/scripts/transcript-helper.py
 Restart=always
 Environment=PYTHONUNBUFFERED=1
 User=adhiraj
