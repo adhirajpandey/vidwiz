@@ -460,7 +460,7 @@ def openai_api_call(prompt: str) -> Optional[str]:
         "Content-Type": "application/json",
         "Authorization": f"Bearer {OPENAI_API_KEY}",
     }
-    payload = {"model": OPENAI_MODEL_NAME, "input": prompt}
+    payload = {"model": OPENAI_MODEL, "input": prompt}
     try:
         response = requests.post(
             OPENAI_API_URL, headers=headers, json=payload, timeout=REQUEST_TIMEOUT
