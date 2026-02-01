@@ -9,7 +9,9 @@ import boto3
 import requests
 
 # Configuration constants
-GEMINI_ENDPOINT = "https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent"
+GEMINI_MODEL = "gemini-2.5-flash"
+GEMINI_BASE_URL = "https://generativelanguage.googleapis.com/v1beta/models"
+GEMINI_ENDPOINT = f"{GEMINI_BASE_URL}/{GEMINI_MODEL}:generateContent"
 GEMINI_API_KEY = os.getenv("GEMINI_API_KEY")
 S3_BUCKET_NAME = os.getenv("S3_BUCKET_NAME")
 VIDWIZ_ENDPOINT = os.getenv("VIDWIZ_ENDPOINT")
@@ -33,25 +35,38 @@ TRANSCRIPT_FETCH_RETRY_DELAY = int(os.getenv("TRANSCRIPT_FETCH_RETRY_DELAY", "2"
 logger = Logger()
 
 
-# -------------------------------
-# Data Model for SQS Message
-# -------------------------------
+# Data Models
 class SummaryRequest(BaseModel):
+    """
+    SQS message payload for a summary generation request.
+
+    Attributes:
+        video_id: Unique identifier for the video to summarize.
+    """
+
     video_id: str
 
 
-# -------------------------------
 # Prompt Template
-# -------------------------------
-def get_summary_generation_prompt_template(title: str, transcript: str) -> str:
+def get_summary_generation_prompt_template(title: Optional[str], transcript: str) -> str:
+    """
+    Build the LLM prompt for generating a video summary.
+
+    Args:
+        title: Video title for context (optional; omitted from prompt if None).
+        transcript: Full transcript text to summarize.
+
+    Returns:
+        Prompt string with length constraints and instructions.
+    """
+    title_block = f"Title: {title}\n\n" if title else ""
     return f"""Generate a clear and concise summary of the following video transcript.
 
 The summary should be between {MIN_SUMMARY_LENGTH} and {MAX_SUMMARY_LENGTH} characters.
 Capture the key ideas, explanations, and conclusions.
 Do not include timestamps, formatting, bullet points, or extra commentary.
 
-Title: {title}
-Transcript:
+{title_block}Transcript:
 {transcript}
 
 Even if the transcript is in any language, generate the summary in English.
@@ -59,15 +74,29 @@ Return only the summary text, without any additional text or formatting.
 """
 
 
-# -------------------------------
-# Utilities
-# -------------------------------
+# Utility Functions
 def get_s3_client():
+    """
+    Return a boto3 S3 client.
+
+    Returns:
+        boto3 S3 client instance.
+    """
     return boto3.client("s3")
 
 
 def get_transcript_from_s3(video_id: str, attempt: int = 1) -> Optional[List[Dict]]:
-    """Fetch transcript from S3 with retry logic."""
+    """
+    Fetch transcript from S3 with retry logic.
+
+    Args:
+        video_id: Unique identifier for the video; object key is transcripts/{video_id}.json.
+        attempt: Current retry attempt (used internally).
+
+    Returns:
+        List of transcript segment dicts (with "text" and optionally "offset"), or None
+        if the object is missing or max retries are exceeded.
+    """
     transcript_key = f"transcripts/{video_id}.json"
     s3_client = get_s3_client()
 
@@ -83,7 +112,10 @@ def get_transcript_from_s3(video_id: str, attempt: int = 1) -> Optional[List[Dic
         )
         
         if attempt < TRANSCRIPT_FETCH_MAX_RETRIES:
-            logger.info(f"Retrying transcript fetch in {TRANSCRIPT_FETCH_RETRY_DELAY} seconds...", extra={"video_id": video_id})
+            logger.info(
+                "Retrying transcript fetch",
+                extra={"video_id": video_id, "retry_delay_seconds": TRANSCRIPT_FETCH_RETRY_DELAY},
+            )
             time.sleep(TRANSCRIPT_FETCH_RETRY_DELAY)
             return get_transcript_from_s3(video_id, attempt + 1)
         
@@ -92,7 +124,15 @@ def get_transcript_from_s3(video_id: str, attempt: int = 1) -> Optional[List[Dic
 
 
 def get_video_metadata(video_id: str) -> Optional[Dict]:
-    """Fetch video metadata from VidWiz API to get the title."""
+    """
+    Fetch video metadata from VidWiz API (e.g. title).
+
+    Args:
+        video_id: Unique identifier for the video.
+
+    Returns:
+        Response body as dict (e.g. {"title": "..."}) on 200, or None on error/non-200.
+    """
     url = f"{VIDWIZ_ENDPOINT}/wiz/video/{video_id}"
     headers = {
         "Content-Type": "application/json",
@@ -111,14 +151,29 @@ def get_video_metadata(video_id: str) -> Optional[Dict]:
 
 
 def format_full_transcript(transcript: List[Dict]) -> str:
-    """Join the entire transcript into one text blob for summarization."""
+    """
+    Join the entire transcript into one text blob for summarization.
+
+    Args:
+        transcript: List of segment dicts with at least a "text" key.
+
+    Returns:
+        Single string of all segment texts joined by spaces.
+    """
     return " ".join(seg["text"] for seg in transcript)
 
 
-# -------------------------------
 # Gemini API
-# -------------------------------
 def gemini_api_call(prompt: str) -> Optional[str]:
+    """
+    Call the Gemini API to generate text from a prompt.
+
+    Args:
+        prompt: Text prompt to send to the model.
+
+    Returns:
+        Generated text on success, or None on request/parse failure.
+    """
     headers = {
         "Content-Type": "application/json",
         "x-goog-api-key": GEMINI_API_KEY,
@@ -143,10 +198,18 @@ def gemini_api_call(prompt: str) -> Optional[str]:
         return None
 
 
-# -------------------------------
 # Summary Generation
-# -------------------------------
 def generate_summary_using_llm(title: str, transcript_text: str) -> Optional[str]:
+    """
+    Generate a summary of the transcript using the configured LLM (Gemini).
+
+    Args:
+        title: Video title for context in the prompt.
+        transcript_text: Full transcript text to summarize.
+
+    Returns:
+        Summary string (stripped, newlines replaced by spaces), or None on failure.
+    """
     logger.info("Generating summary using LLM", extra={"title": title})
 
     prompt = get_summary_generation_prompt_template(title=title, transcript=transcript_text)
@@ -163,6 +226,15 @@ def generate_summary_using_llm(title: str, transcript_text: str) -> Optional[str
 
 
 def is_valid_summary_length(summary: str) -> bool:
+    """
+    Check whether the summary length is within configured bounds.
+
+    Args:
+        summary: Summary text to validate.
+
+    Returns:
+        True if length is between MIN_SUMMARY_LENGTH and MAX_SUMMARY_LENGTH, False otherwise.
+    """
     if not summary:
         return False
     length = len(summary)
@@ -170,6 +242,18 @@ def is_valid_summary_length(summary: str) -> bool:
 
 
 def get_valid_ai_summary(title: Optional[str], transcript_text: str, attempts: int = 1) -> Optional[str]:
+    """
+    Generate an AI summary and retry until length is valid or max retries reached.
+
+    Args:
+        title: Video title for context (may be None).
+        transcript_text: Full transcript text to summarize.
+        attempts: Current attempt number (used internally for recursion).
+
+    Returns:
+        Summary string meeting length constraints, or the last generated summary if
+        max retries reached, or None if generation failed.
+    """
     logger.info(
         "Attempting to get valid AI summary",
         extra={"attempt": attempts, "max_tries": MAX_RETRIES},
@@ -189,11 +273,18 @@ def get_valid_ai_summary(title: Optional[str], transcript_text: str, attempts: i
     return ai_summary
 
 
-# -------------------------------
 # Update VidWiz API
-# -------------------------------
 def update_vidwiz_summary(video_id: str, ai_summary: str) -> bool:
-    """Update the video summary in VidWiz backend."""
+    """
+    Update the video summary in the VidWiz backend via PATCH.
+
+    Args:
+        video_id: Unique identifier for the video.
+        ai_summary: Summary text to persist.
+
+    Returns:
+        True if the update succeeded (HTTP 200), False otherwise.
+    """
     url = f"{VIDWIZ_ENDPOINT}/videos/{video_id}"
     headers = {
         "Content-Type": "application/json",
@@ -218,10 +309,17 @@ def update_vidwiz_summary(video_id: str, ai_summary: str) -> bool:
         return False
 
 
-# -------------------------------
 # Main Processor
-# -------------------------------
 def process_summary(video_id: str) -> None:
+    """
+    Run the full summary pipeline for one video: fetch transcript, generate summary, update VidWiz.
+
+    Args:
+        video_id: Unique identifier for the video.
+
+    Returns:
+        None. Errors are logged; no exception is raised.
+    """
     logger.info("Processing summary", extra={"video_id": video_id})
 
     try:
@@ -251,12 +349,23 @@ def process_summary(video_id: str) -> None:
         logger.error("Error processing summary", extra={"video_id": video_id, "error": str(e)})
 
 
-# -------------------------------
 # Lambda Entry Point
-# -------------------------------
 @logger.inject_lambda_context(log_event=True)
 @event_parser(model=SummaryRequest, envelope=envelopes.SqsEnvelope)
 def lambda_handler(event: List[SummaryRequest], context: LambdaContext) -> None:
+    """
+    Lambda handler to process summary generation requests from SQS.
+
+    For each SummaryRequest in the batch: fetches transcript from S3, gets video metadata
+    (title), generates a summary via the LLM, validates length, and updates the VidWiz API.
+
+    Args:
+        event: List of SummaryRequest (parsed from SQS envelope).
+        context: Lambda execution context.
+
+    Returns:
+        None. Per-item failures are logged and processing continues for the rest.
+    """
     logger.info("Starting summary processing", extra={"request_count": len(event)})
 
     for i, request in enumerate(event):

@@ -4,20 +4,28 @@ from aws_lambda_powertools.utilities.typing import LambdaContext
 from typing import Any, Dict, List, Optional
 import json
 import os
+import time
 import boto3
 import requests
 
 # Configuration constants
-GEMINI_ENDPOINT = "https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent"
+GEMINI_MODEL = "gemini-2.0-flash"
+GEMINI_BASE_URL = "https://generativelanguage.googleapis.com/v1beta/models"
+GEMINI_ENDPOINT = f"{GEMINI_BASE_URL}/{GEMINI_MODEL}:generateContent"
 GEMINI_API_KEY = os.getenv("GEMINI_API_KEY")
 S3_BUCKET_NAME = os.getenv("S3_BUCKET_NAME")
 VIDWIZ_ENDPOINT = os.getenv("VIDWIZ_ENDPOINT")
 VIDWIZ_TOKEN = os.getenv("VIDWIZ_TOKEN")
+OPENAI_API_KEY = os.getenv("OPENAI_API_KEY")
+OPENAI_API_URL = "https://api.openai.com/v1/responses"
+OPENAI_MODEL_NAME = "gpt-5-nano"
 
 assert GEMINI_API_KEY, "GEMINI_API_KEY is not set"
 assert S3_BUCKET_NAME, "S3_BUCKET_NAME is not set"
 assert VIDWIZ_ENDPOINT, "VIDWIZ_ENDPOINT is not set"
 assert VIDWIZ_TOKEN, "VIDWIZ_TOKEN is not set"
+assert OPENAI_API_KEY, "OPENAI_API_KEY is not set"
+
 
 TRANSCRIPT_BUFFER_SECONDS = int(os.getenv("TRANSCRIPT_BUFFER_SECONDS", "15"))
 CONTEXT_SEGMENTS = int(os.getenv("CONTEXT_SEGMENTS", "15"))
@@ -26,6 +34,10 @@ MIN_NOTE_LENGTH = int(os.getenv("MIN_NOTE_LENGTH", "40"))
 MAX_RETRIES = int(os.getenv("MAX_RETRIES", "3"))
 REQUEST_TIMEOUT = int(os.getenv("REQUEST_TIMEOUT", "10"))
 
+# Transcript fetch retry config
+TRANSCRIPT_FETCH_MAX_RETRIES = int(os.getenv("TRANSCRIPT_FETCH_MAX_RETRIES", "5"))
+TRANSCRIPT_FETCH_RETRY_DELAY = int(os.getenv("TRANSCRIPT_FETCH_RETRY_DELAY", "2"))
+
 
 # Initialize logger
 logger = Logger()
@@ -33,18 +45,41 @@ logger = Logger()
 
 # Data Models
 class Video(BaseModel):
-    """Video model for transcript data."""
+    """
+    Video model for transcript and metadata.
+
+    Attributes:
+        created_at: ISO timestamp when the video was created.
+        id: Internal video ID.
+        title: Video title.
+        transcript_available: Whether a transcript exists.
+        updated_at: ISO timestamp of last update.
+        video_id: External video identifier (e.g. YouTube ID).
+    """
 
     created_at: str
     id: int
-    title: str
+    title: Optional[str] = None
     transcript_available: bool
     updated_at: str
     video_id: str
 
 
 class Note(BaseModel):
-    """Note model for processing requests."""
+    """
+    Note model for processing requests (SQS payload).
+
+    Attributes:
+        created_at: ISO timestamp when the note was created.
+        generated_by_ai: Whether the note was AI-generated.
+        id: Internal note ID.
+        text: Note content (may be placeholder before AI generation).
+        timestamp: Timestamp in video (e.g. HH:MM:SS).
+        updated_at: ISO timestamp of last update.
+        user_id: Owner user ID.
+        video: Nested Video model.
+        video_id: External video identifier.
+    """
 
     created_at: str
     generated_by_ai: bool
@@ -58,14 +93,28 @@ class Note(BaseModel):
 
 
 class TranscriptSegment(BaseModel):
-    """Represents a single transcript segment."""
+    """
+    A single transcript segment with offset and text.
+
+    Attributes:
+        offset: Time offset in seconds from the start of the video.
+        text: Segment text.
+    """
 
     offset: float
     text: str
 
 
 class RelevantTranscriptContext(BaseModel):
-    """Contains relevant transcript context for note generation."""
+    """
+    Context around a target timestamp for note generation.
+
+    Attributes:
+        timestamp: Target timestamp in seconds.
+        text: Main segment text at that timestamp.
+        before: Segments immediately before the target.
+        after: Segments immediately after the target.
+    """
 
     timestamp: float
     text: str
@@ -75,16 +124,28 @@ class RelevantTranscriptContext(BaseModel):
 
 # Utility Functions
 def get_note_generation_prompt_template(
-    max_length: int, title: str, timestamp: str, timestamp_seconds: int, transcript: str
+    max_length: int, title: Optional[str], timestamp: str, timestamp_seconds: int, transcript: str
 ) -> str:
-    """Get the note generation prompt with parameters filled in."""
+    """
+    Build the LLM prompt for generating a single note at a timestamp.
+
+    Args:
+        max_length: Maximum allowed note length in characters.
+        title: Video title for context (optional; omitted from prompt if None).
+        timestamp: Timestamp string (e.g. HH:MM:SS).
+        timestamp_seconds: Same timestamp in seconds.
+        transcript: Relevant transcript text around the timestamp.
+
+    Returns:
+        Filled-in prompt string for the LLM.
+    """
+    title_block = f"Title: {title}\n" if title else ""
     return f"""Generate a concise one-line note based on the provided title, timestamp, and transcript. 
 The note should be less than {max_length} characters and capture the essence of the content at the specified timestamp. 
 Focus more on the transcript context than the title. Do not include any additional text or formatting.
 
 Here are the details:
-Title: {title}
-Timestamp: {timestamp} - {timestamp_seconds} seconds
+{title_block}Timestamp: {timestamp} - {timestamp_seconds} seconds
 Transcript: {transcript}
 
 Even if the transcript is in any language, generate a note in English.
@@ -125,22 +186,26 @@ def format_timestamp_in_seconds(timestamp: str) -> int:
 
 
 def get_s3_client():
-    """Get initialized S3 client."""
+    """
+    Return a boto3 S3 client.
+
+    Returns:
+        boto3 S3 client instance.
+    """
     return boto3.client("s3")
 
 
-def get_transcript_from_s3(video_id: str) -> Optional[List[Dict]]:
+def get_transcript_from_s3(video_id: str, attempt: int = 1) -> Optional[List[Dict]]:
     """
-    Get transcript from S3 cache.
+    Fetch transcript from S3 with retry logic.
 
     Args:
-        video_id: Unique identifier for the video
+        video_id: Unique identifier for the video; object key is transcripts/{video_id}.json.
+        attempt: Current retry attempt (used internally).
 
     Returns:
-        List of transcript segments or None if not found
-
-    Raises:
-        TranscriptNotFoundError: If transcript cannot be retrieved
+        List of transcript segment dicts (with "text" and optionally "offset"), or None
+        if the object is missing or max retries are exceeded.
     """
     transcript_key = f"transcripts/{video_id}.json"
     s3_client = get_s3_client()
@@ -152,6 +217,7 @@ def get_transcript_from_s3(video_id: str) -> Optional[List[Dict]]:
                 "bucket": S3_BUCKET_NAME,
                 "key": transcript_key,
                 "video_id": video_id,
+                "attempt": attempt,
             },
         )
 
@@ -160,15 +226,58 @@ def get_transcript_from_s3(video_id: str) -> Optional[List[Dict]]:
 
         logger.info(
             "Successfully loaded transcript from S3",
-            extra={"video_id": video_id, "segment_count": len(transcript_data)},
+            extra={"video_id": video_id, "segment_count": len(transcript_data), "attempt": attempt},
         )
         return transcript_data
 
     except Exception as e:
         logger.warning(
-            "Transcript not found in S3", extra={"video_id": video_id, "error": str(e)}
+            "Failed to get transcript from S3",
+            extra={
+                "video_id": video_id,
+                "attempt": attempt,
+                "max_retries": TRANSCRIPT_FETCH_MAX_RETRIES,
+                "error": str(e),
+            },
         )
-        raise Exception(f"Transcript not found for video {video_id}") from e
+
+        if attempt < TRANSCRIPT_FETCH_MAX_RETRIES:
+            logger.info(
+                "Retrying transcript fetch",
+                extra={"video_id": video_id, "retry_delay_seconds": TRANSCRIPT_FETCH_RETRY_DELAY},
+            )
+            time.sleep(TRANSCRIPT_FETCH_RETRY_DELAY)
+            return get_transcript_from_s3(video_id, attempt + 1)
+
+        logger.error("Max retries reached for transcript fetch", extra={"video_id": video_id})
+        return None
+
+
+def get_video_metadata(video_id: str) -> Optional[Dict]:
+    """
+    Fetch video metadata from VidWiz API (e.g. title).
+
+    Args:
+        video_id: Unique identifier for the video.
+
+    Returns:
+        Response body as dict (e.g. {"title": "..."}) on 200, or None on error/non-200.
+    """
+    url = f"{VIDWIZ_ENDPOINT}/wiz/video/{video_id}"
+    headers = {
+        "Content-Type": "application/json",
+    }
+
+    try:
+        response = requests.get(url, headers=headers, timeout=REQUEST_TIMEOUT)
+        if response.status_code == 200:
+            return response.json()
+        else:
+            logger.error("Failed to get video metadata", extra={"video_id": video_id, "status": response.status_code})
+            return None
+    except Exception as e:
+        logger.error("Error fetching video metadata", extra={"video_id": video_id, "error": str(e)})
+        return None
 
 
 def get_relevant_transcript(
@@ -329,15 +438,56 @@ def gemini_api_call(prompt: str) -> Optional[str]:
         logger.error("Gemini API request failed", extra={"error": str(e)})
         return None
 
+def openai_api_call(prompt: str) -> str:
+    """
+    Sends a text prompt to the OpenAI Responses API using the gpt-5-nano model
+    and returns the generated text.
+
+    Args:
+        prompt (str): The prompt / instruction to send to the model.
+
+    Returns:
+        str: The model’s text output.
+    """
+    headers = {
+        "Content-Type": "application/json",
+        "Authorization": f"Bearer {OPENAI_API_KEY}",
+    }
+
+    payload = {
+        "model": OPENAI_MODEL_NAME,
+        "input": prompt
+    }
+
+    # Perform the HTTP POST request
+    response = requests.post(OPENAI_API_URL, headers=headers, json=payload)
+    response.raise_for_status()
+
+    data = response.json()
+
+    # Most simple responses come back in "output_text"
+    if "output_text" in data:
+        return data["output_text"]
+
+    # Fallback: extract text chunks from structured output
+    text_parts = []
+    for item in data.get("output", []):
+        if item.get("type") == "message":
+            for content in item.get("content", []):
+                if text := content.get("text"):
+                    text_parts.append(text)
+
+    return "".join(text_parts)
+
 
 def generate_note_using_llm(
-    title: str, timestamp: str, transcript_context: RelevantTranscriptContext
+    title: Optional[str], timestamp: str, transcript_context: RelevantTranscriptContext
 ) -> Optional[str]:
     """
     Generate a note using LLM based on video content.
 
     Args:
-        title: Video title for context
+        title: Video title for context (optional; omitted from prompt if None).
         timestamp: Specific timestamp in the video
         transcript_context: RelevantTranscriptContext object with transcript data
 
@@ -345,7 +495,7 @@ def generate_note_using_llm(
         Generated note text or None if failed
     """
     logger.info(
-        "Generating note using LLM", extra={"title": title, "timestamp": timestamp}
+        "Generating note using LLM", extra={"title": title or "N/A", "timestamp": timestamp}
     )
 
     # Format the transcript context
@@ -361,7 +511,9 @@ def generate_note_using_llm(
     )
 
     try:
-        result = gemini_api_call(prompt)
+        # result = gemini_api_call(prompt)
+        result = openai_api_call(prompt)
+
         if result:
             # Clean up the result - remove extra whitespace and newlines
             result = result.strip().replace("\n", " ")
@@ -393,7 +545,7 @@ def is_valid_note_length(note: str) -> bool:
 
 
 def get_valid_ai_note(
-    title: str,
+    title: Optional[str],
     timestamp: str,
     transcript_context: RelevantTranscriptContext,
     attempts: int = 1,
@@ -402,7 +554,7 @@ def get_valid_ai_note(
     Get a valid AI note with retries if length requirements aren't met.
 
     Args:
-        title: Video title for context
+        title: Video title for context (optional; omitted from prompt if None).
         timestamp: Specific timestamp in the video
         transcript_context: RelevantTranscriptContext object
         attempts: Current attempt number
@@ -444,7 +596,17 @@ def get_valid_ai_note(
     return ai_note
 
 
-def update_vidwiz_note(note_id: str, ai_note: str):
+def update_vidwiz_note(note_id: str, ai_note: str) -> bool:
+    """
+    Update a note in the VidWiz backend with AI-generated text via PATCH.
+
+    Args:
+        note_id: Internal note ID to update.
+        ai_note: Generated note text to persist.
+
+    Returns:
+        True if the update succeeded (HTTP 200), False otherwise.
+    """
     url = f"{VIDWIZ_ENDPOINT}/notes/{note_id}"
     headers = {
         "Content-Type": "application/json",
@@ -452,21 +614,33 @@ def update_vidwiz_note(note_id: str, ai_note: str):
     }
     payload = {"text": ai_note, "generated_by_ai": True}
 
-    response = requests.patch(url, json=payload, headers=headers)
-    if response.status_code == 200:
-        logger.info("Successfully updated note", extra={"note_id": note_id})
-    else:
+    try:
+        response = requests.patch(url, json=payload, headers=headers, timeout=REQUEST_TIMEOUT)
+        if response.status_code == 200:
+            logger.info("Successfully updated note", extra={"note_id": note_id})
+            return True
         logger.error(
-            "Failed to update note", extra={"note_id": note_id, "error": response.text}
+            "Failed to update note",
+            extra={"note_id": note_id, "status": response.status_code, "error": response.text},
         )
+        return False
+    except Exception as e:
+        logger.error("Error updating note", extra={"note_id": note_id, "error": str(e)})
+        return False
 
 
 def process_note(note: Note) -> None:
     """
-    Process a single note by generating AI content from transcript.
+    Process a single note by generating AI content from transcript and updating VidWiz.
+
+    Fetches transcript from S3, extracts relevant context at the note timestamp,
+    generates an AI note via the LLM, validates length, and PATCHes the note in VidWiz.
 
     Args:
-        note: Note object containing video and timestamp information
+        note: Note object containing video and timestamp information.
+
+    Returns:
+        None. Errors are logged; no exception is raised.
     """
     logger.info(
         "Processing note", extra={"note_id": note.id, "video_id": note.video_id}
@@ -495,9 +669,15 @@ def process_note(note: Note) -> None:
             )
             return
 
+        # Resolve title: use video.title, else metadata['title']; if neither, pass None (omit from LLM prompt)
+        title = note.video.title
+        if not title:
+            metadata = get_video_metadata(note.video_id)
+            title = metadata.get("title") if metadata else None
+
         # Generate AI note from the relevant transcript
         ai_note = get_valid_ai_note(
-            note.video.title, note.timestamp, relevant_transcript
+            title, note.timestamp, relevant_transcript
         )
 
         if ai_note:
@@ -523,16 +703,16 @@ def lambda_handler(event: List[Note], context: LambdaContext) -> None:
     """
     Lambda handler to process note generation requests from SQS.
 
-    This function processes batches of notes by:
-    1. Fetching video transcripts from S3
-    2. Extracting relevant transcript segments based on timestamps
-    3. Generating AI-powered notes using the Gemini LLM
-    4. Validating note length and quality
-    5. Updating the notes back to VidWiz API
+    For each Note in the batch: fetches transcript from S3, extracts relevant
+    transcript at the note timestamp, generates an AI note via the LLM, validates
+    length, and updates the note in the VidWiz API.
 
     Args:
-        event: List of Note objects from SQS messages
-        context: Lambda execution context
+        event: List of Note objects from SQS messages (parsed from SQS envelope).
+        context: Lambda execution context.
+
+    Returns:
+        None. Per-note failures are logged and processing continues for the rest.
     """
     logger.info("Starting note processing", extra={"note_count": len(event)})
 
