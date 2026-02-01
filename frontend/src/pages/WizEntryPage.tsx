@@ -59,7 +59,7 @@ function WizEntryPage() {
         throw new Error('Failed to initialize session');
       }
 
-      navigate(`/wiz/${videoId}`);
+      navigate(`/wiz/${videoId}`, { state: { initFromEntry: true } });
     } catch (err) {
       console.error('Wiz init error:', err);
       setError('Failed to start session. Please try again.');

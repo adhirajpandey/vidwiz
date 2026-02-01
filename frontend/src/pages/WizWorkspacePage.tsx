@@ -194,9 +194,14 @@ function WizWorkspacePage() {
     }
   }, [rawInput, videoId, navigate]);
 
-  // Proactively initialize the wiz session for this video
+  // Proactively initialize the wiz session when opening a video directly (e.g. bookmark).
+  // Skip when we just came from WizEntryPage — it already called /wiz/init, so we avoid double-queuing (e.g. summary SQS twice).
   useEffect(() => {
     if (!videoId) return;
+    const initAlreadyDone = location.state?.initFromEntry === true;
+    if (initAlreadyDone) {
+      return;
+    }
 
     const initVideo = async () => {
       try {
@@ -211,7 +216,7 @@ function WizWorkspacePage() {
     };
 
     initVideo();
-  }, [videoId]);
+  }, [videoId, location.state?.initFromEntry]);
 
   // Reset state when videoId changes
   useEffect(() => {
