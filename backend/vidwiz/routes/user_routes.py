@@ -1,6 +1,5 @@
 from flask import Blueprint, jsonify, request
 from vidwiz.shared.utils import jwt_or_lt_token_required, require_json_body
-from vidwiz.shared.models import User, db
 from vidwiz.shared.schemas import (
     UserCreate,
     UserLogin,
@@ -20,15 +19,22 @@ from vidwiz.shared.errors import (
     ConflictError,
     InternalServerError,
 )
-from sqlalchemy.orm.attributes import flag_modified
-from werkzeug.security import generate_password_hash, check_password_hash
-import jwt
-from datetime import datetime, timedelta, timezone
 from flask import current_app
 from pydantic import ValidationError
 from vidwiz.shared.logging import get_logger
-from google.oauth2 import id_token
-from google.auth.transport import requests as google_requests
+from vidwiz.services.user_service import (
+    find_user_by_email,
+    create_user,
+    authenticate_user,
+    generate_jwt_token,
+    get_user_by_id,
+    create_long_term_token as create_long_term_token_record,
+    revoke_long_term_token as revoke_long_term_token_record,
+    build_profile_data,
+    update_profile as update_profile_record,
+    verify_google_token,
+    upsert_google_user,
+)
 
 user_bp = Blueprint("user", __name__)
 logger = get_logger("vidwiz.routes.user_routes")
@@ -43,17 +49,11 @@ def signup():
         logger.warning(f"Signup validation error: {e}")
         return handle_validation_error(e)
 
-    if User.query.filter_by(email=user_data.email).first():
+    if find_user_by_email(user_data.email):
         logger.info(f"Signup attempt with existing email='{user_data.email}'")
         raise ConflictError("Email already exists")
 
-    user = User(
-        email=user_data.email,
-        name=user_data.name,
-        password_hash=generate_password_hash(user_data.password),
-    )
-    db.session.add(user)
-    db.session.commit()
+    user = create_user(user_data.email, user_data.name, user_data.password)
     logger.info(
         f"User created successfully email='{user_data.email}', id={user.id}"
     )
@@ -70,21 +70,15 @@ def login():
         logger.warning(f"Login validation error: {e}")
         return handle_validation_error(e)
 
-    user = User.query.filter_by(email=login_data.email).first()
-    if not user or not user.password_hash or not check_password_hash(user.password_hash, login_data.password):
+    user = authenticate_user(login_data.email, login_data.password)
+    if not user:
         logger.warning(f"Invalid login for email='{login_data.email}'")
         raise UnauthorizedError("Invalid email or password")
 
-    token = jwt.encode(
-        {
-            "user_id": user.id,
-            "email": user.email,
-            "name": user.name or user.email,
-            "profile_image_url": user.profile_image_url,
-            "exp": datetime.now(timezone.utc) + timedelta(hours=current_app.config["JWT_EXPIRY_HOURS"]),
-        },
+    token = generate_jwt_token(
+        user,
         current_app.config["SECRET_KEY"],
-        algorithm="HS256",
+        current_app.config["JWT_EXPIRY_HOURS"],
     )
 
     logger.info(f"Login success email='{login_data.email}', user_id={user.id}")
@@ -95,7 +89,7 @@ def login():
 @jwt_or_lt_token_required
 def create_long_term_token():
     """Generate a new long-term token"""
-    user = User.query.get(request.user_id)
+    user = get_user_by_id(request.user_id)
     if not user:
         logger.warning(
             f"Long-term token creation for missing user_id={request.user_id}"
@@ -110,20 +104,10 @@ def create_long_term_token():
             "A long-term token already exists. Please revoke the existing token before generating a new one."
         )
 
-    long_term_token = jwt.encode(
-        {
-            "user_id": user.id,
-            "email": user.email,
-            "type": "long_term",  # Add type to distinguish from regular tokens
-            "iat": datetime.now(timezone.utc).timestamp(),
-        },
+    long_term_token = create_long_term_token_record(
+        user,
         current_app.config["SECRET_KEY"],
-        algorithm="HS256",
     )
-
-    # Store the token in the user's record
-    user.long_term_token = long_term_token
-    db.session.commit()
     logger.info(f"Long-term token generated for user_id={user.id}")
 
     # Validate response using schema
@@ -139,7 +123,7 @@ def create_long_term_token():
 @jwt_or_lt_token_required
 def revoke_long_term_token():
     """Revoke the existing long-term token"""
-    user = User.query.get(request.user_id)
+    user = get_user_by_id(request.user_id)
     if not user:
         logger.warning(
             f"Long-term token revocation for missing user_id={request.user_id}"
@@ -152,8 +136,7 @@ def revoke_long_term_token():
         )
         raise NotFoundError("No long-term token found")
 
-    user.long_term_token = None
-    db.session.commit()
+    revoke_long_term_token_record(user)
     logger.info(f"Long-term token revoked for user_id={user.id}")
 
     response_data = {"message": "Long-term token revoked successfully"}
@@ -165,28 +148,12 @@ def revoke_long_term_token():
 @jwt_or_lt_token_required
 def get_profile():
     """Get user profile data"""
-    user = User.query.get(request.user_id)
+    user = get_user_by_id(request.user_id)
     if not user:
         logger.warning(f"Profile requested for missing user_id={request.user_id}")
         raise NotFoundError("User not found")
 
-    ai_notes_enabled = False
-    if user.profile_data and isinstance(user.profile_data, dict):
-        ai_notes_enabled = user.profile_data.get("ai_notes_enabled", False)
-
-    token_exists = user.long_term_token is not None
-
-    profile_data = {
-        "id": user.id,
-        "email": user.email,
-        "name": user.name,
-        "profile_image_url": user.profile_image_url,
-        "ai_notes_enabled": ai_notes_enabled,
-        "token_exists": token_exists,
-        "long_term_token": user.long_term_token,
-        "created_at": user.created_at,
-    }
-
+    profile_data = build_profile_data(user, include_long_term_token=True)
     validated_profile = UserProfileRead.model_validate(profile_data)
     logger.info(f"Profile fetched for user_id={user.id}")
     return jsonify(validated_profile.model_dump()), 200
@@ -203,39 +170,19 @@ def update_profile():
         logger.warning(f"Update profile validation error: {e}")
         return handle_validation_error(e)
 
-    user = User.query.get(request.user_id)
+    user = get_user_by_id(request.user_id)
     if not user:
         logger.warning(f"Update profile for missing user_id={request.user_id}")
         raise NotFoundError("User not found")
 
-    # Update fields if provided
-    if update_data.name is not None:
-        user.name = update_data.name
-    if update_data.ai_notes_enabled is not None:
-        if user.profile_data is None:
-            user.profile_data = {}
-        user.profile_data["ai_notes_enabled"] = update_data.ai_notes_enabled
-        flag_modified(user, "profile_data")
-
-    db.session.commit()
+    user = update_profile_record(
+        user,
+        update_data.name,
+        update_data.ai_notes_enabled,
+    )
     logger.info(f"Updated profile for user_id={user.id}")
 
-    # Return updated profile data
-    ai_notes_enabled = False
-    if user.profile_data and isinstance(user.profile_data, dict):
-        ai_notes_enabled = user.profile_data.get("ai_notes_enabled", False)
-
-    token_exists = user.long_term_token is not None
-    profile_data = {
-        "id": user.id,
-        "email": user.email,
-        "name": user.name,
-        "profile_image_url": user.profile_image_url,
-        "ai_notes_enabled": ai_notes_enabled,
-        "token_exists": token_exists,
-        "created_at": user.created_at,
-    }
-
+    profile_data = build_profile_data(user, include_long_term_token=False)
     validated_profile = UserProfileRead.model_validate(profile_data)
     return jsonify(validated_profile.model_dump()), 200
 
@@ -262,11 +209,7 @@ def google_login():
 
     try:
         # Verify the Google ID token
-        idinfo = id_token.verify_oauth2_token(
-            credential,
-            google_requests.Request(),
-            google_client_id
-        )
+        idinfo = verify_google_token(credential, google_client_id)
 
         # Extract user info from the verified token
         google_id = idinfo["sub"]
@@ -281,49 +224,13 @@ def google_login():
 
         logger.info(f"Google login attempt for google_id={google_id}, email={email}")
 
-        # Find existing user by google_id or email
-        user = User.query.filter_by(google_id=google_id).first()
-
-        if not user:
-            # Check if email already exists (user signed up with password, now linking Google)
-            user = User.query.filter_by(email=email).first()
-            if user:
-                # Link Google account to existing user
-                user.google_id = google_id
-                logger.info(f"Linked Google account to existing user_id={user.id}")
-
-        if not user:
-            # Create new user with email as primary identifier
-            user = User(
-                email=email,
-                google_id=google_id,
-                name=name,
-                profile_image_url=picture,
-            )
-            db.session.add(user)
-            logger.info(f"Created new Google user with email='{email}'")
-        
-        # If user exists but name is missing, update it
-        if user and not user.name:
-            user.name = name
-        
-        # Always update profile image URL on login (in case it changed)
-        if user and picture:
-            user.profile_image_url = picture
-
-        db.session.commit()
+        user = upsert_google_user(google_id, email, name, picture)
 
         # Generate JWT token
-        token = jwt.encode(
-            {
-                "user_id": user.id,
-                "email": user.email,
-                "name": user.name or user.email,
-                "profile_image_url": user.profile_image_url,
-                "exp": datetime.now(timezone.utc) + timedelta(hours=current_app.config["JWT_EXPIRY_HOURS"]),
-            },
+        token = generate_jwt_token(
+            user,
             current_app.config["SECRET_KEY"],
-            algorithm="HS256",
+            current_app.config["JWT_EXPIRY_HOURS"],
         )
 
         logger.info(f"Google login success for user_id={user.id}, email='{user.email}'")
@@ -333,4 +240,3 @@ def google_login():
         # Invalid token
         logger.warning(f"Invalid Google token: {e}")
         raise UnauthorizedError("Invalid Google credential")
-

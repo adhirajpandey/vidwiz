@@ -19,9 +19,9 @@ def test_wiz_chat_guest_quota(client, app):
             db.session.commit()
     
     # Mock transcript retrieval and GEMINI_API_KEY
-    with patch("vidwiz.routes.wiz_routes.get_transcript_from_s3") as mock_get_transcript, \
+    with patch("vidwiz.services.wiz_service.get_transcript_from_s3") as mock_get_transcript, \
          patch.dict(os.environ, {"GEMINI_API_KEY": "test-key"}), \
-         patch("vidwiz.routes.wiz_routes.genai.Client") as mock_genai_client:
+         patch("vidwiz.services.wiz_service.genai.Client") as mock_genai_client:
         
         mock_get_transcript.return_value = [{"offset": 0, "text": "Hello world"}]
         
@@ -80,9 +80,9 @@ def test_wiz_chat_user_quota(client, app):
             db.session.commit()
 
     # Mock transcript retrieval and GEMINI_API_KEY
-    with patch("vidwiz.routes.wiz_routes.get_transcript_from_s3") as mock_get_transcript, \
+    with patch("vidwiz.services.wiz_service.get_transcript_from_s3") as mock_get_transcript, \
          patch.dict(os.environ, {"GEMINI_API_KEY": "test-key"}), \
-         patch("vidwiz.routes.wiz_routes.genai.Client") as mock_genai_client:
+         patch("vidwiz.services.wiz_service.genai.Client") as mock_genai_client:
         
         mock_get_transcript.return_value = [{"offset": 0, "text": "Hello world"}]
         
@@ -158,8 +158,8 @@ def test_wiz_conversation_create_and_chat_roundtrip(client, app):
     assert convo_response.status_code == 200
     conversation_id = convo_response.json["conversation_id"]
 
-    with patch("vidwiz.routes.wiz_routes.get_transcript_from_s3") as mock_get_transcript, \
-         patch("vidwiz.routes.wiz_routes.genai.Client") as mock_genai_client:
+    with patch("vidwiz.services.wiz_service.get_transcript_from_s3") as mock_get_transcript, \
+         patch("vidwiz.services.wiz_service.genai.Client") as mock_genai_client:
         mock_get_transcript.return_value = [{"offset": 0, "text": "Hello world"}]
 
         mock_chat = MagicMock()
@@ -206,7 +206,7 @@ def test_wiz_chat_conversation_scoped_to_guest(client, app):
     assert convo_response.status_code == 200
     conversation_id = convo_response.json["conversation_id"]
 
-    with patch("vidwiz.routes.wiz_routes.get_transcript_from_s3") as mock_get_transcript:
+    with patch("vidwiz.services.wiz_service.get_transcript_from_s3") as mock_get_transcript:
         mock_get_transcript.return_value = [{"offset": 0, "text": "Hello world"}]
 
         response = client.post(

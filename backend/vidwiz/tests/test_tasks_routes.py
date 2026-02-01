@@ -67,7 +67,7 @@ class TestTasksRoutes:
             db.session.commit()
             task_id = task.id
 
-        with patch("vidwiz.routes.tasks_routes.store_transcript_in_s3"):
+        with patch("vidwiz.services.tasks_service.store_transcript_in_s3"):
             response = client.post(
                 "/api/tasks/transcript",
                 headers=auth_headers,

@@ -1,5 +1,4 @@
 from flask import Blueprint, request, jsonify
-from vidwiz.shared.models import Note, Video, User, db
 from vidwiz.shared.schemas import NoteRead, NoteCreate, NoteUpdate, MessageResponse
 from vidwiz.shared.errors import (
     handle_validation_error,
@@ -11,10 +10,18 @@ from vidwiz.shared.utils import (
     jwt_or_lt_token_required,
     jwt_or_admin_required,
     require_json_body,
-    push_note_to_sqs,
 )
-from vidwiz.shared.tasks import create_transcript_task, create_metadata_task
 from vidwiz.shared.logging import get_logger
+from vidwiz.services.notes_service import (
+    ensure_video_exists,
+    create_note_for_user,
+    maybe_trigger_ai_note,
+    fetch_notes_for_video,
+    fetch_note_for_delete,
+    delete_note as delete_note_record,
+    fetch_note_for_update,
+    update_note as update_note_record,
+)
 
 notes_bp = Blueprint("notes", __name__)
 logger = get_logger("vidwiz.routes.notes_routes")
@@ -31,56 +38,28 @@ def create_note():
         return handle_validation_error(e)
 
     # Check if video exists
-    video = Video.query.filter_by(video_id=note_data.video_id).first()
+    video, created = ensure_video_exists(note_data.video_id, note_data.video_title)
     if not video:
-        if not note_data.video_title:
-            raise BadRequestError("video_title is required when video does not exist")
+        raise BadRequestError("video_title is required when video does not exist")
+    if created:
         logger.info(
             f"Creating new video video_id={note_data.video_id}, title='{note_data.video_title}'"
         )
-        video = Video(
-            video_id=note_data.video_id,
-            title=note_data.video_title,
-        )
-        db.session.add(video)
-        db.session.commit()
-
-        create_transcript_task(note_data.video_id)
-        create_metadata_task(note_data.video_id)
 
     # Create note for this user
-    note = Note(
-        video_id=note_data.video_id,
-        text=note_data.text,
-        timestamp=note_data.timestamp,
-        generated_by_ai=False,
-        user_id=request.user_id,
+    note = create_note_for_user(
+        note_data.video_id,
+        note_data.timestamp,
+        note_data.text,
+        request.user_id,
     )
-    db.session.add(note)
-    db.session.commit()
     logger.info(
         f"Note created id={note.id} for user_id={request.user_id} video_id={note.video_id}"
     )
-
-    # Check if we should trigger AI note generation
-    user = User.query.get(request.user_id)
-    user_ai_enabled = (
-        user.profile_data and user.profile_data.get("ai_notes_enabled", False)
-        if user
-        else False
-    )
-
-    should_trigger_ai_note_gen = (
-        not note_data.text  # No text provided in payload
-        and video.transcript_available  # Video has transcript available
-        and user_ai_enabled  # User has AI notes enabled
-    )
-
-    if should_trigger_ai_note_gen:
+    if maybe_trigger_ai_note(note, video, request.user_id):
         logger.info(
             f"Triggering AI note generation for note_id={note.id}, video_id={note_data.video_id}"
         )
-        push_note_to_sqs(NoteRead.model_validate(note).model_dump())
 
     return jsonify(NoteRead.model_validate(note).model_dump()), 201
 
@@ -88,7 +67,7 @@ def create_note():
 @notes_bp.route("/notes/<string:video_id>", methods=["GET"])
 @jwt_or_lt_token_required
 def get_notes(video_id):
-    notes = Note.query.filter_by(video_id=video_id, user_id=request.user_id).all()
+    notes = fetch_notes_for_video(video_id, request.user_id)
     logger.info(
         f"Fetched {len(notes)} notes for user_id={request.user_id}, video_id={video_id}"
     )
@@ -100,14 +79,13 @@ def get_notes(video_id):
 @notes_bp.route("/notes/<int:note_id>", methods=["DELETE"])
 @jwt_or_lt_token_required
 def delete_note(note_id):
-    note = Note.query.filter_by(id=note_id, user_id=request.user_id).first()
+    note = fetch_note_for_delete(note_id, request.user_id)
     if not note:
         logger.warning(
             f"Delete note not found note_id={note_id} for user_id={request.user_id}"
         )
         raise NotFoundError("Note not found")
-    db.session.delete(note)
-    db.session.commit()
+    delete_note_record(note)
     logger.info(f"Deleted note_id={note_id} for user_id={request.user_id}")
     return jsonify(MessageResponse(message="Note deleted successfully").model_dump()), 200
 
@@ -122,12 +100,9 @@ def update_note(note_id):
         logger.warning(f"Update note validation error: {e}")
         return handle_validation_error(e)
 
-    if request.is_admin:
-        # Admin access - can update any note
-        note = Note.query.filter_by(id=note_id).first()
-    else:
-        # Regular user access - can only update their own notes
-        note = Note.query.filter_by(id=note_id, user_id=request.user_id).first()
+    note = fetch_note_for_update(
+        note_id, getattr(request, "user_id", None), request.is_admin
+    )
 
     if not note:
         logger.warning(
@@ -135,11 +110,8 @@ def update_note(note_id):
         )
         raise NotFoundError("Note not found")
 
-    note.text = update_data.text
-    note.generated_by_ai = bool(update_data.generated_by_ai)
-    db.session.commit()
+    note = update_note_record(note, update_data.text, update_data.generated_by_ai)
     logger.info(
         f"Updated note_id={note.id}, generated_by_ai={note.generated_by_ai}"
     )
     return jsonify(NoteRead.model_validate(note).model_dump()), 200
-

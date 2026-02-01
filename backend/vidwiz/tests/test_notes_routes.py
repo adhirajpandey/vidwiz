@@ -33,7 +33,10 @@ class TestCreateNote:
 
     def test_create_note_with_new_video(self, client, auth_headers, app, sample_user):
         """Test creating a note with a new video that doesn't exist"""
-        with patch("vidwiz.routes.notes_routes.create_transcript_task") as mock_task:
+        with (
+            patch("vidwiz.services.notes_service.create_transcript_task") as mock_task,
+            patch("vidwiz.services.notes_service.create_metadata_task") as mock_metadata,
+        ):
             response = client.post(
                 "/api/notes",
                 headers=auth_headers,
@@ -50,6 +53,7 @@ class TestCreateNote:
             assert data["video_id"] == "new_video_456"
             assert data["text"] == "Note for new video"
             mock_task.assert_called_once_with("new_video_456")
+            mock_metadata.assert_called_once_with("new_video_456")
 
     def test_create_note_missing_video_title(
         self, client, auth_headers, app, sample_user
