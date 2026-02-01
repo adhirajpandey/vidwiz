@@ -3,7 +3,7 @@ name: deploy to raspi
 on:
   workflow_dispatch:
   workflow_run:
-    workflows: [Build]
+    workflows: [build and push docker image]
     types: [completed]
     branches: [main]
 
