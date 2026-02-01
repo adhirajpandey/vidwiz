@@ -9,27 +9,34 @@ import boto3
 import requests
 
 # Configuration constants
-GEMINI_MODEL = "gemini-2.5-flash"
-GEMINI_BASE_URL = "https://generativelanguage.googleapis.com/v1beta/models"
-GEMINI_ENDPOINT = f"{GEMINI_BASE_URL}/{GEMINI_MODEL}:generateContent"
-GEMINI_API_KEY = os.getenv("GEMINI_API_KEY")
 S3_BUCKET_NAME = os.getenv("S3_BUCKET_NAME")
 VIDWIZ_ENDPOINT = os.getenv("VIDWIZ_ENDPOINT")
 VIDWIZ_TOKEN = os.getenv("VIDWIZ_TOKEN")
+LLM_PROVIDER = (os.getenv("LLM_PROVIDER", "gemini") or "gemini").strip().lower()
+GEMINI_API_KEY = os.getenv("GEMINI_API_KEY")
+OPENAI_API_KEY = os.getenv("OPENAI_API_KEY")
 
-assert GEMINI_API_KEY, "GEMINI_API_KEY is not set"
-assert S3_BUCKET_NAME, "S3_BUCKET_NAME is not set"
-assert VIDWIZ_ENDPOINT, "VIDWIZ_ENDPOINT is not set"
-assert VIDWIZ_TOKEN, "VIDWIZ_TOKEN is not set"
+GEMINI_BASE_URL = "https://generativelanguage.googleapis.com/v1beta/models"
+GEMINI_MODEL = os.getenv("GEMINI_MODEL", "gemini-2.5-flash")
+GEMINI_ENDPOINT = f"{GEMINI_BASE_URL}/{GEMINI_MODEL}:generateContent"
+
+OPENAI_API_URL = os.getenv("OPENAI_API_URL", "https://api.openai.com/v1/responses")
+OPENAI_MODEL = os.getenv("OPENAI_MODEL", "gpt-5-nano")
 
 MAX_SUMMARY_LENGTH = int(os.getenv("MAX_SUMMARY_LENGTH", "800"))
 MIN_SUMMARY_LENGTH = int(os.getenv("MIN_SUMMARY_LENGTH", "200"))
 MAX_RETRIES = int(os.getenv("MAX_RETRIES", "3"))
 REQUEST_TIMEOUT = int(os.getenv("REQUEST_TIMEOUT", "30"))
 
-# Transcript fetch retry config
 TRANSCRIPT_FETCH_MAX_RETRIES = int(os.getenv("TRANSCRIPT_FETCH_MAX_RETRIES", "5"))
 TRANSCRIPT_FETCH_RETRY_DELAY = int(os.getenv("TRANSCRIPT_FETCH_RETRY_DELAY", "2"))
+
+
+assert S3_BUCKET_NAME, "S3_BUCKET_NAME is not set"
+assert VIDWIZ_ENDPOINT, "VIDWIZ_ENDPOINT is not set"
+assert VIDWIZ_TOKEN, "VIDWIZ_TOKEN is not set"
+assert LLM_PROVIDER in ("openai", "gemini"), "LLM_PROVIDER must be 'openai' or 'gemini'"
+assert GEMINI_API_KEY or OPENAI_API_KEY, "At least one of GEMINI_API_KEY or OPENAI_API_KEY must be set"
 
 # Initialize logger
 logger = Logger()
@@ -163,23 +170,25 @@ def format_full_transcript(transcript: List[Dict]) -> str:
     return " ".join(seg["text"] for seg in transcript)
 
 
-# Gemini API
 def gemini_api_call(prompt: str) -> Optional[str]:
     """
     Call the Gemini API to generate text from a prompt.
 
     Args:
-        prompt: Text prompt to send to the model.
+        prompt: Text prompt to send to the Gemini API.
 
     Returns:
         Generated text on success, or None on request/parse failure.
     """
+    if not GEMINI_API_KEY:
+        logger.error("Gemini API key is not set")
+        return None
+    logger.info("Making Gemini API call")
     headers = {
         "Content-Type": "application/json",
         "x-goog-api-key": GEMINI_API_KEY,
     }
     payload = {"contents": [{"parts": [{"text": prompt}]}]}
-
     try:
         response = requests.post(
             GEMINI_ENDPOINT,
@@ -188,20 +197,85 @@ def gemini_api_call(prompt: str) -> Optional[str]:
             timeout=REQUEST_TIMEOUT,
         )
         response.raise_for_status()
-
         response_data = response.json()
+        if "error" in response_data:
+            logger.error(
+                "Gemini API returned error", extra={"error": response_data["error"]}
+            )
+            return None
         result = response_data["candidates"][0]["content"]["parts"][0]["text"]
+        logger.info(
+            "Successfully received response from Gemini",
+            extra={"response_length": len(result)},
+        )
         return result
-
     except Exception as e:
         logger.error("Gemini API request failed", extra={"error": str(e)})
         return None
 
 
+def openai_api_call(prompt: str) -> Optional[str]:
+    """
+    Call the OpenAI API to generate text from a prompt.
+
+    Args:
+        prompt: Text prompt to send to the model.
+
+    Returns:
+        Generated text on success, or None on request/parse failure.
+    """
+    if not OPENAI_API_KEY:
+        logger.error("OpenAI API key is not set")
+        return None
+    logger.info("Making OpenAI API call")
+    headers = {
+        "Content-Type": "application/json",
+        "Authorization": f"Bearer {OPENAI_API_KEY}",
+    }
+    payload = {"model": OPENAI_MODEL_NAME, "input": prompt}
+    try:
+        response = requests.post(
+            OPENAI_API_URL, headers=headers, json=payload, timeout=REQUEST_TIMEOUT
+        )
+        response.raise_for_status()
+        data = response.json()
+        if "output_text" in data:
+            return data["output_text"]
+        text_parts = []
+        for item in data.get("output", []):
+            if item.get("type") == "message":
+                for content in item.get("content", []):
+                    if text := content.get("text"):
+                        text_parts.append(text)
+        return "".join(text_parts)
+    except Exception as e:
+        logger.error("OpenAI API request failed", extra={"error": str(e)})
+        return None
+
+
+def llm_call(prompt: str) -> Optional[str]:
+    """
+    Generate text using the configured LLM provider (default: gemini).
+
+    Uses LLM_PROVIDER env: "gemini" or "openai". Requires the corresponding
+    API key to be set. At least one of GEMINI_API_KEY or OPENAI_API_KEY must be set.
+    """
+    if LLM_PROVIDER == "openai":
+        if not OPENAI_API_KEY:
+            logger.error("LLM_PROVIDER is openai but OPENAI_API_KEY is not set")
+            return None
+        return openai_api_call(prompt)
+    else:
+        if not GEMINI_API_KEY:
+            logger.error("LLM_PROVIDER is gemini but GEMINI_API_KEY is not set")
+            return None
+        return gemini_api_call(prompt)
+
+
 # Summary Generation
 def generate_summary_using_llm(title: str, transcript_text: str) -> Optional[str]:
     """
-    Generate a summary of the transcript using the configured LLM (Gemini).
+    Generate a summary of the transcript using the configured LLM.
 
     Args:
         title: Video title for context in the prompt.
@@ -215,7 +289,7 @@ def generate_summary_using_llm(title: str, transcript_text: str) -> Optional[str
     prompt = get_summary_generation_prompt_template(title=title, transcript=transcript_text)
 
     try:
-        result = gemini_api_call(prompt)
+        result = llm_call(prompt)
         if result:
             result = result.strip().replace("\n", " ")
             logger.info("Successfully generated summary", extra={"summary_length": len(result)})

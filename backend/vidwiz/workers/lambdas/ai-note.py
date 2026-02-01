@@ -9,34 +9,36 @@ import boto3
 import requests
 
 # Configuration constants
-GEMINI_MODEL = "gemini-2.0-flash"
-GEMINI_BASE_URL = "https://generativelanguage.googleapis.com/v1beta/models"
-GEMINI_ENDPOINT = f"{GEMINI_BASE_URL}/{GEMINI_MODEL}:generateContent"
-GEMINI_API_KEY = os.getenv("GEMINI_API_KEY")
 S3_BUCKET_NAME = os.getenv("S3_BUCKET_NAME")
 VIDWIZ_ENDPOINT = os.getenv("VIDWIZ_ENDPOINT")
 VIDWIZ_TOKEN = os.getenv("VIDWIZ_TOKEN")
+LLM_PROVIDER = (os.getenv("LLM_PROVIDER", "gemini") or "gemini").strip().lower()
+GEMINI_API_KEY = os.getenv("GEMINI_API_KEY")
 OPENAI_API_KEY = os.getenv("OPENAI_API_KEY")
-OPENAI_API_URL = "https://api.openai.com/v1/responses"
-OPENAI_MODEL_NAME = "gpt-5-nano"
 
-assert GEMINI_API_KEY, "GEMINI_API_KEY is not set"
-assert S3_BUCKET_NAME, "S3_BUCKET_NAME is not set"
-assert VIDWIZ_ENDPOINT, "VIDWIZ_ENDPOINT is not set"
-assert VIDWIZ_TOKEN, "VIDWIZ_TOKEN is not set"
-assert OPENAI_API_KEY, "OPENAI_API_KEY is not set"
+GEMINI_BASE_URL = "https://generativelanguage.googleapis.com/v1beta/models"
+GEMINI_MODEL = os.getenv("GEMINI_MODEL", "gemini-2.5-flash")
+GEMINI_ENDPOINT = f"{GEMINI_BASE_URL}/{GEMINI_MODEL}:generateContent"
 
+OPENAI_API_URL = os.getenv("OPENAI_API_URL", "https://api.openai.com/v1/responses")
+OPENAI_MODEL = os.getenv("OPENAI_MODEL", "gpt-5-nano")
 
 TRANSCRIPT_BUFFER_SECONDS = int(os.getenv("TRANSCRIPT_BUFFER_SECONDS", "15"))
 CONTEXT_SEGMENTS = int(os.getenv("CONTEXT_SEGMENTS", "15"))
 MAX_NOTE_LENGTH = int(os.getenv("MAX_NOTE_LENGTH", "120"))
 MIN_NOTE_LENGTH = int(os.getenv("MIN_NOTE_LENGTH", "40"))
 MAX_RETRIES = int(os.getenv("MAX_RETRIES", "3"))
-REQUEST_TIMEOUT = int(os.getenv("REQUEST_TIMEOUT", "10"))
+REQUEST_TIMEOUT = int(os.getenv("REQUEST_TIMEOUT", "30"))
 
-# Transcript fetch retry config
 TRANSCRIPT_FETCH_MAX_RETRIES = int(os.getenv("TRANSCRIPT_FETCH_MAX_RETRIES", "5"))
 TRANSCRIPT_FETCH_RETRY_DELAY = int(os.getenv("TRANSCRIPT_FETCH_RETRY_DELAY", "2"))
+
+
+assert S3_BUCKET_NAME, "S3_BUCKET_NAME is not set"
+assert VIDWIZ_ENDPOINT, "VIDWIZ_ENDPOINT is not set"
+assert VIDWIZ_TOKEN, "VIDWIZ_TOKEN is not set"
+assert LLM_PROVIDER in ("openai", "gemini"), "LLM_PROVIDER must be 'openai' or 'gemini'"
+assert GEMINI_API_KEY or OPENAI_API_KEY, "At least one of GEMINI_API_KEY or OPENAI_API_KEY must be set"
 
 
 # Initialize logger
@@ -392,19 +394,20 @@ def format_transcript_context(context: RelevantTranscriptContext) -> str:
     return " ".join(parts)
 
 
-# AI/LLM Functions
 def gemini_api_call(prompt: str) -> Optional[str]:
     """
-    Make API call to Gemini AI model.
+    Call the Gemini API to generate text from a prompt.
 
     Args:
-        prompt: Text prompt to send to the Gemini API
+        prompt: Text prompt to send to the Gemini API.
 
     Returns:
-        Generated text response or None if the request failed
+        Generated text on success, or None on request/parse failure.
     """
+    if not GEMINI_API_KEY:
+        logger.error("Gemini API key is not set")
+        return None
     logger.info("Making Gemini API call")
-
     headers = {
         "Content-Type": "application/json",
         "x-goog-api-key": GEMINI_API_KEY,
@@ -438,7 +441,7 @@ def gemini_api_call(prompt: str) -> Optional[str]:
         logger.error("Gemini API request failed", extra={"error": str(e)})
         return None
 
-def openai_api_call(prompt: str) -> str:
+def openai_api_call(prompt: str) -> Optional[str]:
     """
     Sends a text prompt to the OpenAI Responses API using the gpt-5-nano model
     and returns the generated text.
@@ -449,35 +452,52 @@ def openai_api_call(prompt: str) -> str:
     Returns:
         str: The model’s text output.
     """
+    if not OPENAI_API_KEY:
+        logger.error("OpenAI API key is not set")
+        return None
+    logger.info("Making OpenAI API call")
     headers = {
         "Content-Type": "application/json",
         "Authorization": f"Bearer {OPENAI_API_KEY}",
     }
+    payload = {"model": OPENAI_MODEL_NAME, "input": prompt}
+    try:
+        response = requests.post(
+            OPENAI_API_URL, headers=headers, json=payload, timeout=REQUEST_TIMEOUT
+        )
+        response.raise_for_status()
+        data = response.json()
+        if "output_text" in data:
+            return data["output_text"]
+        text_parts = []
+        for item in data.get("output", []):
+            if item.get("type") == "message":
+                for content in item.get("content", []):
+                    if text := content.get("text"):
+                        text_parts.append(text)
+        return "".join(text_parts)
+    except Exception as e:
+        logger.error("OpenAI API request failed", extra={"error": str(e)})
+        return None
 
-    payload = {
-        "model": OPENAI_MODEL_NAME,
-        "input": prompt
-    }
 
-    # Perform the HTTP POST request
-    response = requests.post(OPENAI_API_URL, headers=headers, json=payload)
-    response.raise_for_status()
+def llm_call(prompt: str) -> Optional[str]:
+    """
+    Generate text using the configured LLM provider (default: gemini).
 
-    data = response.json()
-
-    # Most simple responses come back in "output_text"
-    if "output_text" in data:
-        return data["output_text"]
-
-    # Fallback: extract text chunks from structured output
-    text_parts = []
-    for item in data.get("output", []):
-        if item.get("type") == "message":
-            for content in item.get("content", []):
-                if text := content.get("text"):
-                    text_parts.append(text)
-
-    return "".join(text_parts)
+    Uses LLM_PROVIDER env: "gemini" or "openai". Requires the corresponding
+    API key to be set. At least one of GEMINI_API_KEY or OPENAI_API_KEY must be set.
+    """
+    if LLM_PROVIDER == "openai":
+        if not OPENAI_API_KEY:
+            logger.error("LLM_PROVIDER is openai but OPENAI_API_KEY is not set")
+            return None
+        return openai_api_call(prompt)
+    else:
+        if not GEMINI_API_KEY:
+            logger.error("LLM_PROVIDER is gemini but GEMINI_API_KEY is not set")
+            return None
+        return gemini_api_call(prompt)
 
 
 def generate_note_using_llm(
@@ -511,8 +531,7 @@ def generate_note_using_llm(
     )
 
     try:
-        # result = gemini_api_call(prompt)
-        result = openai_api_call(prompt)
+        result = llm_call(prompt)
 
         if result:
             # Clean up the result - remove extra whitespace and newlines
