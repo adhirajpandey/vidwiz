@@ -47,12 +47,14 @@ The platform is built with:
 
 ## Architecture
 
-VidWiz uses a modern cloud-native architecture for scalability and performance:
+VidWiz uses a layered backend to keep request handling thin and domain logic centralized:
 
 ```
 Clients (Extension/Web/Mobile)
     ↓
-Flask REST API
+Flask REST API (routes/controllers)
+    ↓
+Service layer (domain logic)
     ↓
 PostgreSQL ←→ AWS Services
                   ├─ SQS (Async task queues)
@@ -132,9 +134,11 @@ The extension will then show the note-taking interface when on YouTube videos.
 vidwiz/
 ├── backend/              # Flask API
 │   ├── vidwiz/
-│   │   ├── routes/      # API endpoints
+│   │   ├── routes/      # API endpoints (thin controllers)
+│   │   ├── services/    # Domain logic/services
 │   │   ├── lambdas/     # AWS Lambda functions
-│   │   ├── services/    # Helper services
+│   │   ├── infra/       # Systemd/service unit files for helpers
+│   │   ├── workers/     # Background workers
 │   │   ├── shared/      # Utilities and models
 │   │   └── tests/       # Pytest test suites
 │   └── wsgi.py          # Flask entrypoint
@@ -179,4 +183,3 @@ vidwiz/
 
 ### Extension
 <img width="369" height="450" alt="Screenshot 2026-01-16 011711" src="https://github.com/user-attachments/assets/d52c10c5-fcaa-4d0b-8dae-e2f63b7c2f66" />
-

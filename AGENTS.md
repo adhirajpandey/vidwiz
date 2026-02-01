@@ -21,6 +21,9 @@ VidWiz helps users take timestamped notes on YouTube videos. The system stores n
 - `backend/`: Flask API and supporting files.
   - `vidwiz/`: Flask app package.
     - `routes/`: API route handlers.
+    - `services/`: Domain logic/services (routes stay thin).
+    - `infra/`: Systemd/service unit files for helper processes.
+    - `workers/`: Background workers.
     - `shared/`: Shared helpers/utilities.
     - `tests/`: Pytest suites.
   - `.env`: Local environment variables (use `.env.example`).
@@ -45,9 +48,9 @@ VidWiz helps users take timestamped notes on YouTube videos. The system stores n
 - `cd frontend && npm run dev`: Start Vite dev server
 
 ## Architecture Overview
-- Extension -> Flask API -> PostgreSQL
-- Web app (Vite/React) -> Flask API -> PostgreSQL
-- Flask API -> AWS SQS (async tasks) -> AWS S3 (artifacts/outputs)
+- Extension -> Flask API (routes/controllers) -> Services -> PostgreSQL
+- Web app (Vite/React) -> Flask API (routes/controllers) -> Services -> PostgreSQL
+- Services -> AWS SQS (async tasks) -> AWS S3 (artifacts/outputs)
 
 ## General Flows
 - User creation: Web app or extension -> `POST /api/users` -> store user in PostgreSQL -> return JWT for subsequent requests.
