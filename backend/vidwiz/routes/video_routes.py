@@ -58,7 +58,7 @@ def get_video_notes(video_id):
             Note.query.join(User, Note.user_id == User.id)
             .filter(
                 Note.video_id == video_id,
-                User.profile_data.op("->>")('"ai_notes_enabled"')
+                User.profile_data.op("->>")("ai_notes_enabled")
                 .cast(db.Boolean)
                 .is_(True),
                 db.or_(Note.text.is_(None), Note.text == ""),
