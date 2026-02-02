@@ -15,7 +15,7 @@ from src.internal.schemas import (
     TranscriptWrite,
     VideoNotesResponse,
 )
-from src.notes.schemas import NoteRead
+from src.notes.schemas import NoteRead, NoteUpdate
 from src.videos.schemas import VideoIdPath, VideoRead
 
 
@@ -154,3 +154,43 @@ def store_summary(
 ) -> VideoRead:
     video = internal_service.store_summary(db, path.video_id, payload.summary)
     return VideoRead.model_validate(video)
+
+
+@router.get(
+    "/videos/{video_id}",
+    response_model=VideoRead,
+    status_code=status.HTTP_200_OK,
+    description="Fetch video details (internal).",
+)
+def get_video(
+    path: VideoIdPath = Depends(),
+    db: Session = Depends(get_db),
+    _: None = Depends(require_admin_token),
+) -> VideoRead:
+    video = internal_service.get_video(db, path.video_id)
+    if not video:
+        raise NotFoundError("Video not found")
+    return VideoRead.model_validate(video)
+
+
+@router.patch(
+    "/notes/{note_id}",
+    response_model=NoteRead,
+    status_code=status.HTTP_200_OK,
+    description="Update note (internal).",
+)
+def update_note(
+    note_id: int,
+    payload: NoteUpdate,
+    db: Session = Depends(get_db),
+    _: None = Depends(require_admin_token),
+) -> NoteRead:
+    note = internal_service.update_note(
+        db,
+        note_id,
+        payload.text,
+        payload.generated_by_ai,
+    )
+    if not note:
+        raise NotFoundError("Note not found")
+    return NoteRead.model_validate(note)

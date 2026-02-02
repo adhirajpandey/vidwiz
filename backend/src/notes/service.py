@@ -54,6 +54,10 @@ def get_note_for_user(db: Session, user_id: int, note_id: int) -> Note | None:
     return db.execute(query).scalar_one_or_none()
 
 
+def get_note_by_id(db: Session, note_id: int) -> Note | None:
+    return db.get(Note, note_id)
+
+
 def update_note(
     db: Session,
     note: Note,

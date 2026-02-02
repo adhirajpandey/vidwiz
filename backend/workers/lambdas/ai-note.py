@@ -265,9 +265,11 @@ def get_video_metadata(video_id: str) -> Optional[Dict]:
     Returns:
         Response body as dict (e.g. {"title": "..."}) on 200, or None on error/non-200.
     """
-    url = f"{VIDWIZ_ENDPOINT}/wiz/video/{video_id}"
+    # Use api/v2/internal
+    url = f"{VIDWIZ_ENDPOINT}/api/v2/internal/videos/{video_id}"
     headers = {
         "Content-Type": "application/json",
+        "Authorization": f"Bearer {VIDWIZ_TOKEN}",
     }
 
     try:
@@ -626,7 +628,8 @@ def update_vidwiz_note(note_id: str, ai_note: str) -> bool:
     Returns:
         True if the update succeeded (HTTP 200), False otherwise.
     """
-    url = f"{VIDWIZ_ENDPOINT}/notes/{note_id}"
+    # Use api/v2/internal
+    url = f"{VIDWIZ_ENDPOINT}/api/v2/internal/notes/{note_id}"
     headers = {
         "Content-Type": "application/json",
         "Authorization": f"Bearer {VIDWIZ_TOKEN}",

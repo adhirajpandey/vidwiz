@@ -14,6 +14,7 @@ from src.exceptions import BadRequestError, ForbiddenError, NotFoundError
 from src.internal import constants as internal_constants
 from src.internal.models import Task, TaskStatus
 from src.notes.models import Note
+from src.notes import service as notes_service
 from src.videos import service as videos_service
 from src.videos.models import Video
 from src.conversations.config import conversations_settings
@@ -294,3 +295,22 @@ def fetch_ai_note_task_notes(db: Session, video_id: str) -> tuple[Video | None, 
         .all()
     )
     return video, notes
+
+
+def get_video(db: Session, video_id: str) -> Video | None:
+    return videos_service.get_video_by_id(db, video_id)
+
+
+def update_note(
+    db: Session,
+    note_id: int,
+    text: str | None,
+    generated_by_ai: bool | None,
+) -> Note | None:
+    # We need to find the user_id for the note to use get_note_for_user or just get it directly.
+    # Since this is internal admin, we can get note directly by ID.
+    note = notes_service.get_note_by_id(db, note_id)
+    if not note:
+        return None
+
+    return notes_service.update_note(db, note, text, generated_by_ai)

@@ -140,9 +140,11 @@ def get_video_metadata(video_id: str) -> Optional[Dict]:
     Returns:
         Response body as dict (e.g. {"title": "..."}) on 200, or None on error/non-200.
     """
-    url = f"{VIDWIZ_ENDPOINT}/wiz/video/{video_id}"
+    # Use api/v2/internal
+    url = f"{VIDWIZ_ENDPOINT}/api/v2/internal/videos/{video_id}"
     headers = {
         "Content-Type": "application/json",
+        "Authorization": f"Bearer {VIDWIZ_TOKEN}",
     }
 
     try:
@@ -350,7 +352,7 @@ def get_valid_ai_summary(title: Optional[str], transcript_text: str, attempts: i
 # Update VidWiz API
 def update_vidwiz_summary(video_id: str, ai_summary: str) -> bool:
     """
-    Update the video summary in the VidWiz backend via PATCH.
+    Update the video summary in the VidWiz backend via POST.
 
     Args:
         video_id: Unique identifier for the video.
@@ -359,7 +361,8 @@ def update_vidwiz_summary(video_id: str, ai_summary: str) -> bool:
     Returns:
         True if the update succeeded (HTTP 200), False otherwise.
     """
-    url = f"{VIDWIZ_ENDPOINT}/videos/{video_id}"
+    # Use api/v2/internal
+    url = f"{VIDWIZ_ENDPOINT}/api/v2/internal/videos/{video_id}/summary"
     headers = {
         "Content-Type": "application/json",
         "Authorization": f"Bearer {VIDWIZ_TOKEN}",
@@ -368,7 +371,7 @@ def update_vidwiz_summary(video_id: str, ai_summary: str) -> bool:
     payload = {"summary": ai_summary}
 
     try:
-        response = requests.patch(url, json=payload, headers=headers, timeout=REQUEST_TIMEOUT)
+        response = requests.post(url, json=payload, headers=headers, timeout=REQUEST_TIMEOUT)
         if response.status_code == 200:
             logger.info("Successfully updated summary", extra={"video_id": video_id})
             return True

@@ -46,7 +46,8 @@ def fetch_all_notes(video_id: str) -> Optional[List[Dict[str, Any]]]:
     Returns:
         List of note task dicts, or None if the request fails or returns non-200.
     """
-    url = f"{VIDWIZ_ENDPOINT}/videos/{video_id}/notes/ai-note-task"
+    # Use api/v2/internal
+    url = f"{VIDWIZ_ENDPOINT}/api/v2/internal/videos/{video_id}/ai-notes"
     headers = {"Authorization": f"Bearer {VIDWIZ_TOKEN}"}
     try:
         resp = requests.get(url, headers=headers)
