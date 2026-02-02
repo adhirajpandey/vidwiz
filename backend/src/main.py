@@ -1,5 +1,6 @@
 from fastapi import FastAPI, HTTPException, Request, status
 from fastapi.exceptions import RequestValidationError
+from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
 
 from src.auth.router import router as auth_router
@@ -14,31 +15,6 @@ from src.videos.router import router as videos_router
 
 SHOW_DOCS_ENVIRONMENT = ("local", "staging")
 
-
-def create_app() -> FastAPI:
-    app_configs = {"title": "VidWiz API"}
-    if settings.environment not in SHOW_DOCS_ENVIRONMENT:
-        app_configs["openapi_url"] = None
-
-    app = FastAPI(**app_configs)
-
-    app.include_router(videos_router)
-    app.include_router(auth_router)
-    app.include_router(notes_router)
-    app.include_router(conversations_router)
-    app.include_router(internal_router)
-
-    register_exception_handlers(app)
-    return app
-
-
-app = create_app()
-
-
-def run() -> None:
-    import uvicorn
-
-    uvicorn.run("src.main:app", host="0.0.0.0", port=5000, reload=False)
 
 
 def register_exception_handlers(app: FastAPI) -> None:
@@ -94,3 +70,43 @@ def register_exception_handlers(app: FastAPI) -> None:
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             content=response.model_dump(),
         )
+
+
+def create_app() -> FastAPI:
+    app_configs = {"title": "VidWiz API"}
+    if settings.environment not in SHOW_DOCS_ENVIRONMENT:
+        app_configs["openapi_url"] = None
+
+    app = FastAPI(**app_configs)
+
+    app.add_middleware(
+        CORSMiddleware,
+        allow_origins=["*"],
+        allow_credentials=True,
+        allow_methods=["*"],
+        allow_headers=["*"],
+    )
+
+    @app.middleware("http")
+    async def add_referrer_policy(request: Request, call_next):
+        response = await call_next(request)
+        response.headers["Referrer-Policy"] = "strict-origin-when-cross-origin"
+        return response
+
+    app.include_router(videos_router)
+    app.include_router(auth_router)
+    app.include_router(notes_router)
+    app.include_router(conversations_router)
+    app.include_router(internal_router)
+
+    register_exception_handlers(app)
+    return app
+
+
+app = create_app()
+
+
+def run() -> None:
+    import uvicorn
+
+    uvicorn.run("src.main:app", host="0.0.0.0", port=5000, reload=False)

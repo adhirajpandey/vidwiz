@@ -150,7 +150,7 @@ def store_summary(
     payload: SummaryWrite,
     path: VideoIdPath = Depends(),
     db: Session = Depends(get_db),
-    _: None = Depends(require_internal_api_key),
+    _: None = Depends(require_admin_token),
 ) -> VideoRead:
     video = internal_service.store_summary(db, path.video_id, payload.summary)
     return VideoRead.model_validate(video)
