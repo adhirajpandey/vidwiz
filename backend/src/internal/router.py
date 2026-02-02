@@ -1,0 +1,156 @@
+from fastapi import APIRouter, Depends, Response, status
+from sqlalchemy.orm import Session
+
+from src.database import get_db
+from src.exceptions import NotFoundError
+from src.internal import service as internal_service
+from src.internal.dependencies import get_task_poll_params, require_admin_token
+from src.internal.schemas import (
+    MetadataWrite,
+    SummaryWrite,
+    TaskPollParams,
+    TaskResultRequest,
+    TaskRetrievedResponse,
+    TaskSubmitResponse,
+    TranscriptWrite,
+    VideoNotesResponse,
+)
+from src.notes.schemas import NoteRead
+from src.videos.schemas import VideoIdPath, VideoRead
+
+
+router = APIRouter(prefix="/api/v2/internal", tags=["Internal"])
+
+
+@router.get(
+    "/tasks",
+    response_model=TaskRetrievedResponse,
+    status_code=status.HTTP_200_OK,
+    description="Poll for work items.",
+)
+def get_task(
+    params: TaskPollParams = Depends(get_task_poll_params),
+    db: Session = Depends(get_db),
+    _: None = Depends(require_admin_token),
+):
+    task = internal_service.poll_for_task(
+        db,
+        params.task_type,
+        params.timeout,
+        params.poll_interval,
+        params.max_retries,
+        params.in_progress_timeout,
+        worker_user_id=None,
+    )
+    if not task:
+        return Response(status_code=status.HTTP_204_NO_CONTENT)
+
+    return TaskRetrievedResponse(
+        task_id=task.id,
+        task_type=task.task_type,
+        task_details=task.task_details,
+        retry_count=task.retry_count,
+        message="Task retrieved successfully",
+    )
+
+
+@router.post(
+    "/tasks/{task_id}/result",
+    response_model=TaskSubmitResponse,
+    status_code=status.HTTP_200_OK,
+    description="Submit task result.",
+)
+def submit_task_result(
+    payload: TaskResultRequest,
+    task_id: int,
+    db: Session = Depends(get_db),
+    _: None = Depends(require_admin_token),
+) -> TaskSubmitResponse:
+    task = internal_service.submit_task_result(
+        db,
+        task_id,
+        payload.video_id,
+        payload.success,
+        payload.transcript,
+        payload.metadata,
+        payload.error_message,
+        worker_user_id=None,
+    )
+
+    return TaskSubmitResponse(
+        message="Task result submitted successfully",
+        task_id=task.id,
+        status=task.status.value,
+    )
+
+
+@router.get(
+    "/videos/{video_id}/ai-notes",
+    response_model=VideoNotesResponse,
+    status_code=status.HTTP_200_OK,
+    description="Fetch eligible notes for AI note generation.",
+)
+def list_ai_notes(
+    path: VideoIdPath = Depends(),
+    db: Session = Depends(get_db),
+    _: None = Depends(require_admin_token),
+) -> VideoNotesResponse:
+    video, notes = internal_service.fetch_ai_note_task_notes(db, path.video_id)
+    if not video:
+        raise NotFoundError("Video not found")
+    if not notes:
+        raise NotFoundError("No notes found for users with AI notes enabled")
+
+    return VideoNotesResponse(
+        video_id=path.video_id,
+        notes=[NoteRead.model_validate(note) for note in notes],
+        message="Successfully retrieved notes for AI note generation.",
+    )
+
+
+@router.post(
+    "/videos/{video_id}/transcript",
+    response_model=VideoRead,
+    status_code=status.HTTP_200_OK,
+    description="Store transcript data (upsert video).",
+)
+def store_transcript(
+    payload: TranscriptWrite,
+    path: VideoIdPath = Depends(),
+    db: Session = Depends(get_db),
+    _: None = Depends(require_admin_token),
+) -> VideoRead:
+    video = internal_service.store_transcript(db, path.video_id, payload.transcript)
+    return VideoRead.model_validate(video)
+
+
+@router.post(
+    "/videos/{video_id}/metadata",
+    response_model=VideoRead,
+    status_code=status.HTTP_200_OK,
+    description="Store metadata data (upsert video).",
+)
+def store_metadata(
+    payload: MetadataWrite,
+    path: VideoIdPath = Depends(),
+    db: Session = Depends(get_db),
+    _: None = Depends(require_admin_token),
+) -> VideoRead:
+    video = internal_service.store_metadata(db, path.video_id, payload.metadata)
+    return VideoRead.model_validate(video)
+
+
+@router.post(
+    "/videos/{video_id}/summary",
+    response_model=VideoRead,
+    status_code=status.HTTP_200_OK,
+    description="Store summary text (upsert video).",
+)
+def store_summary(
+    payload: SummaryWrite,
+    path: VideoIdPath = Depends(),
+    db: Session = Depends(get_db),
+    _: None = Depends(require_internal_api_key),
+) -> VideoRead:
+    video = internal_service.store_summary(db, path.video_id, payload.summary)
+    return VideoRead.model_validate(video)

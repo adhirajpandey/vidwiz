@@ -29,11 +29,11 @@ RUN poetry config virtualenvs.create false && \
 # Copy backend source
 COPY backend/ /app/
 
-# Copy built frontend (from stage 1) into backend/vidwiz/dist
-COPY --from=frontend-builder /app/frontend/dist /app/vidwiz/dist
+# Copy built frontend (from stage 1) into backend/static/dist
+COPY --from=frontend-builder /app/frontend/dist /app/static/dist
 
 # Expose app port
 EXPOSE 5000
 
-# Run gunicorn
-CMD ["poetry", "run", "gunicorn", "-w", "4", "--threads", "2", "--bind", "0.0.0.0:5000", "wsgi:app"]
+# Run uvicorn
+CMD ["poetry", "run", "uvicorn", "src.main:app", "--host", "0.0.0.0", "--port", "5000"]
