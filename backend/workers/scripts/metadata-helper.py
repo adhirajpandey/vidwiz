@@ -10,8 +10,6 @@ import yt_dlp
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger("vidwiz.metadata_helper")
 
-TASK_ENDPOINT = "https://vidwiz.online/api/tasks/metadata"
-
 
 def get_auth_token() -> str:
     """Load ADMIN_TOKEN from environment. Fail fast if missing."""
@@ -180,8 +178,8 @@ def main() -> None:
     parser.add_argument(
         "--api-url",
         type=str,
-        default="https://vidwiz.online",
-        help="Base API URL (default: https://vidwiz.online)",
+        default="https://api.vidwiz.online",
+        help="Base API URL (default: https://api.vidwiz.online)",
     )
 
     args = parser.parse_args()

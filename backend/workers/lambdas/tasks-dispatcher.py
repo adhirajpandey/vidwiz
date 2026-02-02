@@ -166,7 +166,6 @@ def lambda_handler(event: Dict[str, Any], context: Any):
 
     Returns:
         None. Failures are logged; no exception is raised.
-    """
         context: Lambda context (unused).
 
     Returns:
