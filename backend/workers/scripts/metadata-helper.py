@@ -73,11 +73,8 @@ class MetadataHelper:
         """Poll for a metadata task from the API."""
         # Polling for "fetch_metadata" task type
         params = {
-            "task_type": "fetch_metadata",
+            "type": "metadata",
             "timeout": self.timeout_seconds,
-            "poll_interval": 2,
-            "max_retries": 3,
-            "in_progress_timeout": 120,
         }
 
         try:

@@ -62,11 +62,8 @@ class TranscriptHelper:
     def get_transcript_task(self) -> Optional[Dict]:
         # Polling for "fetch_transcript" task type
         params = {
-            "task_type": "fetch_transcript",
+            "type": "transcript",
             "timeout": self.timeout_seconds,
-            "poll_interval": 2,
-            "max_retries": 3,
-            "in_progress_timeout": 120,
         }
         
         try:
