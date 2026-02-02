@@ -126,22 +126,47 @@ def push_notes_to_sqs_batch(notes: List[Dict[str, Any]]) -> Dict[str, Any]:
     return {"sent": total_sent, "failed": total_failed, "batches": len(results)}
 
 
+def push_summary_to_sqs(video_id: str) -> bool:
+    """
+    Send a summary generation request to the AI Summary SQS queue.
+    """
+    if not SQS_SUMMARY_QUEUE_URL:
+        logger.warning("SQS_SUMMARY_QUEUE_URL is not set, skipping summary dispatch")
+        return False
+
+    sqs = boto3.client("sqs")
+    message_body = json.dumps({"video_id": video_id})
+    
+    try:
+        sqs.send_message(QueueUrl=SQS_SUMMARY_QUEUE_URL, MessageBody=message_body)
+        logger.info("Dispatched summary request", extra={"video_id": video_id})
+        return True
+    except Exception as e:
+        logger.error("Failed to dispatch summary request", extra={"video_id": video_id, "error": str(e)})
+        return False
+
+
 # Lambda Entry Point
 @logger.inject_lambda_context(log_event=True)
 def lambda_handler(event: Dict[str, Any], context: Any):
     """
-    Lambda handler to process note tasks from S3 or manual input.
+    Task Dispatcher Lambda Handler.
 
-    Supports two invocation modes:
-    - S3 Event: invoked when a transcript object is written to S3. Extracts the video ID
-      from the object key.
-    - Manual: invoked with event["video_ids"] (list of video ID strings).
-
-    For each video ID, fetches all AI-note tasks from VidWiz and enqueues them to SQS
-    in batches of 10.
+    Triggered by:
+    - **S3 Event**: When a transcript JSON is saved to `transcripts/`.
+      - Actions:
+        1. Dispatches a `SummaryRequest` to the AI Summary SQS Queue.
+        2. Fetches pending AI Note tasks from VidWiz API and pushes them to the AI Note SQS Queue.
+    - **Manual**: Via `event["video_ids"]` (list of strings).
+      - Actions: Runs the dispatch logic for the specified videos.
 
     Args:
-        event: Either an S3 event dict with "Records", or a dict with "video_ids" (list).
+        event: S3 event dict (Records) or manual invocation dict (video_ids).
+        context: Lambda context (unused).
+
+    Returns:
+        None. Failures are logged; no exception is raised.
+    """
         context: Lambda context (unused).
 
     Returns:
@@ -150,12 +175,14 @@ def lambda_handler(event: Dict[str, Any], context: Any):
     try:
         # Collect video IDs from either S3 event or manual input
         video_ids: List[str] = []
+        is_s3_event = False
 
         # 1️⃣ S3 Event Mode
         records = event.get("Records", [])
         if records and isinstance(records, list):
             first = records[0]
             if "s3" in first and "object" in first["s3"]:
+                is_s3_event = True
                 key = first["s3"]["object"]["key"]
                 video_id = extract_valid_video_id(key)
                 if video_id:
@@ -180,6 +207,12 @@ def lambda_handler(event: Dict[str, Any], context: Any):
         for vid in video_ids:
             logger.info(f"Processing video_id: {vid}")
 
+            # Dispatch Summary Task (Only for S3 events usually, but safe to force for manual too if desired)
+            # We treat S3 event as "Transcript Available" signal -> TRIGGER ALL DOWNSTREAM
+            if is_s3_event:
+                push_summary_to_sqs(vid)
+
+            # Dispatch Note Tasks
             notes_data = fetch_all_notes(vid)
             if notes_data is None:
                 logger.error(f"Failed to fetch notes for video {vid}")

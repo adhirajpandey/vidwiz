@@ -389,7 +389,13 @@ def update_vidwiz_summary(video_id: str, ai_summary: str) -> bool:
 # Main Processor
 def process_summary(video_id: str) -> None:
     """
-    Run the full summary pipeline for one video: fetch transcript, generate summary, update VidWiz.
+    Run the full summary pipeline for one video.
+    
+    Steps:
+    1. **Idempotency Check**: Fetches video details from API. If a summary already exists, skips redundancy.
+    2. **Transcript Fetch**: Retrieves the video transcript from S3.
+    3. **Generation**: Uses LLM to generate a summary.
+    4. **Persistence**: Updates the video record in VidWiz via API.
 
     Args:
         video_id: Unique identifier for the video.
@@ -400,15 +406,23 @@ def process_summary(video_id: str) -> None:
     logger.info("Processing summary", extra={"video_id": video_id})
 
     try:
-        # Get transcript from S3
-        transcript = get_transcript_from_s3(video_id)
-        if transcript is None:
-            logger.error("Transcript not available", extra={"video_id": video_id})
+        # 1. Idempotency Check & Metadata Fetch
+        # Renaming to video_details to avoid confusion with the inner 'metadata' field
+        video_details = get_video_metadata(video_id)
+        if not video_details:
+            logger.error("Failed to fetch video details, cannot proceed", extra={"video_id": video_id})
             return
 
-        # Get video metadata to get title
-        video_metadata = get_video_metadata(video_id)
-        title = video_metadata.get("title") if video_metadata else None
+        # Ideally the API returns the "summary" field. If it does, we check it.
+        if video_details.get("summary"):
+            logger.info("Summary already exists for video, skipping generation", extra={"video_id": video_id})
+            return
+
+        title = video_details.get("title")
+
+        # 2. Get transcript from S3
+        transcript = get_transcript_from_s3(video_id)
+
 
         # Format transcript for LLM
         full_transcript_text = format_full_transcript(transcript)

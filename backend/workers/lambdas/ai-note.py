@@ -72,25 +72,25 @@ class Note(BaseModel):
     Note model for processing requests (SQS payload).
 
     Attributes:
-        created_at: ISO timestamp when the note was created.
-        generated_by_ai: Whether the note was AI-generated.
+        created_at: ISO timestamp when the note was created (optional).
+        generated_by_ai: Whether the note was AI-generated (optional).
         id: Internal note ID.
-        text: Note content (may be placeholder before AI generation).
+        text: Note content (optional).
         timestamp: Timestamp in video (e.g. HH:MM:SS).
-        updated_at: ISO timestamp of last update.
+        updated_at: ISO timestamp of last update (optional).
         user_id: Owner user ID.
-        video: Nested Video model.
+        video: Nested Video model (optional).
         video_id: External video identifier.
     """
 
-    created_at: str
-    generated_by_ai: bool
+    created_at: Optional[str] = None
+    generated_by_ai: Optional[bool] = None
     id: int
-    text: Any
+    text: Any = None
     timestamp: str
-    updated_at: str
+    updated_at: Optional[str] = None
     user_id: int
-    video: Video
+    video: Optional[Video] = None
     video_id: str
 
 
@@ -658,6 +658,10 @@ def process_note(note: Note) -> None:
     Fetches transcript from S3, extracts relevant context at the note timestamp,
     generates an AI note via the LLM, validates length, and PATCHes the note in VidWiz.
 
+    Robustness:
+    - Handles missing nested `video` object by falling back to API metadata fetch for title.
+    - Acccepts minimal note payloads (id, video_id, timestamp).
+
     Args:
         note: Note object containing video and timestamp information.
 
@@ -691,9 +695,11 @@ def process_note(note: Note) -> None:
             )
             return
 
-        # Resolve title: use video.title, else metadata['title']; if neither, pass None (omit from LLM prompt)
-        title = note.video.title
-        if not title:
+        # Resolve title: use video.title if available, else metadata['title']; if neither, pass None (omit from LLM prompt)
+        title = None
+        if note.video and note.video.title:
+            title = note.video.title
+        else:
             metadata = get_video_metadata(note.video_id)
             title = metadata.get("title") if metadata else None
 
