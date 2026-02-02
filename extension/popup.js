@@ -1,7 +1,7 @@
 // const AppURL = "http://localhost:5173/"
-// const ApiURL = "http://127.0.0.1:5000/"
+// const ApiURL = "http://127.0.0.1:5000/v2/"
 const AppURL = "https://vidwiz.online/"
-const ApiURL = "https://vidwiz.online/api/"
+const ApiURL = "https://vidwiz.online/v2/"
 
 // Get token from localStorage (will be null if not set)
 function getAuthToken() {
@@ -71,10 +71,9 @@ function saveNotesToBackend(url, notes, videoTitle, videoTimestamp) {
 		return
 	}
 
-	const apiEndpoint = ApiURL + "notes"
+	const apiEndpoint = `${ApiURL}videos/${videoId}/notes`
 
 	const noteData = {
-		video_id: videoId,
 		video_title: videoTitle,
 		timestamp: videoTimestamp,
 		text: notes || null // Ensure text is null if empty
@@ -129,7 +128,7 @@ function checkNotesExistence(url) {
 		return Promise.reject("Invalid YouTube URL")
 	}
 
-	const apiEndpoint = ApiURL + `notes/${videoId}`
+	const apiEndpoint = `${ApiURL}videos/${videoId}/notes`
 
 	return fetch(apiEndpoint, {
 		method: "GET",
