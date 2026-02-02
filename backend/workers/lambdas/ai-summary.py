@@ -141,7 +141,7 @@ def get_video_metadata(video_id: str) -> Optional[Dict]:
         Response body as dict (e.g. {"title": "..."}) on 200, or None on error/non-200.
     """
     # Use api/v2/internal
-    url = f"{VIDWIZ_ENDPOINT}/api/v2/internal/videos/{video_id}"
+    url = f"{VIDWIZ_ENDPOINT}/v2/internal/videos/{video_id}"
     headers = {
         "Content-Type": "application/json",
         "Authorization": f"Bearer {VIDWIZ_TOKEN}",
@@ -362,7 +362,7 @@ def update_vidwiz_summary(video_id: str, ai_summary: str) -> bool:
         True if the update succeeded (HTTP 200), False otherwise.
     """
     # Use api/v2/internal
-    url = f"{VIDWIZ_ENDPOINT}/api/v2/internal/videos/{video_id}/summary"
+    url = f"{VIDWIZ_ENDPOINT}/v2/internal/videos/{video_id}/summary"
     headers = {
         "Content-Type": "application/json",
         "Authorization": f"Bearer {VIDWIZ_TOKEN}",

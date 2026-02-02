@@ -16,7 +16,7 @@ from src.conversations.schemas import (
 from src.database import get_db
 
 
-router = APIRouter(prefix="/api/v2/conversations", tags=["Conversations"])
+router = APIRouter(prefix="/v2/conversations", tags=["Conversations"])
 
 
 @router.post(

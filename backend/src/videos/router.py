@@ -14,7 +14,7 @@ from src.videos.dependencies import (
 from src.videos.schemas import VideoListParams, VideoListResponse, VideoRead
 
 
-router = APIRouter(prefix="/api/v2/videos", tags=["Videos"])
+router = APIRouter(prefix="/v2/videos", tags=["Videos"])
 
 
 @router.get(

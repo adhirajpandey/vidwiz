@@ -25,7 +25,7 @@ from src.exceptions import (
 )
 
 
-router = APIRouter(prefix="/api/v2", tags=["Auth"])
+router = APIRouter(prefix="/v2", tags=["Auth"])
 
 
 @router.post(

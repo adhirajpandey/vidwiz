@@ -44,7 +44,7 @@ class TranscriptHelper:
         self.headers = {"Authorization": f"Bearer {auth_token}"}
         # Ensure api_url doesn't end with slash
         self.base_url = api_url.rstrip("/")
-        self.tasks_url = f"{self.base_url}/api/v2/internal/tasks"
+        self.tasks_url = f"{self.base_url}/v2/internal/tasks"
 
     @staticmethod
     def _replace_key_names(transcript: List[Dict]) -> List[Dict]:

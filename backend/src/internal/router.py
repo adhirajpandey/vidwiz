@@ -19,7 +19,7 @@ from src.notes.schemas import NoteRead, NoteUpdate
 from src.videos.schemas import VideoIdPath, VideoRead
 
 
-router = APIRouter(prefix="/api/v2/internal", tags=["Internal"])
+router = APIRouter(prefix="/v2/internal", tags=["Internal"])
 
 
 @router.get(

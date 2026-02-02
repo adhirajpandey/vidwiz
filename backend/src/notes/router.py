@@ -13,7 +13,7 @@ from src.notes.schemas import MessageResponse, NoteCreate, NoteRead, NoteUpdate
 from src.videos.schemas import VideoIdPath
 
 
-router = APIRouter(prefix="/api/v2", tags=["Notes"])
+router = APIRouter(prefix="/v2", tags=["Notes"])
 
 
 @router.get(
