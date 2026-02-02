@@ -7,6 +7,7 @@ import { ArrowRight, Mail, Lock } from 'lucide-react';
 import GoogleSignInButton from '../components/GoogleSignInButton';
 import AuthLayout from '../components/auth/AuthLayout';
 import { setToken } from '../lib/authUtils';
+import { authApi } from '../api';
 
 export default function LoginPage() {
   const [email, setEmail] = useState('');
@@ -18,35 +19,19 @@ export default function LoginPage() {
   const handleLogin = async () => {
     setIsLoading(true);
     try {
-      const response = await fetch(`${config.API_URL}/user/login`, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({ email, password }),
-      });
-
-      const data = await response.json();
-
-      if (response.ok) {
-        setToken(data.token);
-        addToast({
-          title: 'Welcome back!',
-          message: 'Login successful',
-          type: 'success',
-        });
-        navigate('/dashboard');
-      } else {
-        addToast({
-          title: 'Access Denied',
-          message: data.error || 'Invalid credentials',
-          type: 'error',
-        });
-      }
-    } catch (error) {
+      const { token } = await authApi.login({ email, password });
+      setToken(token);
       addToast({
-        title: 'Connection Error',
-        message: 'Could not connect to server',
+        title: 'Welcome back!',
+        message: 'Login successful',
+        type: 'success',
+      });
+      navigate('/dashboard');
+    } catch (error: any) {
+      const errorMessage = error.response?.data?.error?.message || error.response?.data?.message || 'Invalid credentials';
+      addToast({
+        title: 'Access Denied',
+        message: errorMessage,
         type: 'error',
       });
     } finally {
@@ -57,35 +42,19 @@ export default function LoginPage() {
   const handleGoogleSuccess = useCallback(async (credential: string) => {
     setIsLoading(true);
     try {
-      const response = await fetch(`${config.API_URL}/user/google/login`, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({ credential }),
-      });
-
-      const data = await response.json();
-
-      if (response.ok) {
-        setToken(data.token);
-        addToast({
-          title: 'Welcome!',
-          message: 'Google sign-in successful',
-          type: 'success',
-        });
-        navigate('/dashboard');
-      } else {
-        addToast({
-          title: 'Sign-in Failed',
-          message: data.error || 'Google sign-in failed',
-          type: 'error',
-        });
-      }
-    } catch (error) {
+      const { token } = await authApi.googleLogin({ credential });
+      setToken(token);
       addToast({
-        title: 'Connection Error',
-        message: 'Could not connect to server',
+        title: 'Welcome!',
+        message: 'Google sign-in successful',
+        type: 'success',
+      });
+      navigate('/dashboard');
+    } catch (error: any) {
+      const errorMessage = error.response?.data?.error?.message || error.response?.data?.message || 'Google sign-in failed';
+      addToast({
+        title: 'Sign-in Failed',
+        message: errorMessage,
         type: 'error',
       });
     } finally {

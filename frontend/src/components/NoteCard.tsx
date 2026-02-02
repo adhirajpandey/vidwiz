@@ -6,7 +6,7 @@ import { BiUser } from 'react-icons/bi';
 interface Note {
   id: number;
   text: string;
-  timestamp: string;
+  timestamp: string | number;
   video_id: string;
   generated_by_ai: boolean;
 }
@@ -17,9 +17,20 @@ interface NoteCardProps {
   onDelete: (noteId: number) => void;
 }
 
-function timestampToSeconds(timestamp: string) {
+function timestampToSeconds(timestamp: string | number) {
+  if (typeof timestamp === 'number') return timestamp;
   const parts = timestamp.split(':').map(Number);
   return parts.reduce((seconds, value, index) => seconds + value * Math.pow(60, parts.length - 1 - index), 0);
+}
+
+function formatTimestamp(seconds: number): string {
+  const h = Math.floor(seconds / 3600);
+  const m = Math.floor((seconds % 3600) / 60);
+  const s = Math.floor(seconds % 60);
+  if (h > 0) {
+    return `${h}:${m.toString().padStart(2, '0')}:${s.toString().padStart(2, '0')}`;
+  }
+  return `${m}:${s.toString().padStart(2, '0')}`;
 }
 
 export default function NoteCard({ note, onUpdate, onDelete }: NoteCardProps) {
@@ -52,7 +63,7 @@ export default function NoteCard({ note, onUpdate, onDelete }: NoteCardProps) {
           >
             <FaPlay className="w-2 h-2 md:w-2.5 md:h-2.5 text-red-400" />
             <span className="text-xs md:text-sm font-semibold text-red-400 tabular-nums">
-              {note.timestamp}
+              {typeof note.timestamp === 'number' ? formatTimestamp(note.timestamp) : note.timestamp}
             </span>
           </a>
           

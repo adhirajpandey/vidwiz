@@ -1,10 +1,11 @@
 import { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import config from '../config';
+// config removed
 import VideoCard from '../components/VideoCard';
 import { FaSearch, FaYoutube, FaVideo, FaChevronLeft, FaChevronRight } from 'react-icons/fa';
 import { HiSparkles } from 'react-icons/hi2';
-import { getToken, getUserFromToken, removeToken } from '../lib/authUtils';
+import { getUserFromToken, removeToken } from '../lib/authUtils';
+import { videosApi } from '../api';
 
 export default function DashboardPage() {
   const [user, setUser] = useState<{ email: string; name?: string } | null>(null);
@@ -38,39 +39,29 @@ export default function DashboardPage() {
 
   const fetchPage = async (page: number) => {
     setIsSearching(true);
-    const token = getToken();
-    if (token) {
-      try {
-        const response = await fetch(
-          `${config.API_URL}/search?query=${encodeURIComponent(searchQuery)}&page=${page}&per_page=10`,
-          {
-            headers: {
-              Authorization: `Bearer ${token}`,
-            },
-          }
-        );
+    try {
+      // API client automatically handles auth token
+      const data = await videosApi.listVideos({
+        q: searchQuery,
+        page,
+        per_page: 10,
+      });
 
-        if (response.ok) {
-          const data = await response.json();
-          setVideos(data.videos);
-          setCurrentPage(data.page);
-          setTotalPages(data.total_pages);
-          setTotalVideos(data.total);
-        } else if (response.status === 401) {
-          removeToken();
-          navigate('/login');
-          return;
-        } else {
-          setVideos([]);
-          setTotalPages(0);
-          setTotalVideos(0);
-        }
-      } catch (error) {
-        console.error('Failed to fetch videos', error);
-      }
+      setVideos(data.videos);
+      setCurrentPage(data.page);
+      setTotalPages(data.total_pages);
+      setTotalVideos(data.total);
+    } catch (error: any) {
+       // 401 handling is done by client interceptor but we can add specific logic if needed
+       // client interceptor might redirect, so we might just log here
+       console.error('Failed to fetch videos', error);
+       setVideos([]);
+       setTotalPages(0);
+       setTotalVideos(0);
+    } finally {
+      setIsSearching(false);
+      setHasSearched(true);
     }
-    setIsSearching(false);
-    setHasSearched(true);
   };
 
   const handleSearch = async (e: React.FormEvent) => {

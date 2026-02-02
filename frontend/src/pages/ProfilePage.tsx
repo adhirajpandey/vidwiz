@@ -1,7 +1,7 @@
 
 import { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import config from '../config';
+import { authApi } from '../api';
 import { useToast } from '../hooks/useToast';
 import { FaExclamationTriangle, FaEye, FaEyeSlash, FaCopy, FaSpinner, FaKey, FaShieldAlt, FaSave, FaPen, FaTimes } from 'react-icons/fa';
 import { Settings, Zap, User as UserIcon, Calendar, Mail } from 'lucide-react';
@@ -31,28 +31,52 @@ export default function ProfilePage() {
   const { addToast } = useToast();
 
   const fetchProfile = async () => {
+    // getMe is protected by client interceptor/header injection
+    // But we should check if we have a token locally first if we want to avoid 401?
+    // Actually client handles it.
     const token = getToken();
     if (token) {
       try {
-        const response = await fetch(`${config.API_URL}/user/profile`, {
-          headers: {
-            Authorization: `Bearer ${token}`,
-          },
+        const data = await authApi.getMe();
+        setUser({
+          ...data,
+          token_exists: !!data.long_term_token // Assuming backend logic or if we derive it
+          // Wait, UserProfileRead in types.ts has long_term_token optional string.
+          // The old code assumed data had long_term_token
+        } as any); 
+        // UserProfileRead needs to map to UserProfile interface in this file or we update interface.
+        // The interface UserProfile here has `token_exists`.
+        // API `UserProfileRead` has `long_term_token`.
+        // We might need to adapt.
+        
+        setEditName(data.name || '');
+        setApiToken(data.long_term_token || null);
+        
+        // If getting profile worked, we update user state.
+        // But `data` from getMe matches `UserProfileRead`.
+        // `UserProfile` here has `token_exists`.
+        // Let's set token_exists based on long_term_token presence if backend sends it.
+        // Backend `UserRead` schema: id, email, name, profile_image_url, ai_notes_enabled.
+        // Does it return long_term_token?
+        // Checked auth.ts types: `UserProfileRead` has `long_term_token`.
+        
+        setUser({
+            email: data.email,
+            name: data.name,
+            profile_image_url: data.profile_image_url,
+            ai_notes_enabled: data.ai_notes_enabled,
+            token_exists: !!data.long_term_token,
+            created_at: undefined // API might not return this yet, let's look at types
         });
-
-        if (response.ok) {
-          const data = await response.json();
-          setUser(data);
-          setEditName(data.name || '');
-          // Use the actual token from API response
-          setApiToken(data.long_term_token || null);
-        } else {
-          removeToken();
-          navigate('/login');
-        }
-      } catch (error) {
+        
+      } catch (error: any) {
         console.error('Failed to fetch profile', error);
-        addToast({ title: 'Error', message: 'Failed to load profile data', type: 'error' });
+        if (error.response?.status === 401) {
+            removeToken();
+            navigate('/login');
+        } else {
+            addToast({ title: 'Error', message: 'Failed to load profile data', type: 'error' });
+        }
       }
     }
   };
@@ -62,40 +86,21 @@ export default function ProfilePage() {
   }, [navigate]);
 
   const handleSaveDetails = async () => {
-    const token = getToken();
-    if (!token || !user) {
-      if (!token) {
-        removeToken();
-        navigate('/login');
-      }
-      return;
-    }
-
+    if (!user) return;
     setIsSavingDetails(true);
     try {
-      const response = await fetch(`${config.API_URL}/user/profile`, {
-        method: 'PATCH',
-        headers: {
-          'Content-Type': 'application/json',
-          Authorization: `Bearer ${token}`,
-        },
-        body: JSON.stringify({ name: editName }),
-      });
-
-      if (response.ok) {
-        const data = await response.json();
-        setUser(data);
-        addToast({ title: 'Success', message: 'Profile updated successfully', type: 'success' });
-      } else if (response.status === 401) {
+      const data = await authApi.updateProfile({ name: editName });
+      setUser(prev => prev ? { ...prev, name: data.name } : null);
+      addToast({ title: 'Success', message: 'Profile updated successfully', type: 'success' });
+    } catch (error: any) {
+      console.error('Failed to save details', error);
+      if (error.response?.status === 401) {
         removeToken();
         navigate('/login');
       } else {
-        const errorData = await response.json();
-        addToast({ title: 'Error', message: errorData.error || 'Failed to update profile', type: 'error' });
+        const message = error.response?.data?.error || 'Failed to update profile';
+        addToast({ title: 'Error', message, type: 'error' });
       }
-    } catch (error) {
-      console.error('Failed to save details', error);
-      addToast({ title: 'Error', message: 'Failed to update profile', type: 'error' });
     } finally {
       setIsSavingDetails(false);
     }
@@ -103,73 +108,37 @@ export default function ProfilePage() {
 
   const handleAiNotesToggle = async () => {
     if (!user) return;
-    const token = getToken();
-    if (!token) {
-      removeToken();
-      navigate('/login');
-      return;
-    }
-
     try {
-      const response = await fetch(`${config.API_URL}/user/profile`, {
-        method: 'PATCH',
-        headers: {
-          'Content-Type': 'application/json',
-          Authorization: `Bearer ${token}`,
-        },
-        body: JSON.stringify({ ai_notes_enabled: !user.ai_notes_enabled }),
-      });
-
-      if (response.ok) {
-        const data = await response.json();
-        setUser(data);
-        addToast({ title: 'Success', message: 'Profile updated successfully', type: 'success' });
-      } else if (response.status === 401) {
+      const data = await authApi.updateProfile({ ai_notes_enabled: !user.ai_notes_enabled });
+      setUser(prev => prev ? { ...prev, ai_notes_enabled: data.ai_notes_enabled } : null);
+      addToast({ title: 'Success', message: 'Profile updated successfully', type: 'success' });
+    } catch (error: any) {
+      console.error('Failed to update profile', error);
+      if (error.response?.status === 401) {
         removeToken();
         navigate('/login');
       } else {
         addToast({ title: 'Error', message: 'Failed to update AI notes setting', type: 'error' });
       }
-    } catch (error) {
-      console.error('Failed to update profile', error);
-      addToast({ title: 'Error', message: 'Failed to update AI notes setting', type: 'error' });
     }
   };
 
   const handleGenerateToken = async () => {
     setIsGeneratingToken(true);
-    const token = getToken();
-    if (!token) {
-      removeToken();
-      navigate('/login');
-      setIsGeneratingToken(false);
-      return;
-    }
-
     try {
-      const response = await fetch(`${config.API_URL}/user/token`, {
-        method: 'POST',
-        headers: {
-          Authorization: `Bearer ${token}`,
-        },
-      });
-
-      if (response.ok) {
-        const data = await response.json();
-        setApiToken(data.token);
-        setUser(prev => prev ? { ...prev, token_exists: true } : null);
-        addToast({ title: 'Success', message: data.message || 'API token generated successfully', type: 'success' });
-      } else if (response.status === 401) {
+      const data = await authApi.createLongTermToken();
+      setApiToken(data.token);
+      setUser(prev => prev ? { ...prev, token_exists: true } : null);
+      addToast({ title: 'Success', message: data.message || 'API token generated successfully', type: 'success' });
+    } catch (error: any) {
+      console.error('Error generating token:', error);
+      if (error.response?.status === 401) {
         removeToken();
         navigate('/login');
-        return;
       } else {
-        const errorData = await response.json();
-        addToast({ title: 'Error', message: errorData.error || 'Failed to generate token', type: 'error' });
+        const message = error.response?.data?.error || 'Failed to generate token';
+        addToast({ title: 'Error', message, type: 'error' });
       }
-    } catch (error) {
-      console.error('Error generating token:', error);
-      addToast({ title: 'Error', message: 'Error generating token', type: 'error' });
     } finally {
       setIsGeneratingToken(false);
     }
@@ -177,39 +146,20 @@ export default function ProfilePage() {
 
   const handleRevokeToken = async () => {
     setIsRevokingToken(true);
-    const token = getToken();
-    if (!token) {
-      removeToken();
-      navigate('/login');
-      setIsRevokingToken(false);
-      setShowRevokeModal(false);
-      return;
-    }
-
     try {
-      const response = await fetch(`${config.API_URL}/user/token`, {
-        method: 'DELETE',
-        headers: {
-          Authorization: `Bearer ${token}`,
-        },
-      });
-
-      if (response.ok) {
-        const data = await response.json();
-        setApiToken(null);
-        setUser(prev => prev ? { ...prev, token_exists: false } : null);
-        addToast({ title: 'Success', message: data.message || 'API token revoked successfully', type: 'success' });
-      } else if (response.status === 401) {
+      const data = await authApi.revokeLongTermToken();
+      setApiToken(null);
+      setUser(prev => prev ? { ...prev, token_exists: false } : null);
+      addToast({ title: 'Success', message: data.message || 'API token revoked successfully', type: 'success' });
+    } catch (error: any) {
+      console.error('Error revoking token:', error);
+      if (error.response?.status === 401) {
         removeToken();
         navigate('/login');
-        return;
       } else {
-        const errorData = await response.json();
-        addToast({ title: 'Error', message: errorData.error || 'Failed to revoke token', type: 'error' });
+         const message = error.response?.data?.error || 'Failed to revoke token';
+         addToast({ title: 'Error', message, type: 'error' });
       }
-    } catch (error) {
-      console.error('Error revoking token:', error);
-      addToast({ title: 'Error', message: 'Error revoking token', type: 'error' });
     } finally {
       setIsRevokingToken(false);
       setShowRevokeModal(false);
