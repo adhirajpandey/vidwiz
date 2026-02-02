@@ -2,11 +2,11 @@ import { useState, useRef, useEffect } from 'react';
 import { useParams, useNavigate, useLocation } from 'react-router-dom';
 import { Send, Sparkles, RotateCcw } from 'lucide-react';
 import { FaExternalLinkAlt } from 'react-icons/fa';
-import config from '../config';
 import { extractVideoId } from '../lib/videoUtils';
 import GuestLimitModal from '../components/GuestLimitModal';
 import RegisteredLimitModal from '../components/RegisteredLimitModal';
 import { getAuthHeaders, getToken, removeToken } from '../lib/authUtils';
+import { videosApi, conversationsApi } from '../api';
 
 interface Message {
   id: string;
@@ -35,10 +35,7 @@ interface VideoData {
   summary: string | null;
 }
 
-interface ConversationResponse {
-  conversation_id: number;
-  video_id: string;
-}
+// ConversationResponse removed
 
 /**
  * Parses bold markdown (**text**) and renders as bold
@@ -174,6 +171,7 @@ function WizWorkspacePage() {
   const pollingStartTime = useRef<number>(Date.now());
 
   // Handle URL normalization and redirects
+  // Handle URL normalization and redirects
   useEffect(() => {
     if (!rawInput) {
       navigate('/wiz', { replace: true });
@@ -193,30 +191,6 @@ function WizWorkspacePage() {
       navigate(`/wiz/${videoId}`, { replace: true });
     }
   }, [rawInput, videoId, navigate]);
-
-  // Proactively initialize the wiz session when opening a video directly (e.g. bookmark).
-  // Skip when we just came from WizEntryPage — it already called /wiz/init, so we avoid double-queuing (e.g. summary SQS twice).
-  useEffect(() => {
-    if (!videoId) return;
-    const initAlreadyDone = location.state?.initFromEntry === true;
-    if (initAlreadyDone) {
-      return;
-    }
-
-    const initVideo = async () => {
-      try {
-        await fetch(`${config.API_URL}/wiz/init`, {
-          method: 'POST',
-          headers: getAuthHeaders(),
-          body: JSON.stringify({ video_id: videoId }),
-        });
-      } catch (err) {
-        console.error('Proactive wiz init failed:', err);
-      }
-    };
-
-    initVideo();
-  }, [videoId, location.state?.initFromEntry]);
 
   // Reset state when videoId changes
   useEffect(() => {
@@ -245,17 +219,13 @@ function WizWorkspacePage() {
 
     const fetchVideoStatus = async () => {
       try {
-        const response = await fetch(`${config.API_URL}/wiz/video/${videoId}`);
+        const data = await videosApi.getVideo(videoId);
         
+        setVideoData(data);
 
-        if (response.ok) {
-          const data: VideoData = await response.json();
-          setVideoData(data);
-
-          // Stop polling if all data is available
-          if (data.transcript_available && data.metadata && data.summary) {
-            setIsPolling(false);
-          }
+        // Stop polling if all data is available
+        if (data.transcript_available && data.metadata && data.summary) {
+          setIsPolling(false);
         }
       } catch (error) {
         console.error('Failed to fetch video status:', error);
@@ -305,54 +275,29 @@ function WizWorkspacePage() {
     }
   };
 
-  // ... (keeping existing handlers)
-
-  const getWizAuthHeaders = () => {
+  // Ensure guest session ID exists
+  useEffect(() => {
     const token = getToken();
     let guestSessionId = sessionStorage.getItem('guestSessionId');
     if (!token && !guestSessionId) {
       guestSessionId = crypto.randomUUID();
       sessionStorage.setItem('guestSessionId', guestSessionId);
     }
-
-    const headers: Record<string, string> = {
-      'Content-Type': 'application/json',
-    };
-    if (token) {
-      headers['Authorization'] = `Bearer ${token}`;
-    } else if (guestSessionId) {
-      headers['X-Guest-Session-ID'] = guestSessionId;
-    }
-
-    return headers;
-  };
+  }, []);
 
   const createNewConversation = async () => {
     if (!videoId || isCreatingConversation) return null;
     setIsCreatingConversation(true);
     try {
-      const response = await fetch(`${config.API_URL}/wiz/conversation`, {
-        method: 'POST',
-        headers: getWizAuthHeaders(),
-        body: JSON.stringify({ video_id: videoId }),
-      });
-
-      if (response.status === 401) {
+      const data = await conversationsApi.createConversation({ video_id: videoId });
+      setConversationId(data.id);
+      return data.id;
+    } catch (error: any) {
+      console.error('Failed to create conversation:', error);
+      if (error.response?.status === 401) {
         removeToken();
         navigate('/login');
-        return null;
       }
-
-      if (!response.ok) {
-        console.error('Failed to create conversation:', response.statusText);
-        return null;
-      }
-
-      const data: ConversationResponse = await response.json();
-      setConversationId(data.conversation_id);
-      return data.conversation_id;
-    } catch (error) {
-      console.error('Failed to create conversation:', error);
       return null;
     } finally {
       setIsCreatingConversation(false);
@@ -396,13 +341,19 @@ function WizWorkspacePage() {
         activeConversationId = await createNewConversation();
       }
 
-      const response = await fetch(`${config.API_URL}/wiz/chat`, {
+      if (!activeConversationId) {
+         throw new Error('Failed to start conversation');
+      }
+
+      // We use fetch directly here for streaming support, but point to the new endpoint
+      const response = await fetch(conversationsApi.getSendMessageUrl(activeConversationId), {
         method: 'POST',
-        headers: getWizAuthHeaders(),
+        headers: {
+          ...getAuthHeaders(), // Use auth utils helper
+          ...(sessionStorage.getItem('guestSessionId') ? { 'X-Guest-Session-ID': sessionStorage.getItem('guestSessionId')! } : {})
+        },
         body: JSON.stringify({
-          video_id: videoId,
-          message: trimmed,
-          ...(activeConversationId ? { conversation_id: activeConversationId } : {}),
+          message: trimmed
         }),
       });
 

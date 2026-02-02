@@ -1,42 +1,19 @@
 import { useEffect, useState } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { Sparkles, ChevronDown, ChevronUp } from 'lucide-react';
-import config from '../config';
+import { videosApi, notesApi } from '../api';
+import type { VideoRead, NoteRead } from '../api/types';
 import NoteCard from '../components/NoteCard';
 import { useToast } from '../hooks/useToast';
 import { FaExclamationTriangle, FaPlay, FaEye, FaHeart, FaExternalLinkAlt } from 'react-icons/fa';
 import { getToken, removeToken } from '../lib/authUtils';
 
-interface Video {
-  video_id: string;
-  title: string;
-  summary?: string | null;
-  metadata?: {
-    title?: string;
-    channel?: string;
-    channel_url?: string;
-    uploader?: string;
-    uploader_url?: string;
-    view_count?: number;
-    like_count?: number;
-    duration_string?: string;
-    upload_date?: string;
-    thumbnail?: string;
-  };
-}
-
-interface Note {
-  id: number;
-  text: string;
-  timestamp: string;
-  video_id: string;
-  generated_by_ai: boolean;
-}
+// Video and Note interfaces removed in favor of VideoRead and NoteRead
 
 export default function VideoPage() {
   const { videoId } = useParams();
-  const [video, setVideo] = useState<Video | null>(null);
-  const [notes, setNotes] = useState<Note[]>([]);
+  const [video, setVideo] = useState<VideoRead | null>(null);
+  const [notes, setNotes] = useState<NoteRead[]>([]);
   const [showDeleteModal, setShowDeleteModal] = useState(false);
   const [noteToDelete, setNoteToDelete] = useState<number | null>(null);
   const [isSummaryExpanded, setIsSummaryExpanded] = useState(false);
@@ -45,51 +22,43 @@ export default function VideoPage() {
 
   useEffect(() => {
     const fetchVideoDetails = async () => {
-      const token = getToken();
-      if (token) {
-        try {
-          const response = await fetch(`${config.API_URL}/videos/${videoId}`, {
-            headers: {
-              Authorization: `Bearer ${token}`,
-            },
-          });
-
-          if (response.ok) {
-            const data = await response.json();
-            setVideo(data);
-          } else if (response.status === 401) {
-            removeToken();
-            navigate('/login');
-          } else {
-            navigate('/dashboard');
-          }
-        } catch (error) {
-          console.error('Failed to fetch video details', error);
+      // videosApi.getVideo handles auth internally if header is needed, 
+      // but getVideo is public. 401 handling is for protected routes.
+      // However, frontend flow seems to check token for everything if protected.
+      // Backend: /videos/{id} is public? Check router.
+      // Usually videos are public or protected.
+      // If we need token, client handles it.
+      if (!videoId) return;
+      try {
+        const data = await videosApi.getVideo(videoId);
+        setVideo(data);
+      } catch (error: any) {
+        console.error('Failed to fetch video details', error);
+        // If 401, client interceptor might have handled it, else navigating
+        if (error.response?.status === 401) {
+           removeToken();
+           navigate('/login');
+        } else {
+           // On other errors (404 etc), go to dashboard
+           navigate('/dashboard');
         }
       }
     };
 
     const getNotes = async () => {
       const token = getToken();
-      if (token) {
+      if (token && videoId) {
         try {
-          const response = await fetch(`${config.API_URL}/notes/${videoId}`, {
-            headers: {
-              Authorization: `Bearer ${token}`,
-            },
-          });
-
-          if (response.ok) {
-            const data = await response.json();
-            setNotes(data.sort((a: Note, b: Note) => timestampToSeconds(a.timestamp) - timestampToSeconds(b.timestamp)));
-          } else if (response.status === 401) {
-            removeToken();
-            navigate('/login');
-          } else {
-            setNotes([]);
-          }
-        } catch (error) {
+          const data = await notesApi.listNotes(videoId);
+          setNotes(data.sort((a: NoteRead, b: NoteRead) => timestampToSeconds(a.timestamp) - timestampToSeconds(b.timestamp)));
+        } catch (error: any) {
           console.error('Failed to fetch notes', error);
+          if (error.response?.status === 401) {
+             removeToken();
+             navigate('/login');
+          } else {
+             setNotes([]);
+          }
         }
       }
     };
@@ -99,66 +68,36 @@ export default function VideoPage() {
   }, [videoId, navigate]);
 
   const handleUpdateNote = async (noteId: number, newText: string) => {
-    const token = getToken();
-    if (!token) {
-      removeToken();
-      navigate('/login');
-      return;
-    }
-
     try {
-      const response = await fetch(`${config.API_URL}/notes/${noteId}`, {
-        method: 'PATCH',
-        headers: {
-          'Content-Type': 'application/json',
-          Authorization: `Bearer ${token}`,
-        },
-        body: JSON.stringify({ text: newText }),
-      });
-
-      if (response.ok) {
-        setNotes(notes.map(n => n.id === noteId ? { ...n, text: newText, generated_by_ai: false } : n));
-        addToast({ title: 'Success', message: 'Note updated successfully', type: 'success' });
-      } else if (response.status === 401) {
+      await notesApi.updateNote(noteId, { text: newText });
+      setNotes(notes.map(n => n.id === noteId ? { ...n, text: newText, generated_by_ai: false } : n));
+      addToast({ title: 'Success', message: 'Note updated successfully', type: 'success' });
+    } catch (error: any) {
+      console.error('Error updating note:', error);
+      if (error.response?.status === 401) {
         removeToken();
         navigate('/login');
       } else {
         addToast({ title: 'Error', message: 'Failed to update note', type: 'error' });
       }
-    } catch (error) {
-      console.error('Error updating note:', error);
-      addToast({ title: 'Error', message: 'Failed to update note', type: 'error' });
     }
   };
 
   const handleDeleteNote = async () => {
     if (noteToDelete === null) return;
-    const token = getToken();
-    if (!token) {
-      removeToken();
-      navigate('/login');
-      return;
-    }
 
     try {
-      const response = await fetch(`${config.API_URL}/notes/${noteToDelete}`, {
-        method: 'DELETE',
-        headers: { Authorization: `Bearer ${token}` },
-      });
-
-      if (response.ok) {
-        setNotes(notes.filter(n => n.id !== noteToDelete));
-        addToast({ title: 'Success', message: 'Note deleted successfully', type: 'success' });
-      } else if (response.status === 401) {
+      await notesApi.deleteNote(noteToDelete);
+      setNotes(notes.filter(n => n.id !== noteToDelete));
+      addToast({ title: 'Success', message: 'Note deleted successfully', type: 'success' });
+    } catch (error: any) {
+      console.error('Error deleting note:', error);
+      if (error.response?.status === 401) {
         removeToken();
         navigate('/login');
-        return;
       } else {
         addToast({ title: 'Error', message: 'Failed to delete note', type: 'error' });
       }
-    } catch (error) {
-      console.error('Error deleting note:', error);
-      addToast({ title: 'Error', message: 'Failed to delete note', type: 'error' });
     }
     setShowDeleteModal(false);
     setNoteToDelete(null);
@@ -169,7 +108,8 @@ export default function VideoPage() {
     setShowDeleteModal(true);
   };
 
-  function timestampToSeconds(timestamp: string) {
+  function timestampToSeconds(timestamp: string | number) {
+    if (typeof timestamp === 'number') return timestamp;
     const parts = timestamp.split(':').map(Number);
     return parts.reduce((seconds, value, index) => seconds + value * Math.pow(60, parts.length - 1 - index), 0);
   }
@@ -211,7 +151,7 @@ export default function VideoPage() {
                   <div className="relative overflow-hidden">
                     <img 
                       src={video.metadata?.thumbnail || `https://i.ytimg.com/vi_webp/${video.video_id}/maxresdefault.webp`} 
-                      alt={video.title}
+                      alt={video.title || 'Video Thumbnail'}
                       className="w-full h-48 md:h-56 object-cover transition-transform duration-500 group-hover:scale-105"
                     />
                     {/* Gradient overlay */}
@@ -247,7 +187,7 @@ export default function VideoPage() {
                     {(video.metadata.channel || video.metadata.uploader) && (
                       (video.metadata.channel_url || video.metadata.uploader_url) ? (
                         <a 
-                          href={video.metadata.channel_url || video.metadata.uploader_url}
+                          href={video.metadata!.channel_url || video.metadata!.uploader_url}
                           target="_blank"
                           rel="noopener noreferrer"
                           className="inline-flex items-center px-3 py-1.5 rounded-lg text-sm font-semibold bg-gradient-to-r from-red-500/20 to-red-600/10 text-red-400 border border-red-500/20 hover:from-red-500/30 hover:to-red-600/20 hover:border-red-500/30 transition-all duration-200 cursor-pointer"

@@ -1,18 +1,4 @@
-# Stage 1: Build frontend
-FROM node:20-slim AS frontend-builder
-
-WORKDIR /app/frontend
-
-# Install dependencies (using cache efficiently)
-COPY frontend/package*.json ./
-RUN npm install
-
-# Copy frontend code and build
-COPY frontend/ .
-RUN npm run build
-
-
-# Stage 2: Backend (Python)
+# Backend (Python)
 FROM python:3.11-slim
 
 WORKDIR /app
@@ -29,11 +15,8 @@ RUN poetry config virtualenvs.create false && \
 # Copy backend source
 COPY backend/ /app/
 
-# Copy built frontend (from stage 1) into backend/vidwiz/dist
-COPY --from=frontend-builder /app/frontend/dist /app/vidwiz/dist
-
 # Expose app port
 EXPOSE 5000
 
-# Run gunicorn
-CMD ["poetry", "run", "gunicorn", "-w", "4", "--threads", "2", "--bind", "0.0.0.0:5000", "wsgi:app"]
+# Run uvicorn
+CMD ["poetry", "run", "uvicorn", "src.main:app", "--host", "0.0.0.0", "--port", "5000"]

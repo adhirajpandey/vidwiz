@@ -7,6 +7,7 @@ import { ArrowRight, User, Lock, Check, Mail } from 'lucide-react';
 import GoogleSignInButton from '../components/GoogleSignInButton';
 import AuthLayout from '../components/auth/AuthLayout';
 import { setToken } from '../lib/authUtils';
+import { authApi } from '../api';
 
 export default function SignupPage() {
   const [email, setEmail] = useState('');
@@ -72,34 +73,19 @@ export default function SignupPage() {
 
     setIsLoading(true);
     try {
-      const response = await fetch(`${config.API_URL}/user/signup`, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({ email, password, name }),
-      });
-
-      const data = await response.json();
-
-      if (response.ok) {
-        addToast({
-          title: 'Account Created',
-          message: 'Welcome to VidWiz! Please log in.',
-          type: 'success',
-        });
-        navigate('/login');
-      } else {
-        addToast({
-          title: 'Registration Failed',
-          message: data.error || 'Something went wrong',
-          type: 'error',
-        });
-      }
-    } catch (error) {
+      await authApi.register({ email, password, name });
+      
       addToast({
-        title: 'Connection Error',
-        message: 'Could not connect to server',
+        title: 'Account Created',
+        message: 'Welcome to VidWiz! Please log in.',
+        type: 'success',
+      });
+      navigate('/login');
+    } catch (error: any) {
+      const errorMessage = error.response?.data?.error?.message || error.response?.data?.message || 'Something went wrong';
+      addToast({
+        title: 'Registration Failed',
+        message: errorMessage,
         type: 'error',
       });
     } finally {
@@ -110,35 +96,19 @@ export default function SignupPage() {
   const handleGoogleSuccess = useCallback(async (credential: string) => {
     setIsLoading(true);
     try {
-      const response = await fetch(`${config.API_URL}/user/google/login`, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({ credential }),
-      });
-
-      const data = await response.json();
-
-      if (response.ok) {
-        setToken(data.token);
-        addToast({
-          title: 'Welcome!',
-          message: 'Account created with Google',
-          type: 'success',
-        });
-        navigate('/dashboard');
-      } else {
-        addToast({
-          title: 'Sign-up Failed',
-          message: data.error || 'Google sign-up failed',
-          type: 'error',
-        });
-      }
-    } catch (error) {
+      const { token } = await authApi.googleLogin({ credential });
+      setToken(token);
       addToast({
-        title: 'Connection Error',
-        message: 'Could not connect to server',
+        title: 'Welcome!',
+        message: 'Account created with Google',
+        type: 'success',
+      });
+      navigate('/dashboard');
+    } catch (error: any) {
+      const errorMessage = error.response?.data?.error?.message || error.response?.data?.message || 'Google sign-up failed';
+      addToast({
+        title: 'Sign-up Failed',
+        message: errorMessage,
         type: 'error',
       });
     } finally {
