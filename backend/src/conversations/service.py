@@ -27,6 +27,14 @@ logger = logging.getLogger(__name__)
 def get_or_create_video(db: Session, video_id: str) -> tuple[Video, bool]:
     video = videos_service.get_video_by_id(db, video_id)
     if video:
+        if not video.video_metadata:
+            internal_service.create_task_idempotent(
+                db, internal_constants.FETCH_METADATA_TASK_TYPE, video_id
+            )
+        if not video.transcript_available:
+            internal_service.create_task_idempotent(
+                db, internal_constants.FETCH_TRANSCRIPT_TASK_TYPE, video_id
+            )
         return video, False
 
     video = Video(video_id=video_id)
