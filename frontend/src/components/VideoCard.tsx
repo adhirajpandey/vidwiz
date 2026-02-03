@@ -1,17 +1,9 @@
 import { Link } from 'react-router-dom';
 import { FaPlay, FaExternalLinkAlt, FaStickyNote } from 'react-icons/fa';
+import type { VideoSearchItem } from '../api/types';
 
 interface VideoCardProps {
-  video: {
-    video_id: string;
-    video_title: string;
-    metadata?: {
-      title?: string;
-      channel?: string;
-      thumbnail?: string;
-      duration_string?: string;
-    };
-  };
+  video: VideoSearchItem;
 }
 
 export default function VideoCard({ video }: VideoCardProps) {
@@ -30,7 +22,7 @@ export default function VideoCard({ video }: VideoCardProps) {
         >
           <img 
             src={thumbnailUrl} 
-            alt={video.video_title}
+            alt={video.title || video.metadata?.title || 'Video Thumbnail'}
             className="w-full h-full object-cover transition-transform duration-500 group-hover/thumb:scale-110"
           />
           {/* Overlay on hover */}
@@ -56,7 +48,7 @@ export default function VideoCard({ video }: VideoCardProps) {
             rel="noopener noreferrer"
             className="block text-sm md:text-base font-medium text-foreground hover:text-red-400 transition-colors duration-200 line-clamp-2 leading-snug"
           >
-            {video.video_title || video.metadata?.title || 'Untitled Video'}
+            {video.title || video.metadata?.title || 'Untitled Video'}
             <FaExternalLinkAlt className="inline-block w-2.5 h-2.5 ml-1.5 opacity-0 group-hover:opacity-50 transition-opacity" />
           </a>
           

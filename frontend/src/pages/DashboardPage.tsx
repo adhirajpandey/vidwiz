@@ -6,10 +6,11 @@ import { FaSearch, FaYoutube, FaVideo, FaChevronLeft, FaChevronRight } from 'rea
 import { HiSparkles } from 'react-icons/hi2';
 import { getUserFromToken, removeToken } from '../lib/authUtils';
 import { videosApi } from '../api';
+import type { VideoSearchItem } from '../api/types';
 
 export default function DashboardPage() {
   const [user, setUser] = useState<{ email: string; name?: string } | null>(null);
-  const [videos, setVideos] = useState<any[]>([]);
+  const [videos, setVideos] = useState<VideoSearchItem[]>([]);
   const [searchQuery, setSearchQuery] = useState('');
   const [isSearching, setIsSearching] = useState(false);
   const [hasSearched, setHasSearched] = useState(false);
