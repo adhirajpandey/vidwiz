@@ -13,6 +13,7 @@ from src.auth.models import User
 from src.exceptions import BadRequestError, ForbiddenError, NotFoundError
 from src.internal import constants as internal_constants
 from src.internal.models import Task, TaskStatus
+from src.internal.scheduling import create_task_idempotent, schedule_video_tasks
 from src.notes.models import Note
 from src.notes import service as notes_service
 from src.videos import service as videos_service
@@ -314,37 +315,3 @@ def update_note(
         return None
 
     return notes_service.update_note(db, note, text, generated_by_ai)
-
-
-def create_task_idempotent(db: Session, task_type: str, video_id: str) -> Task:
-    """
-    Create a task for the given video if it doesn't already exist in PENDING or IN_PROGRESS state.
-    """
-    # Check for existing tasks
-    # We use some JSON casting magic or just simple Python filtering if DB-side JSON query is hard.
-    # Since we filter by task_type, the result set is small enough to filter in Python for safety/portability
-    # or rely on specific DB operators if we knew the engine.
-    # For now, let's fetch active tasks of this type and check their details.
-    
-    active_tasks = db.execute(
-        select(Task).where(
-            Task.task_type == task_type,
-            Task.status.in_([TaskStatus.PENDING, TaskStatus.IN_PROGRESS])
-        )
-    ).scalars().all()
-
-    for task in active_tasks:
-        if task.task_details and task.task_details.get("video_id") == video_id:
-            return task  # Task already scheduled
-
-    # Create new task
-    new_task = Task(
-        task_type=task_type,
-        status=TaskStatus.PENDING,
-        task_details={"video_id": video_id},
-    )
-    db.add(new_task)
-    db.commit()
-    db.refresh(new_task)
-    return new_task
-

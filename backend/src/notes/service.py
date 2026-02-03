@@ -7,6 +7,7 @@ from sqlalchemy.orm import Session
 
 from src.auth.models import User
 from src.config import settings
+from src.internal.scheduling import schedule_video_tasks
 from src.notes.models import Note
 from src.videos.models import Video
 from src.videos import service as videos_service
@@ -23,12 +24,14 @@ def get_or_create_video(
             video.title = video_title
             db.commit()
             db.refresh(video)
+        schedule_video_tasks(db, video)
         return video, False
 
     video = Video(video_id=video_id, title=video_title)
     db.add(video)
     db.commit()
     db.refresh(video)
+    schedule_video_tasks(db, video)
     return video, True
 
 
