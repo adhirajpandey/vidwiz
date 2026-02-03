@@ -109,25 +109,7 @@ def test_create_note_does_not_trigger_ai_when_transcript_missing(db_session, mon
     )
 
 
-def test_update_note_triggers_ai_when_generated_by_ai_true(db_session, monkeypatch):
-    video = Video(video_id="ai523456789", title="AI Video", transcript_available=True)
-    note = Note(video_id=video.video_id, timestamp="00:01", text=None, user_id=1)
-    db_session.add_all([video, note])
-    db_session.commit()
-    db_session.refresh(note)
-
-    called = {"count": 0}
-
-    def fake_push(_note):
-        called["count"] += 1
-
-    monkeypatch.setattr(notes_service, "push_note_to_sqs", fake_push)
-
-    notes_service.update_note(db_session, note, text=None, generated_by_ai=True)
-    assert called["count"] == 1
-
-
-def test_update_note_does_not_trigger_ai_when_generated_by_ai_false(db_session, monkeypatch):
+def test_update_note_does_not_trigger_ai_on_update(db_session, monkeypatch):
     video = Video(video_id="ai623456789", title="AI Video", transcript_available=True)
     note = Note(video_id=video.video_id, timestamp="00:01", text=None, user_id=1)
     db_session.add_all([video, note])
@@ -136,7 +118,7 @@ def test_update_note_does_not_trigger_ai_when_generated_by_ai_false(db_session, 
 
     monkeypatch.setattr(notes_service, "push_note_to_sqs", lambda note: pytest.fail())
 
-    notes_service.update_note(db_session, note, text="updated", generated_by_ai=False)
+    notes_service.update_note(db_session, note, text=None, generated_by_ai=True)
 
 
 def test_list_notes_for_video_orders_by_created_at(db_session):

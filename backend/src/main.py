@@ -21,7 +21,10 @@ def register_exception_handlers(app: FastAPI) -> None:
     @app.exception_handler(APIError)
     async def handle_api_error(_: Request, exc: APIError) -> JSONResponse:
         response = exc.to_response()
-        return JSONResponse(status_code=exc.status_code, content=response.model_dump())
+        return JSONResponse(
+            status_code=exc.status_code,
+            content=response.model_dump(mode="json"),
+        )
 
     @app.exception_handler(RequestValidationError)
     async def handle_validation_error(
@@ -44,7 +47,7 @@ def register_exception_handlers(app: FastAPI) -> None:
         )
         return JSONResponse(
             status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
-            content=response.model_dump(),
+            content=response.model_dump(mode="json"),
         )
 
     @app.exception_handler(HTTPException)
@@ -56,7 +59,10 @@ def register_exception_handlers(app: FastAPI) -> None:
                 message=str(exc.detail),
             )
         )
-        return JSONResponse(status_code=exc.status_code, content=response.model_dump())
+        return JSONResponse(
+            status_code=exc.status_code,
+            content=response.model_dump(mode="json"),
+        )
 
     @app.exception_handler(Exception)
     async def handle_unhandled(_: Request, exc: Exception) -> JSONResponse:
@@ -68,7 +74,7 @@ def register_exception_handlers(app: FastAPI) -> None:
         )
         return JSONResponse(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            content=response.model_dump(),
+            content=response.model_dump(mode="json"),
         )
 
 

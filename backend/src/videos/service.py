@@ -32,10 +32,9 @@ def get_video_by_id(db: Session, video_id: str) -> Video | None:
 
 
 def get_video_for_user(db: Session, user_id: int, video_id: str) -> Video | None:
-    query = (
-        select(Video)
-        .join(Note, Video.video_id == Note.video_id)
-        .where(Video.video_id == video_id, Note.user_id == user_id)
+    query = select(Video).where(
+        Video.video_id == video_id,
+        Video.notes.any(Note.user_id == user_id),
     )
     return db.execute(query).scalar_one_or_none()
 

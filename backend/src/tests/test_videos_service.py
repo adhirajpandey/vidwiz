@@ -67,6 +67,26 @@ def test_list_videos_for_user_pagination(db_session):
     assert len(response.videos) == 2
 
 
+def test_get_video_for_user_handles_multiple_notes(db_session):
+    user = User(email="multi@example.com", name="Multi Notes")
+    db_session.add(user)
+    db_session.commit()
+    db_session.refresh(user)
+
+    video = seed_video(db_session, "multi123456", "Multi")
+    db_session.add_all(
+        [
+            Note(video_id=video.video_id, timestamp="00:01", text="a", user_id=user.id),
+            Note(video_id=video.video_id, timestamp="00:02", text="b", user_id=user.id),
+        ]
+    )
+    db_session.commit()
+
+    result = videos_service.get_video_for_user(db_session, user.id, video.video_id)
+    assert result is not None
+    assert result.video_id == "multi123456"
+
+
 def test_is_video_ready(db_session):
     video = seed_video(db_session, "ready123456", "Ready")
     assert videos_service.is_video_ready(video) is False

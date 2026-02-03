@@ -114,8 +114,6 @@ def update_note(
     text: str | None,
     generated_by_ai: bool | None,
 ) -> Note:
-    original_text = note.text
-    
     if text is not None:
         note.text = text
     if generated_by_ai is not None:
@@ -123,12 +121,6 @@ def update_note(
     
     db.commit()
     db.refresh(note)
-    
-    # Trigger logic: Only if generated_by_ai explicitly set to True in this update
-    if generated_by_ai is True:
-         video = videos_service.get_video_by_id(db, note.video_id)
-         if video and video.transcript_available:
-             push_note_to_sqs(note)
 
     return note
 
@@ -136,4 +128,3 @@ def update_note(
 def delete_note(db: Session, note: Note) -> None:
     db.delete(note)
     db.commit()
-
