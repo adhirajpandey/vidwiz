@@ -45,10 +45,10 @@ def test_create_note_triggers_ai_when_enabled_and_ready(db_session, monkeypatch)
 
     called = {"count": 0}
 
-    def _fake_push(note):
+    def fake_push(note):
         called["count"] += 1
 
-    monkeypatch.setattr(notes_service, "push_note_to_sqs", _fake_push)
+    monkeypatch.setattr(notes_service, "push_note_to_sqs", fake_push)
 
     note = notes_service.create_note_for_user(
         db_session, video.video_id, "00:01", None, user.id
@@ -118,10 +118,10 @@ def test_update_note_triggers_ai_when_generated_by_ai_true(db_session, monkeypat
 
     called = {"count": 0}
 
-    def _fake_push(_note):
+    def fake_push(_note):
         called["count"] += 1
 
-    monkeypatch.setattr(notes_service, "push_note_to_sqs", _fake_push)
+    monkeypatch.setattr(notes_service, "push_note_to_sqs", fake_push)
 
     notes_service.update_note(db_session, note, text=None, generated_by_ai=True)
     assert called["count"] == 1

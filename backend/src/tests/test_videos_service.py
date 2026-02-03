@@ -10,7 +10,7 @@ from src.videos.models import Video
 from src.videos.schemas import VideoListParams
 
 
-def _seed_video(db_session, video_id: str, title: str | None = None):
+def seed_video(db_session, video_id: str, title: str | None = None):
     video = Video(video_id=video_id, title=title)
     db_session.add(video)
     db_session.commit()
@@ -24,8 +24,8 @@ def test_list_videos_for_user_filters_and_sorts(db_session):
     db_session.commit()
     db_session.refresh(user)
 
-    video_a = _seed_video(db_session, "abc123DEF45", "Alpha Video")
-    video_b = _seed_video(db_session, "xyz987LMN12", "Beta Video")
+    video_a = seed_video(db_session, "abc123DEF45", "Alpha Video")
+    video_b = seed_video(db_session, "xyz987LMN12", "Beta Video")
 
     db_session.add_all(
         [
@@ -54,7 +54,7 @@ def test_list_videos_for_user_pagination(db_session):
 
     for index in range(3):
         video_id = f"vid{index:02d}ABCDE1"
-        _seed_video(db_session, video_id, f"Video {index}")
+        seed_video(db_session, video_id, f"Video {index}")
         db_session.add(
             Note(video_id=video_id, timestamp="00:01", text="note", user_id=user.id)
         )
@@ -68,7 +68,7 @@ def test_list_videos_for_user_pagination(db_session):
 
 
 def test_is_video_ready(db_session):
-    video = _seed_video(db_session, "ready123456", "Ready")
+    video = seed_video(db_session, "ready123456", "Ready")
     assert videos_service.is_video_ready(video) is False
 
     video.video_metadata = {"title": "Ready"}
@@ -78,7 +78,7 @@ def test_is_video_ready(db_session):
 
 
 def test_format_event_payload(db_session):
-    video = _seed_video(db_session, "fmt1234567", "Format")
+    video = seed_video(db_session, "fmt1234567", "Format")
     video.video_metadata = {"title": "Format"}
     db_session.commit()
 
@@ -96,7 +96,7 @@ def test_compute_total_pages_zero():
 
 @pytest.mark.asyncio
 async def test_stream_video_events_emits_updates(monkeypatch):
-    def _make_video(video_id, metadata, transcript, summary):
+    def make_video(video_id, metadata, transcript, summary):
         video = Video(video_id=video_id, title="Video")
         video.id = 1
         video.video_metadata = metadata
@@ -108,19 +108,19 @@ async def test_stream_video_events_emits_updates(monkeypatch):
         return video
 
     sequence = [
-        _make_video("abc123DEF45", None, False, None),
-        _make_video("abc123DEF45", {"title": "Video"}, False, None),
-        _make_video("abc123DEF45", {"title": "Video"}, True, "summary"),
+        make_video("abc123DEF45", None, False, None),
+        make_video("abc123DEF45", {"title": "Video"}, False, None),
+        make_video("abc123DEF45", {"title": "Video"}, True, "summary"),
     ]
 
-    async def _fake_fetch(_video_id):
+    async def fake_fetch(_video_id):
         return sequence.pop(0) if sequence else None
 
-    async def _fake_sleep(_):
+    async def fake_sleep(_):
         return None
 
-    monkeypatch.setattr(videos_service, "_fetch_video", _fake_fetch)
-    monkeypatch.setattr(asyncio, "sleep", _fake_sleep)
+    monkeypatch.setattr(videos_service, "_fetch_video", fake_fetch)
+    monkeypatch.setattr(asyncio, "sleep", fake_sleep)
 
     events = []
     async for chunk in videos_service.stream_video_events("abc123DEF45"):
@@ -134,17 +134,17 @@ async def test_stream_video_events_emits_updates(monkeypatch):
 
 @pytest.mark.asyncio
 async def test_stream_video_events_no_video(monkeypatch):
-    async def _fake_fetch(_video_id):
+    async def fake_fetch(_video_id):
         return None
 
-    monkeypatch.setattr(videos_service, "_fetch_video", _fake_fetch)
+    monkeypatch.setattr(videos_service, "_fetch_video", fake_fetch)
     events = [chunk async for chunk in videos_service.stream_video_events("abc123DEF45")]
     assert events == []
 
 
 @pytest.mark.asyncio
 async def test_stream_video_events_immediate_done(monkeypatch):
-    def _make_video():
+    def make_video():
         video = Video(video_id="abc123DEF45", title="Video")
         video.id = 1
         video.video_metadata = {"title": "Video"}
@@ -155,10 +155,10 @@ async def test_stream_video_events_immediate_done(monkeypatch):
         video.updated_at = now
         return video
 
-    async def _fake_fetch(_video_id):
-        return _make_video()
+    async def fake_fetch(_video_id):
+        return make_video()
 
-    monkeypatch.setattr(videos_service, "_fetch_video", _fake_fetch)
+    monkeypatch.setattr(videos_service, "_fetch_video", fake_fetch)
     events = []
     async for chunk in videos_service.stream_video_events("abc123DEF45"):
         if chunk.startswith("event:"):
@@ -168,7 +168,7 @@ async def test_stream_video_events_immediate_done(monkeypatch):
 
 @pytest.mark.asyncio
 async def test_stream_video_events_stop_when_missing_in_loop(monkeypatch):
-    def _make_video():
+    def make_video():
         video = Video(video_id="abc123DEF45", title="Video")
         video.id = 1
         video.video_metadata = None
@@ -181,17 +181,17 @@ async def test_stream_video_events_stop_when_missing_in_loop(monkeypatch):
 
     calls = {"count": 0}
 
-    async def _fake_fetch(_video_id):
+    async def fake_fetch(_video_id):
         calls["count"] += 1
         if calls["count"] == 1:
-            return _make_video()
+            return make_video()
         return None
 
-    async def _fake_sleep(_):
+    async def fake_sleep(_):
         return None
 
-    monkeypatch.setattr(videos_service, "_fetch_video", _fake_fetch)
-    monkeypatch.setattr(asyncio, "sleep", _fake_sleep)
+    monkeypatch.setattr(videos_service, "_fetch_video", fake_fetch)
+    monkeypatch.setattr(asyncio, "sleep", fake_sleep)
 
     events = [chunk async for chunk in videos_service.stream_video_events("abc123DEF45")]
     assert events
@@ -212,10 +212,10 @@ async def test_fetch_video_uses_sessionlocal(monkeypatch):
         lambda db, video_id: "video",
     )
 
-    async def _run_in_threadpool(fn):
+    async def run_in_threadpool(fn):
         return fn()
 
-    monkeypatch.setattr(videos_service, "run_in_threadpool", _run_in_threadpool)
+    monkeypatch.setattr(videos_service, "run_in_threadpool", run_in_threadpool)
 
     result = await videos_service._fetch_video("abc123DEF45")
     assert result == "video"

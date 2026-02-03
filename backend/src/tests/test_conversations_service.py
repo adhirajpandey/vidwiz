@@ -12,13 +12,13 @@ from src.videos.models import Video
 def test_get_or_create_video_creates_and_schedules_tasks(db_session, monkeypatch):
     created_calls = []
 
-    def _fake_create_task(db, task_type, video_id):
+    def fake_create_task(db, task_type, video_id):
         created_calls.append((task_type, video_id))
 
     monkeypatch.setattr(
         conversations_service.internal_service,
         "create_task_idempotent",
-        _fake_create_task,
+        fake_create_task,
     )
 
     video, created = conversations_service.get_or_create_video(

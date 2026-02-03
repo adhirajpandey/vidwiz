@@ -23,7 +23,7 @@ async def login_user(client, email: str, password: str = "password123"):
     )
 
 
-def _decode_token(token: str) -> dict:
+def decode_token(token: str) -> dict:
     return jwt.decode(token, settings.secret_key, algorithms=["HS256"])
 
 
@@ -36,7 +36,7 @@ async def test_register_and_login(client):
     login_response = await login_user(client, "test@example.com")
     assert login_response.status_code == 200
     token = login_response.json()["token"]
-    payload = _decode_token(token)
+    payload = decode_token(token)
     assert payload["email"] == "test@example.com"
 
 
@@ -113,7 +113,7 @@ async def test_login_rejects_missing_password(client):
 async def test_google_login_success(client, monkeypatch):
     from src.auth import service as auth_service
 
-    def _mock_verify_google_token(_credential: str, _client_id: str):
+    def mock_verify_google_token(_credential: str, _client_id: str):
         return {
             "sub": "google-123",
             "email": "google@example.com",
@@ -121,14 +121,14 @@ async def test_google_login_success(client, monkeypatch):
             "picture": "https://example.com/avatar.png",
         }
 
-    monkeypatch.setattr(auth_service, "verify_google_token", _mock_verify_google_token)
+    monkeypatch.setattr(auth_service, "verify_google_token", mock_verify_google_token)
     response = await client.post(
         "/v2/auth/google",
         json={"credential": "valid-token"},
     )
     assert response.status_code == 200
     token = response.json()["token"]
-    payload = _decode_token(token)
+    payload = decode_token(token)
     assert payload["email"] == "google@example.com"
     assert payload["name"] == "Google User"
 
@@ -150,14 +150,14 @@ async def test_google_login_requires_config(client, monkeypatch):
 async def test_google_login_requires_secret_key(client, monkeypatch):
     from src.auth import service as auth_service
 
-    def _mock_verify_google_token(_credential: str, _client_id: str):
+    def mock_verify_google_token(_credential: str, _client_id: str):
         return {
             "sub": "google-789",
             "email": "google-secret@example.com",
             "name": "Google Secret",
         }
 
-    monkeypatch.setattr(auth_service, "verify_google_token", _mock_verify_google_token)
+    monkeypatch.setattr(auth_service, "verify_google_token", mock_verify_google_token)
     monkeypatch.setattr(settings, "secret_key", None, raising=False)
     response = await client.post(
         "/v2/auth/google",
@@ -173,10 +173,10 @@ async def test_google_login_requires_secret_key(client, monkeypatch):
 async def test_google_login_requires_email(client, monkeypatch):
     from src.auth import service as auth_service
 
-    def _mock_verify_google_token(_credential: str, _client_id: str):
+    def mock_verify_google_token(_credential: str, _client_id: str):
         return {"sub": "google-456"}
 
-    monkeypatch.setattr(auth_service, "verify_google_token", _mock_verify_google_token)
+    monkeypatch.setattr(auth_service, "verify_google_token", mock_verify_google_token)
     response = await client.post(
         "/v2/auth/google",
         json={"credential": "valid-token"},
@@ -191,10 +191,10 @@ async def test_google_login_requires_email(client, monkeypatch):
 async def test_google_login_invalid_credential(client, monkeypatch):
     from src.auth import service as auth_service
 
-    def _mock_verify_google_token(_credential: str, _client_id: str):
+    def mock_verify_google_token(_credential: str, _client_id: str):
         raise ValueError("Invalid")
 
-    monkeypatch.setattr(auth_service, "verify_google_token", _mock_verify_google_token)
+    monkeypatch.setattr(auth_service, "verify_google_token", mock_verify_google_token)
     response = await client.post(
         "/v2/auth/google",
         json={"credential": "bad-token"},

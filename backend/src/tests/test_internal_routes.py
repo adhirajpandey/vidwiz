@@ -3,12 +3,13 @@ import pytest
 from src.config import settings
 from src.internal import constants as internal_constants
 from src.internal.models import Task, TaskStatus
+from src.internal import service as internal_service
 from src.auth.models import User
 from src.notes.models import Note
 from src.videos.models import Video
 
 
-def _admin_headers() -> dict[str, str]:
+def admin_headers() -> dict[str, str]:
     return {"Authorization": f"Bearer {settings.admin_token}"}
 
 
@@ -25,7 +26,7 @@ async def test_internal_task_poll_transcript_success(client, db_session):
 
     response = await client.get(
         "/v2/internal/tasks?type=transcript&timeout=1",
-        headers=_admin_headers(),
+        headers=admin_headers(),
     )
 
     assert response.status_code == 200
@@ -43,14 +44,17 @@ async def test_internal_task_poll_transcript_success(client, db_session):
 async def test_internal_task_poll_timeout(client):
     response = await client.get(
         "/v2/internal/tasks?type=transcript&timeout=1",
-        headers=_admin_headers(),
+        headers=admin_headers(),
     )
 
     assert response.status_code == 204
 
 
 @pytest.mark.asyncio
-async def test_internal_task_submit_transcript_success(client, db_session):
+async def test_internal_task_submit_transcript_success(client, db_session, monkeypatch):
+    monkeypatch.setattr(
+        internal_service, "store_transcript_in_s3", lambda *_args, **_kwargs: None
+    )
     video = Video(video_id="transcript_video", title="Transcript Video")
     task = Task(
         task_type=internal_constants.FETCH_TRANSCRIPT_TASK_TYPE,
@@ -64,7 +68,7 @@ async def test_internal_task_submit_transcript_success(client, db_session):
 
     response = await client.post(
         f"/v2/internal/tasks/{task.id}/result",
-        headers=_admin_headers(),
+        headers=admin_headers(),
         json={
             "video_id": "transcript_video",
             "success": True,
@@ -104,7 +108,7 @@ async def test_internal_ai_notes(client, db_session):
 
     response = await client.get(
         f"/v2/internal/videos/{video_id}/ai-notes",
-        headers=_admin_headers(),
+        headers=admin_headers(),
     )
 
     assert response.status_code == 200
@@ -122,7 +126,7 @@ async def test_internal_ai_notes_not_found(client, db_session):
 
     response = await client.get(
         f"/v2/internal/videos/{video_id}/ai-notes",
-        headers=_admin_headers(),
+        headers=admin_headers(),
     )
     assert response.status_code == 404
 
@@ -131,32 +135,35 @@ async def test_internal_ai_notes_not_found(client, db_session):
 async def test_internal_ai_notes_video_missing(client):
     response = await client.get(
         "/v2/internal/videos/abc123DEF45/ai-notes",
-        headers=_admin_headers(),
+        headers=admin_headers(),
     )
     assert response.status_code == 404
 
 
 @pytest.mark.asyncio
-async def test_internal_store_transcript_metadata_summary(client):
+async def test_internal_store_transcript_metadata_summary(client, monkeypatch):
+    monkeypatch.setattr(
+        internal_service, "store_transcript_in_s3", lambda *_args, **_kwargs: None
+    )
     video_id = "abc123DEF45"
 
     transcript_response = await client.post(
         f"/v2/internal/videos/{video_id}/transcript",
-        headers=_admin_headers(),
+        headers=admin_headers(),
         json={"transcript": [{"text": "hello"}]},
     )
     assert transcript_response.status_code == 200
 
     metadata_response = await client.post(
         f"/v2/internal/videos/{video_id}/metadata",
-        headers=_admin_headers(),
+        headers=admin_headers(),
         json={"metadata": {"title": "Video"}},
     )
     assert metadata_response.status_code == 200
 
     summary_response = await client.post(
         f"/v2/internal/videos/{video_id}/summary",
-        headers=_admin_headers(),
+        headers=admin_headers(),
         json={"summary": "Summary"},
     )
     assert summary_response.status_code == 200
@@ -166,7 +173,7 @@ async def test_internal_store_transcript_metadata_summary(client):
 async def test_internal_get_video_not_found(client):
     response = await client.get(
         "/v2/internal/videos/abc123DEF45",
-        headers=_admin_headers(),
+        headers=admin_headers(),
     )
     assert response.status_code == 404
 
@@ -176,13 +183,13 @@ async def test_internal_get_video_success(client):
     video_id = "abc123DEF45"
     await client.post(
         f"/v2/internal/videos/{video_id}/metadata",
-        headers=_admin_headers(),
+        headers=admin_headers(),
         json={"metadata": {"title": "Video"}},
     )
 
     response = await client.get(
         f"/v2/internal/videos/{video_id}",
-        headers=_admin_headers(),
+        headers=admin_headers(),
     )
     assert response.status_code == 200
     payload = response.json()
@@ -193,7 +200,7 @@ async def test_internal_get_video_success(client):
 async def test_internal_update_note_not_found(client):
     response = await client.patch(
         "/v2/internal/notes/9999",
-        headers=_admin_headers(),
+        headers=admin_headers(),
         json={"text": "updated"},
     )
     assert response.status_code == 404
@@ -208,7 +215,7 @@ async def test_internal_update_note_success(client, db_session):
 
     response = await client.patch(
         f"/v2/internal/notes/{note.id}",
-        headers=_admin_headers(),
+        headers=admin_headers(),
         json={"text": "updated"},
     )
     assert response.status_code == 200

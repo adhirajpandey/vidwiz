@@ -13,7 +13,7 @@ from src.config import settings
 from src.exceptions import UnauthorizedError
 
 
-def _make_access_token(user_id: int, email: str = "user@example.com") -> str:
+def make_access_token(user_id: int, email: str = "user@example.com") -> str:
     return jwt.encode(
         {"user_id": user_id, "email": email, "name": "User"},
         settings.secret_key,
@@ -21,7 +21,7 @@ def _make_access_token(user_id: int, email: str = "user@example.com") -> str:
     )
 
 
-def _make_long_term_token(user_id: int, email: str = "user@example.com") -> str:
+def make_long_term_token(user_id: int, email: str = "user@example.com") -> str:
     return jwt.encode(
         {"user_id": user_id, "email": email, "type": "long_term"},
         settings.secret_key,
@@ -30,12 +30,12 @@ def _make_long_term_token(user_id: int, email: str = "user@example.com") -> str:
 
 
 def test_get_current_user_id_accepts_valid_token():
-    token = _make_access_token(42)
+    token = make_access_token(42)
     assert get_current_user_id(f"Bearer {token}") == 42
 
 
 def test_get_current_user_id_rejects_long_term_token():
-    token = _make_long_term_token(42)
+    token = make_long_term_token(42)
     with pytest.raises(UnauthorizedError):
         get_current_user_id(f"Bearer {token}")
 
@@ -75,7 +75,7 @@ def test_get_current_user_id_rejects_missing_header():
 
 
 def test_get_viewer_context_prefers_auth():
-    token = _make_access_token(7)
+    token = make_access_token(7)
     context = get_viewer_context(
         authorization=f"Bearer {token}",
         guest_session_id="guest-1",

@@ -7,7 +7,7 @@ from src.notes.models import Note
 from src.videos.models import Video
 
 
-def _make_token(user_id: int, email: str) -> str:
+def make_token(user_id: int, email: str) -> str:
     return jwt.encode(
         {"user_id": user_id, "email": email, "name": "Video User"},
         settings.secret_key,
@@ -29,7 +29,7 @@ async def test_list_and_get_videos(client, db_session):
         "Videos User",
         "password123",
     )
-    token = _make_token(user.id, user.email)
+    token = make_token(user.id, user.email)
     headers = {"Authorization": f"Bearer {token}"}
 
     video = Video(video_id="list1234567", title="List Video")
