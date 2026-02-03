@@ -9,10 +9,12 @@ import requests
 VIDWIZ_ENDPOINT = os.getenv("VIDWIZ_ENDPOINT")
 VIDWIZ_TOKEN = os.getenv("VIDWIZ_TOKEN")
 SQS_QUEUE_URL = os.getenv("SQS_QUEUE_URL")
+SQS_SUMMARY_QUEUE_URL = os.getenv("SQS_SUMMARY_QUEUE_URL")
 
 assert VIDWIZ_ENDPOINT, "VIDWIZ_ENDPOINT is not set"
 assert VIDWIZ_TOKEN, "VIDWIZ_TOKEN is not set"
 assert SQS_QUEUE_URL, "SQS_QUEUE_URL is not set"
+assert SQS_SUMMARY_QUEUE_URL, "SQS_SUMMARY_QUEUE_URL is not set"
 
 logger = Logger()
 
