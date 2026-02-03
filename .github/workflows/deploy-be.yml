@@ -3,7 +3,7 @@ name: deploy backend to raspi
 on:
   workflow_dispatch:
   workflow_run:
-    workflows: [build and push docker image]
+    workflows: [build and push backend image to dockerhub]
     types: [completed]
     branches: [main]
 

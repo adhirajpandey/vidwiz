@@ -1,6 +1,11 @@
 name: build and deploy frontend to cloudfront
 
 on:
+  push:
+    branches:
+      - main
+    paths:
+      - 'frontend/**'
   workflow_dispatch:
 
 jobs:
