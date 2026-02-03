@@ -149,6 +149,9 @@ def test_push_note_to_sqs_sends_payload(monkeypatch):
         "https://sqs.test/queue",
         raising=False,
     )
+    monkeypatch.setattr(notes_service.settings, "aws_access_key_id", "key", raising=False)
+    monkeypatch.setattr(notes_service.settings, "aws_secret_access_key", "secret", raising=False)
+    monkeypatch.setattr(notes_service.settings, "aws_region", "ap-south-1", raising=False)
 
     captured = {}
 
@@ -157,10 +160,19 @@ def test_push_note_to_sqs_sends_payload(monkeypatch):
             captured["QueueUrl"] = QueueUrl
             captured["MessageBody"] = MessageBody
 
-    monkeypatch.setattr(notes_service.boto3, "client", lambda name: _FakeSQS())
+    def _fake_client(name, **kwargs):
+        captured["ClientName"] = name
+        captured["ClientKwargs"] = kwargs
+        return _FakeSQS()
+
+    monkeypatch.setattr(notes_service.boto3, "client", _fake_client)
 
     note = Note(id=42, video_id="abc123DEF45", timestamp="00:01", user_id=7)
     notes_service.push_note_to_sqs(note)
 
+    assert captured["ClientName"] == "sqs"
+    assert captured["ClientKwargs"]["region_name"] == "ap-south-1"
+    assert captured["ClientKwargs"]["aws_access_key_id"] == "key"
+    assert captured["ClientKwargs"]["aws_secret_access_key"] == "secret"
     assert captured["QueueUrl"] == "https://sqs.test/queue"
     assert "\"id\": 42" in captured["MessageBody"]

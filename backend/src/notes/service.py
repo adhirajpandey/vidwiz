@@ -39,7 +39,12 @@ def push_note_to_sqs(note: Note) -> None:
         return
 
     try:
-        sqs = boto3.client("sqs")
+        client_kwargs = {"region_name": settings.aws_region or "ap-south-1"}
+        if settings.aws_access_key_id and settings.aws_secret_access_key:
+            client_kwargs["aws_access_key_id"] = settings.aws_access_key_id
+            client_kwargs["aws_secret_access_key"] = settings.aws_secret_access_key
+
+        sqs = boto3.client("sqs", **client_kwargs)
         # Format payload to match what ai-note.py expects
         # ai-note.py expects:
         # {

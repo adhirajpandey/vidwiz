@@ -10,7 +10,7 @@ class ConversationsSettings(BaseSettings):
     s3_bucket_name: str | None = Field(default=None, alias="S3_BUCKET_NAME")
     aws_access_key_id: str | None = Field(default=None, alias="AWS_ACCESS_KEY_ID")
     aws_secret_access_key: str | None = Field(default=None, alias="AWS_SECRET_ACCESS_KEY")
-    aws_region: str | None = Field(default=None, alias="AWS_REGION")
+    aws_region: str = Field(default="ap-south-1", alias="AWS_REGION")
 
     model_config = SettingsConfigDict(env_file=".env", extra="ignore")
 
