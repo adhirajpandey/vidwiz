@@ -7,6 +7,7 @@ import GuestLimitModal from '../components/GuestLimitModal';
 import RegisteredLimitModal from '../components/RegisteredLimitModal';
 import { getAuthHeaders, getToken, removeToken } from '../lib/authUtils';
 import { videosApi, conversationsApi } from '../api';
+import config from '../config';
 
 interface Message {
   id: string;
@@ -169,6 +170,7 @@ function WizWorkspacePage() {
   const playerRef = useRef<HTMLIFrameElement>(null);
   const inputRef = useRef<HTMLInputElement>(null);
   const pollingStartTime = useRef<number>(Date.now());
+  const videoDataRef = useRef<VideoData | null>(null);
 
   // Handle URL normalization and redirects
   // Handle URL normalization and redirects
@@ -198,6 +200,7 @@ function WizWorkspacePage() {
     setVideoData(null);
     setIsPolling(true);
     setConversationId(null);
+    setShowRefreshModal(false);
     // Reset refs
     pollingStartTime.current = Date.now();
   }, [videoId]);
@@ -206,58 +209,169 @@ function WizWorkspacePage() {
   const transcriptStatus = videoData?.transcript_available ? 'ready' : 'loading';
 
   useEffect(() => {
+    videoDataRef.current = videoData;
+  }, [videoData]);
+
+  useEffect(() => {
     if (messages.length > 0) {
       messagesEndRef.current?.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
     }
   }, [messages]);
 
-  // Poll for video status every 5 seconds until all data is available or 1 minute timeout
+  // Stream video status via SSE, fallback to polling if stream fails
   useEffect(() => {
     if (!videoId) return;
 
-    const POLLING_TIMEOUT_MS = 60000; // 1 minute
+    const STREAM_TIMEOUT_MS = 60000;
+    const POLL_INTERVAL_MS = 5000;
+    let isCancelled = false;
+    let abortController: AbortController | null = null;
+    let timeoutId: number | undefined;
+    let intervalId: number | undefined;
 
-    const fetchVideoStatus = async () => {
+    const handleTimeout = () => {
+      setIsPolling(false);
+      if (!videoDataRef.current?.transcript_available) {
+        setShowRefreshModal(true);
+      }
+      if (abortController) {
+        abortController.abort();
+      }
+      if (intervalId) {
+        clearInterval(intervalId);
+      }
+    };
+
+    const pollFallback = async () => {
       try {
         const data = await videosApi.getVideo(videoId);
-        
         setVideoData(data);
-
-        // Stop polling if all data is available
         if (data.transcript_available && data.metadata && data.summary) {
           setIsPolling(false);
+          if (intervalId) {
+            clearInterval(intervalId);
+          }
         }
       } catch (error) {
         console.error('Failed to fetch video status:', error);
       }
     };
 
-    // Initial fetch
-    fetchVideoStatus();
-
-    // Set up polling
-    let intervalId: number | undefined;
-    if (isPolling) {
+    const startPolling = () => {
+      pollFallback();
       intervalId = window.setInterval(() => {
-        // Check if 1 minute has passed
-        if (Date.now() - pollingStartTime.current >= POLLING_TIMEOUT_MS) {
-          setIsPolling(false);
-          // If transcript still not available after timeout, show refresh modal
-          if (!videoData?.transcript_available) {
-            setShowRefreshModal(true);
-          }
+        if (Date.now() - pollingStartTime.current >= STREAM_TIMEOUT_MS) {
+          handleTimeout();
           return;
         }
-        fetchVideoStatus();
-      }, 5000);
-    }
+        pollFallback();
+      }, POLL_INTERVAL_MS);
+    };
+
+    const startStream = async () => {
+      setIsPolling(true);
+      timeoutId = window.setTimeout(handleTimeout, STREAM_TIMEOUT_MS);
+
+      // Ensure guest session id exists for unauthenticated users
+      const token = getToken();
+      if (!token && !sessionStorage.getItem('guestSessionId')) {
+        sessionStorage.setItem('guestSessionId', crypto.randomUUID());
+      }
+
+      const streamUrl = `${config.API_URL}${videosApi.getStreamUrl(videoId)}`;
+      abortController = new AbortController();
+
+      try {
+        const response = await fetch(streamUrl, {
+          method: 'GET',
+          headers: {
+            ...getAuthHeaders(),
+            ...(sessionStorage.getItem('guestSessionId')
+              ? { 'X-Guest-Session-ID': sessionStorage.getItem('guestSessionId')! }
+              : {}),
+          },
+          signal: abortController.signal,
+        });
+
+        if (response.status === 401) {
+          removeToken();
+          navigate('/login');
+          return;
+        }
+
+        if (!response.ok || !response.body) {
+          throw new Error('Video status stream unavailable');
+        }
+
+        const reader = response.body.getReader();
+        const decoder = new TextDecoder();
+        let buffer = '';
+
+        while (!isCancelled) {
+          const { done, value } = await reader.read();
+          if (done) break;
+
+          buffer += decoder.decode(value, { stream: true });
+          const chunks = buffer.split('\n\n');
+          buffer = chunks.pop() || '';
+
+          for (const chunk of chunks) {
+            const lines = chunk.split('\n');
+            let eventName = '';
+            const dataLines: string[] = [];
+
+            for (const line of lines) {
+              if (line.startsWith('event:')) {
+                eventName = line.replace('event:', '').trim();
+              } else if (line.startsWith('data:')) {
+                dataLines.push(line.replace('data:', '').trim());
+              }
+            }
+
+            if (!dataLines.length) continue;
+            try {
+              const payload = JSON.parse(dataLines.join('\n'));
+              if (payload?.video) {
+                setVideoData(payload.video);
+              }
+              if (eventName === 'done') {
+                setIsPolling(false);
+                if (abortController) {
+                  abortController.abort();
+                }
+                if (timeoutId) {
+                  clearTimeout(timeoutId);
+                }
+                return;
+              }
+            } catch (error) {
+              console.error('Failed to parse video stream payload:', error);
+            }
+          }
+        }
+      } catch (error) {
+        if (!isCancelled) {
+          console.error('Video status stream error:', error);
+          startPolling();
+        }
+      }
+    };
+
+    startStream();
 
     return () => {
+      isCancelled = true;
+      if (abortController) {
+        abortController.abort();
+      }
+      if (timeoutId) {
+        clearTimeout(timeoutId);
+      }
       if (intervalId) {
         clearInterval(intervalId);
       }
     };
-  }, [videoId, isPolling, videoData?.transcript_available]);
+  }, [videoId, navigate]);
 
   const seekToTimestamp = (seconds: number) => {
     // Scroll video into view (especially for mobile)

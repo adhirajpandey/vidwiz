@@ -4,10 +4,7 @@ import { Sparkles, ArrowRight, MessageSquare, Clock, Brain, AlertCircle } from '
 import AmbientBackground from '../components/ui/AmbientBackground';
 
 import GlassCard from '../components/ui/GlassCard';
-import config from '../config';
-
 import { extractVideoId } from '../lib/videoUtils';
-import { getAuthHeaders, removeToken } from '../lib/authUtils';
 
 
 function WizEntryPage() {
@@ -41,30 +38,7 @@ function WizEntryPage() {
     }
     
     setIsLoading(true);
-
-    try {
-      const response = await fetch(`${config.API_URL}/wiz/init`, {
-        method: 'POST',
-        headers: getAuthHeaders(),
-        body: JSON.stringify({ video_id: videoId }),
-      });
-
-      if (response.status === 401) {
-        removeToken();
-        navigate('/login');
-        return;
-      }
-
-      if (!response.ok) {
-        throw new Error('Failed to initialize session');
-      }
-
-      navigate(`/wiz/${videoId}`, { state: { initFromEntry: true } });
-    } catch (err) {
-      console.error('Wiz init error:', err);
-      setError('Failed to start session. Please try again.');
-      setIsLoading(false);
-    }
+    navigate(`/wiz/${videoId}`);
   };
 
   return (
