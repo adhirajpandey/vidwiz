@@ -14,16 +14,15 @@ from src.conversations.models import Conversation, Message
 from src.exceptions import InternalServerError, RateLimitError, NotFoundError
 from src.internal import constants as internal_constants
 from src.internal import service as internal_service
-from src.videos import service as videos_service
 from src.videos.models import Video
-
-
-logger = logging.getLogger(__name__)
+from src.videos import service as videos_service
 
 DB_ROLE_USER = "user"
 DB_ROLE_ASSISTANT = "assistant"
 GEMINI_ROLE_USER = "user"
 GEMINI_ROLE_MODEL = "model"
+
+logger = logging.getLogger(__name__)
 
 def get_or_create_video(db: Session, video_id: str) -> tuple[Video, bool]:
     video = videos_service.get_video_by_id(db, video_id)
