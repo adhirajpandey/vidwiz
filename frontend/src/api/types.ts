@@ -36,7 +36,9 @@ export interface UserProfileRead {
   name?: string;
   profile_image_url?: string;
   ai_notes_enabled: boolean;
+  token_exists: boolean;
   long_term_token?: string;
+  created_at?: string;
 }
 
 export interface UserProfileUpdate {
@@ -46,11 +48,14 @@ export interface UserProfileUpdate {
 
 // Video Types
 export interface VideoRead {
+  id: number;
   video_id: string;
   title: string | null;
   transcript_available: boolean;
   metadata: VideoMetadata | null;
   summary: string | null;
+  created_at: string;
+  updated_at: string;
 }
 
 export interface VideoMetadata {
@@ -70,11 +75,17 @@ export interface VideoListParams {
   page?: number;
   per_page?: number;
   q?: string;
-  sort_by?: 'created_at_desc' | 'created_at_asc' | 'title_asc' | 'title_desc';
+  sort?: 'created_at_desc' | 'created_at_asc' | 'title_asc' | 'title_desc';
+}
+
+export interface VideoSearchItem {
+  video_id: string;
+  title: string | null;
+  metadata?: VideoMetadata | null;
 }
 
 export interface VideoListResponse {
-  videos: VideoRead[];
+  videos: VideoSearchItem[];
   total: number;
   page: number;
   per_page: number;

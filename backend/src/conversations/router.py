@@ -87,7 +87,7 @@ def create_message(
         )
         return JSONResponse(
             status_code=status.HTTP_202_ACCEPTED,
-            content=response.model_dump(),
+            content=response.model_dump(mode="json"),
         )
 
     return StreamingResponse(

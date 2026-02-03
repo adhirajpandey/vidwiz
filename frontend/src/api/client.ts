@@ -1,4 +1,4 @@
-import axios from 'axios';
+import axios, { type AxiosError, type AxiosResponse, type InternalAxiosRequestConfig } from 'axios';
 import config from '../config';
 import { getToken, removeToken } from '../lib/authUtils';
 
@@ -11,7 +11,7 @@ const apiClient = axios.create({
 
 // Request interceptor to add auth token
 apiClient.interceptors.request.use(
-  (config) => {
+  (config: InternalAxiosRequestConfig) => {
     const token = getToken();
     if (token) {
       config.headers.Authorization = `Bearer ${token}`;
@@ -25,17 +25,17 @@ apiClient.interceptors.request.use(
     
     return config;
   },
-  (error) => {
+  (error: AxiosError) => {
     return Promise.reject(error);
   }
 );
 
 // Response interceptor to handle common errors
 apiClient.interceptors.response.use(
-  (response) => {
+  (response: AxiosResponse) => {
     return response;
   },
-  (error) => {
+  (error: AxiosError) => {
     if (error.response) {
       // Handle 401 Unauthorized - clear token and potentially redirect
       if (error.response.status === 401) {

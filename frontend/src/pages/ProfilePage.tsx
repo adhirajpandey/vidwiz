@@ -38,35 +38,15 @@ export default function ProfilePage() {
     if (token) {
       try {
         const data = await authApi.getMe();
-        setUser({
-          ...data,
-          token_exists: !!data.long_term_token // Assuming backend logic or if we derive it
-          // Wait, UserProfileRead in types.ts has long_term_token optional string.
-          // The old code assumed data had long_term_token
-        } as any); 
-        // UserProfileRead needs to map to UserProfile interface in this file or we update interface.
-        // The interface UserProfile here has `token_exists`.
-        // API `UserProfileRead` has `long_term_token`.
-        // We might need to adapt.
-        
         setEditName(data.name || '');
         setApiToken(data.long_term_token || null);
-        
-        // If getting profile worked, we update user state.
-        // But `data` from getMe matches `UserProfileRead`.
-        // `UserProfile` here has `token_exists`.
-        // Let's set token_exists based on long_term_token presence if backend sends it.
-        // Backend `UserRead` schema: id, email, name, profile_image_url, ai_notes_enabled.
-        // Does it return long_term_token?
-        // Checked auth.ts types: `UserProfileRead` has `long_term_token`.
-        
         setUser({
-            email: data.email,
-            name: data.name,
-            profile_image_url: data.profile_image_url,
-            ai_notes_enabled: data.ai_notes_enabled,
-            token_exists: !!data.long_term_token,
-            created_at: undefined // API might not return this yet, let's look at types
+          email: data.email,
+          name: data.name,
+          profile_image_url: data.profile_image_url,
+          ai_notes_enabled: data.ai_notes_enabled,
+          token_exists: data.token_exists ?? !!data.long_term_token,
+          created_at: data.created_at,
         });
         
       } catch (error: any) {
