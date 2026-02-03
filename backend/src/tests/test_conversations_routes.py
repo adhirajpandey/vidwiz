@@ -1,5 +1,8 @@
+import jwt
 import pytest
 
+from src.auth import service as auth_service
+from src.config import settings
 from src.conversations import service as conversations_service
 
 
@@ -9,7 +12,7 @@ async def test_create_and_get_conversation_with_guest(client):
     video_id = "abc123DEF45"
 
     create_response = await client.post(
-        "/api/v2/conversations",
+        "/v2/conversations",
         headers=headers,
         json={"video_id": video_id},
     )
@@ -19,7 +22,7 @@ async def test_create_and_get_conversation_with_guest(client):
 
     conversation_id = payload["id"]
     get_response = await client.get(
-        f"/api/v2/conversations/{conversation_id}",
+        f"/v2/conversations/{conversation_id}",
         headers=headers,
     )
     assert get_response.status_code == 200
@@ -33,7 +36,7 @@ async def test_conversation_access_scoped_to_guest(client):
     guest_b = {"X-Guest-Session-ID": "guest-b"}
 
     create_response = await client.post(
-        "/api/v2/conversations",
+        "/v2/conversations",
         headers=guest_a,
         json={"video_id": video_id},
     )
@@ -41,7 +44,7 @@ async def test_conversation_access_scoped_to_guest(client):
     conversation_id = create_response.json()["id"]
 
     forbidden_response = await client.get(
-        f"/api/v2/conversations/{conversation_id}",
+        f"/v2/conversations/{conversation_id}",
         headers=guest_b,
     )
     assert forbidden_response.status_code == 404
@@ -72,7 +75,7 @@ async def test_list_conversation_messages(client, db_session):
     )
 
     response = await client.get(
-        f"/api/v2/conversations/{conversation.id}/messages",
+        f"/v2/conversations/{conversation.id}/messages",
         headers=headers,
     )
     assert response.status_code == 200
@@ -80,3 +83,75 @@ async def test_list_conversation_messages(client, db_session):
     assert len(payload) == 2
     assert payload[0]["role"] == "user"
     assert payload[1]["role"] == "assistant"
+
+
+@pytest.mark.asyncio
+async def test_create_conversation_requires_viewer(client):
+    response = await client.post("/v2/conversations", json={"video_id": "abc123DEF45"})
+    assert response.status_code == 401
+    payload = response.json()
+    assert payload["error"]["code"] == "UNAUTHORIZED"
+
+
+@pytest.mark.asyncio
+async def test_create_conversation_with_user_auth(client, db_session):
+    user = auth_service.create_user(
+        db_session,
+        "conv-user@example.com",
+        "Conv User",
+        "password123",
+    )
+    token = jwt.encode(
+        {"user_id": user.id, "email": user.email, "name": "Conv User"},
+        settings.secret_key,
+        algorithm="HS256",
+    )
+
+    response = await client.post(
+        "/v2/conversations",
+        headers={"Authorization": f"Bearer {token}"},
+        json={"video_id": "abc123DEF45"},
+    )
+    assert response.status_code == 201
+    payload = response.json()
+    assert payload["video_id"] == "abc123DEF45"
+
+
+@pytest.mark.asyncio
+async def test_create_message_returns_processing_when_transcript_missing(client):
+    headers = {"X-Guest-Session-ID": "guest-processing"}
+    create_response = await client.post(
+        "/v2/conversations",
+        headers=headers,
+        json={"video_id": "abc123DEF45"},
+    )
+    conversation_id = create_response.json()["id"]
+
+    response = await client.post(
+        f"/v2/conversations/{conversation_id}/messages",
+        headers=headers,
+        json={"message": "Hello"},
+    )
+    assert response.status_code == 202
+    payload = response.json()
+    assert payload["status"] == "processing"
+
+
+@pytest.mark.asyncio
+async def test_create_message_rejects_empty_message(client):
+    headers = {"X-Guest-Session-ID": "guest-empty"}
+    create_response = await client.post(
+        "/v2/conversations",
+        headers=headers,
+        json={"video_id": "abc123DEF45"},
+    )
+    conversation_id = create_response.json()["id"]
+
+    response = await client.post(
+        f"/v2/conversations/{conversation_id}/messages",
+        headers=headers,
+        json={"message": "   "},
+    )
+    assert response.status_code == 422
+    payload = response.json()
+    assert payload["error"]["code"] == "VALIDATION_ERROR"

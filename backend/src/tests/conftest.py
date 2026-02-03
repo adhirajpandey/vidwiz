@@ -1,9 +1,11 @@
 from collections.abc import Generator
 
 import pytest
+import pytest_asyncio
 from httpx import ASGITransport, AsyncClient
 from sqlalchemy import create_engine
 from sqlalchemy.orm import sessionmaker
+from sqlalchemy.pool import StaticPool
 
 from src.auth import models as auth_models  # noqa: F401
 from src.conversations import models as conversation_models  # noqa: F401
@@ -30,19 +32,31 @@ def engine():
     engine = create_engine(
         TEST_DATABASE_URL,
         connect_args={"check_same_thread": False},
+        poolclass=StaticPool,
     )
     Base.metadata.create_all(engine)
-    return engine
+    try:
+        yield engine
+    finally:
+        engine.dispose()
 
 
 @pytest.fixture
 def db_session(engine) -> Generator:
-    TestingSessionLocal = sessionmaker(bind=engine, autocommit=False, autoflush=False)
+    connection = engine.connect()
+    transaction = connection.begin()
+    TestingSessionLocal = sessionmaker(
+        bind=connection,
+        autocommit=False,
+        autoflush=False,
+    )
     db = TestingSessionLocal()
     try:
         yield db
     finally:
         db.close()
+        transaction.rollback()
+        connection.close()
 
 
 @pytest.fixture
@@ -60,7 +74,7 @@ def app(db_session):
     return app
 
 
-@pytest.fixture
+@pytest_asyncio.fixture
 async def client(app):
     async with AsyncClient(
         transport=ASGITransport(app=app),

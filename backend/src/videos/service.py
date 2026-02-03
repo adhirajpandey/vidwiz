@@ -144,7 +144,7 @@ def _video_state(video: Video) -> tuple[bool, bool, bool]:
 
 def _format_event(event: str, video: Video) -> str:
     payload = VideoStreamPayload(event=event, video=VideoRead.model_validate(video))
-    data = json.dumps(payload.model_dump())
+    data = json.dumps(payload.model_dump(mode="json"))
     return f"event: {event}\ndata: {data}\n\n"
 
 

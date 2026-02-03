@@ -24,7 +24,7 @@ async def test_internal_task_poll_transcript_success(client, db_session):
     db_session.commit()
 
     response = await client.get(
-        "/api/v2/internal/tasks?type=transcript&timeout=1",
+        "/v2/internal/tasks?type=transcript&timeout=1",
         headers=_admin_headers(),
     )
 
@@ -42,7 +42,7 @@ async def test_internal_task_poll_transcript_success(client, db_session):
 @pytest.mark.asyncio
 async def test_internal_task_poll_timeout(client):
     response = await client.get(
-        "/api/v2/internal/tasks?type=transcript&timeout=1",
+        "/v2/internal/tasks?type=transcript&timeout=1",
         headers=_admin_headers(),
     )
 
@@ -63,7 +63,7 @@ async def test_internal_task_submit_transcript_success(client, db_session):
     db_session.commit()
 
     response = await client.post(
-        f"/api/v2/internal/tasks/{task.id}/result",
+        f"/v2/internal/tasks/{task.id}/result",
         headers=_admin_headers(),
         json={
             "video_id": "transcript_video",
@@ -103,7 +103,7 @@ async def test_internal_ai_notes(client, db_session):
     db_session.commit()
 
     response = await client.get(
-        f"/api/v2/internal/videos/{video_id}/ai-notes",
+        f"/v2/internal/videos/{video_id}/ai-notes",
         headers=_admin_headers(),
     )
 
@@ -111,3 +111,106 @@ async def test_internal_ai_notes(client, db_session):
     payload = response.json()
     assert payload["video_id"] == video_id
     assert len(payload["notes"]) == 1
+
+
+@pytest.mark.asyncio
+async def test_internal_ai_notes_not_found(client, db_session):
+    video_id = "abc123DEF45"
+    video = Video(video_id=video_id, title="AI Notes Video")
+    db_session.add(video)
+    db_session.commit()
+
+    response = await client.get(
+        f"/v2/internal/videos/{video_id}/ai-notes",
+        headers=_admin_headers(),
+    )
+    assert response.status_code == 404
+
+
+@pytest.mark.asyncio
+async def test_internal_ai_notes_video_missing(client):
+    response = await client.get(
+        "/v2/internal/videos/abc123DEF45/ai-notes",
+        headers=_admin_headers(),
+    )
+    assert response.status_code == 404
+
+
+@pytest.mark.asyncio
+async def test_internal_store_transcript_metadata_summary(client):
+    video_id = "abc123DEF45"
+
+    transcript_response = await client.post(
+        f"/v2/internal/videos/{video_id}/transcript",
+        headers=_admin_headers(),
+        json={"transcript": [{"text": "hello"}]},
+    )
+    assert transcript_response.status_code == 200
+
+    metadata_response = await client.post(
+        f"/v2/internal/videos/{video_id}/metadata",
+        headers=_admin_headers(),
+        json={"metadata": {"title": "Video"}},
+    )
+    assert metadata_response.status_code == 200
+
+    summary_response = await client.post(
+        f"/v2/internal/videos/{video_id}/summary",
+        headers=_admin_headers(),
+        json={"summary": "Summary"},
+    )
+    assert summary_response.status_code == 200
+
+
+@pytest.mark.asyncio
+async def test_internal_get_video_not_found(client):
+    response = await client.get(
+        "/v2/internal/videos/abc123DEF45",
+        headers=_admin_headers(),
+    )
+    assert response.status_code == 404
+
+
+@pytest.mark.asyncio
+async def test_internal_get_video_success(client):
+    video_id = "abc123DEF45"
+    await client.post(
+        f"/v2/internal/videos/{video_id}/metadata",
+        headers=_admin_headers(),
+        json={"metadata": {"title": "Video"}},
+    )
+
+    response = await client.get(
+        f"/v2/internal/videos/{video_id}",
+        headers=_admin_headers(),
+    )
+    assert response.status_code == 200
+    payload = response.json()
+    assert payload["video_id"] == video_id
+
+
+@pytest.mark.asyncio
+async def test_internal_update_note_not_found(client):
+    response = await client.patch(
+        "/v2/internal/notes/9999",
+        headers=_admin_headers(),
+        json={"text": "updated"},
+    )
+    assert response.status_code == 404
+
+
+@pytest.mark.asyncio
+async def test_internal_update_note_success(client, db_session):
+    video = Video(video_id="abc123DEF45", title="Video")
+    note = Note(video_id=video.video_id, timestamp="00:01", text="hi", user_id=1)
+    db_session.add_all([video, note])
+    db_session.commit()
+
+    response = await client.patch(
+        f"/v2/internal/notes/{note.id}",
+        headers=_admin_headers(),
+        json={"text": "updated"},
+    )
+    assert response.status_code == 200
+    payload = response.json()
+    assert payload["text"] == "updated"
