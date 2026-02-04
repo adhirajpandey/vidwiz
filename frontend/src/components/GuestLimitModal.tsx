@@ -21,7 +21,7 @@ const GuestLimitModal: React.FC<GuestLimitModalProps> = ({ isOpen, onClose }) =>
   const handleGoogleSuccess = async (credential: string) => {
     setIsLoading(true);
     try {
-      const response = await fetch(`${config.API_URL}/user/google/login`, {
+      const response = await fetch(`${config.API_URL}/auth/google`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
