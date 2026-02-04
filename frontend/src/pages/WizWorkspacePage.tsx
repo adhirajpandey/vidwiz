@@ -493,6 +493,28 @@ function WizWorkspacePage() {
         }
       }
 
+      if (response.status === 202) {
+        let processingMessage = 'Transcript processing';
+        try {
+          const data = await response.json();
+          if (data?.message) {
+            processingMessage = data.message;
+          }
+        } catch {
+          // Fallback to default message
+        }
+        setShowRefreshModal(true);
+        setMessages((prev) =>
+          prev.map((msg) =>
+            msg.id === assistantMessageId
+              ? { ...msg, content: processingMessage }
+              : msg
+          )
+        );
+        setIsLoading(false);
+        return;
+      }
+
       if (!response.ok) {
         let errorMessage = 'Chat request failed';
         try {
