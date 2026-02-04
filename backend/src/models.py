@@ -23,7 +23,7 @@ class ErrorDetail(ApiModel):
 class ErrorPayload(ApiModel):
     code: str
     message: str
-    details: list[ErrorDetail] | None = None
+    details: list[ErrorDetail] | dict[str, object] | None = None
 
 
 class ErrorResponse(ApiModel):

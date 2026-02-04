@@ -22,13 +22,18 @@ class APIError(Exception):
         message: str,
         code: str,
         status_code: int,
-        details: Iterable[ErrorDetail] | None = None,
+        details: Iterable[ErrorDetail] | dict[str, object] | None = None,
     ) -> None:
         super().__init__(message)
         self.message = message
         self.code = code
         self.status_code = status_code
-        self.details = list(details) if details else None
+        if details is None:
+            self.details = None
+        elif isinstance(details, dict):
+            self.details = details
+        else:
+            self.details = list(details)
 
     def to_response(self) -> ErrorResponse:
         return ErrorResponse(
