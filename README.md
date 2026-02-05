@@ -5,13 +5,13 @@ VidWiz transforms how you learn from YouTube videos by combining two powerful AI
 
 **Smart Notes** - Stop pausing to type. VidWiz automatically extracts insights and creates timestamp-linked notes, building your personal knowledge vault. AI captures the core concepts while you stay focused on learning.
 
-**Wiz** - Ask questions instead of scrubbing through timelines. This conversational AI assistant understands video content semantically, providing context-aware answers with precise jump-links to relevant moments across your entire video library.
+**Wiz** - Ask questions instead of scrubbing through timelines. This conversational AI assistant answers based on the video transcript, providing context-aware responses with precise jump-links to relevant moments.
 
 The platform is built with:
 - **Frontend**: React (Vite) with TypeScript and Tailwind CSS
-- **Backend**: Flask (Python) REST API
+- **Backend**: FastAPI (Python) REST API
 - **Database**: PostgreSQL for data persistence
-- **AI/LLM**: OpenAI/Gemini models for intelligent note generation and semantic search
+- **AI/LLM**: OpenAI/Gemini models for intelligent note generation and wiz chat
 - **Cloud**: AWS (SQS for async processing, S3 for storage)
 
 [Check Screenshots](#screenshots)
@@ -23,59 +23,52 @@ The platform is built with:
 **1. Smart Notes - Automatic Knowledge Capture**
    - **Auto-Extraction**: AI automatically captures core insights from any timestamp
    - **Precision Timestamps**: Click any note to jump directly to that moment in the video
-   - **Knowledge Vault**: Search and manage your entire library of captured insights
-   - **Universal Export**: Export notes to Markdown, PDF, or Notion
    - **Rich Metadata**: Thumbnails, channel info, view counts, and duration tracking
 
 **2. Wiz - Conversational Video Intelligence**
-   - **Semantic Search**: Ask questions in plain English, get expert answers
+   - **Ask in plain English**: Ask questions in plain English, get expert answers
    - **Context-Aware**: Wiz understands the video content and watches alongside you
    - **Deep Jump-Links**: Click on answers to play the exact video moment
-   - **Vault Access**: Query across your entire video library
-   - **Custom AI Integration**: Use your own OpenAI or Gemini API key
 
 ### Multi-Platform Access
    - **Browser Extension**: Works with any Chromium-based browser (Chrome, Edge, Brave, etc.)
-   - **Web Dashboard**: Modern glassmorphic UI for managing notes and videos
+   - **Web Dashboard**: Modern UI for managing notes and videos
    - **Android**: Integration via Macrodroid macros
    - **iOS**: Integration via Shortcuts automation
 
 ### Privacy & Control
-   - **Self-Hosted**: Full control over your data with your own backend
-   - **Enhanced Security**: No third-party data sharing
-   - **Configurable AI**: Choose your AI provider and manage API keys
+   - **Self-Hosted Deployments**: Run VidWiz on your infrastructure and control where data lives.
+   - **Pluggable AI**: Choose Gemini or OpenAI via environment configuration.
+   - **Token-Based Access**: Use long-term tokens for extensions and mobile automations.
 
 ## Architecture
 
-VidWiz uses a layered backend to keep request handling thin and domain logic centralized:
+VidWiz uses a layered backend to keep request handling thin and domain logic centralized, with workers and Lambdas for async processing:
 
 ```
 Clients (Extension/Web/Mobile)
     ↓
-Flask REST API (routes/controllers)
+FastAPI REST API (routers/controllers)
     ↓
 Service layer (domain logic)
     ↓
-PostgreSQL ←→ AWS Services
-                  ├─ SQS (Async task queues)
-                  └─ S3 (Storage)
+PostgreSQL ←→ Workers + AWS Services
+      │           ├─ Task queue (DB) -> Helpers (transcript/metadata)
+      │           ├─ SQS (Async task queues) -> Lambdas (AI notes/summary)
+      │           └─ S3 (Transcripts)
 ```
 
-**AWS Integration**:
-- **SQS (Simple Queue Service)**: Handles asynchronous AI note generation and video summarization tasks
-- **S3 (Simple Storage Service)**: Stores generated artifacts and processed outputs
-- **Lambda-ready**: Backend includes Lambda functions for serverless processing
+Quick start
+Prereqs: Python 3.10–3.13, Node.js, Poetry, running PostgreSQL
 
-> **Note**: AWS services are used for async processing to prevent blocking the main application flow. AI note generation can take several seconds, so tasks are queued via SQS and processed asynchronously.
-
-## Quick start (Docker Compose)
-Prereqs: Docker, Docker Compose
-
-1) Create a .env file with at least:
+### Backend
+1. `cd backend`
+2. Install dependencies: `poetry install`
+3. Configure `.env` (use `.env.example` as reference). Example:
 
 ```
 # App
-DB_URL=postgresql://postgres:postgres@database:5432/vidwiz
+DB_URL=postgresql://postgres:postgres@localhost:5432/vidwiz
 SECRET_KEY=change-me
 ADMIN_TOKEN=change-admin-token
 
@@ -96,17 +89,7 @@ POSTGRES_USER=postgres
 POSTGRES_PASSWORD=postgres
 ```
 
-2) Start services:
-- Development: docker compose up -d --build → API at http://localhost:5000
-
-## Local development
-Prereqs: Python 3.10–3.13, Node.js, Poetry, running PostgreSQL
-
-### Backend
-1. `cd backend`
-2. Install dependencies: `poetry install`
-3. Configure `.env` (use `.env.example` as reference)
-4. Start server: `python wsgi.py`
+4. Start server: `poetry run uvicorn src.main:app --host 0.0.0.0 --port 5000`
 
 ### Frontend
 1. `cd frontend`
@@ -132,16 +115,11 @@ The extension will then show the note-taking interface when on YouTube videos.
 ## Project Structure
 ```
 vidwiz/
-├── backend/              # Flask API
-│   ├── vidwiz/
-│   │   ├── routes/      # API endpoints (thin controllers)
-│   │   ├── services/    # Domain logic/services
-│   │   ├── lambdas/     # AWS Lambda functions
-│   │   ├── infra/       # Systemd/service unit files for helpers
-│   │   ├── workers/     # Background workers
-│   │   ├── shared/      # Utilities and models
-│   │   └── tests/       # Pytest test suites
-│   └── wsgi.py          # Flask entrypoint
+├── backend/              # FastAPI backend
+│   ├── src/              # App modules (routers, services, schemas, models)
+│   ├── workers/          # Background workers and lambdas
+│   ├── infra/            # Systemd/service unit files for helpers
+│   └── wsgi.py           # ASGI entrypoint
 ├── frontend/            # React + Vite web app
 │   └── src/
 │       ├── pages/       # Route-level views
@@ -160,9 +138,12 @@ vidwiz/
 - [x] SQS async task processing
 - [x] Glassmorphic UI/UX redesign
 - [x] Multi-platform support (Extension, Web, iOS, Android)
+- [x] Move backend from Flask to FastAPI
+- [x] Proper CI/CD workflows for backend and frontend
+- [ ] Semantic search across notes and videos
+- [ ] Universal export (Markdown, PDF)
+- [ ] Bring-your-own AI key(BYOK) support
 - [ ] Cloud-hosted SaaS offering with subscription model
-
-
 
 
 
