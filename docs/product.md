@@ -1,144 +1,66 @@
-# VidWiz Product Requirements Document (PRD)
+# VidWiz Product (PRD)
 
 ## Purpose
-Define the product vision, goals, user needs, and requirements for VidWiz. This PRD is a living document meant for engineers, agents, and future product planning.
+Define the product goals, user needs, and requirements for VidWiz.
 
-## Scope
-- Core problem and target users.
-- Primary experiences: web app, browser extension, mobile automations.
-- Functional requirements and non-functional requirements.
-- MVP vs. next-phase roadmap.
-
-## Background and Problem
-Learning from YouTube is friction-heavy. Users pause frequently, lose context, and struggle to organize insights. Searching within long videos is slow, and notes lack context or timestamps. VidWiz solves this by enabling timestamped notes, AI-assisted summaries, and grounded video chat.
+## Problem
+Learning from YouTube is friction-heavy: pausing, losing context, and poor note organization. VidWiz makes capture fast and chat grounded in the transcript.
 
 ## Goals
-- Reduce friction in capturing notes while watching videos.
-- Make videos searchable and conversational with transcript-based AI.
+- Make timestamped capture effortless during playback.
+- Provide transcript-grounded Q&A with citations.
 - Support fast capture across web, extension, and mobile automations.
-- Provide a reliable, scalable backend for async transcript and AI processing.
+- Keep async transcript + AI processing reliable.
 
-## Non-Goals (for now)
-- Full native mobile apps.
-- Cross-platform desktop apps.
-- Offline note capture.
-- Deep team collaboration features.
+## Non-Goals (Current)
+- Native mobile apps.
+- Offline capture.
+- Team collaboration.
 
-## Target Users and Use Cases
-### Primary Users
-- Students and self-learners who consume long educational videos.
-- Professionals who learn tools/workflows from tutorials.
-- Creators and reviewers who need quick timestamped notes.
+## Target Users
+- Students and self-learners.
+- Professionals learning tools/workflows.
+- Creators/reviewers taking timestamped notes.
 
-### Key Use Cases
-- Capture a note at the current timestamp without leaving the video.
-- Auto-generate a note when the user saves a timestamp with no text.
-- Ask questions about a video and get timestamped answers.
-- Review all notes by video and jump to exact timestamps.
-
-## Product Principles
-- Minimal disruption to watching.
-- Notes must always be tied to a timestamp.
-- AI responses must be grounded in the transcript.
-- Multiple capture surfaces, one consistent backend.
-
-## Experience Overview
-### Web App (Primary UI)
-- Auth, dashboard, video detail, notes list, profile settings.
-- Wiz chat experience for grounded Q and A.
-- AI summaries and metadata visible in video detail.
-
-### Browser Extension (Capture Surface)
-- One-click notes from YouTube watch pages.
-- Uses long-term token for API auth.
-- Shows title and current timestamp in popup.
-
-### Mobile Automations (Capture Surface)
-- Android via MacroDroid; iOS via Shortcuts.
-- Minimal capture flow: send timestamped note to API.
-- Designed for rapid entry while watching on mobile.
+## Core Use Cases
+- Save a note at the current timestamp without leaving the video.
+- Auto-generate a note when only a timestamp is provided.
+- Ask questions about a video with transcript-based answers.
+- Review notes by video and jump to timestamps.
 
 ## Functional Requirements
-### Authentication
-- Email/password and Google OAuth sign-in.
-- JWT session tokens for web.
-- Long-term token for extension and automations.
-
-### Notes
-- Create notes with timestamp and optional text.
-- Associate notes with a video.
-- Edit and delete notes.
-- List notes by video.
-
-### Videos
-- Store video metadata and transcript availability.
-- List videos by user, with search and pagination.
-- Provide video detail view (metadata, summary, transcript status).
-- Stream readiness state for metadata/transcript/summary.
-
-### Wiz Chat
-- Conversation per video, per viewer (user or guest).
-- Transcript-based responses only.
-- Timestamp citations in responses.
-- Daily quota enforcement for guests and users.
-
-### AI Notes
-- If note is created without text and AI notes are enabled, generate a note via LLM.
-- AI notes require transcript availability.
-
-### AI Summary
-- Generate and store summary after transcript is available.
-- Summary is optional but recommended for the video detail view.
+- **Auth**: Email/password and Google OAuth; long-term tokens for extension/automations.
+- **Notes**: Create, list, edit, delete; always timestamped.
+- **Videos**: Store metadata + transcript availability; list/search; stream readiness.
+- **Wiz Chat**: Conversation per video; transcript-only answers with timestamp citations; guest and user quotas.
+- **AI Notes**: Generate when note text is empty, AI notes are enabled, and transcript is already available.
+- **AI Summary**: Generate after transcript availability; optional display in video detail.
 
 ## Non-Functional Requirements
-- Secure auth and token handling (no token exposure in logs).
-- Low-latency note creation and retrieval.
+- Secure token handling.
+- Low-latency note creation.
 - Resilient async processing with retries.
 - Clear error messages across clients.
-- Scalable transcript and AI processing pipelines.
-
-## Success Metrics
-- Note creation completion rate (web/extension/mobile).
-- Median time to first note after opening a video.
-- Percentage of notes created without manual text (AI-assisted).
-- Wiz chat session length and retention.
-- Transcript availability success rate.
 
 ## MVP Definition
-- Web app with auth, dashboard, video detail, notes list, profile.
-- Extension with token setup and note capture.
-- MacroDroid/Shortcuts integration via long-term token.
-- Transcript and metadata workers.
-- Basic Wiz chat using transcript.
-- AI notes and AI summary pipelines.
+- Web app: auth, dashboard, video detail, notes list, profile.
+- Extension: token setup + note capture.
+- Mobile automations: MacroDroid/Shortcuts capture flow.
+- Transcript + metadata helpers.
+- Wiz chat.
+- AI notes + AI summary pipelines.
 
-## Risks and Mitigations
-- YouTube DOM changes break extension timestamp/title capture.
-  - Mitigation: monitor and update selectors; fallback to manual input.
-- Transcript availability failures.
-  - Mitigation: retries, fallback messaging, and clear UI states.
-- AI hallucinations or irrelevant answers.
-  - Mitigation: enforce transcript-only system prompt.
+## Risks
+- YouTube DOM changes can break extension capture.
+- Transcript availability failures impact chat/AI.
+- LLM hallucinations; mitigate with transcript-only prompts.
+
+## Current Constraints (Product Reality)
+- Web app does not provide note creation; notes are captured via extension/automations.
+- Extension only supports `youtube.com/watch` pages (no Shorts/live/`youtu.be`).
+- Wiz chat depends on S3-hosted transcripts; if transcripts are missing, chat returns `processing` or errors.
 
 ## Open Questions
-- Should we expose note creation directly in the web UI?
-- Should long-term tokens support scoped permissions?
+- Should the web app expose note creation directly?
+- Should long-term tokens have scoped permissions?
 - Do we need dedicated mobile clients beyond automations?
-
-## Interaction Overview (ASCII)
-```
-User
-  |
-  +--> Web App (auth, dashboard, video detail, Wiz)
-  |
-  +--> Extension (timestamped notes)
-  |
-  +--> Mobile Automations (timestamped notes)
-         |
-         v
-     FastAPI /v2
-       |
-       +--> DB (users, videos, notes)
-       +--> S3 (transcripts)
-       +--> SQS (AI note/summary jobs)
-```
