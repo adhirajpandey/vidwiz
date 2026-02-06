@@ -225,6 +225,18 @@ def get_transcript_from_s3(video_id: str, attempt: int = 1) -> Optional[List[Dic
 
         response = s3_client.get_object(Bucket=S3_BUCKET_NAME, Key=transcript_key)
         transcript_data = json.loads(response["Body"].read().decode("utf-8"))
+        if transcript_data is None:
+            logger.warning(
+                "Transcript payload is null",
+                extra={"video_id": video_id, "attempt": attempt},
+            )
+            return None
+        if not isinstance(transcript_data, list):
+            logger.warning(
+                "Transcript payload is not a list",
+                extra={"video_id": video_id, "attempt": attempt, "payload_type": type(transcript_data).__name__},
+            )
+            return None
 
         logger.info(
             "Successfully loaded transcript from S3",
@@ -675,7 +687,7 @@ def process_note(note: Note) -> None:
     try:
         # Get transcript from S3 cache
         transcript = get_transcript_from_s3(note.video_id)
-        if transcript is None:
+        if not transcript:
             logger.error(
                 "Cannot process note - transcript not available",
                 extra={"video_id": note.video_id, "note_id": note.id},
