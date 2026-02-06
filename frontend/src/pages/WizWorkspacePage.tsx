@@ -42,7 +42,7 @@ interface VideoData {
  * Parses bold markdown (**text**) and renders as bold
  */
 function parseBoldText(content: string, keyPrefix: string = ''): React.ReactNode {
-  const boldRegex = /\*\*(.+?)\*\*/g;
+  const boldRegex = /\*\*([\s\S]+?)\*\*/g;
   const parts: React.ReactNode[] = [];
   let lastIndex = 0;
   let match: RegExpExecArray | null;
@@ -52,7 +52,10 @@ function parseBoldText(content: string, keyPrefix: string = ''): React.ReactNode
       parts.push(content.slice(lastIndex, match!.index));
     }
     parts.push(
-      <strong key={`${keyPrefix}-bold-${match!.index}`} className="font-semibold">
+      <strong
+        key={`${keyPrefix}-bold-${match!.index}`}
+        className="font-bold text-foreground"
+      >
         {match![1]}
       </strong>
     );
@@ -68,20 +71,44 @@ function parseBoldText(content: string, keyPrefix: string = ''): React.ReactNode
 
 /**
  * Parses timestamp citations from message content and makes them clickable
- * Supports formats: [mm:ss], [hh:mm:ss], [mm:ss-mm:ss], [hh:mm:ss-hh:mm:ss]
+ * Supports formats: [mm:ss], [hh:mm:ss]
  * Also parses bold markdown (**text**)
  */
 function parseTimestampCitations(content: string, onTimestampClick: (seconds: number) => void): React.ReactNode {
-  // Matches [ ... ] blocks containing digits, colons, dashes, commas, spaces
-  const citationBlockRegex = /\[([\d:, \-]+)\]/g;
+  // Matches [ ... ] blocks containing digits, colons, commas, spaces
+  const citationBlockRegex = /\[([\d:, ]+)\]/g;
   
-  // Regex to validate individual timestamps/ranges inside the block
-  // Matches mm:ss, hh:mm:ss, or ranges of those
-  const timestampPattern = /^\s*(\d{1,2}):(\d{2})(?::(\d{2}))?(?:\s*-\s*(\d{1,2}):(\d{2})(?::(\d{2}))?)?\s*$/;
+  // Regex to validate individual timestamps inside the block
+  // Matches mm:ss or hh:mm:ss
+  const timestampPattern = /^\s*(\d{1,2}):(\d{2})(?::(\d{2}))?\s*$/;
 
   const parts: React.ReactNode[] = [];
   let lastIndex = 0;
   let match: RegExpExecArray | null;
+
+  const renderTimestampButton = (label: string, secondsValue: number, key: string) => (
+    <button
+      key={key}
+      onClick={() => onTimestampClick(secondsValue)}
+      className="inline-flex items-center align-middle px-1.5 py-0.5 mx-0.5 rounded-md bg-violet-500/10 text-violet-600 dark:text-violet-300 hover:bg-violet-500/20 transition-all text-sm font-mono border border-violet-500/20 cursor-pointer"
+    >
+      {label}
+    </button>
+  );
+
+  const toSeconds = (hasHours: boolean, a: string, b: string, c?: string) => {
+    const hours = hasHours ? parseInt(a) : 0;
+    const minutes = hasHours ? parseInt(b) : parseInt(a);
+    const seconds = hasHours ? parseInt(c || '0') : parseInt(b);
+    return hours * 3600 + minutes * 60 + seconds;
+  };
+
+  const formatLabel = (hasHours: boolean, a: string, b: string, c?: string) => {
+    if (hasHours) {
+      return `${parseInt(a)}:${b}:${c || '00'}`;
+    }
+    return `${parseInt(a)}:${b}`;
+  };
 
   while ((match = citationBlockRegex.exec(content)) !== null) {
     if (match.index > lastIndex) {
@@ -94,9 +121,6 @@ function parseTimestampCitations(content: string, onTimestampClick: (seconds: nu
     
     const blockElements: React.ReactNode[] = [];
     
-    // Add opening bracket
-    blockElements.push(<span key={`open-${match!.index}`}>[</span>);
-
     timestampParts.forEach((part, idx) => {
       const trimmed = part.trim();
       const tsMatch = timestampPattern.exec(trimmed);
@@ -106,30 +130,17 @@ function parseTimestampCitations(content: string, onTimestampClick: (seconds: nu
       }
 
       if (tsMatch) {
-         // Parse start timestamp (always use start time for navigation)
         const hasHours = tsMatch[3] !== undefined;
-        const hours = hasHours ? parseInt(tsMatch[1]) : 0;
-        const minutes = hasHours ? parseInt(tsMatch[2]) : parseInt(tsMatch[1]);
-        const seconds = hasHours ? parseInt(tsMatch[3]) : parseInt(tsMatch[2]);
-        const totalSeconds = hours * 3600 + minutes * 60 + seconds;
-
+        const secondsValue = toSeconds(hasHours, tsMatch[1], tsMatch[2], tsMatch[3]);
+        const label = formatLabel(hasHours, tsMatch[1], tsMatch[2], tsMatch[3]);
         blockElements.push(
-          <button
-            key={`btn-${match!.index}-${idx}`}
-            onClick={() => onTimestampClick(totalSeconds)}
-            className="inline-flex items-center align-middle px-1.5 py-0.5 mx-0.5 rounded-md bg-violet-500/10 text-violet-600 dark:text-violet-300 hover:bg-violet-500/20 transition-all text-sm font-mono border border-violet-500/20 cursor-pointer"
-          >
-            {trimmed}
-          </button>
+          renderTimestampButton(label, secondsValue, `btn-${match!.index}-${idx}`)
         );
       } else {
         // If part doesn't look like a timestamp, just render text
         blockElements.push(<span key={`text-${match!.index}-${idx}`}>{trimmed}</span>);
       }
     });
-
-    // Add closing bracket
-    blockElements.push(<span key={`close-${match!.index}`}>]</span>);
 
     // Push the whole constructed block
     parts.push(<span key={`block-${match!.index}`}>{blockElements}</span>);
@@ -712,16 +723,16 @@ function WizWorkspacePage() {
                   className={`flex ${message.role === 'user' ? 'justify-end' : 'justify-start'}`}
                 >
                   <div
-                    className={`max-w-[88%] rounded-2xl px-4 py-3 ${
+                    className={`max-w-[70%] rounded-2xl px-4 py-3 ${
                       message.role === 'user'
                         ? 'bg-gradient-to-r from-violet-600 to-violet-500 text-white'
-                        : 'bg-muted border border-border'
+                        : 'bg-muted/70 border border-border'
                     }`}
                   >
                     <div className="text-sm leading-loose whitespace-pre-wrap">
                       {message.role === 'assistant'
                         ? parseTimestampCitations(message.content, seekToTimestamp)
-                        : message.content}
+                        : parseBoldText(message.content, `user-${message.id}`)}
                     </div>
                   </div>
                 </div>
