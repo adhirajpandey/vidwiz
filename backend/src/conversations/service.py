@@ -188,26 +188,35 @@ def get_valid_transcript_or_raise(db: Session, video_id: str) -> tuple[Video, li
     return video, transcript
 
 
+def _format_mm_ss(seconds: float) -> str:
+    minutes = int(seconds // 60)
+    secs = int(seconds % 60)
+    return f"{minutes}:{secs:02d}"
+
+
+def build_transcript_text(transcript: list, *, include_timestamps: bool = True) -> str:
+    lines = []
+    for segment in transcript:
+        if "text" not in segment:
+            continue
+        text = segment["text"]
+        if include_timestamps and "offset" in segment:
+            lines.append(f"{_format_mm_ss(float(segment['offset']))} {text}")
+        else:
+            lines.append(text)
+    return "\n".join(lines) if include_timestamps else " ".join(lines)
+
+
 def build_system_instruction(video_title: str | None, transcript: list) -> str:
-    transcript_text = "\n".join(
-        [
-            f"{int(segment['offset'] // 60)}:{int(segment['offset'] % 60):02d} {segment['text']}"
-            for segment in transcript
-            if "offset" in segment and "text" in segment
-        ]
-    )
+    transcript_text = build_transcript_text(transcript, include_timestamps=True)
 
     title = video_title or "this video"
+    safe_title = title.replace("{", "{{").replace("}", "}}")
+    safe_transcript = transcript_text.replace("{", "{{").replace("}", "}}")
 
-    return (
-        "You are Wiz, an AI assistant dedicated to this specific video: "
-        f'"{title}".\n'
-        "Your context is strictly limited to the provided video transcript.\n"
-        "Answer the user's question based ONLY on the transcript.\n"
-        "If the answer is not in the transcript, say so.\n"
-        "Use inline timestamp citations like [mm:ss] when referencing specific parts.\n"
-        "Transcript:\n"
-        f"{transcript_text}\n"
+    return conversations_settings.wiz_system_prompt_template.format(
+        title=safe_title,
+        transcript=safe_transcript,
     )
 
 

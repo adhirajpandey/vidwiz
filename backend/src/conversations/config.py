@@ -1,10 +1,13 @@
 from pydantic import Field
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
+from src.conversations.prompts import WIZ_SYSTEM_PROMPT_TEMPLATE
+
 
 class ConversationsSettings(BaseSettings):
     gemini_api_key: str | None = Field(default=None, alias="GEMINI_API_KEY")
     gemini_model_name: str = Field(default="gemini-2.5-flash", alias="GEMINI_MODEL_NAME")
+    wiz_system_prompt_template: str = Field(default=WIZ_SYSTEM_PROMPT_TEMPLATE)
     wiz_user_daily_quota: int = Field(default=20, alias="WIZ_USER_DAILY_QUOTA")
     wiz_guest_daily_quota: int = Field(default=5, alias="WIZ_GUEST_DAILY_QUOTA")
     s3_bucket_name: str | None = Field(default=None, alias="S3_BUCKET_NAME")

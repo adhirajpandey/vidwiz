@@ -33,6 +33,18 @@ REQUEST_TIMEOUT = int(os.getenv("REQUEST_TIMEOUT", "30"))
 TRANSCRIPT_FETCH_MAX_RETRIES = int(os.getenv("TRANSCRIPT_FETCH_MAX_RETRIES", "5"))
 TRANSCRIPT_FETCH_RETRY_DELAY = int(os.getenv("TRANSCRIPT_FETCH_RETRY_DELAY", "2"))
 
+NOTE_PROMPT_TEMPLATE = """Generate a concise one-line note based on the provided title, timestamp, and transcript.
+The note should be less than {max_length} characters and capture the essence of the content at the specified timestamp.
+Focus more on the transcript context than the title. Do not include any additional text or formatting.
+
+Here are the details:
+{title_block}Timestamp: {timestamp} - {timestamp_seconds} seconds
+Transcript: {transcript}
+
+Even if the transcript is in any language, generate a note in English.
+Return only the note, without any additional text or formatting.
+Do not add '","",-,: any special character anywhere in the note.
+"""
 
 assert S3_BUCKET_NAME, "S3_BUCKET_NAME is not set"
 assert VIDWIZ_ENDPOINT, "VIDWIZ_ENDPOINT is not set"
@@ -43,6 +55,24 @@ assert GEMINI_API_KEY or OPENAI_API_KEY, "At least one of GEMINI_API_KEY or OPEN
 
 # Initialize logger
 logger = Logger()
+
+def _format_mm_ss(seconds: float) -> str:
+    minutes = int(seconds // 60)
+    secs = int(seconds % 60)
+    return f"{minutes}:{secs:02d}"
+
+
+def build_transcript_text(transcript: List[Dict], *, include_timestamps: bool = True) -> str:
+    lines = []
+    for segment in transcript:
+        if "text" not in segment:
+            continue
+        text = segment["text"]
+        if include_timestamps and "offset" in segment:
+            lines.append(f"{_format_mm_ss(float(segment['offset']))} {text}")
+        else:
+            lines.append(text)
+    return "\n".join(lines) if include_timestamps else " ".join(lines)
 
 
 # Data Models
@@ -125,7 +155,7 @@ class RelevantTranscriptContext(BaseModel):
 
 
 # Utility Functions
-def get_note_generation_prompt_template(
+def build_note_prompt(
     max_length: int, title: Optional[str], timestamp: str, timestamp_seconds: int, transcript: str
 ) -> str:
     """
@@ -141,19 +171,16 @@ def get_note_generation_prompt_template(
     Returns:
         Filled-in prompt string for the LLM.
     """
-    title_block = f"Title: {title}\n" if title else ""
-    return f"""Generate a concise one-line note based on the provided title, timestamp, and transcript. 
-The note should be less than {max_length} characters and capture the essence of the content at the specified timestamp. 
-Focus more on the transcript context than the title. Do not include any additional text or formatting.
-
-Here are the details:
-{title_block}Timestamp: {timestamp} - {timestamp_seconds} seconds
-Transcript: {transcript}
-
-Even if the transcript is in any language, generate a note in English.
-Return only the note, without any additional text or formatting.
-Do not add '","",-,: any special character anywhere in the note.
-"""
+    safe_transcript = transcript.replace("{", "{{").replace("}", "}}")
+    safe_title = title.replace("{", "{{").replace("}", "}}") if title else ""
+    title_block = f"Title: {safe_title}\n" if title else ""
+    return NOTE_PROMPT_TEMPLATE.format(
+        max_length=max_length,
+        title_block=title_block,
+        timestamp=timestamp,
+        timestamp_seconds=timestamp_seconds,
+        transcript=safe_transcript,
+    )
 
 
 def format_timestamp_in_seconds(timestamp: str) -> int:
@@ -225,6 +252,18 @@ def get_transcript_from_s3(video_id: str, attempt: int = 1) -> Optional[List[Dic
 
         response = s3_client.get_object(Bucket=S3_BUCKET_NAME, Key=transcript_key)
         transcript_data = json.loads(response["Body"].read().decode("utf-8"))
+        if transcript_data is None:
+            logger.warning(
+                "Transcript payload is null",
+                extra={"video_id": video_id, "attempt": attempt},
+            )
+            return None
+        if not isinstance(transcript_data, list):
+            logger.warning(
+                "Transcript payload is not a list",
+                extra={"video_id": video_id, "attempt": attempt, "payload_type": type(transcript_data).__name__},
+            )
+            return None
 
         logger.info(
             "Successfully loaded transcript from S3",
@@ -382,7 +421,9 @@ def format_transcript_context(context: RelevantTranscriptContext) -> str:
 
     # Add before context
     if context.before:
-        before_text = " ".join([seg.text for seg in context.before])
+        before_text = build_transcript_text(
+            [{"text": seg.text} for seg in context.before], include_timestamps=False
+        )
         parts.append(before_text)
 
     # Add main text
@@ -390,7 +431,9 @@ def format_transcript_context(context: RelevantTranscriptContext) -> str:
 
     # Add after context
     if context.after:
-        after_text = " ".join([seg.text for seg in context.after])
+        after_text = build_transcript_text(
+            [{"text": seg.text} for seg in context.after], include_timestamps=False
+        )
         parts.append(after_text)
 
     return " ".join(parts)
@@ -524,7 +567,7 @@ def generate_note_using_llm(
     formatted_transcript = format_transcript_context(transcript_context)
 
     # Get the prompt with parameters filled in
-    prompt = get_note_generation_prompt_template(
+    prompt = build_note_prompt(
         max_length=MAX_NOTE_LENGTH,
         title=title,
         timestamp=timestamp,
@@ -675,7 +718,7 @@ def process_note(note: Note) -> None:
     try:
         # Get transcript from S3 cache
         transcript = get_transcript_from_s3(note.video_id)
-        if transcript is None:
+        if not transcript:
             logger.error(
                 "Cannot process note - transcript not available",
                 extra={"video_id": note.video_id, "note_id": note.id},
