@@ -31,6 +31,18 @@ REQUEST_TIMEOUT = int(os.getenv("REQUEST_TIMEOUT", "30"))
 TRANSCRIPT_FETCH_MAX_RETRIES = int(os.getenv("TRANSCRIPT_FETCH_MAX_RETRIES", "5"))
 TRANSCRIPT_FETCH_RETRY_DELAY = int(os.getenv("TRANSCRIPT_FETCH_RETRY_DELAY", "2"))
 
+SUMMARY_PROMPT_TEMPLATE = """Generate a clear and concise summary of the following video transcript.
+
+The summary should be between {min_length} and {max_length} characters.
+Capture the key ideas, explanations, and conclusions.
+Do not include timestamps, formatting, bullet points, or extra commentary.
+
+{title_block}Transcript:
+{transcript}
+
+Even if the transcript is in any language, generate the summary in English.
+Return only the summary text, without any additional text or formatting.
+"""
 
 assert S3_BUCKET_NAME, "S3_BUCKET_NAME is not set"
 assert VIDWIZ_ENDPOINT, "VIDWIZ_ENDPOINT is not set"
@@ -40,6 +52,24 @@ assert GEMINI_API_KEY or OPENAI_API_KEY, "At least one of GEMINI_API_KEY or OPEN
 
 # Initialize logger
 logger = Logger()
+
+def _format_mm_ss(seconds: float) -> str:
+    minutes = int(seconds // 60)
+    secs = int(seconds % 60)
+    return f"{minutes}:{secs:02d}"
+
+
+def build_transcript_text(transcript: List[Dict], *, include_timestamps: bool = True) -> str:
+    lines = []
+    for segment in transcript:
+        if "text" not in segment:
+            continue
+        text = segment["text"]
+        if include_timestamps and "offset" in segment:
+            lines.append(f"{_format_mm_ss(float(segment['offset']))} {text}")
+        else:
+            lines.append(text)
+    return "\n".join(lines) if include_timestamps else " ".join(lines)
 
 
 # Data Models
@@ -55,7 +85,7 @@ class SummaryRequest(BaseModel):
 
 
 # Prompt Template
-def get_summary_generation_prompt_template(title: Optional[str], transcript: str) -> str:
+def build_summary_prompt(title: Optional[str], transcript: str) -> str:
     """
     Build the LLM prompt for generating a video summary.
 
@@ -66,19 +96,15 @@ def get_summary_generation_prompt_template(title: Optional[str], transcript: str
     Returns:
         Prompt string with length constraints and instructions.
     """
-    title_block = f"Title: {title}\n\n" if title else ""
-    return f"""Generate a clear and concise summary of the following video transcript.
-
-The summary should be between {MIN_SUMMARY_LENGTH} and {MAX_SUMMARY_LENGTH} characters.
-Capture the key ideas, explanations, and conclusions.
-Do not include timestamps, formatting, bullet points, or extra commentary.
-
-{title_block}Transcript:
-{transcript}
-
-Even if the transcript is in any language, generate the summary in English.
-Return only the summary text, without any additional text or formatting.
-"""
+    safe_transcript = transcript.replace("{", "{{").replace("}", "}}")
+    safe_title = title.replace("{", "{{").replace("}", "}}") if title else ""
+    title_block = f"Title: {safe_title}\n\n" if title else ""
+    return SUMMARY_PROMPT_TEMPLATE.format(
+        min_length=MIN_SUMMARY_LENGTH,
+        max_length=MAX_SUMMARY_LENGTH,
+        title_block=title_block,
+        transcript=safe_transcript,
+    )
 
 
 # Utility Functions
@@ -178,7 +204,7 @@ def format_full_transcript(transcript: List[Dict]) -> str:
     Returns:
         Single string of all segment texts joined by spaces.
     """
-    return " ".join(seg["text"] for seg in transcript)
+    return build_transcript_text(transcript, include_timestamps=False)
 
 
 def gemini_api_call(prompt: str) -> Optional[str]:
@@ -297,7 +323,7 @@ def generate_summary_using_llm(title: str, transcript_text: str) -> Optional[str
     """
     logger.info("Generating summary using LLM", extra={"title": title})
 
-    prompt = get_summary_generation_prompt_template(title=title, transcript=transcript_text)
+    prompt = build_summary_prompt(title=title, transcript=transcript_text)
 
     try:
         result = llm_call(prompt)
