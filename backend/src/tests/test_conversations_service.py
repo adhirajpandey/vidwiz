@@ -108,14 +108,14 @@ def test_get_transcript_from_s3_fetches_when_configured(monkeypatch):
     assert transcript == [{"text": "hi", "offset": 0}]
 
 
-def test_ensure_gemini_api_key_raises(monkeypatch):
-    monkeypatch.setattr(conversations_settings, "gemini_api_key", None, raising=False)
+def test_ensure_openrouter_api_key_raises(monkeypatch):
+    monkeypatch.setattr(conversations_settings, "openrouter_api_key", None, raising=False)
     with pytest.raises(InternalServerError):
-        conversations_service.ensure_gemini_api_key()
+        conversations_service.ensure_openrouter_api_key()
 
 
 def test_prepare_chat_returns_history_when_transcript_ready(db_session, monkeypatch):
-    monkeypatch.setattr(conversations_settings, "gemini_api_key", "key", raising=False)
+    monkeypatch.setattr(conversations_settings, "openrouter_api_key", "key", raising=False)
     monkeypatch.setattr(conversations_settings, "wiz_user_daily_quota", 99, raising=False)
 
     video = Video(video_id="abc123DEF45", title="Video", transcript_available=True)
