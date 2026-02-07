@@ -18,15 +18,9 @@ def get_client_ip(request: Request) -> str:
 
     return "unknown"
 
-
-def is_internal_request(request: Request) -> bool:
-    return request.url.path.startswith("/v2/internal")
-
-
 limiter = Limiter(
     key_func=get_client_ip,
     default_limits=[settings.rate_limit_default],
     headers_enabled=True,
     enabled=settings.rate_limit_enabled,
-    exempt_when=is_internal_request,
 )

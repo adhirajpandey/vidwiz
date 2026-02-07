@@ -1,4 +1,4 @@
-from fastapi import APIRouter, Depends, status
+from fastapi import APIRouter, Depends, Request, Response, status
 from sqlalchemy.orm import Session
 
 from src.auth import service as auth_service
@@ -37,6 +37,8 @@ router = APIRouter(prefix="/v2", tags=["Auth"])
 )
 @limiter.limit(settings.rate_limit_auth)
 def register(
+    request: Request,
+    response: Response,
     payload: AuthRegisterRequest,
     db: Session = Depends(get_db),
 ) -> MessageResponse:
@@ -55,6 +57,8 @@ def register(
 )
 @limiter.limit(settings.rate_limit_auth)
 def login(
+    request: Request,
+    response: Response,
     payload: AuthLoginRequest,
     db: Session = Depends(get_db),
 ) -> LoginResponse:
@@ -81,6 +85,8 @@ def login(
 )
 @limiter.limit(settings.rate_limit_auth)
 def google_login(
+    request: Request,
+    response: Response,
     payload: GoogleLoginRequest,
     db: Session = Depends(get_db),
 ) -> LoginResponse:
@@ -123,6 +129,8 @@ def google_login(
     description="Create long-term token.",
 )
 def create_long_term_token(
+    request: Request,
+    response: Response,
     db: Session = Depends(get_db),
     user_id: int = Depends(get_current_user_id),
 ) -> TokenResponse:
@@ -152,6 +160,8 @@ def create_long_term_token(
     description="Revoke long-term token.",
 )
 def revoke_long_term_token(
+    request: Request,
+    response: Response,
     db: Session = Depends(get_db),
     user_id: int = Depends(get_current_user_id),
 ) -> TokenRevokeResponse:
@@ -174,6 +184,8 @@ def revoke_long_term_token(
     tags=["Users"],
 )
 def get_profile(
+    request: Request,
+    response: Response,
     db: Session = Depends(get_db),
     user_id: int = Depends(get_current_user_id),
 ) -> UserProfileRead:
@@ -193,6 +205,8 @@ def get_profile(
     tags=["Users"],
 )
 def update_profile(
+    request: Request,
+    response: Response,
     payload: UserProfileUpdate,
     db: Session = Depends(get_db),
     user_id: int = Depends(get_current_user_id),

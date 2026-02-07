@@ -1,4 +1,4 @@
-from fastapi import APIRouter, Depends, status
+from fastapi import APIRouter, Depends, Request, Response, status
 from sqlalchemy.orm import Session
 
 from src.auth.dependencies import (
@@ -23,6 +23,8 @@ router = APIRouter(prefix="/v2", tags=["Notes"])
     description="List notes for a video.",
 )
 def list_notes(
+    request: Request,
+    response: Response,
     path: VideoIdPath = Depends(),
     db: Session = Depends(get_db),
     user_id: int = Depends(get_current_user_id),
@@ -38,6 +40,8 @@ def list_notes(
     description="Create a note; implicitly creates the video if missing.",
 )
 def create_note(
+    request: Request,
+    response: Response,
     payload: NoteCreate,
     path: VideoIdPath = Depends(),
     db: Session = Depends(get_db),
@@ -61,6 +65,8 @@ def create_note(
     description="Update note text/flags.",
 )
 def update_note(
+    request: Request,
+    response: Response,
     payload: NoteUpdate,
     db: Session = Depends(get_db),
     note=Depends(get_note_or_404),
@@ -84,6 +90,8 @@ def update_note(
     description="Delete a note.",
 )
 def delete_note(
+    request: Request,
+    response: Response,
     db: Session = Depends(get_db),
     note=Depends(get_note_or_404),
 ) -> MessageResponse:
