@@ -37,6 +37,7 @@ export interface UserProfileRead {
   profile_image_url?: string;
   ai_notes_enabled: boolean;
   token_exists: boolean;
+  credits_balance: number;
   long_term_token?: string;
   created_at?: string;
 }

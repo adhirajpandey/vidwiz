@@ -24,6 +24,21 @@ class Settings(BaseSettings):
         default="20/minute", alias="RATE_LIMIT_CONVERSATIONS"
     )
     rate_limit_videos: str = Field(default="30/minute", alias="RATE_LIMIT_VIDEOS")
+    dodo_payments_api_key: str | None = Field(
+        default=None, alias="DODO_PAYMENTS_API_KEY"
+    )
+    dodo_payments_webhook_key: str | None = Field(
+        default=None, alias="DODO_PAYMENTS_WEBHOOK_KEY"
+    )
+    dodo_payments_environment: str = Field(
+        default="test_mode", alias="DODO_PAYMENTS_ENVIRONMENT"
+    )
+    dodo_payments_return_url: str | None = Field(
+        default=None, alias="DODO_PAYMENTS_RETURN_URL"
+    )
+    dodo_credit_products: str | None = Field(
+        default=None, alias="DODO_CREDIT_PRODUCTS"
+    )
 
     model_config = SettingsConfigDict(env_file=".env", extra="ignore")
 

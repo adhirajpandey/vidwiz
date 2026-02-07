@@ -8,6 +8,7 @@ from sqlalchemy.orm.attributes import flag_modified
 from werkzeug.security import check_password_hash, generate_password_hash
 
 from src.auth.models import User
+from src.credits import service as credits_service
 
 
 def find_user_by_email(db: Session, email: str) -> User | None:
@@ -23,6 +24,7 @@ def create_user(db: Session, email: str, name: str, password: str) -> User:
     db.add(user)
     db.commit()
     db.refresh(user)
+    credits_service.grant_signup_credits(db, user)
     return user
 
 
@@ -93,6 +95,7 @@ def build_profile_data(user: User, include_long_term_token: bool = True) -> dict
         "profile_image_url": user.profile_image_url,
         "ai_notes_enabled": ai_notes_enabled,
         "token_exists": token_exists,
+        "credits_balance": user.credits_balance,
         "created_at": user.created_at,
     }
 
@@ -137,6 +140,7 @@ def upsert_google_user(
     picture: str | None,
 ) -> User:
     user = db.query(User).filter(User.google_id == google_id).first()
+    created = False
 
     if not user:
         user = db.query(User).filter(User.email == email).first()
@@ -151,6 +155,7 @@ def upsert_google_user(
             profile_image_url=picture,
         )
         db.add(user)
+        created = True
 
     if user and not user.name:
         user.name = name
@@ -160,4 +165,6 @@ def upsert_google_user(
 
     db.commit()
     db.refresh(user)
+    if created:
+        credits_service.grant_signup_credits(db, user)
     return user

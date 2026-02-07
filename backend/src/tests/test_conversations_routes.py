@@ -1,5 +1,7 @@
 import pytest
 
+from src.auth import service as auth_service
+from src.config import settings
 from src.conversations import service as conversations_service
 from src.conversations.models import Conversation
 
@@ -39,6 +41,55 @@ async def test_create_and_get_conversation_as_guest(client, db_session):
     )
     assert get_response.status_code == 200
     assert get_response.json()["video_id"] == "abc123DEF45"
+
+
+@pytest.mark.asyncio
+async def test_create_conversation_blocks_when_insufficient_credits(
+    client, db_session
+):
+    user = auth_service.create_user(
+        db_session, "credits-low@example.com", "Credits Low", "password123"
+    )
+    user.credits_balance = 4
+    db_session.commit()
+
+    token = auth_service.generate_jwt_token(user, settings.secret_key, 1)
+    response = await client.post(
+        "/v2/conversations",
+        headers={"Authorization": f"Bearer {token}"},
+        json={"video_id": "abc123DEF45"},
+    )
+    assert response.status_code == 403
+    payload = response.json()
+    assert payload["error"]["code"] == "FORBIDDEN"
+    assert payload["error"]["message"] == "Insufficient credits"
+
+
+@pytest.mark.asyncio
+async def test_create_conversation_charges_once_per_video(client, db_session):
+    user = auth_service.create_user(
+        db_session, "credits-ok@example.com", "Credits Ok", "password123"
+    )
+    user.credits_balance = 10
+    db_session.commit()
+
+    token = auth_service.generate_jwt_token(user, settings.secret_key, 1)
+    response_one = await client.post(
+        "/v2/conversations",
+        headers={"Authorization": f"Bearer {token}"},
+        json={"video_id": "abc123DEF45"},
+    )
+    assert response_one.status_code == 201
+
+    response_two = await client.post(
+        "/v2/conversations",
+        headers={"Authorization": f"Bearer {token}"},
+        json={"video_id": "abc123DEF45"},
+    )
+    assert response_two.status_code == 201
+
+    refreshed = auth_service.get_user_by_id(db_session, user.id)
+    assert refreshed.credits_balance == 5
 
 
 @pytest.mark.asyncio

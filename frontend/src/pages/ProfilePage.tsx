@@ -1,11 +1,12 @@
 
 import { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { authApi } from '../api';
+import { authApi, paymentsApi } from '../api';
 import { useToast } from '../hooks/useToast';
 import { FaExclamationTriangle, FaEye, FaEyeSlash, FaCopy, FaSpinner, FaKey, FaShieldAlt, FaSave, FaPen, FaTimes } from 'react-icons/fa';
-import { Settings, Zap, User as UserIcon, Calendar, Mail } from 'lucide-react';
+import { Settings, Zap, User as UserIcon, Calendar, Mail, Coins, Sparkles } from 'lucide-react';
 import { getToken, removeToken } from '../lib/authUtils';
+import config from '../config';
 
 interface UserProfile {
   email: string;
@@ -13,6 +14,7 @@ interface UserProfile {
   profile_image_url?: string;
   ai_notes_enabled: boolean;
   token_exists: boolean;
+  credits_balance: number;
   created_at?: string;
 }
 
@@ -27,6 +29,7 @@ export default function ProfilePage() {
   const [isEditingDetails, setIsEditingDetails] = useState(false);
   const [isEditingToken, setIsEditingToken] = useState(false);
   const [isSavingDetails, setIsSavingDetails] = useState(false);
+  const [isBuyingCredits, setIsBuyingCredits] = useState(false);
   const navigate = useNavigate();
   const { addToast } = useToast();
 
@@ -46,6 +49,7 @@ export default function ProfilePage() {
           profile_image_url: data.profile_image_url,
           ai_notes_enabled: data.ai_notes_enabled,
           token_exists: data.token_exists ?? !!data.long_term_token,
+          credits_balance: data.credits_balance,
           created_at: data.created_at,
         });
         
@@ -163,6 +167,28 @@ export default function ProfilePage() {
     setShowToken(!showToken);
   };
 
+  const handleBuyCredits = async () => {
+    if (isBuyingCredits) return;
+    setIsBuyingCredits(true);
+    try {
+      const data = await paymentsApi.createCheckoutSession({
+        product_id: config.CREDITS_PRODUCT_ID,
+        quantity: 1,
+      });
+      window.location.href = data.checkout_url;
+    } catch (error: any) {
+      console.error('Failed to start checkout', error);
+      if (error.response?.status === 401) {
+        removeToken();
+        navigate('/login');
+      } else {
+        addToast({ title: 'Error', message: 'Unable to start checkout', type: 'error' });
+      }
+    } finally {
+      setIsBuyingCredits(false);
+    }
+  };
+
   return (
     <div className="min-h-screen bg-background text-foreground">
       {/* Revoke Modal */}
@@ -254,6 +280,51 @@ export default function ProfilePage() {
             {/* Main Content Grid */}
             <div className="grid gap-8">
               
+              {/* Settings Group: Credits */}
+              <div className="space-y-4">
+                <div className="flex items-center gap-2 px-1 select-none">
+                  <Coins className="w-4 h-4 text-foreground/40" />
+                  <h2 className="text-sm font-semibold text-foreground/40 uppercase tracking-wider">Credits</h2>
+                </div>
+
+                <div className="relative overflow-hidden rounded-xl border border-white/[0.08] bg-gradient-to-br from-card via-card to-card/90">
+                  <div className="absolute inset-0 pointer-events-none">
+                    <div className="absolute -right-16 -top-12 h-40 w-40 rounded-full bg-gradient-to-br from-amber-500/20 to-orange-500/10 blur-2xl"></div>
+                    <div className="absolute -left-10 -bottom-16 h-40 w-40 rounded-full bg-gradient-to-br from-emerald-500/10 to-cyan-500/10 blur-2xl"></div>
+                  </div>
+                  <div className="relative p-5 md:p-6">
+                    <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-6">
+                      <div className="space-y-2">
+                        <div className="inline-flex items-center gap-2 text-xs font-semibold uppercase tracking-widest text-foreground/50">
+                          <Sparkles className="w-3.5 h-3.5" />
+                          Available Credits
+                        </div>
+                        <div className="flex items-baseline gap-3">
+                          <span className="text-3xl md:text-4xl font-semibold text-foreground">
+                            {user.credits_balance}
+                          </span>
+                          <span className="text-sm text-foreground/50">credits</span>
+                        </div>
+                        <p className="text-sm text-foreground/50 max-w-lg">
+                          Wiz chats cost 5 credits per video. AI note generation costs 1 credit when queued.
+                        </p>
+                      </div>
+
+                      <div className="flex items-center gap-3">
+                        <button
+                          onClick={handleBuyCredits}
+                          disabled={isBuyingCredits}
+                          className="inline-flex items-center justify-center gap-2 px-5 py-2.5 text-sm font-semibold text-white bg-gradient-to-r from-amber-500 via-orange-500 to-amber-500 bg-[length:200%_100%] rounded-lg hover:bg-right transition-all duration-500 shadow-lg shadow-amber-500/20 disabled:opacity-50 disabled:cursor-not-allowed cursor-pointer"
+                        >
+                          {isBuyingCredits ? <FaSpinner className="animate-spin w-4 h-4" /> : <Coins className="w-4 h-4" />}
+                          Buy More
+                        </button>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              </div>
+
               {/* Settings Group: User Details */}
               <div className="space-y-4">
                 <div className="flex items-center justify-between px-1 select-none">

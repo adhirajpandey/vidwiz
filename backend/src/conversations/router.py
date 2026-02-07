@@ -14,6 +14,7 @@ from src.conversations.schemas import (
     MessageCreate,
     MessageRead,
 )
+from src.credits import service as credits_service
 from src.database import get_db
 from src.shared.ratelimit import limiter
 
@@ -34,6 +35,8 @@ def create_conversation(
     db: Session = Depends(get_db),
     viewer: ViewerContext = Depends(get_viewer_context),
 ) -> ConversationRead:
+    if viewer.user_id:
+        credits_service.charge_wiz_chat_for_video(db, viewer.user_id, payload.video_id)
     _video, _ = conversations_service.get_or_create_video(db, payload.video_id)
     conversation = conversations_service.create_conversation(
         db,

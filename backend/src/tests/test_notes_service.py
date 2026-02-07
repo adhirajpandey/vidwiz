@@ -1,6 +1,7 @@
 import pytest
 
 from src.auth.models import User
+from src.exceptions import ForbiddenError
 from src.notes import service as notes_service
 from src.notes.models import Note
 from src.videos.models import Video
@@ -72,6 +73,7 @@ def test_create_note_triggers_ai_when_enabled_and_ready(db_session, monkeypatch)
         email="ai@example.com",
         name="AI User",
         profile_data={"ai_notes_enabled": True},
+        credits_balance=1,
     )
     video = Video(video_id="ai123456789", title="AI Video", transcript_available=True)
     db_session.add_all([user, video])
@@ -89,6 +91,24 @@ def test_create_note_triggers_ai_when_enabled_and_ready(db_session, monkeypatch)
     )
     assert note.id is not None
     assert called["count"] == 1
+
+
+def test_create_note_blocks_ai_when_insufficient_credits(db_session):
+    user = User(
+        email="ai-block@example.com",
+        name="AI Block",
+        profile_data={"ai_notes_enabled": True},
+        credits_balance=0,
+    )
+    video = Video(video_id="ai523456789", title="AI Video", transcript_available=True)
+    db_session.add_all([user, video])
+    db_session.commit()
+
+    with pytest.raises(ForbiddenError) as exc_info:
+        notes_service.create_note_for_user(
+            db_session, video.video_id, "00:01", None, user.id
+        )
+    assert "Insufficient credits" in str(exc_info.value)
 
 
 def test_create_note_does_not_trigger_ai_when_text_present(db_session, monkeypatch):

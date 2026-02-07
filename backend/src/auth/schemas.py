@@ -67,6 +67,7 @@ class UserProfileRead(ApiModel):
     profile_image_url: str | None = None
     ai_notes_enabled: bool
     token_exists: bool
+    credits_balance: int
     long_term_token: str | None = None
     created_at: datetime | None = None
 

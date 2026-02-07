@@ -1,0 +1,1 @@
+"""Credits domain package."""

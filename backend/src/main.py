@@ -10,6 +10,7 @@ from src.config import settings
 from src.conversations.router import router as conversations_router
 from src.exceptions import APIError, ErrorCode, HTTP_STATUS_CODE_MAP, RateLimitError
 from src.internal.router import router as internal_router
+from src.payments.router import router as payments_router
 from src.models import ErrorDetail, ErrorPayload, ErrorResponse
 from src.notes.router import router as notes_router
 from src.shared.ratelimit import limiter
@@ -125,6 +126,7 @@ def create_app() -> FastAPI:
     app.include_router(notes_router)
     app.include_router(conversations_router)
     app.include_router(internal_router)
+    app.include_router(payments_router)
 
     register_exception_handlers(app)
     return app

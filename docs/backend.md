@@ -29,7 +29,7 @@ Describe the FastAPI backend: structure, auth rules, and the request/worker life
 - **Video lookup**: `GET /v2/videos/{video_id}` is JWT-only but is not scoped to the user; it returns the video if it exists.
 - **Video list**: `GET /v2/videos` returns only videos that have notes for the authenticated user (join on notes).
 - **Video search**: `q` is trimmed; queries shorter than 2 chars are treated as empty. Sort keys: `created_at_desc|created_at_asc|title_asc|title_desc`. `per_page` defaults to 10, max 50.
-- **Video stream**: `GET /v2/videos/{video_id}/stream` requires JWT or guest session. For JWT viewers, the video must have a note by that user; for guests, the video is not user-scoped.
+- **Video stream**: `GET /v2/videos/{video_id}/stream` requires JWT or guest session. The video is not user-scoped for either viewers or guests.
 - **Notes**: List/edit/delete require JWT; create accepts JWT or long-term token.
 - **Task scheduling**: Creating a note or conversation upserts the video and schedules transcript/metadata tasks when missing.
 - **AI notes**: Enqueued only when note text is empty, AI notes are enabled, and the transcript is already available.
