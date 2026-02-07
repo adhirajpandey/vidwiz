@@ -1,4 +1,4 @@
-from fastapi import APIRouter, Depends, status
+from fastapi import APIRouter, Depends, Request, Response, status
 from sqlalchemy.orm import Session
 
 from src.auth import service as auth_service
@@ -23,6 +23,7 @@ from src.exceptions import (
     NotFoundError,
     UnauthorizedError,
 )
+from src.shared.ratelimit import limiter
 
 
 router = APIRouter(prefix="/v2", tags=["Auth"])
@@ -34,7 +35,10 @@ router = APIRouter(prefix="/v2", tags=["Auth"])
     status_code=status.HTTP_201_CREATED,
     description="Create a user account.",
 )
+@limiter.limit(settings.rate_limit_auth)
 def register(
+    request: Request,
+    response: Response,
     payload: AuthRegisterRequest,
     db: Session = Depends(get_db),
 ) -> MessageResponse:
@@ -51,7 +55,10 @@ def register(
     status_code=status.HTTP_200_OK,
     description="Authenticate and return JWT.",
 )
+@limiter.limit(settings.rate_limit_auth)
 def login(
+    request: Request,
+    response: Response,
     payload: AuthLoginRequest,
     db: Session = Depends(get_db),
 ) -> LoginResponse:
@@ -76,7 +83,10 @@ def login(
     status_code=status.HTTP_200_OK,
     description="Google ID token login.",
 )
+@limiter.limit(settings.rate_limit_auth)
 def google_login(
+    request: Request,
+    response: Response,
     payload: GoogleLoginRequest,
     db: Session = Depends(get_db),
 ) -> LoginResponse:
@@ -119,6 +129,8 @@ def google_login(
     description="Create long-term token.",
 )
 def create_long_term_token(
+    request: Request,
+    response: Response,
     db: Session = Depends(get_db),
     user_id: int = Depends(get_current_user_id),
 ) -> TokenResponse:
@@ -148,6 +160,8 @@ def create_long_term_token(
     description="Revoke long-term token.",
 )
 def revoke_long_term_token(
+    request: Request,
+    response: Response,
     db: Session = Depends(get_db),
     user_id: int = Depends(get_current_user_id),
 ) -> TokenRevokeResponse:
@@ -170,6 +184,8 @@ def revoke_long_term_token(
     tags=["Users"],
 )
 def get_profile(
+    request: Request,
+    response: Response,
     db: Session = Depends(get_db),
     user_id: int = Depends(get_current_user_id),
 ) -> UserProfileRead:
@@ -189,6 +205,8 @@ def get_profile(
     tags=["Users"],
 )
 def update_profile(
+    request: Request,
+    response: Response,
     payload: UserProfileUpdate,
     db: Session = Depends(get_db),
     user_id: int = Depends(get_current_user_id),

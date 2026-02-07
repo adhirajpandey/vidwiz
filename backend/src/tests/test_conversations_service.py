@@ -55,7 +55,9 @@ def test_build_system_instruction_formats_transcript():
 
 
 def test_check_daily_quota_enforces_limit(db_session, monkeypatch):
-    monkeypatch.setattr(conversations_settings, "wiz_user_daily_quota", 1, raising=False)
+    monkeypatch.setattr(
+        conversations_settings, "wiz_user_daily_quota", 1, raising=False
+    )
     conversation = Conversation(video_id="abc123DEF45", user_id=1)
     db_session.add(conversation)
     db_session.commit()
@@ -68,7 +70,9 @@ def test_check_daily_quota_enforces_limit(db_session, monkeypatch):
     )
 
     with pytest.raises(RateLimitError):
-        conversations_service.check_daily_quota(db_session, user_id=1, guest_session_id=None)
+        conversations_service.check_daily_quota(
+            db_session, user_id=1, guest_session_id=None
+        )
 
 
 def test_prepare_chat_returns_processing_when_transcript_missing(db_session):
@@ -90,10 +94,18 @@ def test_get_transcript_from_s3_returns_none_without_config(monkeypatch):
 
 
 def test_get_transcript_from_s3_fetches_when_configured(monkeypatch):
-    monkeypatch.setattr(conversations_settings, "s3_bucket_name", "bucket", raising=False)
-    monkeypatch.setattr(conversations_settings, "aws_access_key_id", "key", raising=False)
-    monkeypatch.setattr(conversations_settings, "aws_secret_access_key", "secret", raising=False)
-    monkeypatch.setattr(conversations_settings, "aws_region", "us-east-1", raising=False)
+    monkeypatch.setattr(
+        conversations_settings, "s3_bucket_name", "bucket", raising=False
+    )
+    monkeypatch.setattr(
+        conversations_settings, "aws_access_key_id", "key", raising=False
+    )
+    monkeypatch.setattr(
+        conversations_settings, "aws_secret_access_key", "secret", raising=False
+    )
+    monkeypatch.setattr(
+        conversations_settings, "aws_region", "us-east-1", raising=False
+    )
 
     class _Body:
         def read(self):
@@ -103,20 +115,28 @@ def test_get_transcript_from_s3_fetches_when_configured(monkeypatch):
         def get_object(self, Bucket, Key):
             return {"Body": _Body()}
 
-    monkeypatch.setattr(conversations_service.boto3, "client", lambda *args, **kwargs: _S3())
+    monkeypatch.setattr(
+        conversations_service.boto3, "client", lambda *args, **kwargs: _S3()
+    )
     transcript = conversations_service.get_transcript_from_s3("abc123DEF45")
     assert transcript == [{"text": "hi", "offset": 0}]
 
 
 def test_ensure_openrouter_api_key_raises(monkeypatch):
-    monkeypatch.setattr(conversations_settings, "openrouter_api_key", None, raising=False)
+    monkeypatch.setattr(
+        conversations_settings, "openrouter_api_key", None, raising=False
+    )
     with pytest.raises(InternalServerError):
         conversations_service.ensure_openrouter_api_key()
 
 
 def test_prepare_chat_returns_history_when_transcript_ready(db_session, monkeypatch):
-    monkeypatch.setattr(conversations_settings, "openrouter_api_key", "key", raising=False)
-    monkeypatch.setattr(conversations_settings, "wiz_user_daily_quota", 99, raising=False)
+    monkeypatch.setattr(
+        conversations_settings, "openrouter_api_key", "key", raising=False
+    )
+    monkeypatch.setattr(
+        conversations_settings, "wiz_user_daily_quota", 99, raising=False
+    )
 
     video = Video(video_id="abc123DEF45", title="Video", transcript_available=True)
     conversation = Conversation(video_id=video.video_id, user_id=1)

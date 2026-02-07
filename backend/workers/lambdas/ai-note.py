@@ -49,13 +49,16 @@ assert OPENROUTER_API_KEY, "OPENROUTER_API_KEY is not set"
 # Initialize logger
 logger = Logger()
 
+
 def _format_mm_ss(seconds: float) -> str:
     minutes = int(seconds // 60)
     secs = int(seconds % 60)
     return f"{minutes}:{secs:02d}"
 
 
-def build_transcript_text(transcript: List[Dict], *, include_timestamps: bool = True) -> str:
+def build_transcript_text(
+    transcript: List[Dict], *, include_timestamps: bool = True
+) -> str:
     lines = []
     for segment in transcript:
         if "text" not in segment:
@@ -149,7 +152,11 @@ class RelevantTranscriptContext(BaseModel):
 
 # Utility Functions
 def build_note_prompt(
-    max_length: int, title: Optional[str], timestamp: str, timestamp_seconds: int, transcript: str
+    max_length: int,
+    title: Optional[str],
+    timestamp: str,
+    timestamp_seconds: int,
+    transcript: str,
 ) -> str:
     """
     Build the LLM prompt for generating a single note at a timestamp.
@@ -254,13 +261,21 @@ def get_transcript_from_s3(video_id: str, attempt: int = 1) -> Optional[List[Dic
         if not isinstance(transcript_data, list):
             logger.warning(
                 "Transcript payload is not a list",
-                extra={"video_id": video_id, "attempt": attempt, "payload_type": type(transcript_data).__name__},
+                extra={
+                    "video_id": video_id,
+                    "attempt": attempt,
+                    "payload_type": type(transcript_data).__name__,
+                },
             )
             return None
 
         logger.info(
             "Successfully loaded transcript from S3",
-            extra={"video_id": video_id, "segment_count": len(transcript_data), "attempt": attempt},
+            extra={
+                "video_id": video_id,
+                "segment_count": len(transcript_data),
+                "attempt": attempt,
+            },
         )
         return transcript_data
 
@@ -278,12 +293,17 @@ def get_transcript_from_s3(video_id: str, attempt: int = 1) -> Optional[List[Dic
         if attempt < TRANSCRIPT_FETCH_MAX_RETRIES:
             logger.info(
                 "Retrying transcript fetch",
-                extra={"video_id": video_id, "retry_delay_seconds": TRANSCRIPT_FETCH_RETRY_DELAY},
+                extra={
+                    "video_id": video_id,
+                    "retry_delay_seconds": TRANSCRIPT_FETCH_RETRY_DELAY,
+                },
             )
             time.sleep(TRANSCRIPT_FETCH_RETRY_DELAY)
             return get_transcript_from_s3(video_id, attempt + 1)
 
-        logger.error("Max retries reached for transcript fetch", extra={"video_id": video_id})
+        logger.error(
+            "Max retries reached for transcript fetch", extra={"video_id": video_id}
+        )
         return None
 
 
@@ -309,10 +329,16 @@ def get_video_metadata(video_id: str) -> Optional[Dict]:
         if response.status_code == 200:
             return response.json()
         else:
-            logger.error("Failed to get video metadata", extra={"video_id": video_id, "status": response.status_code})
+            logger.error(
+                "Failed to get video metadata",
+                extra={"video_id": video_id, "status": response.status_code},
+            )
             return None
     except Exception as e:
-        logger.error("Error fetching video metadata", extra={"video_id": video_id, "error": str(e)})
+        logger.error(
+            "Error fetching video metadata",
+            extra={"video_id": video_id, "error": str(e)},
+        )
         return None
 
 
@@ -461,7 +487,9 @@ def openrouter_api_call(prompt: str) -> Optional[str]:
         response.raise_for_status()
         data = response.json()
         if "error" in data:
-            logger.error("OpenRouter API returned error", extra={"error": data["error"]})
+            logger.error(
+                "OpenRouter API returned error", extra={"error": data["error"]}
+            )
             return None
         choices = data.get("choices", [])
         if not choices:
@@ -495,7 +523,8 @@ def generate_note_using_llm(
         Generated note text or None if failed
     """
     logger.info(
-        "Generating note using LLM", extra={"title": title or "N/A", "timestamp": timestamp}
+        "Generating note using LLM",
+        extra={"title": title or "N/A", "timestamp": timestamp},
     )
 
     # Format the transcript context
@@ -615,13 +644,19 @@ def update_vidwiz_note(note_id: str, ai_note: str) -> bool:
     payload = {"text": ai_note, "generated_by_ai": True}
 
     try:
-        response = requests.patch(url, json=payload, headers=headers, timeout=REQUEST_TIMEOUT)
+        response = requests.patch(
+            url, json=payload, headers=headers, timeout=REQUEST_TIMEOUT
+        )
         if response.status_code == 200:
             logger.info("Successfully updated note", extra={"note_id": note_id})
             return True
         logger.error(
             "Failed to update note",
-            extra={"note_id": note_id, "status": response.status_code, "error": response.text},
+            extra={
+                "note_id": note_id,
+                "status": response.status_code,
+                "error": response.text,
+            },
         )
         return False
     except Exception as e:
@@ -682,9 +717,7 @@ def process_note(note: Note) -> None:
             title = metadata.get("title") if metadata else None
 
         # Generate AI note from the relevant transcript
-        ai_note = get_valid_ai_note(
-            title, note.timestamp, relevant_transcript
-        )
+        ai_note = get_valid_ai_note(title, note.timestamp, relevant_transcript)
 
         if ai_note:
             logger.info(

@@ -1,8 +1,9 @@
-from fastapi import APIRouter, Depends, status
+from fastapi import APIRouter, Depends, Request, Response, status
 from fastapi.responses import StreamingResponse
 from sqlalchemy.orm import Session
 
 from src.auth.dependencies import get_current_user_id
+from src.config import settings
 from src.database import get_db
 from src.videos import service as videos_service
 from src.videos.dependencies import (
@@ -12,6 +13,7 @@ from src.videos.dependencies import (
 )
 
 from src.videos.schemas import VideoListParams, VideoListResponse, VideoRead
+from src.shared.ratelimit import limiter
 
 
 router = APIRouter(prefix="/v2/videos", tags=["Videos"])
@@ -26,7 +28,10 @@ router = APIRouter(prefix="/v2/videos", tags=["Videos"])
         "for the authenticated user."
     ),
 )
+@limiter.limit(settings.rate_limit_videos)
 def get_video(
+    request: Request,
+    response: Response,
     video=Depends(get_user_video_or_404),
 ) -> VideoRead:
     return VideoRead.model_validate(video)
@@ -41,7 +46,10 @@ def get_video(
         "Sort options: created_at_desc, created_at_asc, title_asc, title_desc."
     ),
 )
+@limiter.limit(settings.rate_limit_videos)
 def list_videos(
+    request: Request,
+    response: Response,
     params: VideoListParams = Depends(get_video_list_params),
     db: Session = Depends(get_db),
     user_id: int = Depends(get_current_user_id),
@@ -50,7 +58,10 @@ def list_videos(
 
 
 @router.get("/{video_id}/stream", status_code=status.HTTP_200_OK)
+@limiter.limit(settings.rate_limit_videos)
 async def stream_video(
+    request: Request,
+    response: Response,
     video_id: str = Depends(get_stream_video_id_or_404),
 ):
     """

@@ -46,13 +46,16 @@ assert OPENROUTER_API_KEY, "OPENROUTER_API_KEY is not set"
 # Initialize logger
 logger = Logger()
 
+
 def _format_mm_ss(seconds: float) -> str:
     minutes = int(seconds // 60)
     secs = int(seconds % 60)
     return f"{minutes}:{secs:02d}"
 
 
-def build_transcript_text(transcript: List[Dict], *, include_timestamps: bool = True) -> str:
+def build_transcript_text(
+    transcript: List[Dict], *, include_timestamps: bool = True
+) -> str:
     lines = []
     for segment in transcript:
         if "text" not in segment:
@@ -130,31 +133,51 @@ def get_transcript_from_s3(video_id: str, attempt: int = 1) -> Optional[List[Dic
         response = s3_client.get_object(Bucket=S3_BUCKET_NAME, Key=transcript_key)
         transcript_data = json.loads(response["Body"].read().decode("utf-8"))
         if transcript_data is None:
-            logger.warning("Transcript payload is null", extra={"video_id": video_id, "attempt": attempt})
+            logger.warning(
+                "Transcript payload is null",
+                extra={"video_id": video_id, "attempt": attempt},
+            )
             return None
         if not isinstance(transcript_data, list):
             logger.warning(
                 "Transcript payload is not a list",
-                extra={"video_id": video_id, "attempt": attempt, "payload_type": type(transcript_data).__name__},
+                extra={
+                    "video_id": video_id,
+                    "attempt": attempt,
+                    "payload_type": type(transcript_data).__name__,
+                },
             )
             return None
-        logger.info("Successfully fetched transcript from S3", extra={"video_id": video_id, "attempt": attempt})
+        logger.info(
+            "Successfully fetched transcript from S3",
+            extra={"video_id": video_id, "attempt": attempt},
+        )
         return transcript_data
     except Exception as e:
         logger.warning(
             "Failed to get transcript from S3",
-            extra={"video_id": video_id, "attempt": attempt, "max_retries": TRANSCRIPT_FETCH_MAX_RETRIES, "error": str(e)}
+            extra={
+                "video_id": video_id,
+                "attempt": attempt,
+                "max_retries": TRANSCRIPT_FETCH_MAX_RETRIES,
+                "error": str(e),
+            },
         )
-        
+
         if attempt < TRANSCRIPT_FETCH_MAX_RETRIES:
             logger.info(
                 "Retrying transcript fetch",
-                extra={"video_id": video_id, "retry_delay_seconds": TRANSCRIPT_FETCH_RETRY_DELAY},
+                extra={
+                    "video_id": video_id,
+                    "retry_delay_seconds": TRANSCRIPT_FETCH_RETRY_DELAY,
+                },
             )
             time.sleep(TRANSCRIPT_FETCH_RETRY_DELAY)
             return get_transcript_from_s3(video_id, attempt + 1)
-        
-        logger.error("Max retries reached for transcript fetch", extra={"video_id": video_id})
+
+        logger.error(
+            "Max retries reached for transcript fetch", extra={"video_id": video_id}
+        )
         return None
 
 
@@ -180,10 +203,16 @@ def get_video_metadata(video_id: str) -> Optional[Dict]:
         if response.status_code == 200:
             return response.json()
         else:
-            logger.error("Failed to get video metadata", extra={"video_id": video_id, "status": response.status_code})
+            logger.error(
+                "Failed to get video metadata",
+                extra={"video_id": video_id, "status": response.status_code},
+            )
             return None
     except Exception as e:
-        logger.error("Error fetching video metadata", extra={"video_id": video_id, "error": str(e)})
+        logger.error(
+            "Error fetching video metadata",
+            extra={"video_id": video_id, "error": str(e)},
+        )
         return None
 
 
@@ -229,7 +258,9 @@ def openrouter_api_call(prompt: str) -> Optional[str]:
         response.raise_for_status()
         data = response.json()
         if "error" in data:
-            logger.error("OpenRouter API returned error", extra={"error": data["error"]})
+            logger.error(
+                "OpenRouter API returned error", extra={"error": data["error"]}
+            )
             return None
         choices = data.get("choices", [])
         if not choices:
@@ -268,7 +299,9 @@ def generate_summary_using_llm(title: str, transcript_text: str) -> Optional[str
         result = llm_call(prompt)
         if result:
             result = result.strip().replace("\n", " ")
-            logger.info("Successfully generated summary", extra={"summary_length": len(result)})
+            logger.info(
+                "Successfully generated summary", extra={"summary_length": len(result)}
+            )
         return result
     except Exception as e:
         logger.error("Error generating AI summary", extra={"error": str(e)})
@@ -291,7 +324,9 @@ def is_valid_summary_length(summary: str) -> bool:
     return MIN_SUMMARY_LENGTH <= length <= MAX_SUMMARY_LENGTH
 
 
-def get_valid_ai_summary(title: Optional[str], transcript_text: str, attempts: int = 1) -> Optional[str]:
+def get_valid_ai_summary(
+    title: Optional[str], transcript_text: str, attempts: int = 1
+) -> Optional[str]:
     """
     Generate an AI summary and retry until length is valid or max retries reached.
 
@@ -345,18 +380,26 @@ def update_vidwiz_summary(video_id: str, ai_summary: str) -> bool:
     payload = {"summary": ai_summary}
 
     try:
-        response = requests.post(url, json=payload, headers=headers, timeout=REQUEST_TIMEOUT)
+        response = requests.post(
+            url, json=payload, headers=headers, timeout=REQUEST_TIMEOUT
+        )
         if response.status_code == 200:
             logger.info("Successfully updated summary", extra={"video_id": video_id})
             return True
         else:
             logger.error(
-                "Failed to update summary", 
-                extra={"video_id": video_id, "status": response.status_code, "error": response.text}
+                "Failed to update summary",
+                extra={
+                    "video_id": video_id,
+                    "status": response.status_code,
+                    "error": response.text,
+                },
             )
             return False
     except Exception as e:
-        logger.error("Error updating summary", extra={"video_id": video_id, "error": str(e)})
+        logger.error(
+            "Error updating summary", extra={"video_id": video_id, "error": str(e)}
+        )
         return False
 
 
@@ -364,7 +407,7 @@ def update_vidwiz_summary(video_id: str, ai_summary: str) -> bool:
 def process_summary(video_id: str) -> None:
     """
     Run the full summary pipeline for one video.
-    
+
     Steps:
     1. **Idempotency Check**: Fetches video details from API. If a summary already exists, skips redundancy.
     2. **Transcript Fetch**: Retrieves the video transcript from S3.
@@ -384,12 +427,18 @@ def process_summary(video_id: str) -> None:
         # Renaming to video_details to avoid confusion with the inner 'metadata' field
         video_details = get_video_metadata(video_id)
         if not video_details:
-            logger.error("Failed to fetch video details, cannot proceed", extra={"video_id": video_id})
+            logger.error(
+                "Failed to fetch video details, cannot proceed",
+                extra={"video_id": video_id},
+            )
             return
 
         # Ideally the API returns the "summary" field. If it does, we check it.
         if video_details.get("summary"):
-            logger.info("Summary already exists for video, skipping generation", extra={"video_id": video_id})
+            logger.info(
+                "Summary already exists for video, skipping generation",
+                extra={"video_id": video_id},
+            )
             return
 
         title = video_details.get("title")
@@ -397,7 +446,10 @@ def process_summary(video_id: str) -> None:
         # 2. Get transcript from S3
         transcript = get_transcript_from_s3(video_id)
         if not transcript:
-            logger.error("Cannot process summary - transcript not available", extra={"video_id": video_id})
+            logger.error(
+                "Cannot process summary - transcript not available",
+                extra={"video_id": video_id},
+            )
             return
 
         # Format transcript for LLM
@@ -407,13 +459,17 @@ def process_summary(video_id: str) -> None:
         ai_summary = get_valid_ai_summary(title, full_transcript_text)
 
         if ai_summary:
-            logger.info("Successfully generated AI summary", extra={"video_id": video_id})
+            logger.info(
+                "Successfully generated AI summary", extra={"video_id": video_id}
+            )
             update_vidwiz_summary(video_id, ai_summary)
         else:
             logger.error("Failed to generate AI summary", extra={"video_id": video_id})
 
     except Exception as e:
-        logger.error("Error processing summary", extra={"video_id": video_id, "error": str(e)})
+        logger.error(
+            "Error processing summary", extra={"video_id": video_id, "error": str(e)}
+        )
 
 
 # Lambda Entry Point
@@ -438,14 +494,21 @@ def lambda_handler(event: List[SummaryRequest], context: LambdaContext) -> None:
     for i, request in enumerate(event):
         logger.info(
             "Processing summary batch item",
-            extra={"item_index": i + 1, "total_items": len(event), "video_id": request.video_id},
+            extra={
+                "item_index": i + 1,
+                "total_items": len(event),
+                "video_id": request.video_id,
+            },
         )
         try:
             process_summary(request.video_id)
         except Exception as e:
             logger.error(
-                "Failed to process summary", extra={"video_id": request.video_id, "error": str(e)}
+                "Failed to process summary",
+                extra={"video_id": request.video_id, "error": str(e)},
             )
             continue
 
-    logger.info("Completed summary processing batch", extra={"processed_count": len(event)})
+    logger.info(
+        "Completed summary processing batch", extra={"processed_count": len(event)}
+    )

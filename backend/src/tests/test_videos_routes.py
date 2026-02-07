@@ -36,7 +36,9 @@ async def test_list_and_get_videos(client, db_session):
     db_session.add(video)
     db_session.commit()
 
-    note = Note(video_id=video.video_id, timestamp="00:01", text="note", user_id=user.id)
+    note = Note(
+        video_id=video.video_id, timestamp="00:01", text="note", user_id=user.id
+    )
     db_session.add(note)
     db_session.commit()
 

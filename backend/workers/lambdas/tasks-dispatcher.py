@@ -53,13 +53,26 @@ def fetch_all_notes(video_id: str) -> Optional[List[Dict[str, Any]]]:
     headers = {"Authorization": f"Bearer {VIDWIZ_TOKEN}"}
     try:
         resp = requests.get(url, headers=headers)
-        logger.info("VidWiz response received", extra={"video_id": video_id, "status_code": resp.status_code, "response_preview": resp.text[:200] if resp.text else ""})
+        logger.info(
+            "VidWiz response received",
+            extra={
+                "video_id": video_id,
+                "status_code": resp.status_code,
+                "response_preview": resp.text[:200] if resp.text else "",
+            },
+        )
         if resp.status_code == 200:
             return resp.json().get("notes", [])
-        logger.error("Error while getting notes for video", extra={"video_id": video_id, "status_code": resp.status_code})
+        logger.error(
+            "Error while getting notes for video",
+            extra={"video_id": video_id, "status_code": resp.status_code},
+        )
         return None
     except Exception as e:
-        logger.error("Exception while fetching notes", extra={"video_id": video_id, "error": str(e)})
+        logger.error(
+            "Exception while fetching notes",
+            extra={"video_id": video_id, "error": str(e)},
+        )
         return None
 
 
@@ -138,13 +151,16 @@ def push_summary_to_sqs(video_id: str) -> bool:
 
     sqs = boto3.client("sqs")
     message_body = json.dumps({"video_id": video_id})
-    
+
     try:
         sqs.send_message(QueueUrl=SQS_SUMMARY_QUEUE_URL, MessageBody=message_body)
         logger.info("Dispatched summary request", extra={"video_id": video_id})
         return True
     except Exception as e:
-        logger.error("Failed to dispatch summary request", extra={"video_id": video_id, "error": str(e)})
+        logger.error(
+            "Failed to dispatch summary request",
+            extra={"video_id": video_id, "error": str(e)},
+        )
         return False
 
 

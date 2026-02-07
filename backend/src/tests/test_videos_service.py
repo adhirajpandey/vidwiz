@@ -29,8 +29,12 @@ def test_list_videos_for_user_filters_and_sorts(db_session):
 
     db_session.add_all(
         [
-            Note(video_id=video_a.video_id, timestamp="00:01", text="a", user_id=user.id),
-            Note(video_id=video_b.video_id, timestamp="00:02", text="b", user_id=user.id),
+            Note(
+                video_id=video_a.video_id, timestamp="00:01", text="a", user_id=user.id
+            ),
+            Note(
+                video_id=video_b.video_id, timestamp="00:02", text="b", user_id=user.id
+            ),
         ]
     )
     db_session.commit()
@@ -158,7 +162,9 @@ async def test_stream_video_events_no_video(monkeypatch):
         return None
 
     monkeypatch.setattr(videos_service, "_fetch_video", fake_fetch)
-    events = [chunk async for chunk in videos_service.stream_video_events("abc123DEF45")]
+    events = [
+        chunk async for chunk in videos_service.stream_video_events("abc123DEF45")
+    ]
     assert events == []
 
 
@@ -213,7 +219,9 @@ async def test_stream_video_events_stop_when_missing_in_loop(monkeypatch):
     monkeypatch.setattr(videos_service, "_fetch_video", fake_fetch)
     monkeypatch.setattr(asyncio, "sleep", fake_sleep)
 
-    events = [chunk async for chunk in videos_service.stream_video_events("abc123DEF45")]
+    events = [
+        chunk async for chunk in videos_service.stream_video_events("abc123DEF45")
+    ]
     assert events
 
 

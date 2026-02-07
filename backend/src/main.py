@@ -2,19 +2,21 @@ from fastapi import FastAPI, HTTPException, Request, status
 from fastapi.exceptions import RequestValidationError
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
+from slowapi.errors import RateLimitExceeded
+from slowapi.middleware import SlowAPIMiddleware
 
 from src.auth.router import router as auth_router
 from src.config import settings
 from src.conversations.router import router as conversations_router
-from src.exceptions import APIError, ErrorCode, HTTP_STATUS_CODE_MAP
+from src.exceptions import APIError, ErrorCode, HTTP_STATUS_CODE_MAP, RateLimitError
 from src.internal.router import router as internal_router
 from src.models import ErrorDetail, ErrorPayload, ErrorResponse
 from src.notes.router import router as notes_router
+from src.shared.ratelimit import limiter
 from src.videos.router import router as videos_router
 
 
 SHOW_DOCS_ENVIRONMENT = ("local", "staging")
-
 
 
 def register_exception_handlers(app: FastAPI) -> None:
@@ -24,6 +26,23 @@ def register_exception_handlers(app: FastAPI) -> None:
         return JSONResponse(
             status_code=exc.status_code,
             content=response.model_dump(mode="json"),
+        )
+
+    @app.exception_handler(RateLimitExceeded)
+    async def handle_rate_limit(_: Request, exc: RateLimitExceeded) -> JSONResponse:
+        retry_after = getattr(exc, "retry_after", None)
+        details = None
+        headers = None
+        if retry_after is not None:
+            reset_seconds = max(0, int(retry_after))
+            details = {"reset_in_seconds": reset_seconds}
+            headers = {"Retry-After": str(reset_seconds)}
+
+        error = RateLimitError(details=details)
+        return JSONResponse(
+            status_code=error.status_code,
+            content=error.to_response().model_dump(mode="json"),
+            headers=headers,
         )
 
     @app.exception_handler(RequestValidationError)
@@ -84,6 +103,8 @@ def create_app() -> FastAPI:
         app_configs["openapi_url"] = None
 
     app = FastAPI(**app_configs)
+    app.state.limiter = limiter
+    app.add_middleware(SlowAPIMiddleware)
 
     app.add_middleware(
         CORSMiddleware,

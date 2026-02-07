@@ -14,9 +14,7 @@ def test_conversation_create_validates_video_id():
 
 def test_conversation_create_forbids_extra_fields():
     with pytest.raises(ValidationError):
-        ConversationCreate.model_validate(
-            {"video_id": "abc123DEF45", "extra": "nope"}
-        )
+        ConversationCreate.model_validate({"video_id": "abc123DEF45", "extra": "nope"})
 
 
 def test_message_create_trims_and_validates():

@@ -32,8 +32,6 @@ class VideoListResponse(ApiModel):
     total_pages: int
 
 
-
-
 class VideoStreamPayload(ApiModel):
     event: Literal["snapshot", "update", "done"]
     video: VideoRead

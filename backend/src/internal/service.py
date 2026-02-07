@@ -45,7 +45,11 @@ def poll_for_task(
             ),
         )
 
-        query = select(Task).where(Task.task_type == task_type, criteria).order_by(Task.id.asc())
+        query = (
+            select(Task)
+            .where(Task.task_type == task_type, criteria)
+            .order_by(Task.id.asc())
+        )
         if use_lock:
             query = query.with_for_update(skip_locked=True)
 
@@ -256,7 +260,9 @@ def store_summary(db: Session, video_id: str, summary: str | None) -> Video:
     return video
 
 
-def fetch_ai_note_task_notes(db: Session, video_id: str) -> tuple[Video | None, list[Note]]:
+def fetch_ai_note_task_notes(
+    db: Session, video_id: str
+) -> tuple[Video | None, list[Note]]:
     video = videos_service.get_video_by_id(db, video_id)
     if not video:
         return None, []

@@ -12,10 +12,7 @@ def test_normalize_youtube_video_id_trims_input():
 
 
 def test_normalize_youtube_video_id_accepts_youtu_be():
-    assert (
-        normalize_youtube_video_id("https://youtu.be/abc123DEF45")
-        == "abc123DEF45"
-    )
+    assert normalize_youtube_video_id("https://youtu.be/abc123DEF45") == "abc123DEF45"
 
 
 def test_normalize_youtube_video_id_accepts_watch_url():

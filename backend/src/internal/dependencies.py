@@ -1,7 +1,12 @@
 from fastapi import Header, Query
 
 from src.config import settings
-from src.exceptions import BadRequestError, ForbiddenError, InternalServerError, UnauthorizedError
+from src.exceptions import (
+    BadRequestError,
+    ForbiddenError,
+    InternalServerError,
+    UnauthorizedError,
+)
 from src.internal import constants as internal_constants
 from src.internal.schemas import TaskPollParams
 

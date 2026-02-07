@@ -142,16 +142,28 @@ def test_store_transcript_in_s3_no_config(monkeypatch):
 
 def test_store_transcript_in_s3_success(monkeypatch):
     monkeypatch.setattr(
-        internal_service.conversations_settings, "s3_bucket_name", "bucket", raising=False
+        internal_service.conversations_settings,
+        "s3_bucket_name",
+        "bucket",
+        raising=False,
     )
     monkeypatch.setattr(
-        internal_service.conversations_settings, "aws_access_key_id", "key", raising=False
+        internal_service.conversations_settings,
+        "aws_access_key_id",
+        "key",
+        raising=False,
     )
     monkeypatch.setattr(
-        internal_service.conversations_settings, "aws_secret_access_key", "secret", raising=False
+        internal_service.conversations_settings,
+        "aws_secret_access_key",
+        "secret",
+        raising=False,
     )
     monkeypatch.setattr(
-        internal_service.conversations_settings, "aws_region", "us-east-1", raising=False
+        internal_service.conversations_settings,
+        "aws_region",
+        "us-east-1",
+        raising=False,
     )
 
     captured = {}

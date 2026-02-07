@@ -96,3 +96,6 @@ Describe the FastAPI backend: structure, auth rules, and the request/worker life
 - OpenAPI docs are enabled only in `local` and `staging` environments.
 - SQLite is the default when `DB_URL` is not set; Postgres is used in deployed environments.
 - CORS allows all origins with credentials enabled; browsers will reject credentialed requests with wildcard origins.
+- Rate limiting uses SlowAPI with an in-memory store by default and IP-only keys.
+  - Env vars: `RATE_LIMIT_ENABLED`, `RATE_LIMIT_DEFAULT`, `RATE_LIMIT_AUTH`, `RATE_LIMIT_CONVERSATIONS`, `RATE_LIMIT_VIDEOS`.
+  - `/v2/internal/*` endpoints are exempt.
