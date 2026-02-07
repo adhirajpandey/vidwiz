@@ -12,16 +12,10 @@ import requests
 S3_BUCKET_NAME = os.getenv("S3_BUCKET_NAME")
 VIDWIZ_ENDPOINT = os.getenv("VIDWIZ_ENDPOINT")
 VIDWIZ_TOKEN = os.getenv("VIDWIZ_TOKEN")
-LLM_PROVIDER = (os.getenv("LLM_PROVIDER", "gemini") or "gemini").strip().lower()
-GEMINI_API_KEY = os.getenv("GEMINI_API_KEY")
-OPENAI_API_KEY = os.getenv("OPENAI_API_KEY")
-
-GEMINI_BASE_URL = "https://generativelanguage.googleapis.com/v1beta/models"
-GEMINI_MODEL = os.getenv("GEMINI_MODEL", "gemini-2.5-flash")
-GEMINI_ENDPOINT = f"{GEMINI_BASE_URL}/{GEMINI_MODEL}:generateContent"
-
-OPENAI_API_URL = os.getenv("OPENAI_API_URL", "https://api.openai.com/v1/responses")
-OPENAI_MODEL = os.getenv("OPENAI_MODEL", "gpt-5-nano")
+OPENROUTER_API_KEY = os.getenv("OPENROUTER_API_KEY")
+OPENROUTER_BASE_URL = os.getenv("OPENROUTER_BASE_URL", "https://openrouter.ai/api/v1")
+OPENROUTER_MODEL = os.getenv("OPENROUTER_MODEL", "google/gemini-3-flash-preview")
+OPENROUTER_ENDPOINT = f"{OPENROUTER_BASE_URL.rstrip('/')}/chat/completions"
 
 TRANSCRIPT_BUFFER_SECONDS = int(os.getenv("TRANSCRIPT_BUFFER_SECONDS", "15"))
 CONTEXT_SEGMENTS = int(os.getenv("CONTEXT_SEGMENTS", "15"))
@@ -49,8 +43,7 @@ Do not add '","",-,: any special character anywhere in the note.
 assert S3_BUCKET_NAME, "S3_BUCKET_NAME is not set"
 assert VIDWIZ_ENDPOINT, "VIDWIZ_ENDPOINT is not set"
 assert VIDWIZ_TOKEN, "VIDWIZ_TOKEN is not set"
-assert LLM_PROVIDER in ("openai", "gemini"), "LLM_PROVIDER must be 'openai' or 'gemini'"
-assert GEMINI_API_KEY or OPENAI_API_KEY, "At least one of GEMINI_API_KEY or OPENAI_API_KEY must be set"
+assert OPENROUTER_API_KEY, "OPENROUTER_API_KEY is not set"
 
 
 # Initialize logger
@@ -439,110 +432,52 @@ def format_transcript_context(context: RelevantTranscriptContext) -> str:
     return " ".join(parts)
 
 
-def gemini_api_call(prompt: str) -> Optional[str]:
+def openrouter_api_call(prompt: str) -> Optional[str]:
     """
-    Call the Gemini API to generate text from a prompt.
+    Call OpenRouter's OpenAI-compatible API to generate text from a prompt.
 
     Args:
-        prompt: Text prompt to send to the Gemini API.
+        prompt: Text prompt to send to the model.
 
     Returns:
         Generated text on success, or None on request/parse failure.
     """
-    if not GEMINI_API_KEY:
-        logger.error("Gemini API key is not set")
+    if not OPENROUTER_API_KEY:
+        logger.error("OpenRouter API key is not set")
         return None
-    logger.info("Making Gemini API call")
+    logger.info("Making OpenRouter API call", extra={"model": OPENROUTER_MODEL})
     headers = {
         "Content-Type": "application/json",
-        "x-goog-api-key": GEMINI_API_KEY,
+        "Authorization": f"Bearer {OPENROUTER_API_KEY}",
     }
-    payload = {"contents": [{"parts": [{"text": prompt}]}]}
-
+    payload = {
+        "model": OPENROUTER_MODEL,
+        "messages": [{"role": "user", "content": prompt}],
+    }
     try:
         response = requests.post(
-            GEMINI_ENDPOINT,
-            json=payload,
-            headers=headers,
-            timeout=REQUEST_TIMEOUT,
-        )
-        response.raise_for_status()
-
-        response_data = response.json()
-        if "error" in response_data:
-            logger.error(
-                "Gemini API returned error", extra={"error": response_data["error"]}
-            )
-            return None
-
-        result = response_data["candidates"][0]["content"]["parts"][0]["text"]
-        logger.info(
-            "Successfully received response from Gemini",
-            extra={"response_length": len(result)},
-        )
-        return result
-
-    except Exception as e:
-        logger.error("Gemini API request failed", extra={"error": str(e)})
-        return None
-
-def openai_api_call(prompt: str) -> Optional[str]:
-    """
-    Sends a text prompt to the OpenAI Responses API using the gpt-5-nano model
-    and returns the generated text.
-
-    Args:
-        prompt (str): The prompt / instruction to send to the model.
-
-    Returns:
-        str: The model’s text output.
-    """
-    if not OPENAI_API_KEY:
-        logger.error("OpenAI API key is not set")
-        return None
-    logger.info("Making OpenAI API call")
-    headers = {
-        "Content-Type": "application/json",
-        "Authorization": f"Bearer {OPENAI_API_KEY}",
-    }
-    payload = {"model": OPENAI_MODEL, "input": prompt}
-    try:
-        response = requests.post(
-            OPENAI_API_URL, headers=headers, json=payload, timeout=REQUEST_TIMEOUT
+            OPENROUTER_ENDPOINT, headers=headers, json=payload, timeout=REQUEST_TIMEOUT
         )
         response.raise_for_status()
         data = response.json()
-        if "output_text" in data:
-            return data["output_text"]
-        text_parts = []
-        for item in data.get("output", []):
-            if item.get("type") == "message":
-                for content in item.get("content", []):
-                    if text := content.get("text"):
-                        text_parts.append(text)
-        return "".join(text_parts)
+        if "error" in data:
+            logger.error("OpenRouter API returned error", extra={"error": data["error"]})
+            return None
+        choices = data.get("choices", [])
+        if not choices:
+            return None
+        message = choices[0].get("message") or {}
+        return message.get("content")
     except Exception as e:
-        logger.error("OpenAI API request failed", extra={"error": str(e)})
+        logger.error("OpenRouter API request failed", extra={"error": str(e)})
         return None
 
 
 def llm_call(prompt: str) -> Optional[str]:
     """
-    Generate text using the configured LLM provider (default: gemini).
-
-    Uses LLM_PROVIDER env: "gemini" or "openai". Requires the corresponding
-    API key to be set. At least one of GEMINI_API_KEY or OPENAI_API_KEY must be set.
+    Generate text using OpenRouter.
     """
-    if LLM_PROVIDER == "openai":
-        if not OPENAI_API_KEY:
-            logger.error("LLM_PROVIDER is openai but OPENAI_API_KEY is not set")
-            return None
-        return openai_api_call(prompt)
-    else:
-        if not GEMINI_API_KEY:
-            logger.error("LLM_PROVIDER is gemini but GEMINI_API_KEY is not set")
-            return None
-        return gemini_api_call(prompt)
+    return openrouter_api_call(prompt)
 
 
 def generate_note_using_llm(

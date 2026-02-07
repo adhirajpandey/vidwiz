@@ -3,8 +3,7 @@ import logging
 from datetime import datetime, timedelta
 
 import boto3
-from google import genai
-from google.genai import types
+from openai import OpenAI
 from sqlalchemy import func, select
 from sqlalchemy.orm import Session
 
@@ -18,8 +17,6 @@ from src.videos import service as videos_service
 
 DB_ROLE_USER = "user"
 DB_ROLE_ASSISTANT = "assistant"
-GEMINI_ROLE_USER = "user"
-GEMINI_ROLE_MODEL = "model"
 
 logger = logging.getLogger(__name__)
 
@@ -231,35 +228,33 @@ def stream_wiz_response(
 ):
     system_instruction = build_system_instruction(video_title, transcript)
 
-    client = genai.Client(api_key=api_key)
+    client = OpenAI(
+        api_key=api_key,
+        base_url=conversations_settings.openrouter_base_url,
+    )
 
-    gemini_history = []
-    history_to_process = history[:-1]
-    user_message_content = history[-1]["content"]
-
-    for msg in history_to_process:
-        role = GEMINI_ROLE_MODEL if msg["role"] == DB_ROLE_ASSISTANT else GEMINI_ROLE_USER
-        gemini_history.append(
-            types.Content(role=role, parts=[types.Part(text=msg["content"])])
-        )
+    messages: list[dict] = [{"role": "system", "content": system_instruction}]
+    for msg in history:
+        role = "assistant" if msg["role"] == DB_ROLE_ASSISTANT else "user"
+        messages.append({"role": role, "content": msg["content"]})
 
     try:
-        chat = client.chats.create(
-            model=conversations_settings.gemini_model_name,
-            config=types.GenerateContentConfig(
-                system_instruction=system_instruction,
-                max_output_tokens=1000,
-            ),
-            history=gemini_history,
-        )
-
-        response_stream = chat.send_message_stream(user_message_content)
         full_response_text = ""
 
+        response_stream = client.chat.completions.create(
+            model=conversations_settings.openrouter_model_name,
+            messages=messages,
+            max_tokens=1000,
+            stream=True,
+        )
+
         for chunk in response_stream:
-            if chunk.text:
-                full_response_text += chunk.text
-                yield f"data: {json.dumps({'content': chunk.text})}\n\n"
+            if not chunk.choices:
+                continue
+            delta = chunk.choices[0].delta
+            if delta and delta.content:
+                full_response_text += delta.content
+                yield f"data: {json.dumps({'content': delta.content})}\n\n"
 
         if full_response_text:
             save_chat_message(
@@ -269,14 +264,14 @@ def stream_wiz_response(
         yield "data: [DONE]\n\n"
 
     except Exception as exc:
-        logger.error("Gemini SDK error", extra={"error": str(exc)})
+        logger.error("OpenRouter streaming error", extra={"error": str(exc)})
         yield f"data: {json.dumps({'error': 'Processing error'})}\n\n"
 
 
-def ensure_gemini_api_key() -> str:
-    if not conversations_settings.gemini_api_key:
-        raise InternalServerError("Gemini API key not configured")
-    return conversations_settings.gemini_api_key
+def ensure_openrouter_api_key() -> str:
+    if not conversations_settings.openrouter_api_key:
+        raise InternalServerError("OpenRouter API key not configured")
+    return conversations_settings.openrouter_api_key
 
 
 def prepare_chat(
@@ -292,7 +287,7 @@ def prepare_chat(
         return None, None, [], None
 
     video, transcript = transcript_result
-    api_key = ensure_gemini_api_key()
+    api_key = ensure_openrouter_api_key()
 
     save_chat_message(
         db,

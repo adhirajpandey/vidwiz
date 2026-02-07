@@ -31,6 +31,7 @@ def setup_settings() -> None:
     settings.google_client_id = "test-google-client-id"
     settings.admin_token = "test-admin-token"
     settings.db_url = TEST_DATABASE_URL
+    conversations_service.conversations_settings.openrouter_api_key = "test-openrouter-key"
 
 
 @pytest.fixture(autouse=True)
@@ -68,7 +69,7 @@ def mock_external_services(monkeypatch):
     monkeypatch.setattr(conversations_service.boto3, "client", fake_boto3_client)
     monkeypatch.setattr(internal_service.boto3, "client", fake_boto3_client)
     monkeypatch.setattr(notes_service.boto3, "client", fake_boto3_client)
-    monkeypatch.setattr(conversations_service.genai, "Client", blocked_client)
+    monkeypatch.setattr(conversations_service, "OpenAI", blocked_client)
     monkeypatch.setattr(auth_service, "verify_google_token", blocked_client)
 
 

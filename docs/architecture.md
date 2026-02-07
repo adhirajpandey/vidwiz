@@ -30,7 +30,7 @@ Provide a system-level view of how VidWiz components interact. Subsystem details
 - OpenAPI docs are enabled only in `local` and `staging` environments.
 - `DB_URL` defaults to SQLite if not provided.
 - Transcript storage and Wiz chat require S3 credentials and bucket configuration.
-- Wiz chat also requires `GEMINI_API_KEY`; without it, chat requests error.
+- Wiz chat also requires `OPENROUTER_API_KEY`; without it, chat requests error.
 - If S3 is not configured, transcripts are not persisted even though `transcript_available` may be true, and Wiz chat will fail to load transcript data.
 
 ## Interaction Overview (ASCII)
