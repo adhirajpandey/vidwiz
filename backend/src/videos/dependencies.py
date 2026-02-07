@@ -44,10 +44,8 @@ def get_stream_video_or_404(
     db: Session = Depends(get_db),
     viewer=Depends(get_viewer_context),
 ):
-    if viewer.user_id:
-        video = videos_service.get_video_for_user(db, viewer.user_id, path.video_id)
-    else:
-        video = videos_service.get_video_by_id(db, path.video_id)
+    _ = viewer
+    video = videos_service.get_video_by_id(db, path.video_id)
     if not video:
         raise NotFoundError("Video not found")
     return video

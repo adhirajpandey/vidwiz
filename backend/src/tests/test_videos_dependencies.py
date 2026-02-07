@@ -2,7 +2,6 @@ import pytest
 
 from src.auth.schemas import ViewerContext
 from src.exceptions import BadRequestError, NotFoundError
-from src.notes.models import Note
 from src.videos import dependencies as videos_dependencies
 from src.videos.models import Video
 
@@ -42,13 +41,9 @@ def test_get_user_video_or_404(db_session):
         )
 
 
-def test_get_stream_video_or_404_user_scoped(db_session):
+def test_get_stream_video_or_404_allows_authenticated_without_notes(db_session):
     video = Video(video_id="stream12345", title="Stream")
     db_session.add(video)
-    db_session.commit()
-
-    note = Note(video_id=video.video_id, timestamp="00:01", text="note", user_id=5)
-    db_session.add(note)
     db_session.commit()
 
     path = videos_dependencies.VideoIdPath.model_validate({"video_id": "stream12345"})
@@ -74,3 +69,14 @@ def test_get_stream_video_or_404_guest_allows_public(db_session):
         viewer=viewer,
     )
     assert result.video_id == "guest123456"
+
+
+def test_get_stream_video_or_404_missing_raises(db_session):
+    path = videos_dependencies.VideoIdPath.model_validate({"video_id": "missing1234"})
+    viewer = ViewerContext(user_id=2)
+    with pytest.raises(NotFoundError):
+        videos_dependencies.get_stream_video_or_404(
+            path=path,
+            db=db_session,
+            viewer=viewer,
+        )
