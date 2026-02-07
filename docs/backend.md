@@ -41,7 +41,7 @@ Describe the FastAPI backend: structure, auth rules, and the request/worker life
 - **Task polling**: `/v2/internal/tasks?type=transcript|metadata` blocks up to a configurable timeout and returns `204` when no work is available.
 - **Task lifecycle**: On claim, a task is marked `in_progress`, `started_at` is set, and `retry_count` increments. Stale `in_progress` tasks can be reclaimed after a timeout.
 - **Transcript storage**: Transcripts are written to S3 when AWS credentials and bucket are configured; `transcript_available` is still set even if S3 is not configured.
-- **Wiz chat**: Requires S3 transcript access and `GEMINI_API_KEY`. If transcript is not ready, `POST /v2/conversations/{id}/messages` returns `202 Accepted` with `status=processing`. If the transcript flag is set but S3 data is missing, the request errors with `Transcript data missing`.
+- **Wiz chat**: Requires S3 transcript access and `OPENROUTER_API_KEY`. If transcript is not ready, `POST /v2/conversations/{id}/messages` returns `202 Accepted` with `status=processing`. If the transcript flag is set but S3 data is missing, the request errors with `Transcript data missing`.
 
 ## Streaming (SSE)
 - **Video readiness**: `/v2/videos/{id}/stream` emits `snapshot`, `update`, and `done` when metadata, transcript, and summary are all ready (timeout 60s).

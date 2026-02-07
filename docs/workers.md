@@ -23,7 +23,7 @@ Describe background helpers and Lambdas used for transcript/metadata fetching an
   - Fetches transcript from S3 with retry/backoff
   - Extracts context around the timestamp (buffer + surrounding segments)
   - Generates a one-line note with length constraints and retries on length mismatch
-  - Uses Gemini or OpenAI based on `LLM_PROVIDER` (default `gemini`)
+  - Uses OpenRouter via OpenAI-compatible API (`OPENROUTER_API_KEY`)
   - Updates note via `/v2/internal/notes/{id}` (sets `generated_by_ai=true`)
   - Falls back to `/v2/internal/videos/{video_id}` to resolve title when not provided in payload
   - Configurable: `TRANSCRIPT_BUFFER_SECONDS`, `CONTEXT_SEGMENTS`, `MIN_NOTE_LENGTH`, `MAX_NOTE_LENGTH`, `MAX_RETRIES`
@@ -32,7 +32,7 @@ Describe background helpers and Lambdas used for transcript/metadata fetching an
   - Triggered by SQS messages containing `{ video_id }`
   - Reads transcript from S3 with retry/backoff and builds a full transcript string
   - Skips generation if summary already exists
-  - Uses Gemini or OpenAI based on `LLM_PROVIDER` (default `gemini`)
+  - Uses OpenRouter via OpenAI-compatible API (`OPENROUTER_API_KEY`)
   - Updates video via `/v2/internal/videos/{id}/summary`
   - Configurable: `MIN_SUMMARY_LENGTH`, `MAX_SUMMARY_LENGTH`, `MAX_RETRIES`
 
@@ -51,4 +51,4 @@ Describe background helpers and Lambdas used for transcript/metadata fetching an
 - Internal API access: `VIDWIZ_ENDPOINT`, `VIDWIZ_TOKEN` (admin token)
 - Helpers: `ADMIN_TOKEN`, `--api-url` (base), `--timeout`
 - S3 access: `S3_BUCKET_NAME`, AWS credentials
-- LLM provider: `LLM_PROVIDER` (`gemini` or `openai`) with corresponding API keys
+- LLM provider: OpenRouter (`OPENROUTER_API_KEY`, `OPENROUTER_MODEL`, `OPENROUTER_BASE_URL`)

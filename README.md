@@ -81,7 +81,9 @@ SQS_SUMMARY_QUEUE_URL=https://sqs.ap-south-1.amazonaws.com/123456789012/vidwiz-s
 S3_BUCKET_NAME=vidwiz
 
 # AI/LLM
-GEMINI_API_KEY=your-gemini-api-key
+OPENROUTER_API_KEY=your-openrouter-api-key
+OPENROUTER_MODEL=google/gemini-3-flash-preview
+OPENROUTER_BASE_URL=https://openrouter.ai/api/v1
 
 # Postgres container
 POSTGRES_DB=vidwiz
