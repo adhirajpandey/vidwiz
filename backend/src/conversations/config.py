@@ -5,8 +5,12 @@ from src.conversations.prompts import WIZ_SYSTEM_PROMPT_TEMPLATE
 
 
 class ConversationsSettings(BaseSettings):
-    gemini_api_key: str | None = Field(default=None, alias="GEMINI_API_KEY")
-    gemini_model_name: str = Field(default="gemini-2.5-flash", alias="GEMINI_MODEL_NAME")
+    openrouter_api_key: str | None = Field(default=None, alias="OPENROUTER_API_KEY")
+    openrouter_model_name: str = Field(default="openai/gpt-4.1-mini", alias="OPENROUTER_MODEL")
+    openrouter_base_url: str = Field(
+        default="https://openrouter.ai/api/v1",
+        alias="OPENROUTER_BASE_URL",
+    )
     wiz_system_prompt_template: str = Field(default=WIZ_SYSTEM_PROMPT_TEMPLATE)
     wiz_user_daily_quota: int = Field(default=20, alias="WIZ_USER_DAILY_QUOTA")
     wiz_guest_daily_quota: int = Field(default=5, alias="WIZ_GUEST_DAILY_QUOTA")
