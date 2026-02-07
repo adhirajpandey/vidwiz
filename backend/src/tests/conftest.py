@@ -31,7 +31,10 @@ def setup_settings() -> None:
     settings.google_client_id = "test-google-client-id"
     settings.admin_token = "test-admin-token"
     settings.db_url = TEST_DATABASE_URL
-    conversations_service.conversations_settings.openrouter_api_key = "test-openrouter-key"
+    settings.rate_limit_enabled = False
+    conversations_service.conversations_settings.openrouter_api_key = (
+        "test-openrouter-key"
+    )
 
 
 @pytest.fixture(autouse=True)
@@ -115,6 +118,9 @@ def db_session(engine) -> Generator:
 def app(db_session):
     setup_settings()
     app = create_app()
+    from src.shared.ratelimit import limiter
+
+    limiter.enabled = settings.rate_limit_enabled
 
     def get_db_override() -> Generator:
         try:

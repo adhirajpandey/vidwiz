@@ -23,6 +23,7 @@ from src.exceptions import (
     NotFoundError,
     UnauthorizedError,
 )
+from src.shared.ratelimit import limiter
 
 
 router = APIRouter(prefix="/v2", tags=["Auth"])
@@ -34,6 +35,7 @@ router = APIRouter(prefix="/v2", tags=["Auth"])
     status_code=status.HTTP_201_CREATED,
     description="Create a user account.",
 )
+@limiter.limit(settings.rate_limit_auth)
 def register(
     payload: AuthRegisterRequest,
     db: Session = Depends(get_db),
@@ -51,6 +53,7 @@ def register(
     status_code=status.HTTP_200_OK,
     description="Authenticate and return JWT.",
 )
+@limiter.limit(settings.rate_limit_auth)
 def login(
     payload: AuthLoginRequest,
     db: Session = Depends(get_db),
@@ -76,6 +79,7 @@ def login(
     status_code=status.HTTP_200_OK,
     description="Google ID token login.",
 )
+@limiter.limit(settings.rate_limit_auth)
 def google_login(
     payload: GoogleLoginRequest,
     db: Session = Depends(get_db),

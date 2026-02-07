@@ -4,6 +4,7 @@ from sqlalchemy.orm import Session
 
 from src.auth.dependencies import get_viewer_context
 from src.auth.schemas import ViewerContext
+from src.config import settings
 from src.conversations import service as conversations_service
 from src.conversations.dependencies import get_conversation_or_404
 from src.conversations.schemas import (
@@ -14,6 +15,7 @@ from src.conversations.schemas import (
     MessageRead,
 )
 from src.database import get_db
+from src.shared.ratelimit import limiter
 
 
 router = APIRouter(prefix="/v2/conversations", tags=["Conversations"])
@@ -71,14 +73,15 @@ def list_messages(
     status_code=status.HTTP_200_OK,
     description="Send a message and stream response via SSE.",
 )
+@limiter.limit(settings.rate_limit_conversations)
 def create_message(
     payload: MessageCreate,
     conversation=Depends(get_conversation_or_404),
     db: Session = Depends(get_db),
     viewer: ViewerContext = Depends(get_viewer_context),
 ):
-    video, transcript, history_serializable, api_key = conversations_service.prepare_chat(
-        db, conversation, viewer, payload.message
+    video, transcript, history_serializable, api_key = (
+        conversations_service.prepare_chat(db, conversation, viewer, payload.message)
     )
     if transcript is None or video is None or api_key is None:
         response = ChatProcessingResponse(
