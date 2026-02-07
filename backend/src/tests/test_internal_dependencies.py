@@ -2,7 +2,12 @@ import pytest
 
 from src.internal import dependencies as internal_dependencies
 from src.internal import constants as internal_constants
-from src.exceptions import BadRequestError, ForbiddenError, InternalServerError, UnauthorizedError
+from src.exceptions import (
+    BadRequestError,
+    ForbiddenError,
+    InternalServerError,
+    UnauthorizedError,
+)
 from src.config import settings
 
 
@@ -28,7 +33,9 @@ def test_get_task_poll_params_validation():
     with pytest.raises(BadRequestError):
         internal_dependencies.get_task_poll_params(task_type="bad")
 
-    params = internal_dependencies.get_task_poll_params(task_type="transcript", timeout=999)
+    params = internal_dependencies.get_task_poll_params(
+        task_type="transcript", timeout=999
+    )
     assert params.task_type == internal_constants.FETCH_TRANSCRIPT_TASK_TYPE
     assert params.timeout == internal_constants.TRANSCRIPT_TASK_REQUEST_MAX_TIMEOUT
 

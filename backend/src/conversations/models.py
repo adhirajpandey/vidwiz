@@ -34,9 +34,7 @@ class Message(Base):
     )
     role: Mapped[str] = mapped_column(Text, nullable=False)
     content: Mapped[str] = mapped_column(Text, nullable=False)
-    metadata_: Mapped[dict | None] = mapped_column(
-        "metadata", JSON, nullable=True
-    )
+    metadata_: Mapped[dict | None] = mapped_column("metadata", JSON, nullable=True)
     created_at: Mapped[datetime] = mapped_column(
         default=func.now(), server_default=func.now()
     )

@@ -262,7 +262,10 @@ async def test_profile_rejects_long_term_token(client):
     assert profile_response.status_code == 401
     payload = profile_response.json()
     assert payload["error"]["code"] == "UNAUTHORIZED"
-    assert payload["error"]["message"] == "Long-term tokens are not allowed for this endpoint"
+    assert (
+        payload["error"]["message"]
+        == "Long-term tokens are not allowed for this endpoint"
+    )
 
 
 @pytest.mark.asyncio

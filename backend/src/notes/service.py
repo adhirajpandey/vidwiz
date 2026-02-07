@@ -62,7 +62,7 @@ def push_note_to_sqs(note: Note) -> None:
             "timestamp": note.timestamp,
             "user_id": note.user_id,
         }
-        
+
         sqs.send_message(QueueUrl=bucket_url, MessageBody=json.dumps(payload))
         logger.info(f"Pushed AI note request to SQS for note {note.id}")
     except Exception as e:
@@ -86,7 +86,7 @@ def create_note_for_user(
     # Check for AI Note Trigger:
     # 1. Text is empty
     trigger_ai = not text
-    
+
     if trigger_ai:
         user = db.get(User, user_id)
         if user and user.profile_data and user.profile_data.get("ai_notes_enabled"):
@@ -126,7 +126,7 @@ def update_note(
         note.text = text
     if generated_by_ai is not None:
         note.generated_by_ai = bool(generated_by_ai)
-    
+
     db.commit()
     db.refresh(note)
 

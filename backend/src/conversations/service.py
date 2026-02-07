@@ -20,6 +20,7 @@ DB_ROLE_ASSISTANT = "assistant"
 
 logger = logging.getLogger(__name__)
 
+
 def get_or_create_video(db: Session, video_id: str) -> tuple[Video, bool]:
     video = videos_service.get_video_by_id(db, video_id)
     if video:
@@ -170,7 +171,9 @@ def get_transcript_from_s3(video_id: str) -> list | None:
         return None
 
 
-def get_valid_transcript_or_raise(db: Session, video_id: str) -> tuple[Video, list] | None:
+def get_valid_transcript_or_raise(
+    db: Session, video_id: str
+) -> tuple[Video, list] | None:
     video = videos_service.get_video_by_id(db, video_id)
     if not video:
         raise NotFoundError("Video not found")

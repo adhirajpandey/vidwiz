@@ -21,12 +21,8 @@ def test_get_note_or_404(db_session):
     db_session.commit()
 
     path = notes_dependencies.NoteIdPath.model_validate({"note_id": note.id})
-    result = notes_dependencies.get_note_or_404(
-        path=path, db=db_session, user_id=1
-    )
+    result = notes_dependencies.get_note_or_404(path=path, db=db_session, user_id=1)
     assert result.id == note.id
 
     with pytest.raises(NotFoundError):
-        notes_dependencies.get_note_or_404(
-            path=path, db=db_session, user_id=999
-        )
+        notes_dependencies.get_note_or_404(path=path, db=db_session, user_id=999)

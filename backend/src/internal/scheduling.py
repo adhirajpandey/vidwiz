@@ -10,12 +10,16 @@ def create_task_idempotent(db: Session, task_type: str, video_id: str) -> Task:
     """
     Create a task for the given video if it doesn't already exist in PENDING or IN_PROGRESS state.
     """
-    active_tasks = db.execute(
-        select(Task).where(
-            Task.task_type == task_type,
-            Task.status.in_([TaskStatus.PENDING, TaskStatus.IN_PROGRESS]),
+    active_tasks = (
+        db.execute(
+            select(Task).where(
+                Task.task_type == task_type,
+                Task.status.in_([TaskStatus.PENDING, TaskStatus.IN_PROGRESS]),
+            )
         )
-    ).scalars().all()
+        .scalars()
+        .all()
+    )
 
     for task in active_tasks:
         if task.task_details and task.task_details.get("video_id") == video_id:

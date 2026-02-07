@@ -47,7 +47,9 @@ class APIError(Exception):
 
 class BadRequestError(APIError):
     def __init__(self, message: str = "Bad request", details=None) -> None:
-        super().__init__(message, ErrorCode.BAD_REQUEST, status.HTTP_400_BAD_REQUEST, details)
+        super().__init__(
+            message, ErrorCode.BAD_REQUEST, status.HTTP_400_BAD_REQUEST, details
+        )
 
 
 class ValidationError(APIError):
@@ -62,17 +64,23 @@ class ValidationError(APIError):
 
 class NotFoundError(APIError):
     def __init__(self, message: str = "Resource not found", details=None) -> None:
-        super().__init__(message, ErrorCode.NOT_FOUND, status.HTTP_404_NOT_FOUND, details)
+        super().__init__(
+            message, ErrorCode.NOT_FOUND, status.HTTP_404_NOT_FOUND, details
+        )
 
 
 class UnauthorizedError(APIError):
     def __init__(self, message: str = "Unauthorized", details=None) -> None:
-        super().__init__(message, ErrorCode.UNAUTHORIZED, status.HTTP_401_UNAUTHORIZED, details)
+        super().__init__(
+            message, ErrorCode.UNAUTHORIZED, status.HTTP_401_UNAUTHORIZED, details
+        )
 
 
 class ForbiddenError(APIError):
     def __init__(self, message: str = "Forbidden", details=None) -> None:
-        super().__init__(message, ErrorCode.FORBIDDEN, status.HTTP_403_FORBIDDEN, details)
+        super().__init__(
+            message, ErrorCode.FORBIDDEN, status.HTTP_403_FORBIDDEN, details
+        )
 
 
 class ConflictError(APIError):
@@ -82,7 +90,12 @@ class ConflictError(APIError):
 
 class RateLimitError(APIError):
     def __init__(self, message: str = "Rate limit exceeded", details=None) -> None:
-        super().__init__(message, ErrorCode.RATE_LIMIT_EXCEEDED, status.HTTP_429_TOO_MANY_REQUESTS, details)
+        super().__init__(
+            message,
+            ErrorCode.RATE_LIMIT_EXCEEDED,
+            status.HTTP_429_TOO_MANY_REQUESTS,
+            details,
+        )
 
 
 class InternalServerError(APIError):
@@ -109,4 +122,6 @@ HTTP_STATUS_CODE_MAP = {
 
 def http_exception(message: str, status_code: int) -> HTTPException:
     code = HTTP_STATUS_CODE_MAP.get(status_code, ErrorCode.INTERNAL_ERROR)
-    return HTTPException(status_code=status_code, detail=message, headers={"X-Error-Code": code})
+    return HTTPException(
+        status_code=status_code, detail=message, headers={"X-Error-Code": code}
+    )

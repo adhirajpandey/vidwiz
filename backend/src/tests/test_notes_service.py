@@ -41,9 +41,7 @@ def test_get_or_create_video_schedules_tasks_on_create(db_session, monkeypatch):
 
     monkeypatch.setattr(notes_service, "schedule_video_tasks", fake_schedule)
 
-    video, created = notes_service.get_or_create_video(
-        db_session, "vidschedule1", None
-    )
+    video, created = notes_service.get_or_create_video(db_session, "vidschedule1", None)
     assert created is True
     assert video.video_id == "vidschedule1"
     assert scheduled == ["vidschedule1"]
@@ -128,7 +126,9 @@ def test_create_note_does_not_trigger_ai_when_disabled(db_session, monkeypatch):
     )
 
 
-def test_create_note_does_not_trigger_ai_when_transcript_missing(db_session, monkeypatch):
+def test_create_note_does_not_trigger_ai_when_transcript_missing(
+    db_session, monkeypatch
+):
     user = User(
         email="ai-no-tx@example.com",
         name="AI No TX",
@@ -172,7 +172,9 @@ def test_list_notes_for_video_orders_by_created_at(db_session):
 
 
 def test_push_note_to_sqs_no_queue_url(monkeypatch):
-    monkeypatch.setattr(notes_service.settings, "sqs_ai_note_queue_url", None, raising=False)
+    monkeypatch.setattr(
+        notes_service.settings, "sqs_ai_note_queue_url", None, raising=False
+    )
     notes_service.push_note_to_sqs(
         Note(id=1, video_id="abc123DEF45", timestamp="00:01", user_id=1)
     )
@@ -185,9 +187,15 @@ def test_push_note_to_sqs_sends_payload(monkeypatch):
         "https://sqs.test/queue",
         raising=False,
     )
-    monkeypatch.setattr(notes_service.settings, "aws_access_key_id", "key", raising=False)
-    monkeypatch.setattr(notes_service.settings, "aws_secret_access_key", "secret", raising=False)
-    monkeypatch.setattr(notes_service.settings, "aws_region", "ap-south-1", raising=False)
+    monkeypatch.setattr(
+        notes_service.settings, "aws_access_key_id", "key", raising=False
+    )
+    monkeypatch.setattr(
+        notes_service.settings, "aws_secret_access_key", "secret", raising=False
+    )
+    monkeypatch.setattr(
+        notes_service.settings, "aws_region", "ap-south-1", raising=False
+    )
 
     captured = {}
 
@@ -211,4 +219,4 @@ def test_push_note_to_sqs_sends_payload(monkeypatch):
     assert captured["ClientKwargs"]["aws_access_key_id"] == "key"
     assert captured["ClientKwargs"]["aws_secret_access_key"] == "secret"
     assert captured["QueueUrl"] == "https://sqs.test/queue"
-    assert "\"id\": 42" in captured["MessageBody"]
+    assert '"id": 42' in captured["MessageBody"]

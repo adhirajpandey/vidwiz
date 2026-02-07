@@ -27,10 +27,10 @@ def test_get_user_video_or_404(db_session):
     db_session.add(video)
     db_session.commit()
 
-    path = videos_dependencies.VideoIdPath.model_validate(
-        {"video_id": "dep1234567A"}
+    path = videos_dependencies.VideoIdPath.model_validate({"video_id": "dep1234567A"})
+    result = videos_dependencies.get_user_video_or_404(
+        path=path, db=db_session, user_id=1
     )
-    result = videos_dependencies.get_user_video_or_404(path=path, db=db_session, user_id=1)
     assert result.video_id == "dep1234567A"
 
     missing_path = videos_dependencies.VideoIdPath.model_validate(
@@ -51,9 +51,7 @@ def test_get_stream_video_or_404_user_scoped(db_session):
     db_session.add(note)
     db_session.commit()
 
-    path = videos_dependencies.VideoIdPath.model_validate(
-        {"video_id": "stream12345"}
-    )
+    path = videos_dependencies.VideoIdPath.model_validate({"video_id": "stream12345"})
     viewer = ViewerContext(user_id=5)
     result = videos_dependencies.get_stream_video_or_404(
         path=path,
@@ -68,9 +66,7 @@ def test_get_stream_video_or_404_guest_allows_public(db_session):
     db_session.add(video)
     db_session.commit()
 
-    path = videos_dependencies.VideoIdPath.model_validate(
-        {"video_id": "guest123456"}
-    )
+    path = videos_dependencies.VideoIdPath.model_validate({"video_id": "guest123456"})
     viewer = ViewerContext(guest_session_id="guest-1")
     result = videos_dependencies.get_stream_video_or_404(
         path=path,

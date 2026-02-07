@@ -28,7 +28,9 @@ SORT_MAPPING = {
 
 
 def get_video_by_id(db: Session, video_id: str) -> Video | None:
-    return db.execute(select(Video).where(Video.video_id == video_id)).scalar_one_or_none()
+    return db.execute(
+        select(Video).where(Video.video_id == video_id)
+    ).scalar_one_or_none()
 
 
 def get_video_for_user(db: Session, user_id: int, video_id: str) -> Video | None:

@@ -116,19 +116,23 @@ class MetadataHelper:
         logger.info(f"Sending task result for task_id={task_id}, success={success}")
 
         url = f"{self.tasks_url}/{task_id}/result"
-        
+
         try:
             response = requests.post(url, json=data, headers=self.headers)
             response.raise_for_status()
-            logger.info(f"Task result submitted successfully: {response.json().get('status')}")
+            logger.info(
+                f"Task result submitted successfully: {response.json().get('status')}"
+            )
         except requests.RequestException as e:
             logger.error(f"Failed to submit task result: {e}")
-            if hasattr(e, 'response') and e.response:
-                 logger.error(f"Response content: {e.response.text}") # type: ignore
+            if hasattr(e, "response") and e.response:
+                logger.error(f"Response content: {e.response.text}")  # type: ignore
 
     def run(self) -> None:
         """Continuously poll for metadata tasks and process them."""
-        logger.info(f"Starting metadata helper with timeout: {self.timeout_seconds}s, URL: {self.tasks_url}")
+        logger.info(
+            f"Starting metadata helper with timeout: {self.timeout_seconds}s, URL: {self.tasks_url}"
+        )
 
         while True:
             try:
@@ -142,8 +146,8 @@ class MetadataHelper:
                 video_id = task_data.get("task_details", {}).get("video_id")
 
                 if not video_id:
-                     logger.error(f"Received task {task_id} without video_id in details")
-                     continue
+                    logger.error(f"Received task {task_id} without video_id in details")
+                    continue
 
                 logger.info(f"Received task: {task_id}, video_id: {video_id}")
 
@@ -158,13 +162,14 @@ class MetadataHelper:
             except Exception as e:  # noqa: BLE001
                 logger.error(f"Error in main loop: {e}")
                 import time
-                time.sleep(5) # Backoff on error
+
+                time.sleep(5)  # Backoff on error
                 continue
 
 
 def main() -> None:
     auth_token = get_auth_token()
-    
+
     parser = argparse.ArgumentParser(description="YouTube metadata helper for VidWiz")
     parser.add_argument(
         "--timeout",
@@ -180,8 +185,10 @@ def main() -> None:
     )
 
     args = parser.parse_args()
-    
-    helper = MetadataHelper(auth_token=auth_token, timeout_seconds=args.timeout, api_url=args.api_url)
+
+    helper = MetadataHelper(
+        auth_token=auth_token, timeout_seconds=args.timeout, api_url=args.api_url
+    )
     helper.run()
 
 
