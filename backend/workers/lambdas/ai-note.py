@@ -14,7 +14,7 @@ VIDWIZ_ENDPOINT = os.getenv("VIDWIZ_ENDPOINT")
 VIDWIZ_TOKEN = os.getenv("VIDWIZ_TOKEN")
 OPENROUTER_API_KEY = os.getenv("OPENROUTER_API_KEY")
 OPENROUTER_BASE_URL = os.getenv("OPENROUTER_BASE_URL", "https://openrouter.ai/api/v1")
-OPENROUTER_MODEL = os.getenv("OPENROUTER_MODEL", "openai/gpt-4.1-mini")
+OPENROUTER_MODEL = os.getenv("OPENROUTER_MODEL", "google/gemini-3-flash-preview")
 OPENROUTER_ENDPOINT = f"{OPENROUTER_BASE_URL.rstrip('/')}/chat/completions"
 
 TRANSCRIPT_BUFFER_SECONDS = int(os.getenv("TRANSCRIPT_BUFFER_SECONDS", "15"))
@@ -445,7 +445,7 @@ def openrouter_api_call(prompt: str) -> Optional[str]:
     if not OPENROUTER_API_KEY:
         logger.error("OpenRouter API key is not set")
         return None
-    logger.info("Making OpenRouter API call")
+    logger.info("Making OpenRouter API call", extra={"model": OPENROUTER_MODEL})
     headers = {
         "Content-Type": "application/json",
         "Authorization": f"Bearer {OPENROUTER_API_KEY}",
