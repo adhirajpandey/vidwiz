@@ -19,16 +19,23 @@ This document defines the minimal credits system for VidWiz.
 ### Required Environment Variables
 - `DODO_PAYMENTS_API_KEY`
 - `DODO_PAYMENTS_WEBHOOK_KEY`
-- `DODO_PAYMENTS_ENVIRONMENT` (default `test_mode`)
+- `DODO_PAYMENTS_ENVIRONMENT`
 - `DODO_PAYMENTS_RETURN_URL`
 - `DODO_CREDIT_PRODUCTS` (JSON list of credit products)
 
 Example:
 ```
 DODO_CREDIT_PRODUCTS='[
-  {"product_id":"pdt_0NXcJxlsdAgIlqmN4GjOJ","credits":100,"name":"100 Credits"}
+  {"product_id":"<ID_200>","credits":200,"name":"200 Credits","price_inr":20},
+  {"product_id":"<ID_600>","credits":600,"name":"600 Credits","price_inr":50},
+  {"product_id":"<ID_1500>","credits":1500,"name":"1500 Credits","price_inr":100}
 ]'
 ```
+
+### Field Notes
+- `price_inr` is validated at startup and stored in config but not used elsewhere yet.
+  - Intended for UI display and optional server-side pricing validation later.
+
 
 ## Backend Plan
 1. Data model

@@ -99,3 +99,18 @@ Describe the FastAPI backend: structure, auth rules, and the request/worker life
 - Rate limiting uses SlowAPI with an in-memory store by default and IP-only keys.
   - Env vars: `RATE_LIMIT_ENABLED`, `RATE_LIMIT_DEFAULT`, `RATE_LIMIT_AUTH`, `RATE_LIMIT_CONVERSATIONS`, `RATE_LIMIT_VIDEOS`.
   - `/v2/internal/*` endpoints are exempt.
+
+## Startup Requirements
+The server fails on startup if any of the following env vars are missing:
+- `ENVIRONMENT`
+- `SECRET_KEY`
+- `ADMIN_TOKEN`
+- `GOOGLE_CLIENT_ID`
+- `SQS_AI_NOTE_QUEUE_URL`
+- `AWS_ACCESS_KEY_ID`
+- `AWS_SECRET_ACCESS_KEY`
+- `DODO_PAYMENTS_API_KEY`
+- `DODO_PAYMENTS_WEBHOOK_KEY`
+- `DODO_PAYMENTS_ENVIRONMENT`
+- `DODO_PAYMENTS_RETURN_URL`
+- `DODO_CREDIT_PRODUCTS`
