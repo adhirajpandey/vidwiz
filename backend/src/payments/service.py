@@ -121,14 +121,14 @@ def handle_webhook_event(db: Session, payload: dict[str, Any]) -> None:
     event_type = payload.get("type")
     data = payload.get("data", {})
 
-    if event_type != "payment.succeeded":
+    if event_type not in {"payment.succeeded", "payment.failed", "payment.cancelled"}:
         return
 
     payment_id = data.get("payment_id")
     metadata = data.get("metadata") or {}
     purchase_id = metadata.get("purchase_id")
     if not payment_id:
-        logger.warning("payment.succeeded missing payment_id")
+        logger.warning("%s missing payment_id", event_type)
         return
 
     purchase = None
@@ -149,10 +149,16 @@ def handle_webhook_event(db: Session, payload: dict[str, Any]) -> None:
     if purchase.status == "completed":
         return
 
-    credits_service.grant_purchase_credits(
-        db, purchase.user_id, payment_id, purchase.credits_amount
-    )
-    purchase.status = "completed"
+    if event_type == "payment.succeeded":
+        credits_service.grant_purchase_credits(
+            db, purchase.user_id, payment_id, purchase.credits_amount
+        )
+        purchase.status = "completed"
+        purchase.provider_payment_id = payment_id
+        db.commit()
+        return
+
+    purchase.status = "failed" if event_type == "payment.failed" else "cancelled"
     purchase.provider_payment_id = payment_id
     db.commit()
 

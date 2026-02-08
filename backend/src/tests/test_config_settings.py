@@ -1,5 +1,3 @@
-import importlib
-
 import pytest
 from pydantic import ValidationError
 
@@ -35,18 +33,7 @@ def _set_required_env(monkeypatch):
 def test_settings_requires_env_vars(monkeypatch, missing_key):
     _set_required_env(monkeypatch)
     monkeypatch.delenv(missing_key, raising=False)
-
-    import src.config as config_module
+    from src.config import Settings
 
     with pytest.raises(ValidationError):
-        importlib.reload(config_module)
-
-    # Restore to a valid env to avoid impacting other tests.
-    if missing_key == "DODO_CREDIT_PRODUCTS":
-        monkeypatch.setenv(
-            missing_key,
-            '[{"product_id":"pdt_test","credits":200,"price_inr":20,"name":"200 Credits"}]',
-        )
-    else:
-        monkeypatch.setenv(missing_key, "test-value")
-    importlib.reload(config_module)
+        Settings(_env_file=None)
