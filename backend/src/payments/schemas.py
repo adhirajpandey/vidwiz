@@ -13,5 +13,17 @@ class CheckoutSessionResponse(ApiModel):
     session_id: str
 
 
+class CreditProductRead(ApiModel):
+    product_id: str
+    credits: int
+    name: str
+    price_inr: int
+    price_per_credit: float
+
+
+class CreditProductListResponse(ApiModel):
+    products: list[CreditProductRead]
+
+
 class WebhookResponse(ApiModel):
     status: str

@@ -39,7 +39,7 @@ from src.videos import models as video_models  # noqa: E402,F401
 from src import database  # noqa: E402
 from src.database import Base, get_db  # noqa: E402
 from src.main import create_app  # noqa: E402
-from src.config import settings  # noqa: E402
+from src.config import CreditProductConfig, settings  # noqa: E402
 
 
 TEST_DATABASE_URL = "sqlite+pysqlite:///:memory:"
@@ -60,12 +60,12 @@ def setup_settings() -> None:
     settings.dodo_payments_environment = "test_mode"
     settings.dodo_payments_return_url = "https://example.com/return"
     settings.dodo_credit_products = [
-        {
-            "product_id": "pdt_test",
-            "credits": 200,
-            "price_inr": 20,
-            "name": "200 Credits",
-        }
+        CreditProductConfig(
+            product_id="pdt_test",
+            credits=200,
+            price_inr=20,
+            name="200 Credits",
+        )
     ]
     conversations_service.conversations_settings.openrouter_api_key = (
         "test-openrouter-key"

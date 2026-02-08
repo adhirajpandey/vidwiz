@@ -11,6 +11,7 @@ from src.credits import service as credits_service
 from src.exceptions import BadRequestError, InternalServerError, NotFoundError, UnauthorizedError
 from src.payments.models import CreditPurchase
 from src.payments.products import get_credit_product
+from src.payments.schemas import CreditProductRead
 
 
 logger = logging.getLogger(__name__)
@@ -154,3 +155,19 @@ def handle_webhook_event(db: Session, payload: dict[str, Any]) -> None:
     purchase.status = "completed"
     purchase.provider_payment_id = payment_id
     db.commit()
+
+
+def list_credit_products() -> list[CreditProductRead]:
+    products: list[CreditProductRead] = []
+    for item in settings.dodo_credit_products:
+        price_per_credit = round(item.price_inr / item.credits, 4)
+        products.append(
+            CreditProductRead(
+                product_id=item.product_id,
+                credits=item.credits,
+                name=item.name or f"{item.credits} Credits",
+                price_inr=item.price_inr,
+                price_per_credit=price_per_credit,
+            )
+        )
+    return products

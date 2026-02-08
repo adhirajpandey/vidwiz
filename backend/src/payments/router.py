@@ -10,11 +10,26 @@ from src.payments import service as payments_service
 from src.payments.schemas import (
     CheckoutSessionRequest,
     CheckoutSessionResponse,
+    CreditProductListResponse,
     WebhookResponse,
 )
 
 
 router = APIRouter(prefix="/v2/payments", tags=["Payments"])
+
+
+@router.get(
+    "/products",
+    response_model=CreditProductListResponse,
+    status_code=status.HTTP_200_OK,
+    description="List available credit products.",
+)
+def list_products(
+    request: Request,
+    response: Response,
+) -> CreditProductListResponse:
+    products = payments_service.list_credit_products()
+    return CreditProductListResponse(products=products)
 
 
 @router.post(
