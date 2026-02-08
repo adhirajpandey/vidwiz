@@ -42,6 +42,18 @@ export interface UserProfileRead {
   created_at?: string;
 }
 
+export interface CreditProduct {
+  product_id: string;
+  credits: number;
+  name: string;
+  price_inr: number;
+  price_per_credit: number;
+}
+
+export interface CreditProductListResponse {
+  products: CreditProduct[];
+}
+
 export interface UserProfileUpdate {
   name?: string;
   ai_notes_enabled?: boolean;

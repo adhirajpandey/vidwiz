@@ -2,12 +2,10 @@ const configs = {
   development: {
     API_URL: 'https://api.vidwiz.online/v2',
     GOOGLE_CLIENT_ID: '265946502927-fsb0osc7ch7d9tvu4cr30oks5q4r61pt.apps.googleusercontent.com',
-    CREDITS_PRODUCT_ID: 'pdt_0NXcJxlsdAgIlqmN4GjOJ',
   },
   production: {
     API_URL: 'https://api.vidwiz.online/v2',
     GOOGLE_CLIENT_ID: '265946502927-fsb0osc7ch7d9tvu4cr30oks5q4r61pt.apps.googleusercontent.com',
-    CREDITS_PRODUCT_ID: 'pdt_0NXcJxlsdAgIlqmN4GjOJ',
   },
 };
 

@@ -6,7 +6,7 @@ import { useToast } from '../hooks/useToast';
 import { FaExclamationTriangle, FaEye, FaEyeSlash, FaCopy, FaSpinner, FaKey, FaShieldAlt, FaSave, FaPen, FaTimes } from 'react-icons/fa';
 import { Settings, Zap, User as UserIcon, Calendar, Mail, Coins, Sparkles } from 'lucide-react';
 import { getToken, removeToken } from '../lib/authUtils';
-import config from '../config';
+import type { CreditProduct } from '../api/types';
 
 interface UserProfile {
   email: string;
@@ -30,6 +30,8 @@ export default function ProfilePage() {
   const [isEditingToken, setIsEditingToken] = useState(false);
   const [isSavingDetails, setIsSavingDetails] = useState(false);
   const [isBuyingCredits, setIsBuyingCredits] = useState(false);
+  const [creditProducts, setCreditProducts] = useState<CreditProduct[]>([]);
+  const [selectedProductKey, setSelectedProductKey] = useState<string | null>(null);
   const navigate = useNavigate();
   const { addToast } = useToast();
 
@@ -68,6 +70,28 @@ export default function ProfilePage() {
   useEffect(() => {
     fetchProfile();
   }, [navigate]);
+
+  const buildProductKey = (product: CreditProduct, index: number) =>
+    `${product.product_id}-${product.credits}-${product.price_inr}-${index}`;
+
+  useEffect(() => {
+    const loadProducts = async () => {
+      try {
+        const data = await paymentsApi.listProducts();
+        const sortedProducts = [...data.products].sort(
+          (a, b) => a.price_inr - b.price_inr
+        );
+        setCreditProducts(sortedProducts);
+        if (sortedProducts.length > 0) {
+          setSelectedProductKey(prev => prev ?? buildProductKey(sortedProducts[0], 0));
+        }
+      } catch (error: any) {
+        console.error('Failed to load credit products', error);
+      }
+    };
+
+    loadProducts();
+  }, []);
 
   const handleSaveDetails = async () => {
     if (!user) return;
@@ -167,12 +191,25 @@ export default function ProfilePage() {
     setShowToken(!showToken);
   };
 
-  const handleBuyCredits = async () => {
+  const handleBuyCredits = async (productKey?: string) => {
     if (isBuyingCredits) return;
+    const desiredKey = productKey ?? selectedProductKey;
+    if (!desiredKey) {
+      addToast({ title: 'Select a pack', message: 'Choose a credit pack to continue', type: 'error' });
+      return;
+    }
+    const selectedIndex = creditProducts.findIndex((product, index) => (
+      buildProductKey(product, index) === desiredKey
+    ));
+    const product = creditProducts[selectedIndex];
+    if (!product) {
+      addToast({ title: 'Select a pack', message: 'Choose a credit pack to continue', type: 'error' });
+      return;
+    }
     setIsBuyingCredits(true);
     try {
       const data = await paymentsApi.createCheckoutSession({
-        product_id: config.CREDITS_PRODUCT_ID,
+        product_id: product.product_id,
         quantity: 1,
       });
       window.location.href = data.checkout_url;
@@ -281,7 +318,7 @@ export default function ProfilePage() {
             <div className="grid gap-8">
               
               {/* Settings Group: Credits */}
-              <div className="space-y-4">
+              <div className="space-y-2">
                 <div className="flex items-center gap-2 px-1 select-none">
                   <Coins className="w-4 h-4 text-foreground/40" />
                   <h2 className="text-sm font-semibold text-foreground/40 uppercase tracking-wider">Credits</h2>
@@ -292,10 +329,10 @@ export default function ProfilePage() {
                     <div className="absolute -right-16 -top-12 h-40 w-40 rounded-full bg-gradient-to-br from-amber-500/20 to-orange-500/10 blur-2xl"></div>
                     <div className="absolute -left-10 -bottom-16 h-40 w-40 rounded-full bg-gradient-to-br from-emerald-500/10 to-cyan-500/10 blur-2xl"></div>
                   </div>
-                  <div className="relative p-5 md:p-6">
-                    <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-6">
-                      <div className="space-y-2">
-                        <div className="inline-flex items-center gap-2 text-xs font-semibold uppercase tracking-widest text-foreground/50">
+                  <div className="relative p-4 md:p-5">
+                    <div className="grid gap-4 md:grid-cols-[1.1fr_1fr] md:items-start">
+                      <div className="space-y-2 md:self-start">
+                        <div className="inline-flex items-center gap-2 text-xs font-semibold uppercase tracking-widest text-foreground/50 leading-none">
                           <Sparkles className="w-3.5 h-3.5" />
                           Available Credits
                         </div>
@@ -305,20 +342,68 @@ export default function ProfilePage() {
                           </span>
                           <span className="text-sm text-foreground/50">credits</span>
                         </div>
-                        <p className="text-sm text-foreground/50 max-w-lg">
-                          Wiz chats cost 5 credits per video. AI note generation costs 1 credit when queued.
-                        </p>
+                        <div className="text-sm text-foreground/50 max-w-lg space-y-1">
+                          <p>Wiz chats cost 5 credits per video</p>
+                          <p>AI note generation costs 1 credit per note</p>
+                        </div>
                       </div>
 
-                      <div className="flex items-center gap-3">
-                        <button
-                          onClick={handleBuyCredits}
-                          disabled={isBuyingCredits}
-                          className="inline-flex items-center justify-center gap-2 px-5 py-2.5 text-sm font-semibold text-white bg-gradient-to-r from-amber-500 via-orange-500 to-amber-500 bg-[length:200%_100%] rounded-lg hover:bg-right transition-all duration-500 shadow-lg shadow-amber-500/20 disabled:opacity-50 disabled:cursor-not-allowed cursor-pointer"
-                        >
-                          {isBuyingCredits ? <FaSpinner className="animate-spin w-4 h-4" /> : <Coins className="w-4 h-4" />}
-                          Buy More
-                        </button>
+                      <div className="flex flex-col gap-4 md:items-end">
+                        <div className="grid gap-3 sm:grid-cols-3">
+                          {creditProducts.map((product, index) => {
+                            const productKey = buildProductKey(product, index);
+                            const isSelected = selectedProductKey === productKey;
+                            return (
+                              <div
+                                key={productKey}
+                                role="button"
+                                tabIndex={0}
+                                onClick={() => setSelectedProductKey(productKey)}
+                                onKeyDown={(event) => {
+                                  if (event.key === 'Enter' || event.key === ' ') {
+                                    event.preventDefault();
+                                    setSelectedProductKey(productKey);
+                                  }
+                                }}
+                                className={`relative min-h-[104px] rounded-xl border px-4 py-3 text-left transition-all cursor-pointer ${
+                                  isSelected
+                                    ? 'border-amber-400/60 bg-amber-400/10 shadow-lg shadow-amber-500/15'
+                                    : 'border-white/[0.08] bg-white/[0.02] hover:bg-white/[0.05]'
+                                }`}
+                              >
+                                <div className="flex h-full flex-col justify-between">
+                                  <div className="text-sm font-semibold text-foreground whitespace-nowrap">
+                                    {product.credits} Credits
+                                  </div>
+                                  <div className="text-lg font-semibold text-foreground">
+                                    ₹{product.price_inr}
+                                  </div>
+                                  <div className="text-xs text-foreground/40">
+                                    ₹{product.price_per_credit.toFixed(2)}/credit
+                                  </div>
+                                  <div className="pt-2">
+                                    <button
+                                      type="button"
+                                      onClick={(event) => {
+                                        event.stopPropagation();
+                                        setSelectedProductKey(productKey);
+                                        handleBuyCredits(productKey);
+                                      }}
+                                      disabled={isBuyingCredits}
+                                      className={`inline-flex items-center justify-center w-full rounded-lg px-3 py-1.5 text-xs font-semibold transition-colors cursor-pointer ${
+                                        isSelected
+                                          ? 'bg-amber-500/20 text-amber-300 hover:bg-amber-500/30'
+                                          : 'bg-white/[0.06] text-foreground/70 hover:bg-white/[0.1]'
+                                      } ${isBuyingCredits ? 'opacity-60 cursor-not-allowed' : ''}`}
+                                    >
+                                      Buy Now
+                                    </button>
+                                  </div>
+                                </div>
+                              </div>
+                            );
+                          })}
+                        </div>
                       </div>
                     </div>
                   </div>
