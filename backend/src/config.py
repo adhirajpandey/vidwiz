@@ -1,6 +1,4 @@
 import logging
-from pathlib import Path
-
 from pydantic import BaseModel, Field, ValidationError, field_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
@@ -45,9 +43,7 @@ class Settings(BaseSettings):
             raise ValueError("DODO_CREDIT_PRODUCTS must be a JSON list")
         return value
 
-    model_config = SettingsConfigDict(
-        env_file=Path(__file__).resolve().parent / ".env", extra="ignore"
-    )
+    model_config = SettingsConfigDict(env_file=".env", extra="ignore")
 
 
 class CreditProductConfig(BaseModel):

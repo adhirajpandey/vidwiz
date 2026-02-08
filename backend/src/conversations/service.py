@@ -11,7 +11,7 @@ from src.auth.schemas import ViewerContext
 from src.conversations.config import conversations_settings
 from src.conversations.models import Conversation, Message
 from src.exceptions import InternalServerError, RateLimitError, NotFoundError
-from src.internal import service as internal_service
+from src.internal.scheduling import schedule_video_tasks
 from src.videos.models import Video
 from src.videos import service as videos_service
 
@@ -24,7 +24,7 @@ logger = logging.getLogger(__name__)
 def get_or_create_video(db: Session, video_id: str) -> tuple[Video, bool]:
     video = videos_service.get_video_by_id(db, video_id)
     if video:
-        internal_service.schedule_video_tasks(db, video)
+        schedule_video_tasks(db, video)
         return video, False
 
     video = Video(video_id=video_id)
@@ -32,7 +32,7 @@ def get_or_create_video(db: Session, video_id: str) -> tuple[Video, bool]:
     db.commit()
     db.refresh(video)
 
-    internal_service.schedule_video_tasks(db, video)
+    schedule_video_tasks(db, video)
 
     return video, True
 

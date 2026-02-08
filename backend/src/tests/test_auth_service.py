@@ -1,5 +1,4 @@
 import jwt
-import pytest
 
 from src.auth import service as auth_service
 from src.auth.models import User

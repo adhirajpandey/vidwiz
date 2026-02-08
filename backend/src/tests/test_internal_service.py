@@ -1,6 +1,7 @@
 import pytest
 
 from src.internal import service as internal_service
+from src.internal import scheduling as internal_scheduling
 from src.internal import constants as internal_constants
 from src.internal.models import Task, TaskStatus
 from src.videos.models import Video
@@ -197,10 +198,10 @@ def test_fetch_ai_note_task_notes_sqlite_branch(db_session):
 
 
 def test_create_task_idempotent(db_session):
-    first = internal_service.create_task_idempotent(
+    first = internal_scheduling.create_task_idempotent(
         db_session, internal_constants.FETCH_TRANSCRIPT_TASK_TYPE, "abc123DEF45"
     )
-    second = internal_service.create_task_idempotent(
+    second = internal_scheduling.create_task_idempotent(
         db_session, internal_constants.FETCH_TRANSCRIPT_TASK_TYPE, "abc123DEF45"
     )
     assert first.id == second.id
