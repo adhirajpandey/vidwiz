@@ -29,7 +29,7 @@ Describe the FastAPI backend: structure, auth rules, and the request/worker life
 - **Video lookup**: `GET /v2/videos/{video_id}` is JWT-only but is not scoped to the user; it returns the video if it exists.
 - **Video list**: `GET /v2/videos` returns only videos that have notes for the authenticated user (join on notes).
 - **Video search**: `q` is trimmed; queries shorter than 2 chars are treated as empty. Sort keys: `created_at_desc|created_at_asc|title_asc|title_desc`. `per_page` defaults to 10, max 50.
-- **Video stream**: `GET /v2/videos/{video_id}/stream` requires JWT or guest session. For JWT viewers, the video must have a note by that user; for guests, the video is not user-scoped.
+- **Video stream**: `GET /v2/videos/{video_id}/stream` requires JWT or guest session. The video is not user-scoped for either viewers or guests.
 - **Notes**: List/edit/delete require JWT; create accepts JWT or long-term token.
 - **Task scheduling**: Creating a note or conversation upserts the video and schedules transcript/metadata tasks when missing.
 - **AI notes**: Enqueued only when note text is empty, AI notes are enabled, and the transcript is already available.
@@ -92,6 +92,11 @@ Describe the FastAPI backend: structure, auth rules, and the request/worker life
 - `GET /v2/internal/videos/{video_id}`
 - `PATCH /v2/internal/notes/{note_id}`
 
+### Payments
+- `GET /v2/payments/products`
+- `POST /v2/payments/checkout`
+- `POST /v2/payments/webhooks/dodo`
+
 ## Operational Notes
 - OpenAPI docs are enabled only in `local` and `staging` environments.
 - SQLite is the default when `DB_URL` is not set; Postgres is used in deployed environments.
@@ -99,3 +104,18 @@ Describe the FastAPI backend: structure, auth rules, and the request/worker life
 - Rate limiting uses SlowAPI with an in-memory store by default and IP-only keys.
   - Env vars: `RATE_LIMIT_ENABLED`, `RATE_LIMIT_DEFAULT`, `RATE_LIMIT_AUTH`, `RATE_LIMIT_CONVERSATIONS`, `RATE_LIMIT_VIDEOS`.
   - `/v2/internal/*` endpoints are exempt.
+
+## Startup Requirements
+The server fails on startup if any of the following env vars are missing:
+- `ENVIRONMENT`
+- `SECRET_KEY`
+- `ADMIN_TOKEN`
+- `GOOGLE_CLIENT_ID`
+- `SQS_AI_NOTE_QUEUE_URL`
+- `AWS_ACCESS_KEY_ID`
+- `AWS_SECRET_ACCESS_KEY`
+- `DODO_PAYMENTS_API_KEY`
+- `DODO_PAYMENTS_WEBHOOK_KEY`
+- `DODO_PAYMENTS_ENVIRONMENT`
+- `DODO_PAYMENTS_RETURN_URL`
+- `DODO_CREDIT_PRODUCTS`

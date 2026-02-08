@@ -15,11 +15,7 @@ def test_get_or_create_video_creates_and_schedules_tasks(db_session, monkeypatch
     def fake_schedule(db, video):
         scheduled_calls.append(video.video_id)
 
-    monkeypatch.setattr(
-        conversations_service.internal_service,
-        "schedule_video_tasks",
-        fake_schedule,
-    )
+    monkeypatch.setattr(conversations_service, "schedule_video_tasks", fake_schedule)
 
     video, created = conversations_service.get_or_create_video(
         db_session, "abc123DEF45"

@@ -1,4 +1,5 @@
 export * from './auth';
+export * from './payments';
 export * from './videos';
 export * from './conversations';
 export * from './notes';

@@ -11,6 +11,7 @@ from src.internal.scheduling import schedule_video_tasks
 from src.notes.models import Note
 from src.videos.models import Video
 from src.videos import service as videos_service
+from src.credits import service as credits_service
 
 logger = logging.getLogger(__name__)
 
@@ -80,20 +81,31 @@ def create_note_for_user(
         user_id=user_id,
     )
     db.add(note)
-    db.commit()
-    db.refresh(note)
+    try:
+        db.flush()
 
-    # Check for AI Note Trigger:
-    # 1. Text is empty
-    trigger_ai = not text
+        # Check for AI Note Trigger:
+        # 1. Text is empty
+        trigger_ai = not text
 
-    if trigger_ai:
-        user = db.get(User, user_id)
-        if user and user.profile_data and user.profile_data.get("ai_notes_enabled"):
-            # Check availability
-            video = videos_service.get_video_by_id(db, video_id)
-            if video and video.transcript_available:
-                push_note_to_sqs(note)
+        should_enqueue = False
+        if trigger_ai:
+            user = db.get(User, user_id)
+            if user and user.profile_data and user.profile_data.get("ai_notes_enabled"):
+                # Check availability
+                video = videos_service.get_video_by_id(db, video_id)
+                if video and video.transcript_available:
+                    credits_service.charge_ai_note_enqueue(db, user_id, note.id)
+                    should_enqueue = True
+
+        db.commit()
+        db.refresh(note)
+    except Exception:
+        db.rollback()
+        raise
+
+    if should_enqueue:
+        push_note_to_sqs(note)
 
     return note
 

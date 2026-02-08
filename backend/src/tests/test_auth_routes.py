@@ -41,6 +41,21 @@ async def test_register_and_login(client):
 
 
 @pytest.mark.asyncio
+async def test_signup_grants_credits(client):
+    await register_user(client, "credits@example.com")
+    login_response = await login_user(client, "credits@example.com")
+    token = login_response.json()["token"]
+
+    profile_response = await client.get(
+        "/v2/users/me",
+        headers={"Authorization": f"Bearer {token}"},
+    )
+    assert profile_response.status_code == 200
+    payload = profile_response.json()
+    assert payload["credits_balance"] == 100
+
+
+@pytest.mark.asyncio
 async def test_register_normalizes_email_and_name(client):
     register_response = await register_user(
         client,

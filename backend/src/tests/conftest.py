@@ -1,4 +1,5 @@
 from collections.abc import Generator
+import os
 
 import pytest
 import pytest_asyncio
@@ -7,19 +8,38 @@ from sqlalchemy import create_engine
 from sqlalchemy.orm import sessionmaker
 from sqlalchemy.pool import StaticPool
 
-from src.auth import models as auth_models  # noqa: F401
-from src.auth import service as auth_service
-from src.conversations import models as conversation_models  # noqa: F401
-from src.conversations import service as conversations_service
-from src.internal import models as internal_models  # noqa: F401
-from src.internal import service as internal_service
-from src.notes import models as notes_models  # noqa: F401
-from src.notes import service as notes_service
-from src.videos import models as video_models  # noqa: F401
-from src import database
-from src.database import Base, get_db
-from src.main import create_app
-from src.config import settings
+TEST_CREDIT_PRODUCTS = (
+    '[{"product_id":"pdt_test","credits":200,"price_inr":20,"name":"200 Credits"}]'
+)
+
+os.environ.setdefault("ENVIRONMENT", "test")
+os.environ.setdefault("SECRET_KEY", "test-secret")
+os.environ.setdefault("ADMIN_TOKEN", "test-admin-token")
+os.environ.setdefault("GOOGLE_CLIENT_ID", "test-google-client-id")
+os.environ.setdefault("SQS_AI_NOTE_QUEUE_URL", "test-queue-url")
+os.environ.setdefault("AWS_ACCESS_KEY_ID", "test-aws-key")
+os.environ.setdefault("AWS_SECRET_ACCESS_KEY", "test-aws-secret")
+os.environ.setdefault("DODO_PAYMENTS_API_KEY", "test-dodo-key")
+os.environ.setdefault("DODO_PAYMENTS_WEBHOOK_KEY", "test-dodo-webhook")
+os.environ.setdefault("DODO_PAYMENTS_ENVIRONMENT", "test_mode")
+os.environ.setdefault("DODO_PAYMENTS_RETURN_URL", "https://example.com/return")
+os.environ.setdefault("DODO_CREDIT_PRODUCTS", TEST_CREDIT_PRODUCTS)
+
+from src.auth import models as auth_models  # noqa: E402,F401
+from src.auth import service as auth_service  # noqa: E402
+from src.conversations import models as conversation_models  # noqa: E402,F401
+from src.conversations import service as conversations_service  # noqa: E402
+from src.credits import models as credits_models  # noqa: E402,F401
+from src.internal import models as internal_models  # noqa: E402,F401
+from src.internal import service as internal_service  # noqa: E402
+from src.notes import models as notes_models  # noqa: E402,F401
+from src.notes import service as notes_service  # noqa: E402
+from src.payments import models as payments_models  # noqa: E402,F401
+from src.videos import models as video_models  # noqa: E402,F401
+from src import database  # noqa: E402
+from src.database import Base, get_db  # noqa: E402
+from src.main import create_app  # noqa: E402
+from src.config import CreditProductConfig, settings  # noqa: E402
 
 
 TEST_DATABASE_URL = "sqlite+pysqlite:///:memory:"
@@ -32,6 +52,21 @@ def setup_settings() -> None:
     settings.admin_token = "test-admin-token"
     settings.db_url = TEST_DATABASE_URL
     settings.rate_limit_enabled = False
+    settings.sqs_ai_note_queue_url = "test-queue-url"
+    settings.aws_access_key_id = "test-aws-key"
+    settings.aws_secret_access_key = "test-aws-secret"
+    settings.dodo_payments_api_key = "test-dodo-key"
+    settings.dodo_payments_webhook_key = "test-dodo-webhook"
+    settings.dodo_payments_environment = "test_mode"
+    settings.dodo_payments_return_url = "https://example.com/return"
+    settings.dodo_credit_products = [
+        CreditProductConfig(
+            product_id="pdt_test",
+            credits=200,
+            price_inr=20,
+            name="200 Credits",
+        )
+    ]
     conversations_service.conversations_settings.openrouter_api_key = (
         "test-openrouter-key"
     )

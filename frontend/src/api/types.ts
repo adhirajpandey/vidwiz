@@ -37,8 +37,21 @@ export interface UserProfileRead {
   profile_image_url?: string;
   ai_notes_enabled: boolean;
   token_exists: boolean;
+  credits_balance: number;
   long_term_token?: string;
   created_at?: string;
+}
+
+export interface CreditProduct {
+  product_id: string;
+  credits: number;
+  name: string;
+  price_inr: number;
+  price_per_credit: number;
+}
+
+export interface CreditProductListResponse {
+  products: CreditProduct[];
 }
 
 export interface UserProfileUpdate {
