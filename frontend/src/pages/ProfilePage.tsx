@@ -302,10 +302,6 @@ export default function ProfilePage() {
                   </h1>
                   <div className="flex flex-col items-center md:items-start gap-2 text-sm text-foreground/60">
                     <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-white/[0.04] border border-white/[0.08]">
-                      <UserIcon className="w-3.5 h-3.5" />
-                      Free Plan
-                    </span>
-                    <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-white/[0.04] border border-white/[0.08]">
                       <Calendar className="w-3.5 h-3.5" />
                       Member since {user.created_at ? new Date(user.created_at).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' }) : 'N/A'}
                     </span>
