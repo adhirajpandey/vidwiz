@@ -28,6 +28,9 @@ class Settings(BaseSettings):
     dodo_credit_products: list["CreditProductConfig"] = Field(
         alias="DODO_CREDIT_PRODUCTS"
     )
+    signup_grant_amount: int = Field(default=100, alias="SIGNUP_GRANT_AMOUNT")
+    wiz_chat_cost: int = Field(default=5, alias="WIZ_CHAT_COST")
+    ai_note_cost: int = Field(default=1, alias="AI_NOTE_COST")
 
     @field_validator("dodo_credit_products", mode="before")
     @classmethod

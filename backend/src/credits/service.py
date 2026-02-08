@@ -3,13 +3,9 @@ from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
 
 from src.auth.models import User
+from src.config import settings
 from src.credits.models import CreditsLedger
 from src.exceptions import ForbiddenError, NotFoundError
-
-
-SIGNUP_GRANT_AMOUNT = 100
-WIZ_CHAT_COST = 5
-AI_NOTE_COST = 1
 
 REASON_SIGNUP_GRANT = "signup_grant"
 REASON_WIZ_CHAT = "wiz_chat"
@@ -70,7 +66,7 @@ def grant_signup_credits(db: Session, user: User) -> None:
     _apply_ledger(
         db,
         user,
-        SIGNUP_GRANT_AMOUNT,
+        settings.signup_grant_amount,
         REASON_SIGNUP_GRANT,
         "user",
         str(user.id),
@@ -82,13 +78,18 @@ def charge_wiz_chat_for_video(db: Session, user_id: int, video_id: str) -> bool:
         return False
 
     user = _get_user_or_raise(db, user_id)
-    if user.credits_balance < WIZ_CHAT_COST:
+    if user.credits_balance < settings.wiz_chat_cost:
         raise ForbiddenError(
             "Insufficient credits",
-            details={"required": WIZ_CHAT_COST, "available": user.credits_balance},
+            details={
+                "required": settings.wiz_chat_cost,
+                "available": user.credits_balance,
+            },
         )
 
-    _apply_ledger(db, user, -WIZ_CHAT_COST, REASON_WIZ_CHAT, "video", video_id)
+    _apply_ledger(
+        db, user, -settings.wiz_chat_cost, REASON_WIZ_CHAT, "video", video_id
+    )
     return True
 
 
@@ -97,13 +98,18 @@ def charge_ai_note_enqueue(db: Session, user_id: int, note_id: int) -> None:
         return
 
     user = _get_user_or_raise(db, user_id)
-    if user.credits_balance < AI_NOTE_COST:
+    if user.credits_balance < settings.ai_note_cost:
         raise ForbiddenError(
             "Insufficient credits",
-            details={"required": AI_NOTE_COST, "available": user.credits_balance},
+            details={
+                "required": settings.ai_note_cost,
+                "available": user.credits_balance,
+            },
         )
 
-    _apply_ledger(db, user, -AI_NOTE_COST, REASON_AI_NOTE, "note", str(note_id))
+    _apply_ledger(
+        db, user, -settings.ai_note_cost, REASON_AI_NOTE, "note", str(note_id)
+    )
 
 
 def grant_purchase_credits(

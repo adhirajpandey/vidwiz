@@ -8,34 +8,28 @@ from src.auth.models import User
 from src.config import settings
 from src.credits import service as credits_service
 from src.exceptions import BadRequestError, InternalServerError, NotFoundError, UnauthorizedError
-from src.payments.models import CreditPurchase
+from src.payments.models import (
+    CreditPurchase,
+    PURCHASE_STATUS_CANCELLED,
+    PURCHASE_STATUS_COMPLETED,
+    PURCHASE_STATUS_FAILED,
+    PURCHASE_STATUS_PENDING,
+    PROVIDER_DODO,
+)
 from src.payments.products import get_credit_product
 from src.payments.schemas import CreditProductRead
 
 
 logger = logging.getLogger(__name__)
 
-
-def _require_api_key() -> str:
-    if not settings.dodo_payments_api_key:
-        raise InternalServerError("Dodo Payments API key not configured")
-    return settings.dodo_payments_api_key
-
-
-def _require_webhook_key() -> str:
-    if not settings.dodo_payments_webhook_key:
-        raise InternalServerError("Dodo Payments webhook key not configured")
-    return settings.dodo_payments_webhook_key
-
-
-def _require_return_url() -> str:
-    if not settings.dodo_payments_return_url:
-        raise InternalServerError("Dodo Payments return URL not configured")
-    return settings.dodo_payments_return_url
+EVENT_PAYMENT_SUCCEEDED = "payment.succeeded"
+EVENT_PAYMENT_FAILED = "payment.failed"
+EVENT_PAYMENT_CANCELLED = "payment.cancelled"
+PROVIDER_SESSION_PENDING = "pending"
 
 
 def verify_webhook_signature(payload: bytes, headers: dict[str, str]) -> None:
-    secret = _require_webhook_key()
+    secret = settings.dodo_payments_webhook_key
     hook = Webhook(secret)
     try:
         hook.verify(payload.decode("utf-8"), headers)
@@ -54,17 +48,16 @@ async def create_checkout_session(
     if not user:
         raise NotFoundError("User not found")
 
-    _require_api_key()
-    return_url = _require_return_url()
+    return_url = settings.dodo_payments_return_url
 
     from dodopayments import AsyncDodoPayments
 
     purchase = CreditPurchase(
         user_id=user_id,
-        provider="dodo",
-        provider_session_id="pending",
+        provider=PROVIDER_DODO,
+        provider_session_id=PROVIDER_SESSION_PENDING,
         credits_amount=product.credits * quantity,
-        status="pending",
+        status=PURCHASE_STATUS_PENDING,
         product_id=product.product_id,
     )
     db.add(purchase)
@@ -99,14 +92,14 @@ async def create_checkout_session(
             },
         )
     except Exception:
-        purchase.status = "failed"
+        purchase.status = PURCHASE_STATUS_FAILED
         db.commit()
         raise
 
     session_id = session.get("session_id")
     checkout_url = session.get("checkout_url") or session.get("url")
     if not session_id or not checkout_url:
-        purchase.status = "failed"
+        purchase.status = PURCHASE_STATUS_FAILED
         db.commit()
         raise InternalServerError("Checkout session creation failed")
 
@@ -120,7 +113,11 @@ def handle_webhook_event(db: Session, payload: dict[str, Any]) -> None:
     event_type = payload.get("type")
     data = payload.get("data", {})
 
-    if event_type not in {"payment.succeeded", "payment.failed", "payment.cancelled"}:
+    if event_type not in {
+        EVENT_PAYMENT_SUCCEEDED,
+        EVENT_PAYMENT_FAILED,
+        EVENT_PAYMENT_CANCELLED,
+    }:
         return
 
     payment_id = data.get("payment_id")
@@ -145,19 +142,23 @@ def handle_webhook_event(db: Session, payload: dict[str, Any]) -> None:
         logger.warning("Unable to match purchase", extra={"payment_id": payment_id})
         return
 
-    if purchase.status == "completed":
+    if purchase.status == PURCHASE_STATUS_COMPLETED:
         return
 
-    if event_type == "payment.succeeded":
+    if event_type == EVENT_PAYMENT_SUCCEEDED:
         credits_service.grant_purchase_credits(
             db, purchase.user_id, payment_id, purchase.credits_amount
         )
-        purchase.status = "completed"
+        purchase.status = PURCHASE_STATUS_COMPLETED
         purchase.provider_payment_id = payment_id
         db.commit()
         return
 
-    purchase.status = "failed" if event_type == "payment.failed" else "cancelled"
+    purchase.status = (
+        PURCHASE_STATUS_FAILED
+        if event_type == EVENT_PAYMENT_FAILED
+        else PURCHASE_STATUS_CANCELLED
+    )
     purchase.provider_payment_id = payment_id
     db.commit()
 
