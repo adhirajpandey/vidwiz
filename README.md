@@ -64,33 +64,7 @@ Prereqs: Python 3.10–3.13, Node.js, Poetry, running PostgreSQL
 ### Backend
 1. `cd backend`
 2. Install dependencies: `poetry install`
-3. Configure `.env` (use `.env.example` as reference). Example:
-
-```
-# App
-DB_URL=postgresql://postgres:postgres@localhost:5432/vidwiz
-SECRET_KEY=change-me
-ADMIN_TOKEN=change-admin-token
-
-# AWS
-AWS_ACCESS_KEY_ID=your-key
-AWS_SECRET_ACCESS_KEY=your-secret
-AWS_REGION=ap-south-1
-SQS_AI_NOTE_QUEUE_URL=https://sqs.ap-south-1.amazonaws.com/123456789012/vidwiz-ai-notes
-SQS_SUMMARY_QUEUE_URL=https://sqs.ap-south-1.amazonaws.com/123456789012/vidwiz-summary
-S3_BUCKET_NAME=vidwiz
-
-# AI/LLM
-OPENROUTER_API_KEY=your-openrouter-api-key
-OPENROUTER_MODEL=google/gemini-3-flash-preview
-OPENROUTER_BASE_URL=https://openrouter.ai/api/v1
-
-# Postgres container
-POSTGRES_DB=vidwiz
-POSTGRES_USER=postgres
-POSTGRES_PASSWORD=postgres
-```
-
+3. Configure `.env` (use `.env.example` as reference). For required environment variables, see `docs/backend.md`.
 4. Start server: `poetry run uvicorn src.main:app --host 0.0.0.0 --port 5000`
 
 ### Frontend
@@ -142,10 +116,10 @@ vidwiz/
 - [x] Multi-platform support (Extension, Web, iOS, Android)
 - [x] Move backend from Flask to FastAPI
 - [x] Proper CI/CD workflows for backend and frontend
+- [x] Cloud-hosted SaaS offering with credits model
 - [ ] Semantic search across notes and videos
 - [ ] Universal export (Markdown, PDF)
 - [ ] Bring-your-own AI key(BYOK) support
-- [ ] Cloud-hosted SaaS offering with subscription model
 
 
 

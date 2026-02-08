@@ -31,6 +31,7 @@ Summarize the web app structure, routing, and API integration.
 - **Notes UI**: Notes can be edited/deleted in the web app; note creation is not exposed in the UI.
 - **Dashboard search**: Uses `q` + pagination with `per_page=10`; shows results only after first search.
 - **Profile**: Supports name updates, AI notes toggle, and long-term token create/revoke/copy.
+- **Credits UI**: Profile shows available credits and a credit pack selector; checkout uses backend product list.
 - **Theme**: Navbar toggle adds/removes `dark` on `documentElement` and stores the choice in `localStorage`; toggle is hidden on landing/login/signup.
 
 ## Config

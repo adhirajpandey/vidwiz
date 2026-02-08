@@ -92,6 +92,11 @@ Describe the FastAPI backend: structure, auth rules, and the request/worker life
 - `GET /v2/internal/videos/{video_id}`
 - `PATCH /v2/internal/notes/{note_id}`
 
+### Payments
+- `GET /v2/payments/products`
+- `POST /v2/payments/checkout`
+- `POST /v2/payments/webhooks/dodo`
+
 ## Operational Notes
 - OpenAPI docs are enabled only in `local` and `staging` environments.
 - SQLite is the default when `DB_URL` is not set; Postgres is used in deployed environments.
