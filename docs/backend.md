@@ -104,6 +104,7 @@ Describe the FastAPI backend: structure, auth rules, and the request/worker life
 - Rate limiting uses SlowAPI with an in-memory store by default and IP-only keys.
   - Env vars: `RATE_LIMIT_ENABLED`, `RATE_LIMIT_DEFAULT`, `RATE_LIMIT_AUTH`, `RATE_LIMIT_CONVERSATIONS`, `RATE_LIMIT_VIDEOS`.
   - `/v2/internal/*` endpoints are exempt.
+- Prometheus metrics are exposed at `GET /v2/internal/metrics` and require the admin token.
 
 ## Startup Requirements
 The server fails on startup if any of the following env vars are missing:

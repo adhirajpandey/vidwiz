@@ -24,6 +24,7 @@ dependencies = [
     "openai (>=1.0.0,<2.0.0)",
     "werkzeug (>=3.0.0,<4.0.0)",
     "slowapi (>=0.1.9,<1.0.0)",
+    "prometheus-fastapi-instrumentator (>=6.1.0,<7.0.0)",
     "dodopayments (>=0.15.0,<1.0.0)",
     "standardwebhooks (==1.0.0)"
 ]

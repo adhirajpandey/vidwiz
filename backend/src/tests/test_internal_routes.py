@@ -221,3 +221,20 @@ async def test_internal_update_note_success(client, db_session):
     assert response.status_code == 200
     payload = response.json()
     assert payload["text"] == "updated"
+
+
+@pytest.mark.asyncio
+async def test_internal_metrics_requires_admin_token(client):
+    response = await client.get("/v2/internal/metrics")
+    assert response.status_code in {401, 403}
+
+
+@pytest.mark.asyncio
+async def test_internal_metrics_success(client):
+    response = await client.get(
+        "/v2/internal/metrics",
+        headers=admin_headers(),
+    )
+    assert response.status_code == 200
+    body = response.text
+    assert "http_requests_total" in body or "http_request_duration_seconds" in body

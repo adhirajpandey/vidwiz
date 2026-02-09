@@ -10,6 +10,7 @@ from src.config import settings
 from src.conversations.router import router as conversations_router
 from src.exceptions import APIError, ErrorCode, HTTP_STATUS_CODE_MAP, RateLimitError
 from src.internal.router import router as internal_router
+from src.metrics import init_metrics
 from src.payments.router import router as payments_router
 from src.models import ErrorDetail, ErrorPayload, ErrorResponse
 from src.notes.router import router as notes_router
@@ -120,6 +121,8 @@ def create_app() -> FastAPI:
         response = await call_next(request)
         response.headers["Referrer-Policy"] = "strict-origin-when-cross-origin"
         return response
+
+    init_metrics(app)
 
     app.include_router(videos_router)
     app.include_router(auth_router)
