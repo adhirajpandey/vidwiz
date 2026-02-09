@@ -106,6 +106,28 @@ Describe the FastAPI backend: structure, auth rules, and the request/worker life
   - `/v2/internal/*` endpoints are exempt.
 - Prometheus metrics are exposed at `GET /v2/internal/metrics` and require the admin token.
 
+## Logging
+- API requests log a single structured entry with request/response metadata.
+- `X-Request-ID` is generated if missing and echoed in responses.
+- Request/response bodies are logged for JSON/text content types, redacted and truncated.
+- Logging skips the metrics endpoint and Loki excludes `/v2/internal/tasks`.
+- Log output includes endpoint name and source location when resolvable.
+- Severity mapping: `INFO` for 2xx/3xx, `WARNING` for 4xx, `ERROR` for 5xx.
+- Truncation defaults: 8KB for request bodies and 8KB for response bodies.
+- Redaction applies to: `password`, `token`, `access_token`, `refresh_token`, `long_term_token`, `authorization`, `secret`, `api_key`, `key`, `cookie`, `set-cookie`, `session`, `csrf`, `jwt`.
+- Default JSON fields include (when available):
+  - `timestamp`, `level`, `logger`, `message`, `request_id`
+  - `http_method`, `http_path`, `http_query`, `http_status`, `duration_ms`
+  - `client_ip`, `user_agent`
+  - `endpoint`, `endpoint_source`
+  - `request_content_type`, `request_body`, `request_body_bytes`, `request_body_truncated`
+  - `response_content_type`, `response_body`, `response_body_bytes`, `response_content_length`, `response_body_truncated`
+- Stdout is pretty-printed for readability; Loki receives JSON.
+- Configure Loki via:
+  - `LOKI_URL` (Grafana Cloud Loki push URL)
+  - `LOKI_USERNAME`, `LOKI_PASSWORD`
+  - Optional: `LOG_LEVEL`, `LOG_SERVICE_NAME`
+
 ## Startup Requirements
 The server fails on startup if any of the following env vars are missing:
 - `ENVIRONMENT`
