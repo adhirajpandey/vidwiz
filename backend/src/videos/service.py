@@ -1,6 +1,7 @@
 import asyncio
 import json
 import math
+import logging
 from typing import AsyncGenerator, Iterable
 
 from fastapi.concurrency import run_in_threadpool
@@ -18,6 +19,7 @@ from src.videos.schemas import (
     VideoStreamPayload,
 )
 
+logger = logging.getLogger(__name__)
 
 SORT_MAPPING = {
     "created_at_desc": desc(Video.created_at),
@@ -28,12 +30,16 @@ SORT_MAPPING = {
 
 
 def get_video_by_id(db: Session, video_id: str) -> Video | None:
+    logger.debug("Fetching video by id", extra={"video_id": video_id})
     return db.execute(
         select(Video).where(Video.video_id == video_id)
     ).scalar_one_or_none()
 
 
 def get_video_for_user(db: Session, user_id: int, video_id: str) -> Video | None:
+    logger.debug(
+        "Fetching video for user", extra={"user_id": user_id, "video_id": video_id}
+    )
     query = select(Video).where(
         Video.video_id == video_id,
         Video.notes.any(Note.user_id == user_id),
@@ -44,6 +50,16 @@ def get_video_for_user(db: Session, user_id: int, video_id: str) -> Video | None
 def list_videos_for_user(
     db: Session, user_id: int, params: VideoListParams
 ) -> VideoListResponse:
+    logger.debug(
+        "Listing videos",
+        extra={
+            "user_id": user_id,
+            "query": params.q,
+            "page": params.page,
+            "per_page": params.per_page,
+            "sort": params.sort,
+        },
+    )
     base_query = (
         select(Video.id)
         .join(Note, Video.video_id == Note.video_id)
@@ -104,14 +120,17 @@ def is_video_ready(video: Video) -> bool:
 
 
 async def stream_video_events(video_id: str) -> AsyncGenerator[str, None]:
+    logger.debug("Streaming video events", extra={"video_id": video_id})
     video = await _fetch_video(video_id)
     if not video:
+        logger.debug("Video not found for stream", extra={"video_id": video_id})
         return
 
     last_state = _video_state(video)
     yield _format_event("snapshot", video)
 
     if is_video_ready(video):
+        logger.debug("Video already ready", extra={"video_id": video_id})
         yield _format_event("done", video)
         return
 
@@ -123,6 +142,7 @@ async def stream_video_events(video_id: str) -> AsyncGenerator[str, None]:
         await asyncio.sleep(poll_interval)
         video = await _fetch_video(video_id)
         if not video:
+            logger.debug("Video missing during stream", extra={"video_id": video_id})
             return
 
         current_state = _video_state(video)
@@ -131,6 +151,7 @@ async def stream_video_events(video_id: str) -> AsyncGenerator[str, None]:
             yield _format_event("update", video)
 
         if is_video_ready(video):
+            logger.debug("Video ready during stream", extra={"video_id": video_id})
             yield _format_event("done", video)
             return
 

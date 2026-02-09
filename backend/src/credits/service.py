@@ -1,3 +1,5 @@
+import logging
+
 from sqlalchemy import select
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
@@ -12,8 +14,11 @@ REASON_WIZ_CHAT = "wiz_chat"
 REASON_AI_NOTE = "ai_note"
 REASON_PURCHASE = "purchase"
 
+logger = logging.getLogger(__name__)
+
 
 def _get_user_or_raise(db: Session, user_id: int) -> User:
+    logger.debug("Fetching user for credits", extra={"user_id": user_id})
     user = db.get(User, user_id)
     if not user:
         raise NotFoundError("User not found")
@@ -23,6 +28,10 @@ def _get_user_or_raise(db: Session, user_id: int) -> User:
 def _ledger_exists(
     db: Session, user_id: int, reason: str, ref_type: str, ref_id: str
 ) -> bool:
+    logger.debug(
+        "Checking ledger entry",
+        extra={"user_id": user_id, "reason": reason, "ref_type": ref_type, "ref_id": ref_id},
+    )
     query = (
         select(CreditsLedger.id)
         .where(
@@ -44,6 +53,10 @@ def _apply_ledger(
     ref_type: str,
     ref_id: str,
 ) -> None:
+    logger.debug(
+        "Applying ledger entry",
+        extra={"user_id": user.id, "delta": delta, "reason": reason, "ref_type": ref_type},
+    )
     entry = CreditsLedger(
         user_id=user.id,
         delta=delta,
@@ -61,6 +74,7 @@ def _apply_ledger(
 
 
 def grant_signup_credits(db: Session, user: User) -> None:
+    logger.debug("Granting signup credits", extra={"user_id": user.id})
     if _ledger_exists(db, user.id, REASON_SIGNUP_GRANT, "user", str(user.id)):
         return
     _apply_ledger(
@@ -74,6 +88,9 @@ def grant_signup_credits(db: Session, user: User) -> None:
 
 
 def charge_wiz_chat_for_video(db: Session, user_id: int, video_id: str) -> bool:
+    logger.debug(
+        "Charging wiz chat", extra={"user_id": user_id, "video_id": video_id}
+    )
     if _ledger_exists(db, user_id, REASON_WIZ_CHAT, "video", video_id):
         return False
 
@@ -94,6 +111,9 @@ def charge_wiz_chat_for_video(db: Session, user_id: int, video_id: str) -> bool:
 
 
 def charge_ai_note_enqueue(db: Session, user_id: int, note_id: int) -> None:
+    logger.debug(
+        "Charging AI note enqueue", extra={"user_id": user_id, "note_id": note_id}
+    )
     if _ledger_exists(db, user_id, REASON_AI_NOTE, "note", str(note_id)):
         return
 
@@ -115,6 +135,10 @@ def charge_ai_note_enqueue(db: Session, user_id: int, note_id: int) -> None:
 def grant_purchase_credits(
     db: Session, user_id: int, payment_id: str, credits_amount: int
 ) -> None:
+    logger.debug(
+        "Granting purchase credits",
+        extra={"user_id": user_id, "payment_id": payment_id, "credits": credits_amount},
+    )
     if _ledger_exists(db, user_id, REASON_PURCHASE, "payment", payment_id):
         return
 

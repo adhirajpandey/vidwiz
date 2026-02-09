@@ -16,6 +16,8 @@ from src.models import ErrorDetail, ErrorPayload, ErrorResponse
 from src.notes.router import router as notes_router
 from src.shared.ratelimit import limiter
 from src.videos.router import router as videos_router
+from src.logging import setup_logging, shutdown_logging
+from src.middleware.request_logging import RequestLoggingMiddleware
 
 
 SHOW_DOCS_ENVIRONMENT = ("local", "staging")
@@ -100,6 +102,7 @@ def register_exception_handlers(app: FastAPI) -> None:
 
 
 def create_app() -> FastAPI:
+    setup_logging(settings)
     app_configs = {"title": "VidWiz API"}
     if settings.environment not in SHOW_DOCS_ENVIRONMENT:
         app_configs["openapi_url"] = None
@@ -107,6 +110,7 @@ def create_app() -> FastAPI:
     app = FastAPI(**app_configs)
     app.state.limiter = limiter
     app.add_middleware(SlowAPIMiddleware)
+    app.add_middleware(RequestLoggingMiddleware)
 
     app.add_middleware(
         CORSMiddleware,
@@ -132,6 +136,11 @@ def create_app() -> FastAPI:
     app.include_router(payments_router)
 
     register_exception_handlers(app)
+
+    @app.on_event("shutdown")
+    async def shutdown_event() -> None:
+        shutdown_logging()
+
     return app
 
 
