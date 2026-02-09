@@ -65,6 +65,32 @@ async def test_request_body_truncation(client, caplog):
 
 
 @pytest.mark.asyncio
+async def test_request_logs_user_fields(client, caplog):
+    email = f"userfields-{uuid4().hex}@example.com"
+    password = "secret123"
+    await client.post(
+        "/v2/auth/register",
+        json={"email": email, "password": password, "name": "Test User"},
+    )
+    login_response = await client.post(
+        "/v2/auth/login",
+        json={"email": email, "password": password},
+    )
+    token = login_response.json()["token"]
+
+    with caplog.at_level(logging.INFO, logger="vidwiz.api"):
+        await client.get(
+            "/v2/users/me",
+            headers={"Authorization": f"Bearer {token}"},
+        )
+
+    record = _find_request_log(caplog, "/v2/users/me")
+    assert record is not None
+    assert record.user_email == email
+    assert isinstance(record.user_id, int)
+
+
+@pytest.mark.asyncio
 async def test_status_level_mapping(caplog):
     app = create_app()
 

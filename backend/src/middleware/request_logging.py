@@ -6,9 +6,11 @@ from typing import Any
 from uuid import uuid4
 from urllib.parse import parse_qs
 
+import jwt
 from fastapi import status
 from fastapi.responses import JSONResponse
 
+from src.config import settings
 from src.exceptions import ErrorCode
 from src.models import ErrorPayload, ErrorResponse
 from src.logging import request_id_var
@@ -131,6 +133,46 @@ def _build_log_message(method: str | None, path: str | None, status: int, durati
     return f"{method} {path} {status} {duration_ms}ms"
 
 
+def _extract_user_info(
+    headers: dict[str, str],
+) -> tuple[dict[str, Any], dict[str, Any] | None, str | None]:
+    authorization = headers.get("authorization")
+    if not authorization or not authorization.startswith("Bearer "):
+        return {}, None, None
+    secret_key = settings.secret_key
+    if not secret_key:
+        return {}, None, None
+
+    token = authorization.split(" ", 1)[1]
+    try:
+        payload = jwt.decode(token, secret_key, algorithms=["HS256"])
+    except Exception:
+        return {}, None, None
+
+    user_fields: dict[str, Any] = {}
+    user_id = payload.get("user_id")
+    if user_id is not None:
+        try:
+            user_fields["user_id"] = int(user_id)
+        except (TypeError, ValueError):
+            user_fields["user_id"] = user_id
+    user_email = payload.get("email")
+    if user_email:
+        user_fields["user_email"] = user_email
+    return user_fields, payload, token
+
+
+def _set_scope_state(scope, key: str, value: Any) -> None:
+    state = scope.get("state")
+    if state is None:
+        scope["state"] = {key: value}
+        return
+    if isinstance(state, dict):
+        state[key] = value
+        return
+    setattr(state, key, value)
+
+
 def _build_base_fields(
     *,
     scope,
@@ -225,6 +267,10 @@ class RequestLoggingMiddleware:
             key.decode("latin-1").lower(): value.decode("latin-1")
             for key, value in scope.get("headers", [])
         }
+        user_fields, auth_payload, auth_token = _extract_user_info(headers)
+        if auth_payload is not None and auth_token is not None:
+            _set_scope_state(scope, "auth_payload", auth_payload)
+            _set_scope_state(scope, "auth_token", auth_token)
         request_id = headers.get("x-request-id") or uuid4().hex
         token = request_id_var.set(request_id)
 
@@ -293,6 +339,7 @@ class RequestLoggingMiddleware:
                 endpoint_file=endpoint_file,
                 endpoint_line=endpoint_line,
             )
+            base_fields.update(user_fields)
             self.logger.exception("Unhandled exception during request", extra=base_fields)
 
             request_content_type = headers.get("content-type")
@@ -342,6 +389,7 @@ class RequestLoggingMiddleware:
                 endpoint_file=endpoint_file,
                 endpoint_line=endpoint_line,
             )
+            base_fields.update(user_fields)
             request_fields = _build_request_body_fields(
                 body=body,
                 content_type=request_content_type,

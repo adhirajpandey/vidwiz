@@ -49,6 +49,8 @@ _EXTRA_EXCLUDE_KEYS = {
     "endpoint_file",
     "endpoint_line",
     "request_id",
+    "user_id",
+    "user_email",
     "message",
     "http_method",
     "http_path",
@@ -86,6 +88,12 @@ class JsonFormatter(logging.Formatter):
         request_id = getattr(record, "request_id", None)
         if request_id:
             payload["request_id"] = request_id
+        user_id = getattr(record, "user_id", None)
+        if user_id is not None:
+            payload["user_id"] = user_id
+        user_email = getattr(record, "user_email", None)
+        if user_email:
+            payload["user_email"] = user_email
         for key in (
             "http_method",
             "http_path",
