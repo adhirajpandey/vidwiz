@@ -1,4 +1,4 @@
-from fastapi import Depends, Header
+from fastapi import Depends, Header, Request
 import jwt
 from sqlalchemy.orm import Session
 
@@ -15,7 +15,25 @@ def _require_secret_key() -> str:
     return settings.secret_key
 
 
-def get_current_user_id(authorization: str | None = Header(default=None)) -> int:
+def _get_cached_payload(
+    request: Request | None,
+    token: str,
+) -> dict | None:
+    if request is None:
+        return None
+    state = getattr(request, "state", None)
+    if state is None:
+        return None
+    cached_token = getattr(state, "auth_token", None)
+    if cached_token != token:
+        return None
+    return getattr(state, "auth_payload", None)
+
+
+def get_current_user_id(
+    authorization: str | None = Header(default=None),
+    request: Request = None,
+) -> int:
     if not authorization or not authorization.startswith("Bearer "):
         raise UnauthorizedError("Missing or invalid Authorization header")
 
@@ -23,7 +41,11 @@ def get_current_user_id(authorization: str | None = Header(default=None)) -> int
     secret_key = _require_secret_key()
 
     try:
-        payload = jwt.decode(token, secret_key, algorithms=["HS256"])
+        payload = _get_cached_payload(request, token) or jwt.decode(
+            token,
+            secret_key,
+            algorithms=["HS256"],
+        )
     except Exception:
         raise UnauthorizedError("Invalid or expired token")
 
@@ -39,6 +61,7 @@ def get_current_user_id(authorization: str | None = Header(default=None)) -> int
 
 def get_viewer_context(
     authorization: str | None = Header(default=None),
+    request: Request = None,
     guest_session_id: str | None = Header(default=None, alias="X-Guest-Session-ID"),
 ) -> ViewerContext:
     context = ViewerContext()
@@ -47,7 +70,11 @@ def get_viewer_context(
         token = authorization.split(" ", 1)[1]
         secret_key = _require_secret_key()
         try:
-            payload = jwt.decode(token, secret_key, algorithms=["HS256"])
+            payload = _get_cached_payload(request, token) or jwt.decode(
+                token,
+                secret_key,
+                algorithms=["HS256"],
+            )
             if payload.get("type") != "long_term":
                 context.user_id = int(payload.get("user_id"))
                 return context
@@ -63,6 +90,7 @@ def get_viewer_context(
 
 def get_current_user_id_or_long_term(
     authorization: str | None = Header(default=None),
+    request: Request = None,
     db: Session = Depends(get_db),
 ) -> int:
     if not authorization or not authorization.startswith("Bearer "):
@@ -72,7 +100,11 @@ def get_current_user_id_or_long_term(
     secret_key = _require_secret_key()
 
     try:
-        payload = jwt.decode(token, secret_key, algorithms=["HS256"])
+        payload = _get_cached_payload(request, token) or jwt.decode(
+            token,
+            secret_key,
+            algorithms=["HS256"],
+        )
         user_id = payload.get("user_id")
         if not user_id:
             raise UnauthorizedError("Invalid token payload")

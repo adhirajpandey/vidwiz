@@ -31,6 +31,11 @@ class Settings(BaseSettings):
     signup_grant_amount: int = Field(default=100, alias="SIGNUP_GRANT_AMOUNT")
     wiz_chat_cost: int = Field(default=5, alias="WIZ_CHAT_COST")
     ai_note_cost: int = Field(default=1, alias="AI_NOTE_COST")
+    log_level: str = Field(default="INFO", alias="LOG_LEVEL")
+    log_service_name: str = Field(default="vidwiz-api", alias="LOG_SERVICE_NAME")
+    loki_url: str | None = Field(default=None, alias="LOKI_URL")
+    loki_username: str | None = Field(default=None, alias="LOKI_USERNAME")
+    loki_password: str | None = Field(default=None, alias="LOKI_PASSWORD")
 
     @field_validator("dodo_credit_products", mode="before")
     @classmethod

@@ -29,6 +29,7 @@ PROVIDER_SESSION_PENDING = "pending"
 
 
 def verify_webhook_signature(payload: bytes, headers: dict[str, str]) -> None:
+    logger.debug("Verifying webhook signature")
     secret = settings.dodo_payments_webhook_key
     hook = Webhook(secret)
     try:
@@ -40,6 +41,10 @@ def verify_webhook_signature(payload: bytes, headers: dict[str, str]) -> None:
 async def create_checkout_session(
     db: Session, user_id: int, product_id: str, quantity: int
 ) -> dict[str, str]:
+    logger.debug(
+        "Creating checkout session",
+        extra={"user_id": user_id, "product_id": product_id, "quantity": quantity},
+    )
     product = get_credit_product(product_id)
     if not product:
         raise BadRequestError("Invalid product ID")
@@ -63,6 +68,7 @@ async def create_checkout_session(
     db.add(purchase)
     db.commit()
     db.refresh(purchase)
+    logger.debug("Created purchase record", extra={"purchase_id": purchase.id})
 
     dodo = AsyncDodoPayments(
         bearer_token=settings.dodo_payments_api_key,
@@ -94,6 +100,7 @@ async def create_checkout_session(
     except Exception:
         purchase.status = PURCHASE_STATUS_FAILED
         db.commit()
+        logger.debug("Checkout session failed", extra={"purchase_id": purchase.id})
         raise
 
     session_id = session.get("session_id")
@@ -105,6 +112,7 @@ async def create_checkout_session(
 
     purchase.provider_session_id = session_id
     db.commit()
+    logger.debug("Checkout session created", extra={"purchase_id": purchase.id})
 
     return {"session_id": session_id, "checkout_url": checkout_url}
 
@@ -112,6 +120,7 @@ async def create_checkout_session(
 def handle_webhook_event(db: Session, payload: dict[str, Any]) -> None:
     event_type = payload.get("type")
     data = payload.get("data", {})
+    logger.debug("Handling webhook event", extra={"event_type": event_type})
 
     if event_type not in {
         EVENT_PAYMENT_SUCCEEDED,
@@ -152,6 +161,7 @@ def handle_webhook_event(db: Session, payload: dict[str, Any]) -> None:
         purchase.status = PURCHASE_STATUS_COMPLETED
         purchase.provider_payment_id = payment_id
         db.commit()
+        logger.debug("Purchase completed", extra={"purchase_id": purchase.id})
         return
 
     purchase.status = (
@@ -161,9 +171,14 @@ def handle_webhook_event(db: Session, payload: dict[str, Any]) -> None:
     )
     purchase.provider_payment_id = payment_id
     db.commit()
+    logger.debug(
+        "Purchase status updated",
+        extra={"purchase_id": purchase.id, "status": purchase.status},
+    )
 
 
 def list_credit_products() -> list[CreditProductRead]:
+    logger.debug("Listing credit products")
     products: list[CreditProductRead] = []
     for item in settings.dodo_credit_products:
         price_per_credit = round(item.price_inr / item.credits, 4)

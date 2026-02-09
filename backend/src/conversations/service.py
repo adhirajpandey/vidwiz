@@ -22,8 +22,10 @@ logger = logging.getLogger(__name__)
 
 
 def get_or_create_video(db: Session, video_id: str) -> tuple[Video, bool]:
+    logger.debug("Get or create video", extra={"video_id": video_id})
     video = videos_service.get_video_by_id(db, video_id)
     if video:
+        logger.debug("Video exists", extra={"video_id": video_id})
         schedule_video_tasks(db, video)
         return video, False
 
@@ -33,6 +35,7 @@ def get_or_create_video(db: Session, video_id: str) -> tuple[Video, bool]:
     db.refresh(video)
 
     schedule_video_tasks(db, video)
+    logger.debug("Created video", extra={"video_id": video_id})
 
     return video, True
 
@@ -40,6 +43,10 @@ def get_or_create_video(db: Session, video_id: str) -> tuple[Video, bool]:
 def create_conversation(
     db: Session, video_id: str, user_id: int | None, guest_session_id: str | None
 ) -> Conversation:
+    logger.debug(
+        "Creating conversation",
+        extra={"video_id": video_id, "user_id": user_id, "guest_session": bool(guest_session_id)},
+    )
     conversation = Conversation(
         video_id=video_id,
         user_id=user_id,
@@ -48,12 +55,17 @@ def create_conversation(
     db.add(conversation)
     db.commit()
     db.refresh(conversation)
+    logger.debug("Created conversation", extra={"conversation_id": conversation.id})
     return conversation
 
 
 def get_conversation_for_viewer(
     db: Session, conversation_id: int, viewer: ViewerContext
 ) -> Conversation | None:
+    logger.debug(
+        "Fetching conversation for viewer",
+        extra={"conversation_id": conversation_id, "user_id": viewer.user_id},
+    )
     if viewer.user_id:
         query = select(Conversation).where(
             Conversation.id == conversation_id,
@@ -68,6 +80,7 @@ def get_conversation_for_viewer(
 
 
 def list_messages(db: Session, conversation_id: int) -> list[Message]:
+    logger.debug("Listing messages", extra={"conversation_id": conversation_id})
     query = (
         select(Message)
         .where(Message.conversation_id == conversation_id)
@@ -83,6 +96,10 @@ def save_chat_message(
     content: str,
     metadata: dict | None = None,
 ) -> Message:
+    logger.debug(
+        "Saving chat message",
+        extra={"conversation_id": conversation_id, "role": role, "has_metadata": metadata is not None},
+    )
     message = Message(
         conversation_id=conversation_id,
         role=role,
@@ -92,12 +109,16 @@ def save_chat_message(
     db.add(message)
     db.commit()
     db.refresh(message)
+    logger.debug("Saved chat message", extra={"message_id": message.id})
     return message
 
 
 def fetch_recent_history(
     db: Session, conversation_id: int, limit: int = 10
 ) -> list[Message]:
+    logger.debug(
+        "Fetching recent history", extra={"conversation_id": conversation_id, "limit": limit}
+    )
     query = (
         select(Message)
         .where(Message.conversation_id == conversation_id)
@@ -112,6 +133,10 @@ def fetch_recent_history(
 def check_daily_quota(
     db: Session, user_id: int | None, guest_session_id: str | None
 ) -> None:
+    logger.debug(
+        "Checking daily quota",
+        extra={"user_id": user_id, "guest_session": bool(guest_session_id)},
+    )
     today = datetime.utcnow().replace(hour=0, minute=0, second=0, microsecond=0)
 
     query = (
@@ -133,6 +158,7 @@ def check_daily_quota(
         return
 
     msg_count = db.execute(query).scalar_one()
+    logger.debug("Quota message count", extra={"count": msg_count, "limit": limit})
     if msg_count >= limit:
         tomorrow_midnight = today + timedelta(days=1)
         now = datetime.utcnow()
@@ -144,6 +170,7 @@ def check_daily_quota(
 
 
 def get_transcript_from_s3(video_id: str) -> list | None:
+    logger.debug("Fetching transcript from S3", extra={"video_id": video_id})
     if not conversations_settings.s3_bucket_name:
         return None
     if not (
@@ -165,6 +192,7 @@ def get_transcript_from_s3(video_id: str) -> list | None:
             Bucket=conversations_settings.s3_bucket_name, Key=transcript_key
         )
         transcript_data = json.loads(response["Body"].read().decode("utf-8"))
+        logger.debug("Fetched transcript from S3", extra={"video_id": video_id})
         return transcript_data
     except Exception as exc:
         logger.warning("Transcript fetch failed", extra={"error": str(exc)})
@@ -174,11 +202,13 @@ def get_transcript_from_s3(video_id: str) -> list | None:
 def get_valid_transcript_or_raise(
     db: Session, video_id: str
 ) -> tuple[Video, list] | None:
+    logger.debug("Validating transcript availability", extra={"video_id": video_id})
     video = videos_service.get_video_by_id(db, video_id)
     if not video:
         raise NotFoundError("Video not found")
 
     if not video.transcript_available:
+        logger.debug("Transcript not available", extra={"video_id": video_id})
         return None
 
     transcript = get_transcript_from_s3(video_id)
@@ -229,6 +259,7 @@ def stream_wiz_response(
     db: Session,
     api_key: str,
 ):
+    logger.debug("Streaming Wiz response", extra={"conversation_id": conversation_id})
     system_instruction = build_system_instruction(video_title, transcript)
 
     client = OpenAI(
@@ -265,6 +296,7 @@ def stream_wiz_response(
             )
 
         yield "data: [DONE]\n\n"
+        logger.debug("Wiz response complete", extra={"conversation_id": conversation_id})
 
     except Exception as exc:
         logger.error("OpenRouter streaming error", extra={"error": str(exc)})
@@ -272,6 +304,7 @@ def stream_wiz_response(
 
 
 def ensure_openrouter_api_key() -> str:
+    logger.debug("Ensuring OpenRouter API key configured")
     if not conversations_settings.openrouter_api_key:
         raise InternalServerError("OpenRouter API key not configured")
     return conversations_settings.openrouter_api_key
@@ -283,10 +316,15 @@ def prepare_chat(
     viewer: ViewerContext,
     message: str,
 ) -> tuple[Video | None, list | None, list[dict], str | None]:
+    logger.debug(
+        "Preparing chat",
+        extra={"conversation_id": conversation.id, "user_id": viewer.user_id},
+    )
     check_daily_quota(db, viewer.user_id, viewer.guest_session_id)
 
     transcript_result = get_valid_transcript_or_raise(db, conversation.video_id)
     if transcript_result is None:
+        logger.debug("Transcript processing", extra={"conversation_id": conversation.id})
         return None, None, [], None
 
     video, transcript = transcript_result
@@ -298,6 +336,7 @@ def prepare_chat(
         DB_ROLE_USER,
         message,
     )
+    logger.debug("Saved user message", extra={"conversation_id": conversation.id})
 
     history_msgs = fetch_recent_history(db, conversation.id, limit=10)
     history_serializable = [
