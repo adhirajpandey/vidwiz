@@ -13,7 +13,6 @@ from sqlalchemy.orm.attributes import flag_modified
 from src.auth.models import User
 from src.exceptions import BadRequestError, ForbiddenError, NotFoundError
 from src.internal import constants as internal_constants
-from src.internal.scheduling import create_task_idempotent, schedule_video_tasks
 from src.internal.models import Task, TaskStatus
 from src.notes.models import Note
 from src.notes import service as notes_service
