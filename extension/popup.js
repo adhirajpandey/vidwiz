@@ -1,13 +1,53 @@
 // ── Config ───────────────────────────────────────────────────────────────────
-const APP_URL = "https://vidwiz.online"
-const API_URL = "https://api.vidwiz.online/v2"
-const TOKEN_KEY = "token"
+const CONSTANTS = {
+  API: {
+    BASE_URL: "https://vidwiz.online",
+    API_URL: "https://api.vidwiz.online/v2",
+    ENDPOINTS: {
+      NOTES: (videoId) => `/videos/${videoId}/notes`
+    }
+  },
+  STORAGE: {
+    TOKEN: "token"
+  },
+  SELECTORS: {
+    FEEDBACK: "feedback-message",
+    TOKEN_SETUP: "token-setup",
+    NOTES_VIEW: "notes-view",
+    VIDEO_TITLE: "video-title",
+    TIMESTAMP_WRAPPER: "timestamp-wrapper",
+    NOTES_TEXTAREA: "notes-textarea",
+    SAVE_BTN: "saveNotesBtn",
+    OPEN_SMART_NOTES: "openSmartNotes",
+    OPEN_IN_WIZ: "openInWiz",
+    CURRENT_TIMESTAMP: "current-timestamp",
+    RESET_TIMESTAMP: "reset-timestamp",
+    GO_DASHBOARD: "goDashboard",
+    GO_LOGIN: "goLoginFromSetup"
+  },
+  CLASSES: {
+    HIDDEN: "hidden",
+    INVALID: "timestamp-invalid",
+    SUCCESS: "success",
+    ERROR: "error"
+  },
+  MESSAGES: {
+    NO_VIDEO: "No YouTube video found on this page.",
+    RELOAD: "Please reload this YouTube page to enable the extension.",
+    INVALID_URL: "Invalid YouTube URL.",
+    INVALID_TIMESTAMP: "Invalid timestamp format.",
+    SAVED: "Note saved successfully!",
+    CONN_LOST: "Connection lost. Please reload the YouTube page.",
+    SYNCED: "Synced with VidWiz!",
+    WELCOME: "Welcome to VidWiz!"
+  }
+};
 
 // ── DOM Helpers ──────────────────────────────────────────────────────────────
 const $ = (id) => document.getElementById(id)
 
 function setMessage(msg, type) {
-	const el = $("feedback-message")
+	const el = $(CONSTANTS.SELECTORS.FEEDBACK)
 	if (!el) return
 	el.textContent = msg
 	el.className = type || ""
@@ -25,13 +65,13 @@ function setButtonLoading(btn, loading) {
 }
 
 // ── Token Storage ────────────────────────────────────────────────────────────
-const getAuthToken = () => chrome.storage.local.get(TOKEN_KEY).then((r) => r[TOKEN_KEY] || null)
-const setAuthToken = (token) => chrome.storage.local.set({ [TOKEN_KEY]: token })
+const getAuthToken = () => chrome.storage.local.get(CONSTANTS.STORAGE.TOKEN).then((r) => r[CONSTANTS.STORAGE.TOKEN] || null)
+const setAuthToken = (token) => chrome.storage.local.set({ [CONSTANTS.STORAGE.TOKEN]: token })
 
 // ── API Client ───────────────────────────────────────────────────────────────
 async function apiRequest(path, options = {}) {
 	const token = await getAuthToken()
-	const res = await fetch(`${API_URL}${path}`, {
+	const res = await fetch(`${CONSTANTS.API.API_URL}${path}`, {
 		...options,
 		headers: {
 			"Content-Type": "application/json",
@@ -43,7 +83,7 @@ async function apiRequest(path, options = {}) {
 	if (!res.ok) {
 		const body = await res.json().catch(() => ({}))
 		if (res.status === 401) {
-			await chrome.storage.local.remove(TOKEN_KEY)
+			await chrome.storage.local.remove(CONSTANTS.STORAGE.TOKEN)
 			showTokenSetup()
 		}
 		throw { status: res.status, body }
@@ -95,7 +135,7 @@ function padTimestamp(ts) {
 }
 
 function openTab(path) {
-	chrome.tabs.create({ url: `${APP_URL}${path}` })
+	chrome.tabs.create({ url: `${CONSTANTS.API.BASE_URL}${path}` })
 }
 
 function openVideoTab(pathPrefix) {
@@ -107,20 +147,20 @@ function openVideoTab(pathPrefix) {
 
 // ── Backend ──────────────────────────────────────────────────────────────────
 async function saveNote(url, text, videoTitle, videoTimestamp) {
-	if (videoTitle === "No YouTube video found.") {
-		setMessage("No YouTube video found on this page.", "error")
+	if (videoTitle === CONSTANTS.MESSAGES.NO_VIDEO) {
+		setMessage(CONSTANTS.MESSAGES.NO_VIDEO, CONSTANTS.CLASSES.ERROR)
 		return false
 	}
 	const videoId = extractVideoId(url)
 	if (!videoId) {
-		setMessage("Invalid YouTube URL.", "error")
+		setMessage(CONSTANTS.MESSAGES.INVALID_URL, CONSTANTS.CLASSES.ERROR)
 		return false
 	}
 	if (!isValidTimestamp(videoTimestamp)) {
-		setMessage("Invalid timestamp format.", "error")
+		setMessage(CONSTANTS.MESSAGES.INVALID_TIMESTAMP, CONSTANTS.CLASSES.ERROR)
 		return false
 	}
-	await apiRequest(`/videos/${videoId}/notes`, {
+	await apiRequest(CONSTANTS.API.ENDPOINTS.NOTES(videoId), {
 		method: "POST",
 		body: JSON.stringify({ video_title: videoTitle, timestamp: videoTimestamp, text: text || null }),
 	})
@@ -129,13 +169,13 @@ async function saveNote(url, text, videoTitle, videoTimestamp) {
 
 // ── Views ────────────────────────────────────────────────────────────────────
 function showTokenSetup() {
-	$("token-setup").classList.remove("hidden")
-	$("notes-view").classList.add("hidden")
+	$(CONSTANTS.SELECTORS.TOKEN_SETUP).classList.remove(CONSTANTS.CLASSES.HIDDEN)
+	$(CONSTANTS.SELECTORS.NOTES_VIEW).classList.add(CONSTANTS.CLASSES.HIDDEN)
 }
 
 function showNotesView() {
-	$("token-setup").classList.add("hidden")
-	$("notes-view").classList.remove("hidden")
+	$(CONSTANTS.SELECTORS.TOKEN_SETUP).classList.add(CONSTANTS.CLASSES.HIDDEN)
+	$(CONSTANTS.SELECTORS.NOTES_VIEW).classList.remove(CONSTANTS.CLASSES.HIDDEN)
 }
 
 // Track AbortController to prevent duplicate listeners on re-init
@@ -146,8 +186,8 @@ async function initNotesView() {
 	const { id: tabId, url: tabURL } = tab
 
 	if (!tabURL.includes("youtube.com/watch")) {
-		setMessage("No YouTube video found on this page.", "error")
-		;["video-title", "timestamp-wrapper", "notes-textarea", "saveNotesBtn", "openSmartNotes", "openInWiz"]
+		setMessage(CONSTANTS.MESSAGES.NO_VIDEO, CONSTANTS.CLASSES.ERROR)
+		;[CONSTANTS.SELECTORS.VIDEO_TITLE, CONSTANTS.SELECTORS.TIMESTAMP_WRAPPER, CONSTANTS.SELECTORS.NOTES_TEXTAREA, CONSTANTS.SELECTORS.SAVE_BTN, CONSTANTS.SELECTORS.OPEN_SMART_NOTES, CONSTANTS.SELECTORS.OPEN_IN_WIZ]
 			.forEach((id) => setVisible(id, false))
 		return
 	}
@@ -156,19 +196,19 @@ async function initNotesView() {
 	try {
 		videoData = await chrome.tabs.sendMessage(tabId, { action: "getVideoData" })
 	} catch (e) {
-		setMessage("Please reload this YouTube page to enable the extension.", "error")
-		setVisible("video-title", false)
-		setVisible("timestamp-wrapper", false)
-		setVisible("notes-textarea", false)
-		setVisible("saveNotesBtn", false)
+		setMessage(CONSTANTS.MESSAGES.RELOAD, CONSTANTS.CLASSES.ERROR)
+		setVisible(CONSTANTS.SELECTORS.VIDEO_TITLE, false)
+		setVisible(CONSTANTS.SELECTORS.TIMESTAMP_WRAPPER, false)
+		setVisible(CONSTANTS.SELECTORS.NOTES_TEXTAREA, false)
+		setVisible(CONSTANTS.SELECTORS.SAVE_BTN, false)
 		return
 	}
 	const { title, timestamp, duration } = videoData || {}
 
-	if (title) $("video-title").textContent = title
-	const tsInput = $("current-timestamp")
-	const tsWrapper = $("timestamp-wrapper")
-	const resetBtn = $("reset-timestamp")
+	if (title) $(CONSTANTS.SELECTORS.VIDEO_TITLE).textContent = title
+	const tsInput = $(CONSTANTS.SELECTORS.CURRENT_TIMESTAMP)
+	const tsWrapper = $(CONSTANTS.SELECTORS.TIMESTAMP_WRAPPER)
+	const resetBtn = $(CONSTANTS.SELECTORS.RESET_TIMESTAMP)
 
 	const autoSize = () => { tsInput.size = Math.max(tsInput.value.length, 4) }
 	if (timestamp) tsInput.value = timestamp
@@ -183,9 +223,9 @@ async function initNotesView() {
 
 	const updateTimestampState = () => {
 		if (isValidTimestamp(tsInput.value)) {
-			tsWrapper.classList.remove("timestamp-invalid")
+			tsWrapper.classList.remove(CONSTANTS.CLASSES.INVALID)
 		} else {
-			tsWrapper.classList.add("timestamp-invalid")
+			tsWrapper.classList.add(CONSTANTS.CLASSES.INVALID)
 		}
 	}
 
@@ -244,7 +284,7 @@ async function initNotesView() {
 			}
 		} catch (error) {
 			console.error("Failed to fetch timestamp:", error)
-			setMessage("Lost connection to page. Please reload.", "error")
+			setMessage(CONSTANTS.MESSAGES.CONN_LOST, CONSTANTS.CLASSES.ERROR)
 		}
 	}, { signal })
 
@@ -255,21 +295,21 @@ async function initNotesView() {
 
 
 async function onSaveNote() {
-	const btn = $("saveNotesBtn")
-	const textarea = $("notes-textarea")
+	const btn = $(CONSTANTS.SELECTORS.SAVE_BTN)
+	const textarea = $(CONSTANTS.SELECTORS.NOTES_TEXTAREA)
 	setButtonLoading(btn, true)
 	try {
 		const [tab] = await chrome.tabs.query({ active: true, currentWindow: true })
 		const data = await chrome.tabs.sendMessage(tab.id, { action: "getVideoData" })
 		const title = data?.title
-		const success = await saveNote(tab.url, textarea.value, title, $("current-timestamp").value)
-		if (success) { setMessage("Note saved successfully!", "success"); textarea.value = "" }
+		const success = await saveNote(tab.url, textarea.value, title, $(CONSTANTS.SELECTORS.CURRENT_TIMESTAMP).value)
+		if (success) { setMessage(CONSTANTS.MESSAGES.SAVED, CONSTANTS.CLASSES.SUCCESS); textarea.value = "" }
 	} catch (err) {
 		console.error("Error saving note:", err)
-		if (err.message && err.message.includes("Could not establish connection")) {
-			setMessage("Connection lost. Please reload the page.", "error")
+		if (err.message && (err.message.includes("Could not establish connection") || err.message.includes("measure to prevent"))) {
+			setMessage(CONSTANTS.MESSAGES.CONN_LOST, CONSTANTS.CLASSES.ERROR)
 		} else {
-			setMessage(formatApiError(err), "error")
+			setMessage(formatApiError(err), CONSTANTS.CLASSES.ERROR)
 		}
 	} finally {
 		setButtonLoading(btn, false)
@@ -278,10 +318,10 @@ async function onSaveNote() {
 
 // ── Storage Listener ─────────────────────────────────────────────────────────
 chrome.storage.onChanged.addListener((changes, area) => {
-	if (area === "local" && changes[TOKEN_KEY]) {
-		const newToken = changes[TOKEN_KEY].newValue
+	if (area === "local" && changes[CONSTANTS.STORAGE.TOKEN]) {
+		const newToken = changes[CONSTANTS.STORAGE.TOKEN].newValue
 		if (newToken) {
-			setMessage("Synced with VidWiz!", "success")
+			setMessage(CONSTANTS.MESSAGES.SYNCED, CONSTANTS.CLASSES.SUCCESS)
 			showNotesView()
 			initNotesView()
 		} else {
@@ -295,16 +335,16 @@ document.addEventListener("DOMContentLoaded", async () => {
 	const token = await getAuthToken()
 	if (token) {
 		showNotesView()
-		setMessage("Welcome to VidWiz!", "success")
+		setMessage(CONSTANTS.MESSAGES.WELCOME, CONSTANTS.CLASSES.SUCCESS)
 		await initNotesView()
 	} else {
 		// If not logged in, show setup screen immediately
 		showTokenSetup()
 	}
 
-	$("saveNotesBtn").addEventListener("click", onSaveNote)
-	$("openSmartNotes").addEventListener("click", (e) => { e.preventDefault(); openVideoTab("/dashboard") })
-	$("openInWiz").addEventListener("click", (e) => { e.preventDefault(); openVideoTab("/wiz") })
-	$("goDashboard").addEventListener("click", (e) => { e.preventDefault(); openTab("/dashboard") })
-	$("goLoginFromSetup").addEventListener("click", (e) => { e.preventDefault(); openTab("/login") })
+	$(CONSTANTS.SELECTORS.SAVE_BTN).addEventListener("click", onSaveNote)
+	$(CONSTANTS.SELECTORS.OPEN_SMART_NOTES).addEventListener("click", (e) => { e.preventDefault(); openVideoTab("/dashboard") })
+	$(CONSTANTS.SELECTORS.OPEN_IN_WIZ).addEventListener("click", (e) => { e.preventDefault(); openVideoTab("/wiz") })
+	$(CONSTANTS.SELECTORS.GO_DASHBOARD).addEventListener("click", (e) => { e.preventDefault(); openTab("/dashboard") })
+	$(CONSTANTS.SELECTORS.GO_LOGIN).addEventListener("click", (e) => { e.preventDefault(); openTab("/login") })
 })

@@ -1,3 +1,19 @@
+const CONSTANTS = {
+  SELECTORS: {
+    TITLE_PRIMARY: ".title.style-scope.ytd-video-primary-info-renderer",
+    TITLE_META: 'meta[name="title"]',
+    VIDEO: "video"
+  },
+  URL: {
+    HOSTNAME_PART: "youtube.com",
+    WATCH_PATH: "/watch"
+  },
+  STRINGS: {
+    TITLE_SUFFIX: " - YouTube",
+    NO_VIDEO_FOUND: "No YouTube video found."
+  }
+};
+
 // Listen for messages from the popup
 chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
   if (request.action === "getVideoData") {
@@ -11,26 +27,55 @@ chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
   }
 });
 
+function isYouTubeWatchPage() {
+  return window.location.hostname.includes(CONSTANTS.URL.HOSTNAME_PART) && 
+         window.location.pathname === CONSTANTS.URL.WATCH_PATH;
+}
+
 function fetchVideoTitle() {
-  if (window.location.hostname.includes("youtube.com") && window.location.pathname === "/watch") {
-    const el = document.querySelector(".title.style-scope.ytd-video-primary-info-renderer")
-    return el ? el.textContent.trim() : "No YouTube video title found."
+  if (isYouTubeWatchPage()) {
+    // Try primary title element
+    const el = document.querySelector(CONSTANTS.SELECTORS.TITLE_PRIMARY)
+    if (el) return el.textContent.trim()
+    
+    // Fallback: meta tag
+    const meta = document.querySelector(CONSTANTS.SELECTORS.TITLE_META)
+    if (meta) return meta.content
+
+    // Fallback: document title (often formatted as "Video Title - YouTube")
+    return document.title.replace(CONSTANTS.STRINGS.TITLE_SUFFIX, "")
   }
-  return "No YouTube video found."
+  return CONSTANTS.STRINGS.NO_VIDEO_FOUND
 }
 
 function fetchVideoTimestamp() {
-  if (window.location.hostname.includes("youtube.com") && window.location.pathname === "/watch") {
-    const el = document.querySelector(".ytp-time-current")
-    return el ? el.textContent.trim() : null
+  if (isYouTubeWatchPage()) {
+    const video = document.querySelector(CONSTANTS.SELECTORS.VIDEO)
+    if (video) {
+        return formatTime(video.currentTime)
+    }
   }
   return null
 }
 
 function fetchVideoDuration() {
-  if (window.location.hostname.includes("youtube.com") && window.location.pathname === "/watch") {
-    const el = document.querySelector(".ytp-time-duration")
-    return el ? el.textContent.trim() : null
+  if (isYouTubeWatchPage()) {
+    const video = document.querySelector(CONSTANTS.SELECTORS.VIDEO)
+    if (video) {
+        return formatTime(video.duration)
+    }
   }
   return null
+}
+
+function formatTime(seconds) {
+    if (isNaN(seconds)) return null
+    const h = Math.floor(seconds / 3600)
+    const m = Math.floor((seconds % 3600) / 60)
+    const s = Math.floor(seconds % 60)
+    
+    if (h > 0) {
+        return `${h}:${m.toString().padStart(2, '0')}:${s.toString().padStart(2, '0')}`
+    }
+    return `${m}:${s.toString().padStart(2, '0')}`
 }
