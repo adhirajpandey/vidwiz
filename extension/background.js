@@ -7,8 +7,7 @@ const CONSTANTS = {
     LOGOUT: "LOGOUT"
   },
   ORIGINS: {
-    PROD: "https://vidwiz.online",
-    DEV: "http://localhost:5173"
+    PROD: "https://vidwiz.online"
   }
 };
 
@@ -19,7 +18,7 @@ chrome.runtime.onMessageExternal.addListener((message, sender, sendResponse) => 
   // We use "activeTab" to inject scripts/styles only when the user interacts with the extension.
   // We use "storage" to persist the authentication token.
   
-  if (sender.url && (sender.url.startsWith(CONSTANTS.ORIGINS.PROD) || sender.url.startsWith(CONSTANTS.ORIGINS.DEV))) {
+  if (sender.url && sender.url.startsWith(CONSTANTS.ORIGINS.PROD)) {
     
     if (message.type === CONSTANTS.MESSAGES.SYNC_TOKEN) {
       const { token } = message;

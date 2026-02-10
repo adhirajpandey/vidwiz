@@ -29,8 +29,7 @@
   ],
   "externally_connectable": {
     "matches": [
-      "https://vidwiz.online/*",
-      "http://localhost:5173/*"
+      "https://vidwiz.online/*"
     ]
   }
 }
