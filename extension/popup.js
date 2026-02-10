@@ -1,27 +1,121 @@
-const AppURL = "https://vidwiz.online"
-const ApiURL = "https://api.vidwiz.online/v2"
+// ============================================================================
+// CONFIG
+// ============================================================================
 
-// Get token from localStorage (will be null if not set)
-function getAuthToken() {
-	return localStorage.getItem("notes-token")
+const APP_URL = "https://vidwiz.online"
+const API_URL = "https://api.vidwiz.online/v2"
+const TOKEN_KEY = "notes-token"
+
+// ============================================================================
+// DOM HELPERS
+// ============================================================================
+
+const $ = (id) => document.getElementById(id)
+
+function setMessage(message, type) {
+	const el = $("feedback-message")
+	if (!el) return
+
+	el.textContent = message
+	el.classList.remove("error", "success")
+
+	if (type === "error") {
+		el.classList.add("error")
+	} else if (type === "success") {
+		el.classList.add("success")
+	}
 }
+
+function setVisible(id, visible) {
+	const el = $(id)
+	if (el) el.style.display = visible ? "" : "none"
+}
+
+function setButtonLoading(btn, loading) {
+	btn.disabled = loading
+	btn.dataset.originalText = btn.dataset.originalText || btn.textContent
+	btn.textContent = loading ? "Saving..." : btn.dataset.originalText
+}
+
+// ============================================================================
+// TOKEN STORAGE (chrome.storage.local)
+// ============================================================================
+
+async function getAuthToken() {
+	const result = await chrome.storage.local.get(TOKEN_KEY)
+	return result[TOKEN_KEY] || null
+}
+
+async function setAuthToken(token) {
+	await chrome.storage.local.set({ [TOKEN_KEY]: token })
+}
+
+// ============================================================================
+// API CLIENT
+// ============================================================================
+
+/**
+ * Make an authenticated API request.
+ * Returns parsed JSON on success, throws on error.
+ */
+async function apiRequest(path, options = {}) {
+	const token = await getAuthToken()
+
+	const res = await fetch(`${API_URL}${path}`, {
+		...options,
+		headers: {
+			"Content-Type": "application/json",
+			Authorization: `Bearer ${token}`,
+			...options.headers,
+		},
+	})
+
+	if (!res.ok) {
+		const body = await res.json().catch(() => ({}))
+
+		// Auto-clear token on auth failure so user can re-enter
+		if (res.status === 401) {
+			await chrome.storage.local.remove(TOKEN_KEY)
+			showTokenSetup()
+		}
+
+		throw { status: res.status, body }
+	}
+
+	return res.json()
+}
+
+/** Map API error to user-friendly message */
+function formatApiError(err) {
+	if (err.status === 401) return "Authentication failed. Please check your token."
+	if (err.status === 403) return "Access denied. Please check your permissions."
+	if (err.status === 404) return "Resource not found."
+	if (err.status === 422) {
+		const details = err.body?.detail
+		if (Array.isArray(details)) {
+			return details.map((d) => d.msg).join("; ")
+		}
+		return "Invalid data. Please check your input."
+	}
+	if (err.status === 500) return "Server error. Please try again later."
+	return err.body?.error || `HTTP error: ${err.status}`
+}
+
+// ============================================================================
+// YOUTUBE PAGE SCRIPTS (injected into the active tab)
+// ============================================================================
 
 function fetchVideoTitle() {
 	if (
 		window.location.hostname === "www.youtube.com" &&
 		window.location.pathname === "/watch"
 	) {
-		const titleElement = document.querySelector(
+		const titleEl = document.querySelector(
 			".title.style-scope.ytd-video-primary-info-renderer"
 		)
-		if (titleElement) {
-			return titleElement.textContent.trim()
-		} else {
-			return "No YouTube video title found."
-		}
-	} else {
-		return "No YouTube video found."
+		return titleEl ? titleEl.textContent.trim() : "No YouTube video title found."
 	}
+	return "No YouTube video found."
 }
 
 function fetchVideoTimestamp() {
@@ -29,325 +123,201 @@ function fetchVideoTimestamp() {
 		window.location.hostname === "www.youtube.com" &&
 		window.location.pathname === "/watch"
 	) {
-		const timestampElement = document.querySelector(".ytp-time-current")
-		if (timestampElement) {
-			return timestampElement.textContent
-		} else {
-			return "Timestamp element not found."
-		}
-	} else {
-		return "Not on a YouTube video page."
+		const timestampEl = document.querySelector(".ytp-time-current")
+		return timestampEl ? timestampEl.textContent : "Timestamp element not found."
+	}
+	return "Not on a YouTube video page."
+}
+
+// ============================================================================
+// YOUTUBE HELPERS
+// ============================================================================
+
+function extractVideoId(url) {
+	try {
+		return new URL(url).searchParams.get("v")
+	} catch {
+		return null
 	}
 }
 
-function validateTimestamp(timestamp) {
-	if (!timestamp || typeof timestamp !== 'string') {
+function isValidTimestamp(timestamp) {
+	if (!timestamp || typeof timestamp !== "string") return false
+	return timestamp.includes(":") && (timestamp.match(/\d/g) || []).length >= 2
+}
+
+function executeOnTab(tabId, fn) {
+	return new Promise((resolve) => {
+		chrome.scripting.executeScript(
+			{ target: { tabId }, function: fn },
+			(results) => resolve(results?.[0]?.result ?? null)
+		)
+	})
+}
+
+// ============================================================================
+// BACKEND API ACTIONS
+// ============================================================================
+
+
+
+async function saveNote(url, text, videoTitle, videoTimestamp) {
+	if (videoTitle === "No YouTube video found.") {
+		setMessage("No YouTube video found on this page.", "error")
 		return false
 	}
-	// Check if timestamp contains at least one ':' and two numbers
-	return timestamp.includes(':') && (timestamp.match(/\d/g) || []).length >= 2
-}
 
-function saveNotesToBackend(url, notes, videoTitle, videoTimestamp) {
-	const AUTH_TOKEN = getAuthToken()
-	
-	if (videoTitle === "No YouTube video found.") {
-		setMessage("No YouTube video found on this page. Notes not saved.")
-		return
-	}
-
-	// Extract video ID from YouTube URL
-	const videoId = new URL(url).searchParams.get("v")
+	const videoId = extractVideoId(url)
 	if (!videoId) {
-		setMessage("Invalid YouTube URL. Notes not saved.", "red")
-		return
+		setMessage("Invalid YouTube URL.", "error")
+		return false
 	}
 
-	// Validate timestamp format
-	if (!validateTimestamp(videoTimestamp)) {
-		setMessage("Invalid timestamp format. Notes not saved.", "red")
-		return
+	if (!isValidTimestamp(videoTimestamp)) {
+		setMessage("Invalid timestamp format.", "error")
+		return false
 	}
 
-	const apiEndpoint = `${ApiURL}/videos/${videoId}/notes`
-
-	const noteData = {
-		video_title: videoTitle,
-		timestamp: videoTimestamp,
-		text: notes || null // Ensure text is null if empty
-	}
-
-	fetch(apiEndpoint, {
+	await apiRequest(`/videos/${videoId}/notes`, {
 		method: "POST",
-		headers: {
-			"Content-Type": "application/json",
-			"Authorization": `Bearer ${AUTH_TOKEN}`
-		},
-		body: JSON.stringify(noteData)
+		body: JSON.stringify({
+			video_title: videoTitle,
+			timestamp: videoTimestamp,
+			text: text || null,
+		}),
 	})
-		.then(response => {
-			if (!response.ok) {
-				return response.json().then(err => {
-					let errorMessage = "Error saving notes. ";
-					switch (response.status) {
-						case 401:
-							errorMessage += "Authentication failed. Please check your token.";
-							break;
-						case 403:
-							errorMessage += "Access denied. Please check your permissions.";
-							break;
-						case 404:
-							errorMessage += "Resource not found.";
-							break;
-						case 500:
-							errorMessage += "Server error. Please try again later.";
-							break;
-						default:
-							errorMessage += err.error || `HTTP error! status: ${response.status}`;
-					}
-					throw new Error(errorMessage);
-				})
-			}
-			return response.json()
-		})
-		.then(data => {
-			setMessage("Note saved successfully!", "green")
-		})
-		.catch(error => {
-			console.error("Error saving notes:", error)
-			setMessage(error.message || "Error saving notes. Please check your authentication token.", "red")
-		})
+
+	return true
 }
 
-function checkNotesExistence(url) {
-	const AUTH_TOKEN = getAuthToken()
-	const videoId = new URL(url).searchParams.get("v")
-	if (!videoId) {
-		return Promise.reject("Invalid YouTube URL")
-	}
+// ============================================================================
+// VIEW MANAGEMENT
+// ============================================================================
 
-	const apiEndpoint = `${ApiURL}/videos/${videoId}/notes`
-
-	return fetch(apiEndpoint, {
-		method: "GET",
-		headers: {
-			"Authorization": `Bearer ${AUTH_TOKEN}`
-		}
-	})
-		.then(response => {
-			if (response.status === 404) {
-				return false
-			}
-			if (!response.ok) {
-				throw new Error(`HTTP error! status: ${response.status}`)
-			}
-			return response.json()
-		})
-		.then(data => {
-			return Array.isArray(data) && data.length > 0
-		})
-		.catch(error => {
-			console.error("Error checking notes:", error)
-			setMessage("Error checking notes. Please check your authentication token.", "red")
-			return false
-		})
+function showTokenSetup() {
+	$("token-setup").classList.remove("hidden")
+	$("notes-view").classList.add("hidden")
 }
 
-function setMessage(message, type) {
-	const el = document.getElementById("feedback-message")
-	if (!el) return
-	el.textContent = message
-	el.classList.remove("error", "success")
-	if (type === "red" || type === "error") {
-		el.classList.add("error")
-	} else if (type === "green" || type === "success") {
-		el.classList.add("success")
-	}
+function showNotesView() {
+	$("token-setup").classList.add("hidden")
+	$("notes-view").classList.remove("hidden")
 }
 
-// Show/hide views based on token presence
-function updateViewState() {
-	const tokenSetup = document.getElementById("token-setup")
-	const notesView = document.getElementById("notes-view")
-	const hasToken = !!getAuthToken()
-	
-	if (hasToken) {
-		tokenSetup.classList.add("hidden")
-		notesView.classList.remove("hidden")
-	} else {
-		tokenSetup.classList.remove("hidden")
-		notesView.classList.add("hidden")
-	}
-	
-	return hasToken
-}
+async function initNotesView() {
+	const [tab] = await chrome.tabs.query({ active: true, currentWindow: true })
+	const { id: tabId, url: tabURL } = tab
 
-document.addEventListener("DOMContentLoaded", function() {
-	// Check if token exists and show appropriate view
-	const hasToken = updateViewState()
-	
-	if (!hasToken) {
-		// Token setup view is shown, no need to do anything else
+	if (!tabURL.includes("youtube.com/watch")) {
+		setMessage("No YouTube video found on this page.", "error")
+		;["video-title", "current-timestamp", "notes-textarea", "saveNotesBtn", "openSmartNotes", "openInWiz"]
+			.forEach((id) => setVisible(id, false))
 		return
 	}
-	
-	// Set welcome message for notes view
-	setMessage("Welcome to VidWiz!", "black")
 
-	chrome.tabs.query({active: true, currentWindow: true}, function(tabs) {
-		const tabId = tabs[0].id
-		const tabURL = tabs[0].url
+	const title = await executeOnTab(tabId, fetchVideoTitle)
+	if (title) $("video-title").textContent = title
 
-		// Check if we're on a YouTube video page
-		if (!tabURL.includes("youtube.com/watch")) {
-			setMessage("No YouTube video found on this page.", "red")
-			document.getElementById("video-title").style.display = "none"
-			document.getElementById("current-timestamp").style.display = "none"
-			document.getElementById("notes-textarea").style.display = "none"
-			document.getElementById("saveNotesBtn").style.display = "none"
-			document.getElementById("viewNotes").style.display = "none"
-			return
-		}
+	const timestamp = await executeOnTab(tabId, fetchVideoTimestamp)
+	if (timestamp) $("current-timestamp").textContent = timestamp
+}
 
-		chrome.scripting.executeScript(
-			{
-				target: {tabId: tabId},
-				function: fetchVideoTitle,
-			},
-			function(results) {
-				if (results && results[0]) {
-					document.getElementById("video-title").textContent = results[0].result
-				}
-			}
-		)
+// ============================================================================
+// EVENT HANDLERS
+// ============================================================================
 
-		chrome.scripting.executeScript(
-			{
-				target: {tabId: tabId},
-				function: fetchVideoTimestamp,
-			},
-			function(results) {
-				if (results && results[0]) {
-					document.getElementById("current-timestamp").textContent = results[0].result
-				}
-			}
-		)
-	})
-})
+async function onSaveToken() {
+	const input = $("token-input")
+	const token = input.value.trim()
 
-// Save token button handler
-document.getElementById("saveTokenBtn").addEventListener("click", function() {
-	const tokenInput = document.getElementById("token-input")
-	const token = tokenInput.value.trim()
-	
 	if (!token) {
-		tokenInput.style.borderColor = "rgba(239, 68, 68, 0.5)"
-		tokenInput.placeholder = "Please enter a valid token..."
+		input.style.borderColor = "rgba(239, 68, 68, 0.5)"
+		input.placeholder = "Please enter a valid token..."
 		return
 	}
-	
-	// Save token to localStorage
-	localStorage.setItem("notes-token", token)
-	
-	// Update view state to show notes view
-	updateViewState()
-	
-	// Set welcome message
-	setMessage("Token saved! Welcome to VidWiz!", "green")
-	
-	// Initialize the notes view
-	chrome.tabs.query({active: true, currentWindow: true}, function(tabs) {
-		const tabId = tabs[0].id
-		const tabURL = tabs[0].url
 
-		if (!tabURL.includes("youtube.com/watch")) {
-			setMessage("No YouTube video found on this page.", "red")
-			document.getElementById("video-title").style.display = "none"
-			document.getElementById("current-timestamp").style.display = "none"
-			document.getElementById("notes-textarea").style.display = "none"
-			document.getElementById("saveNotesBtn").style.display = "none"
-			document.getElementById("viewNotes").style.display = "none"
-			return
+	await setAuthToken(token)
+	showNotesView()
+	setMessage("Token saved! Welcome to VidWiz!", "success")
+	await initNotesView()
+}
+
+async function onSaveNote() {
+	const btn = $("saveNotesBtn")
+	const textarea = $("notes-textarea")
+
+	setButtonLoading(btn, true)
+
+	try {
+		const [tab] = await chrome.tabs.query({ active: true, currentWindow: true })
+		const { id: tabId, url: tabURL } = tab
+
+		const title = await executeOnTab(tabId, fetchVideoTitle)
+		const timestamp = await executeOnTab(tabId, fetchVideoTimestamp)
+		const text = textarea.value
+
+		const success = await saveNote(tabURL, text, title, timestamp)
+		if (success) {
+			setMessage("Note saved successfully!", "success")
+			textarea.value = ""
 		}
+	} catch (err) {
+		console.error("Error saving note:", err)
+		setMessage(formatApiError(err), "error")
+	} finally {
+		setButtonLoading(btn, false)
+	}
+}
 
-		chrome.scripting.executeScript(
-			{
-				target: {tabId: tabId},
-				function: fetchVideoTitle,
-			},
-			function(results) {
-				if (results && results[0]) {
-					document.getElementById("video-title").textContent = results[0].result
-				}
-			}
-		)
-
-		chrome.scripting.executeScript(
-			{
-				target: {tabId: tabId},
-				function: fetchVideoTimestamp,
-			},
-			function(results) {
-				if (results && results[0]) {
-					document.getElementById("current-timestamp").textContent = results[0].result
-				}
-			}
-		)
-	})
-})
-
-// Go to profile from token setup
-document.getElementById("goLoginFromSetup").addEventListener("click", function(e) {
+function onOpenSmartNotes(e) {
 	e.preventDefault()
-	const profileURL = `${AppURL}/profile`
-	chrome.tabs.create({ url: profileURL })
-})
-
-// Save notes button handler
-document.getElementById("saveNotesBtn").addEventListener("click", function () {
-	chrome.tabs.query({ active: true, currentWindow: true }, function (tabs) {
-		const tabURL = tabs[0].url
-
-		chrome.scripting.executeScript(
-			{
-				target: { tabId: tabs[0].id },
-				function: fetchVideoTitle,
-			},
-			function (titleResults) {
-				chrome.scripting.executeScript(
-					{
-						target: { tabId: tabs[0].id },
-						function: fetchVideoTimestamp,
-					},
-					function (timestampResults) {
-						const notes = document.getElementById("notes-textarea").value
-						saveNotesToBackend(
-							tabURL,
-							notes,
-							titleResults[0].result,
-							timestampResults[0].result
-						)
-					}
-				)
-			}
-		)
-	})
-})
-
-document.getElementById("viewNotes").addEventListener("click", function(e) {
-	e.preventDefault();
-	chrome.tabs.query({ active: true, currentWindow: true }, function (tabs) {
-		const tabURL = tabs[0].url;
-		const videoId = new URL(tabURL).searchParams.get("v");
+	chrome.tabs.query({ active: true, currentWindow: true }, (tabs) => {
+		const videoId = extractVideoId(tabs[0].url)
 		if (videoId) {
-			const viewNotesURL = `${AppURL}/dashboard/${videoId}`;
-			chrome.tabs.create({ url: viewNotesURL });
+			chrome.tabs.create({ url: `${APP_URL}/dashboard/${videoId}` })
 		}
-	});
-});
+	})
+}
 
-document.getElementById("goDashboard").addEventListener("click", function(e) {
-	e.preventDefault();
-	const dashboardURL = `${AppURL}/dashboard`;
-	chrome.tabs.create({ url: dashboardURL });
-});
+function onOpenInWiz(e) {
+	e.preventDefault()
+	chrome.tabs.query({ active: true, currentWindow: true }, (tabs) => {
+		const videoId = extractVideoId(tabs[0].url)
+		if (videoId) {
+			chrome.tabs.create({ url: `${APP_URL}/wiz/${videoId}` })
+		}
+	})
+}
+
+function onDashboard(e) {
+	e.preventDefault()
+	chrome.tabs.create({ url: `${APP_URL}/dashboard` })
+}
+
+function onGetToken(e) {
+	e.preventDefault()
+	chrome.tabs.create({ url: `${APP_URL}/profile` })
+}
+
+// ============================================================================
+// INIT
+// ============================================================================
+
+document.addEventListener("DOMContentLoaded", async () => {
+	const token = await getAuthToken()
+
+	if (token) {
+		showNotesView()
+		setMessage("Welcome to VidWiz!", "success")
+		await initNotesView()
+	} else {
+		showTokenSetup()
+	}
+
+	$("saveTokenBtn").addEventListener("click", onSaveToken)
+	$("saveNotesBtn").addEventListener("click", onSaveNote)
+	$("openSmartNotes").addEventListener("click", onOpenSmartNotes)
+	$("openInWiz").addEventListener("click", onOpenInWiz)
+	$("goDashboard").addEventListener("click", onDashboard)
+	$("goLoginFromSetup").addEventListener("click", onGetToken)
+})

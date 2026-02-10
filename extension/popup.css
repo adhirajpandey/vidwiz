@@ -22,7 +22,7 @@ body {
   padding: 20px;
   background: rgba(255, 255, 255, 0.02);
   border: 1px solid rgba(255, 255, 255, 0.08);
-  border-radius: 16px;
+  border-radius: 0;
   backdrop-filter: blur(20px);
   -webkit-backdrop-filter: blur(20px);
   box-shadow: 
@@ -234,6 +234,20 @@ body {
   border-color: rgba(239, 68, 68, 0.2);
 }
 
+/* Wiz-themed link — violet gradient matching frontend */
+.link-wiz {
+  color: #a78bfa;
+  background: rgba(139, 92, 246, 0.1);
+  border-color: rgba(139, 92, 246, 0.2);
+}
+
+.link-wiz:hover {
+  color: #c4b5fd;
+  background: rgba(139, 92, 246, 0.18);
+  border-color: rgba(139, 92, 246, 0.35);
+  box-shadow: 0 0 16px -4px rgba(139, 92, 246, 0.3);
+}
+
 /* Hidden state for non-YouTube pages */
 .hidden {
   display: none !important;
@@ -334,4 +348,10 @@ body {
 .notes-view {
   position: relative;
   z-index: 1;
+}
+
+/* Icon-only link (e.g. home/dashboard) */
+.link-icon {
+  padding: 8px;
+  flex-shrink: 0;
 }
