@@ -4,7 +4,7 @@
 
 const APP_URL = "https://vidwiz.online"
 const API_URL = "https://api.vidwiz.online/v2"
-const TOKEN_KEY = "notes-token"
+const TOKEN_KEY = "token"
 
 // ============================================================================
 // DOM HELPERS
@@ -87,7 +87,7 @@ async function apiRequest(path, options = {}) {
 
 /** Map API error to user-friendly message */
 function formatApiError(err) {
-	if (err.status === 401) return "Authentication failed. Please check your token."
+	if (err.status === 401) return "Authentication failed. Please check your API token."
 	if (err.status === 403) return "Access denied. Please check your permissions."
 	if (err.status === 404) return "Resource not found."
 	if (err.status === 422) {
@@ -232,13 +232,13 @@ async function onSaveToken() {
 
 	if (!token) {
 		input.style.borderColor = "rgba(239, 68, 68, 0.5)"
-		input.placeholder = "Please enter a valid token..."
+		input.placeholder = "Please enter a valid API token..."
 		return
 	}
 
 	await setAuthToken(token)
 	showNotesView()
-	setMessage("Token saved! Welcome to VidWiz!", "success")
+	setMessage("API token saved! Welcome to VidWiz!", "success")
 	await initNotesView()
 }
 
