@@ -65,46 +65,14 @@ function formatApiError(err) {
 	return messages[err.status] || err.body?.error || `HTTP error: ${err.status}`
 }
 
-// ── YouTube Tab Scripts (injected via chrome.scripting) ──────────────────────
-// These run inside the YouTube tab, NOT in popup context — must be self-contained
-
-function fetchVideoTitle() {
-	if (window.location.hostname === "www.youtube.com" && window.location.pathname === "/watch") {
-		const el = document.querySelector(".title.style-scope.ytd-video-primary-info-renderer")
-		return el ? el.textContent.trim() : "No YouTube video title found."
-	}
-	return "No YouTube video found."
-}
-
-function fetchVideoTimestamp() {
-	if (window.location.hostname === "www.youtube.com" && window.location.pathname === "/watch") {
-		const el = document.querySelector(".ytp-time-current")
-		return el ? el.textContent.trim() : null
-	}
-	return null
-}
-
-function fetchVideoDuration() {
-	if (window.location.hostname === "www.youtube.com" && window.location.pathname === "/watch") {
-		const el = document.querySelector(".ytp-time-duration")
-		return el ? el.textContent.trim() : null
-	}
-	return null
-}
+// ── Content Script Communication ──────────────────────────────────────────────
 
 // ── Helpers ──────────────────────────────────────────────────────────────────
 function extractVideoId(url) {
 	try { return new URL(url).searchParams.get("v") } catch { return null }
 }
 
-function executeOnTab(tabId, fn) {
-	return new Promise((resolve) => {
-		chrome.scripting.executeScript(
-			{ target: { tabId }, function: fn },
-			(results) => resolve(results?.[0]?.result ?? null)
-		)
-	})
-}
+
 
 function timestampToSeconds(ts) {
 	if (!isValidTimestamp(ts)) return NaN
@@ -184,11 +152,20 @@ async function initNotesView() {
 		return
 	}
 
-	const title = await executeOnTab(tabId, fetchVideoTitle)
-	if (title) $("video-title").textContent = title
+	let videoData = { title: null, timestamp: null, duration: null }
+	try {
+		videoData = await chrome.tabs.sendMessage(tabId, { action: "getVideoData" })
+	} catch (e) {
+		setMessage("Please reload this YouTube page to enable the extension.", "error")
+		setVisible("video-title", false)
+		setVisible("timestamp-wrapper", false)
+		setVisible("notes-textarea", false)
+		setVisible("saveNotesBtn", false)
+		return
+	}
+	const { title, timestamp, duration } = videoData || {}
 
-	const timestamp = await executeOnTab(tabId, fetchVideoTimestamp)
-	const duration = await executeOnTab(tabId, fetchVideoDuration)
+	if (title) $("video-title").textContent = title
 	const tsInput = $("current-timestamp")
 	const tsWrapper = $("timestamp-wrapper")
 	const resetBtn = $("reset-timestamp")
@@ -257,12 +234,17 @@ async function initNotesView() {
 
 	// Reset to current video playback time
 	resetBtn.addEventListener("click", async () => {
-		const current = await executeOnTab(tabId, fetchVideoTimestamp)
-		if (current) {
-			tsInput.value = current
-			lastValid = current
-			updateTimestampState()
-			autoSize()
+		try {
+			const current = await chrome.tabs.sendMessage(tabId, { action: "getVideoTimestamp" })
+			if (current) {
+				tsInput.value = current
+				lastValid = current
+				updateTimestampState()
+				autoSize()
+			}
+		} catch (error) {
+			console.error("Failed to fetch timestamp:", error)
+			setMessage("Lost connection to page. Please reload.", "error")
 		}
 	}, { signal })
 
@@ -270,19 +252,7 @@ async function initNotesView() {
 }
 
 // ── Event Handlers ───────────────────────────────────────────────────────────
-async function onSaveToken() {
-	const input = $("token-input")
-	const token = input.value.trim()
-	if (!token) {
-		input.style.borderColor = "rgba(239, 68, 68, 0.5)"
-		input.placeholder = "Please enter a valid API token..."
-		return
-	}
-	await setAuthToken(token)
-	showNotesView()
-	setMessage("API token saved! Welcome to VidWiz!", "success")
-	await initNotesView()
-}
+
 
 async function onSaveNote() {
 	const btn = $("saveNotesBtn")
@@ -290,16 +260,35 @@ async function onSaveNote() {
 	setButtonLoading(btn, true)
 	try {
 		const [tab] = await chrome.tabs.query({ active: true, currentWindow: true })
-		const title = await executeOnTab(tab.id, fetchVideoTitle)
+		const data = await chrome.tabs.sendMessage(tab.id, { action: "getVideoData" })
+		const title = data?.title
 		const success = await saveNote(tab.url, textarea.value, title, $("current-timestamp").value)
 		if (success) { setMessage("Note saved successfully!", "success"); textarea.value = "" }
 	} catch (err) {
 		console.error("Error saving note:", err)
-		setMessage(formatApiError(err), "error")
+		if (err.message && err.message.includes("Could not establish connection")) {
+			setMessage("Connection lost. Please reload the page.", "error")
+		} else {
+			setMessage(formatApiError(err), "error")
+		}
 	} finally {
 		setButtonLoading(btn, false)
 	}
 }
+
+// ── Storage Listener ─────────────────────────────────────────────────────────
+chrome.storage.onChanged.addListener((changes, area) => {
+	if (area === "local" && changes[TOKEN_KEY]) {
+		const newToken = changes[TOKEN_KEY].newValue
+		if (newToken) {
+			setMessage("Synced with VidWiz!", "success")
+			showNotesView()
+			initNotesView()
+		} else {
+			showTokenSetup()
+		}
+	}
+})
 
 // ── Init ─────────────────────────────────────────────────────────────────────
 document.addEventListener("DOMContentLoaded", async () => {
@@ -309,13 +298,13 @@ document.addEventListener("DOMContentLoaded", async () => {
 		setMessage("Welcome to VidWiz!", "success")
 		await initNotesView()
 	} else {
+		// If not logged in, show setup screen immediately
 		showTokenSetup()
 	}
 
-	$("saveTokenBtn").addEventListener("click", onSaveToken)
 	$("saveNotesBtn").addEventListener("click", onSaveNote)
 	$("openSmartNotes").addEventListener("click", (e) => { e.preventDefault(); openVideoTab("/dashboard") })
 	$("openInWiz").addEventListener("click", (e) => { e.preventDefault(); openVideoTab("/wiz") })
 	$("goDashboard").addEventListener("click", (e) => { e.preventDefault(); openTab("/dashboard") })
-	$("goLoginFromSetup").addEventListener("click", (e) => { e.preventDefault(); openTab("/profile") })
+	$("goLoginFromSetup").addEventListener("click", (e) => { e.preventDefault(); openTab("/login") })
 })

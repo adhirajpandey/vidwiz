@@ -16,6 +16,21 @@
       "128": "icons/icon128.png"
     }
   },
-  "permissions": ["activeTab", "storage", "scripting"],
-  "host_permissions": ["https://*.youtube.com/*", "https://api.vidwiz.online/*"]
+  "permissions": ["activeTab", "storage"],
+  "host_permissions": ["https://*.youtube.com/*", "https://api.vidwiz.online/*"],
+  "background": {
+    "service_worker": "background.js"
+  },
+  "content_scripts": [
+    {
+      "matches": ["https://*.youtube.com/*"],
+      "js": ["content.js"]
+    }
+  ],
+  "externally_connectable": {
+    "matches": [
+      "https://vidwiz.online/*",
+      "http://localhost:5173/*"
+    ]
+  }
 }

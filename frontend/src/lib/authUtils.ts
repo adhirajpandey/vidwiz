@@ -2,6 +2,9 @@
  * Authentication utility functions
  * Centralized token management with expiration validation
  */
+import config from '../config';
+
+
 
 export interface TokenPayload {
   user_id: number;
@@ -74,7 +77,7 @@ export function getToken(): string | null {
     // Check if token is expired
     if (isTokenExpired(token)) {
       // Remove expired token
-      localStorage.removeItem('token');
+      removeToken();
       return null;
     }
 
@@ -126,6 +129,17 @@ export function getUserFromToken(): { email?: string; name?: string; profile_ima
 export function removeToken(): void {
   try {
     localStorage.removeItem('token');
+    
+    // Sync logout with extension
+    if (typeof chrome !== 'undefined' && chrome.runtime && chrome.runtime.sendMessage) {
+      chrome.runtime.sendMessage(config.EXTENSION_ID, { type: 'LOGOUT' }, (response) => {
+        if (chrome.runtime.lastError) {
+           // Extension not installed or not listening, ignore
+           console.debug("Extension not reachable for logout sync:", chrome.runtime.lastError.message);
+        }
+      });
+    }
+
   } catch (error) {
     console.error('Error removing token from localStorage', error);
   }
@@ -138,6 +152,17 @@ export function removeToken(): void {
 export function setToken(token: string): void {
   try {
     localStorage.setItem('token', token);
+
+    // Sync login with extension
+    if (typeof chrome !== 'undefined' && chrome.runtime && chrome.runtime.sendMessage) {
+        chrome.runtime.sendMessage(config.EXTENSION_ID, { type: 'SYNC_TOKEN', token }, (response) => {
+            if (chrome.runtime.lastError) {
+                // Extension not installed or not listening, ignore
+                console.debug("Extension not reachable for token sync:", chrome.runtime.lastError.message);
+            }
+        });
+    }
+
   } catch (error) {
     console.error('Error setting token in localStorage', error);
   }
