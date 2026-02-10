@@ -17,5 +17,5 @@
     }
   },
   "permissions": ["activeTab", "storage", "scripting"],
-  "host_permissions": ["<all_urls>"]
+  "host_permissions": ["https://*.youtube.com/*", "https://api.vidwiz.online/*"]
 }
