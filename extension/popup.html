@@ -31,7 +31,16 @@
         <div id="notes-view" class="notes-view hidden">
             <div id="feedback-message"></div>
             <div id="video-title" class="video-title">Video Title</div>
-            <div id="current-timestamp" class="timestamp">0:00</div>
+            <div id="timestamp-wrapper" class="timestamp-wrapper">
+                <span class="timestamp-label">⏱</span>
+                <input type="text" id="current-timestamp" class="timestamp" value="0:00" placeholder="0:00" />
+                <button id="reset-timestamp" class="timestamp-reset" title="Reset to current video time">
+                    <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+                        <polyline points="1 4 1 10 7 10"></polyline>
+                        <path d="M3.51 15a9 9 0 1 0 2.13-9.36L1 10"></path>
+                    </svg>
+                </button>
+            </div>
             <textarea id="notes-textarea" class="note-textarea" placeholder="Write a note..."></textarea>
             <button id="saveNotesBtn" class="save-btn">Save Note</button>
             <div class="links-row">
