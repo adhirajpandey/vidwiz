@@ -22,7 +22,7 @@ body {
   padding: 20px;
   background: rgba(255, 255, 255, 0.02);
   border: 1px solid rgba(255, 255, 255, 0.08);
-  border-radius: 16px;
+  border-radius: 0;
   backdrop-filter: blur(20px);
   -webkit-backdrop-filter: blur(20px);
   box-shadow: 
@@ -110,32 +110,85 @@ body {
   -webkit-user-select: none;
 }
 
-/* Timestamp display */
-.timestamp {
+/* Timestamp editable group */
+.timestamp-wrapper {
   position: relative;
   z-index: 1;
   display: inline-flex;
   align-items: center;
-  gap: 8px;
-  padding: 8px 14px;
-  margin-bottom: 16px;
-  font-size: 18px;
+  gap: 4px;
+  padding: 4px 10px;
+  margin-bottom: 12px;
+  background: rgba(239, 68, 68, 0.08);
+  border: 1px dashed rgba(239, 68, 68, 0.25);
+  border-radius: 8px;
+  cursor: text;
+  transition: all 0.3s ease;
+}
+
+.timestamp-wrapper:hover,
+.timestamp-wrapper:focus-within {
+  border-style: solid;
+  border-color: rgba(239, 68, 68, 0.4);
+  background: rgba(239, 68, 68, 0.12);
+}
+
+.timestamp-wrapper:focus-within {
+  box-shadow: 0 0 0 3px rgba(239, 68, 68, 0.1);
+}
+
+.timestamp-label {
+  font-size: 13px;
+  line-height: 1;
+}
+
+.timestamp {
+  background: none;
+  border: none;
+  outline: none;
+  font-size: 16px;
   font-weight: 700;
   font-feature-settings: "tnum";
   font-variant-numeric: tabular-nums;
+  font-family: inherit;
   color: #f87171;
-  background: rgba(239, 68, 68, 0.1);
-  border: 1px solid rgba(239, 68, 68, 0.2);
-  border-radius: 10px;
-  cursor: default;
-  user-select: none;
-  -webkit-user-select: none;
+  padding: 2px 0;
+  min-width: 0;
 }
 
-.timestamp::before {
-  content: '▶';
-  font-size: 10px;
+/* Invalid timestamp visual feedback */
+.timestamp-wrapper.timestamp-invalid {
+  border-color: rgba(251, 191, 36, 0.5);
+  background: rgba(251, 191, 36, 0.08);
 }
+
+.timestamp-wrapper.timestamp-invalid:focus-within {
+  box-shadow: 0 0 0 3px rgba(251, 191, 36, 0.12);
+}
+
+.timestamp-wrapper.timestamp-invalid .timestamp {
+  color: #fbbf24;
+}
+
+/* Reset timestamp button */
+.timestamp-reset {
+  background: none;
+  border: none;
+  color: rgba(255, 255, 255, 0.4);
+  cursor: pointer;
+  padding: 2px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 4px;
+  transition: all 0.2s ease;
+}
+
+.timestamp-reset:hover {
+  color: #f87171;
+  background: rgba(239, 68, 68, 0.15);
+}
+
 
 /* Note textarea */
 .note-textarea {
@@ -234,6 +287,20 @@ body {
   border-color: rgba(239, 68, 68, 0.2);
 }
 
+/* Wiz-themed link — violet gradient matching frontend */
+.link-wiz {
+  color: #a78bfa;
+  background: rgba(139, 92, 246, 0.1);
+  border-color: rgba(139, 92, 246, 0.2);
+}
+
+.link-wiz:hover {
+  color: #c4b5fd;
+  background: rgba(139, 92, 246, 0.18);
+  border-color: rgba(139, 92, 246, 0.35);
+  box-shadow: 0 0 16px -4px rgba(139, 92, 246, 0.3);
+}
+
 /* Hidden state for non-YouTube pages */
 .hidden {
   display: none !important;
@@ -290,48 +357,16 @@ body {
   user-select: none;
 }
 
-.token-input {
-  position: relative;
-  z-index: 1;
-  width: 100%;
-  padding: 14px 16px;
-  font-family: inherit;
-  font-size: 14px;
-  color: #fafafa;
-  background: rgba(0, 0, 0, 0.3);
-  border: 1px solid rgba(255, 255, 255, 0.08);
-  border-radius: 12px;
-  outline: none;
-  transition: all 0.3s ease;
-  margin-bottom: 16px;
-}
 
-.token-input::placeholder {
-  color: rgba(255, 255, 255, 0.3);
-}
-
-.token-input:focus {
-  border-color: rgba(239, 68, 68, 0.4);
-  box-shadow: 0 0 0 3px rgba(239, 68, 68, 0.1);
-  background: rgba(0, 0, 0, 0.4);
-}
-
-.token-link {
-  display: block;
-  text-align: center;
-  font-size: 12px;
-  color: rgba(255, 255, 255, 0.5);
-  text-decoration: none;
-  transition: color 0.3s ease;
-  cursor: pointer;
-}
-
-.token-link:hover {
-  color: #f87171;
-}
 
 /* Notes view */
 .notes-view {
   position: relative;
   z-index: 1;
+}
+
+/* Icon-only link (e.g. home/dashboard) */
+.link-icon {
+  padding: 8px;
+  flex-shrink: 0;
 }

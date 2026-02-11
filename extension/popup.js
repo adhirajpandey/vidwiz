@@ -1,353 +1,350 @@
-const AppURL = "https://vidwiz.online"
-const ApiURL = "https://api.vidwiz.online/v2"
+// ── Config ───────────────────────────────────────────────────────────────────
+const CONSTANTS = {
+  API: {
+    BASE_URL: "https://vidwiz.online",
+    API_URL: "https://api.vidwiz.online/v2",
+    ENDPOINTS: {
+      NOTES: (videoId) => `/videos/${videoId}/notes`
+    }
+  },
+  STORAGE: {
+    TOKEN: "token"
+  },
+  SELECTORS: {
+    FEEDBACK: "feedback-message",
+    TOKEN_SETUP: "token-setup",
+    NOTES_VIEW: "notes-view",
+    VIDEO_TITLE: "video-title",
+    TIMESTAMP_WRAPPER: "timestamp-wrapper",
+    NOTES_TEXTAREA: "notes-textarea",
+    SAVE_BTN: "saveNotesBtn",
+    OPEN_SMART_NOTES: "openSmartNotes",
+    OPEN_IN_WIZ: "openInWiz",
+    CURRENT_TIMESTAMP: "current-timestamp",
+    RESET_TIMESTAMP: "reset-timestamp",
+    GO_DASHBOARD: "goDashboard",
+    GO_LOGIN: "goLoginFromSetup"
+  },
+  CLASSES: {
+    HIDDEN: "hidden",
+    INVALID: "timestamp-invalid",
+    SUCCESS: "success",
+    ERROR: "error"
+  },
+  MESSAGES: {
+    NO_VIDEO: "No YouTube video found on this page.",
+    RELOAD: "Please reload this YouTube page to enable the extension.",
+    INVALID_URL: "Invalid YouTube URL.",
+    INVALID_TIMESTAMP: "Invalid timestamp format.",
+    SAVED: "Note saved successfully!",
+    CONN_LOST: "Connection lost. Please reload the YouTube page.",
+    SYNCED: "Synced with VidWiz!",
+    WELCOME: "Welcome to VidWiz!"
+  }
+};
 
-// Get token from localStorage (will be null if not set)
-function getAuthToken() {
-	return localStorage.getItem("notes-token")
+// ── DOM Helpers ──────────────────────────────────────────────────────────────
+const $ = (id) => document.getElementById(id)
+
+function setMessage(msg, type) {
+	const el = $(CONSTANTS.SELECTORS.FEEDBACK)
+	if (!el) return
+	el.textContent = msg
+	el.className = type || ""
 }
 
-function fetchVideoTitle() {
-	if (
-		window.location.hostname === "www.youtube.com" &&
-		window.location.pathname === "/watch"
-	) {
-		const titleElement = document.querySelector(
-			".title.style-scope.ytd-video-primary-info-renderer"
-		)
-		if (titleElement) {
-			return titleElement.textContent.trim()
-		} else {
-			return "No YouTube video title found."
-		}
-	} else {
-		return "No YouTube video found."
-	}
+function setVisible(id, visible) {
+	const el = $(id)
+	if (el) el.style.display = visible ? "" : "none"
 }
 
-function fetchVideoTimestamp() {
-	if (
-		window.location.hostname === "www.youtube.com" &&
-		window.location.pathname === "/watch"
-	) {
-		const timestampElement = document.querySelector(".ytp-time-current")
-		if (timestampElement) {
-			return timestampElement.textContent
-		} else {
-			return "Timestamp element not found."
-		}
-	} else {
-		return "Not on a YouTube video page."
-	}
+function setButtonLoading(btn, loading) {
+	btn.disabled = loading
+	btn.dataset.originalText = btn.dataset.originalText || btn.textContent
+	btn.textContent = loading ? "Saving..." : btn.dataset.originalText
 }
 
-function validateTimestamp(timestamp) {
-	if (!timestamp || typeof timestamp !== 'string') {
-		return false
-	}
-	// Check if timestamp contains at least one ':' and two numbers
-	return timestamp.includes(':') && (timestamp.match(/\d/g) || []).length >= 2
-}
+// ── Token Storage ────────────────────────────────────────────────────────────
+const getAuthToken = () => chrome.storage.local.get(CONSTANTS.STORAGE.TOKEN).then((r) => r[CONSTANTS.STORAGE.TOKEN] || null)
+const setAuthToken = (token) => chrome.storage.local.set({ [CONSTANTS.STORAGE.TOKEN]: token })
 
-function saveNotesToBackend(url, notes, videoTitle, videoTimestamp) {
-	const AUTH_TOKEN = getAuthToken()
-	
-	if (videoTitle === "No YouTube video found.") {
-		setMessage("No YouTube video found on this page. Notes not saved.")
-		return
-	}
-
-	// Extract video ID from YouTube URL
-	const videoId = new URL(url).searchParams.get("v")
-	if (!videoId) {
-		setMessage("Invalid YouTube URL. Notes not saved.", "red")
-		return
-	}
-
-	// Validate timestamp format
-	if (!validateTimestamp(videoTimestamp)) {
-		setMessage("Invalid timestamp format. Notes not saved.", "red")
-		return
-	}
-
-	const apiEndpoint = `${ApiURL}/videos/${videoId}/notes`
-
-	const noteData = {
-		video_title: videoTitle,
-		timestamp: videoTimestamp,
-		text: notes || null // Ensure text is null if empty
-	}
-
-	fetch(apiEndpoint, {
-		method: "POST",
+// ── API Client ───────────────────────────────────────────────────────────────
+async function apiRequest(path, options = {}) {
+	const token = await getAuthToken()
+	const res = await fetch(`${CONSTANTS.API.API_URL}${path}`, {
+		...options,
 		headers: {
 			"Content-Type": "application/json",
-			"Authorization": `Bearer ${AUTH_TOKEN}`
+			Authorization: `Bearer ${token}`,
+			...options.headers,
 		},
-		body: JSON.stringify(noteData)
 	})
-		.then(response => {
-			if (!response.ok) {
-				return response.json().then(err => {
-					let errorMessage = "Error saving notes. ";
-					switch (response.status) {
-						case 401:
-							errorMessage += "Authentication failed. Please check your token.";
-							break;
-						case 403:
-							errorMessage += "Access denied. Please check your permissions.";
-							break;
-						case 404:
-							errorMessage += "Resource not found.";
-							break;
-						case 500:
-							errorMessage += "Server error. Please try again later.";
-							break;
-						default:
-							errorMessage += err.error || `HTTP error! status: ${response.status}`;
-					}
-					throw new Error(errorMessage);
-				})
-			}
-			return response.json()
-		})
-		.then(data => {
-			setMessage("Note saved successfully!", "green")
-		})
-		.catch(error => {
-			console.error("Error saving notes:", error)
-			setMessage(error.message || "Error saving notes. Please check your authentication token.", "red")
-		})
+
+	if (!res.ok) {
+		const body = await res.json().catch(() => ({}))
+		if (res.status === 401) {
+			await chrome.storage.local.remove(CONSTANTS.STORAGE.TOKEN)
+			showTokenSetup()
+		}
+		throw { status: res.status, body }
+	}
+	return res.json()
 }
 
-function checkNotesExistence(url) {
-	const AUTH_TOKEN = getAuthToken()
-	const videoId = new URL(url).searchParams.get("v")
+function formatApiError(err) {
+	const messages = {
+		401: "Authentication failed. Please check your API token.",
+		403: "Access denied. Please check your permissions.",
+		404: "Resource not found.",
+		500: "Server error. Please try again later.",
+	}
+	if (err.status === 422) {
+		const d = err.body?.detail
+		return Array.isArray(d) ? d.map((x) => x.msg).join("; ") : "Invalid data. Please check your input."
+	}
+	return messages[err.status] || err.body?.error || `HTTP error: ${err.status}`
+}
+
+// ── Content Script Communication ──────────────────────────────────────────────
+
+// ── Helpers ──────────────────────────────────────────────────────────────────
+function extractVideoId(url) {
+	try { return new URL(url).searchParams.get("v") } catch { return null }
+}
+
+
+
+function timestampToSeconds(ts) {
+	if (!isValidTimestamp(ts)) return NaN
+	const p = ts.split(":").map(Number)
+	return p.length === 3 ? p[0] * 3600 + p[1] * 60 + p[2] : p[0] * 60 + p[1]
+}
+
+function isValidTimestamp(ts) {
+	if (!ts || !/^\d{1,2}(:\d{2}){1,2}$/.test(ts)) return false
+	const p = ts.split(":").map(Number)
+	if (p.length === 2) return p[1] < 60
+	return p[0] < 100 && p[1] < 60 && p[2] < 60
+}
+
+function padTimestamp(ts) {
+	const p = ts.replace(/[^\d:]/g, "").split(":")
+	if (p.length === 1) return p[0].padStart(1, "0") + ":00"
+	if (p.length === 2) return p[0].padStart(1, "0") + ":" + p[1].padEnd(2, "0").slice(0, 2)
+	return p[0].padStart(1, "0") + ":" + p[1].padEnd(2, "0").slice(0, 2) + ":" + p[2].padEnd(2, "0").slice(0, 2)
+}
+
+function openTab(path) {
+	chrome.tabs.create({ url: `${CONSTANTS.API.BASE_URL}${path}` })
+}
+
+function openVideoTab(pathPrefix) {
+	chrome.tabs.query({ active: true, currentWindow: true }, (tabs) => {
+		const id = extractVideoId(tabs[0].url)
+		if (id) openTab(`${pathPrefix}/${id}`)
+	})
+}
+
+// ── Backend ──────────────────────────────────────────────────────────────────
+async function saveNote(url, text, videoTitle, videoTimestamp) {
+	if (videoTitle === CONSTANTS.MESSAGES.NO_VIDEO) {
+		setMessage(CONSTANTS.MESSAGES.NO_VIDEO, CONSTANTS.CLASSES.ERROR)
+		return false
+	}
+	const videoId = extractVideoId(url)
 	if (!videoId) {
-		return Promise.reject("Invalid YouTube URL")
+		setMessage(CONSTANTS.MESSAGES.INVALID_URL, CONSTANTS.CLASSES.ERROR)
+		return false
 	}
-
-	const apiEndpoint = `${ApiURL}/videos/${videoId}/notes`
-
-	return fetch(apiEndpoint, {
-		method: "GET",
-		headers: {
-			"Authorization": `Bearer ${AUTH_TOKEN}`
-		}
+	if (!isValidTimestamp(videoTimestamp)) {
+		setMessage(CONSTANTS.MESSAGES.INVALID_TIMESTAMP, CONSTANTS.CLASSES.ERROR)
+		return false
+	}
+	await apiRequest(CONSTANTS.API.ENDPOINTS.NOTES(videoId), {
+		method: "POST",
+		body: JSON.stringify({ video_title: videoTitle, timestamp: videoTimestamp, text: text || null }),
 	})
-		.then(response => {
-			if (response.status === 404) {
-				return false
-			}
-			if (!response.ok) {
-				throw new Error(`HTTP error! status: ${response.status}`)
-			}
-			return response.json()
-		})
-		.then(data => {
-			return Array.isArray(data) && data.length > 0
-		})
-		.catch(error => {
-			console.error("Error checking notes:", error)
-			setMessage("Error checking notes. Please check your authentication token.", "red")
-			return false
-		})
+	return true
 }
 
-function setMessage(message, type) {
-	const el = document.getElementById("feedback-message")
-	if (!el) return
-	el.textContent = message
-	el.classList.remove("error", "success")
-	if (type === "red" || type === "error") {
-		el.classList.add("error")
-	} else if (type === "green" || type === "success") {
-		el.classList.add("success")
+// ── Views ────────────────────────────────────────────────────────────────────
+function showTokenSetup() {
+	$(CONSTANTS.SELECTORS.TOKEN_SETUP).classList.remove(CONSTANTS.CLASSES.HIDDEN)
+	$(CONSTANTS.SELECTORS.NOTES_VIEW).classList.add(CONSTANTS.CLASSES.HIDDEN)
+}
+
+function showNotesView() {
+	$(CONSTANTS.SELECTORS.TOKEN_SETUP).classList.add(CONSTANTS.CLASSES.HIDDEN)
+	$(CONSTANTS.SELECTORS.NOTES_VIEW).classList.remove(CONSTANTS.CLASSES.HIDDEN)
+}
+
+// Track AbortController to prevent duplicate listeners on re-init
+let tsAbortController = null
+
+async function initNotesView() {
+	const [tab] = await chrome.tabs.query({ active: true, currentWindow: true })
+	const { id: tabId, url: tabURL } = tab
+
+	if (!tabURL.includes("youtube.com/watch")) {
+		setMessage(CONSTANTS.MESSAGES.NO_VIDEO, CONSTANTS.CLASSES.ERROR)
+		;[CONSTANTS.SELECTORS.VIDEO_TITLE, CONSTANTS.SELECTORS.TIMESTAMP_WRAPPER, CONSTANTS.SELECTORS.NOTES_TEXTAREA, CONSTANTS.SELECTORS.SAVE_BTN, CONSTANTS.SELECTORS.OPEN_SMART_NOTES, CONSTANTS.SELECTORS.OPEN_IN_WIZ]
+			.forEach((id) => setVisible(id, false))
+		return
+	}
+
+	let videoData = { title: null, timestamp: null, duration: null }
+	try {
+		videoData = await chrome.tabs.sendMessage(tabId, { action: "getVideoData" })
+	} catch (e) {
+		setMessage(CONSTANTS.MESSAGES.RELOAD, CONSTANTS.CLASSES.ERROR)
+		setVisible(CONSTANTS.SELECTORS.VIDEO_TITLE, false)
+		setVisible(CONSTANTS.SELECTORS.TIMESTAMP_WRAPPER, false)
+		setVisible(CONSTANTS.SELECTORS.NOTES_TEXTAREA, false)
+		setVisible(CONSTANTS.SELECTORS.SAVE_BTN, false)
+		return
+	}
+	const { title, timestamp, duration } = videoData || {}
+
+	if (title) $(CONSTANTS.SELECTORS.VIDEO_TITLE).textContent = title
+	const tsInput = $(CONSTANTS.SELECTORS.CURRENT_TIMESTAMP)
+	const tsWrapper = $(CONSTANTS.SELECTORS.TIMESTAMP_WRAPPER)
+	const resetBtn = $(CONSTANTS.SELECTORS.RESET_TIMESTAMP)
+
+	const autoSize = () => { tsInput.size = Math.max(tsInput.value.length, 4) }
+	if (timestamp) tsInput.value = timestamp
+	autoSize()
+
+	const maxSeconds = duration ? timestampToSeconds(duration) : Infinity
+
+	// Abort previous listeners to prevent stacking on re-init
+	if (tsAbortController) tsAbortController.abort()
+	tsAbortController = new AbortController()
+	const { signal } = tsAbortController
+
+	const updateTimestampState = () => {
+		if (isValidTimestamp(tsInput.value)) {
+			tsWrapper.classList.remove(CONSTANTS.CLASSES.INVALID)
+		} else {
+			tsWrapper.classList.add(CONSTANTS.CLASSES.INVALID)
+		}
+	}
+
+	// Real-time timestamp enforcement
+	let lastValid = isValidTimestamp(tsInput.value) ? tsInput.value : "0:00"
+	tsInput.addEventListener("input", () => {
+		let v = tsInput.value.replace(/[^\d:]/g, "")
+		if ((v.match(/:/g) || []).length > 2) { tsInput.value = lastValid; updateTimestampState(); return }
+
+		const parts = v.split(":")
+		const valid = parts.every((p, i) => {
+			if (p === "") return true
+			if (p.length > 2) return false
+			const n = Number(p)
+			if (parts.length === 3 && i === 0) return n < 100
+			return i > 0 ? n < 60 : n < 100
+		})
+
+		const overMax = valid && isValidTimestamp(v) && timestampToSeconds(v) > maxSeconds
+
+		if (valid && !overMax) {
+			tsInput.value = v
+			if (isValidTimestamp(v)) lastValid = v
+		} else {
+			tsInput.value = lastValid
+		}
+
+		updateTimestampState()
+		autoSize()
+	}, { signal })
+
+	// Normalize partial input on blur
+	tsInput.addEventListener("blur", () => {
+		if (!isValidTimestamp(tsInput.value)) {
+			const padded = padTimestamp(tsInput.value)
+			if (isValidTimestamp(padded) && timestampToSeconds(padded) <= maxSeconds) {
+				tsInput.value = padded
+				lastValid = padded
+			} else {
+				tsInput.value = lastValid
+			}
+		}
+		updateTimestampState()
+		autoSize()
+	}, { signal })
+
+	// Reset to current video playback time
+	resetBtn.addEventListener("click", async () => {
+		try {
+			const current = await chrome.tabs.sendMessage(tabId, { action: "getVideoTimestamp" })
+			if (current) {
+				tsInput.value = current
+				lastValid = current
+				updateTimestampState()
+				autoSize()
+			}
+		} catch (error) {
+			console.error("Failed to fetch timestamp:", error)
+			setMessage(CONSTANTS.MESSAGES.CONN_LOST, CONSTANTS.CLASSES.ERROR)
+		}
+	}, { signal })
+
+	updateTimestampState()
+}
+
+// ── Event Handlers ───────────────────────────────────────────────────────────
+
+
+async function onSaveNote() {
+	const btn = $(CONSTANTS.SELECTORS.SAVE_BTN)
+	const textarea = $(CONSTANTS.SELECTORS.NOTES_TEXTAREA)
+	setButtonLoading(btn, true)
+	try {
+		const [tab] = await chrome.tabs.query({ active: true, currentWindow: true })
+		const data = await chrome.tabs.sendMessage(tab.id, { action: "getVideoData" })
+		const title = data?.title
+		const success = await saveNote(tab.url, textarea.value, title, $(CONSTANTS.SELECTORS.CURRENT_TIMESTAMP).value)
+		if (success) { setMessage(CONSTANTS.MESSAGES.SAVED, CONSTANTS.CLASSES.SUCCESS); textarea.value = "" }
+	} catch (err) {
+		console.error("Error saving note:", err)
+		if (err.message && (err.message.includes("Could not establish connection") || err.message.includes("measure to prevent"))) {
+			setMessage(CONSTANTS.MESSAGES.CONN_LOST, CONSTANTS.CLASSES.ERROR)
+		} else {
+			setMessage(formatApiError(err), CONSTANTS.CLASSES.ERROR)
+		}
+	} finally {
+		setButtonLoading(btn, false)
 	}
 }
 
-// Show/hide views based on token presence
-function updateViewState() {
-	const tokenSetup = document.getElementById("token-setup")
-	const notesView = document.getElementById("notes-view")
-	const hasToken = !!getAuthToken()
-	
-	if (hasToken) {
-		tokenSetup.classList.add("hidden")
-		notesView.classList.remove("hidden")
+// ── Storage Listener ─────────────────────────────────────────────────────────
+chrome.storage.onChanged.addListener((changes, area) => {
+	if (area === "local" && changes[CONSTANTS.STORAGE.TOKEN]) {
+		const newToken = changes[CONSTANTS.STORAGE.TOKEN].newValue
+		if (newToken) {
+			setMessage(CONSTANTS.MESSAGES.SYNCED, CONSTANTS.CLASSES.SUCCESS)
+			showNotesView()
+			initNotesView()
+		} else {
+			showTokenSetup()
+		}
+	}
+})
+
+// ── Init ─────────────────────────────────────────────────────────────────────
+document.addEventListener("DOMContentLoaded", async () => {
+	const token = await getAuthToken()
+	if (token) {
+		showNotesView()
+		setMessage(CONSTANTS.MESSAGES.WELCOME, CONSTANTS.CLASSES.SUCCESS)
+		await initNotesView()
 	} else {
-		tokenSetup.classList.remove("hidden")
-		notesView.classList.add("hidden")
+		// If not logged in, show setup screen immediately
+		showTokenSetup()
 	}
-	
-	return hasToken
-}
 
-document.addEventListener("DOMContentLoaded", function() {
-	// Check if token exists and show appropriate view
-	const hasToken = updateViewState()
-	
-	if (!hasToken) {
-		// Token setup view is shown, no need to do anything else
-		return
-	}
-	
-	// Set welcome message for notes view
-	setMessage("Welcome to VidWiz!", "black")
-
-	chrome.tabs.query({active: true, currentWindow: true}, function(tabs) {
-		const tabId = tabs[0].id
-		const tabURL = tabs[0].url
-
-		// Check if we're on a YouTube video page
-		if (!tabURL.includes("youtube.com/watch")) {
-			setMessage("No YouTube video found on this page.", "red")
-			document.getElementById("video-title").style.display = "none"
-			document.getElementById("current-timestamp").style.display = "none"
-			document.getElementById("notes-textarea").style.display = "none"
-			document.getElementById("saveNotesBtn").style.display = "none"
-			document.getElementById("viewNotes").style.display = "none"
-			return
-		}
-
-		chrome.scripting.executeScript(
-			{
-				target: {tabId: tabId},
-				function: fetchVideoTitle,
-			},
-			function(results) {
-				if (results && results[0]) {
-					document.getElementById("video-title").textContent = results[0].result
-				}
-			}
-		)
-
-		chrome.scripting.executeScript(
-			{
-				target: {tabId: tabId},
-				function: fetchVideoTimestamp,
-			},
-			function(results) {
-				if (results && results[0]) {
-					document.getElementById("current-timestamp").textContent = results[0].result
-				}
-			}
-		)
-	})
+	$(CONSTANTS.SELECTORS.SAVE_BTN).addEventListener("click", onSaveNote)
+	$(CONSTANTS.SELECTORS.OPEN_SMART_NOTES).addEventListener("click", (e) => { e.preventDefault(); openVideoTab("/dashboard") })
+	$(CONSTANTS.SELECTORS.OPEN_IN_WIZ).addEventListener("click", (e) => { e.preventDefault(); openVideoTab("/wiz") })
+	$(CONSTANTS.SELECTORS.GO_DASHBOARD).addEventListener("click", (e) => { e.preventDefault(); openTab("/dashboard") })
+	$(CONSTANTS.SELECTORS.GO_LOGIN).addEventListener("click", (e) => { e.preventDefault(); openTab("/login") })
 })
-
-// Save token button handler
-document.getElementById("saveTokenBtn").addEventListener("click", function() {
-	const tokenInput = document.getElementById("token-input")
-	const token = tokenInput.value.trim()
-	
-	if (!token) {
-		tokenInput.style.borderColor = "rgba(239, 68, 68, 0.5)"
-		tokenInput.placeholder = "Please enter a valid token..."
-		return
-	}
-	
-	// Save token to localStorage
-	localStorage.setItem("notes-token", token)
-	
-	// Update view state to show notes view
-	updateViewState()
-	
-	// Set welcome message
-	setMessage("Token saved! Welcome to VidWiz!", "green")
-	
-	// Initialize the notes view
-	chrome.tabs.query({active: true, currentWindow: true}, function(tabs) {
-		const tabId = tabs[0].id
-		const tabURL = tabs[0].url
-
-		if (!tabURL.includes("youtube.com/watch")) {
-			setMessage("No YouTube video found on this page.", "red")
-			document.getElementById("video-title").style.display = "none"
-			document.getElementById("current-timestamp").style.display = "none"
-			document.getElementById("notes-textarea").style.display = "none"
-			document.getElementById("saveNotesBtn").style.display = "none"
-			document.getElementById("viewNotes").style.display = "none"
-			return
-		}
-
-		chrome.scripting.executeScript(
-			{
-				target: {tabId: tabId},
-				function: fetchVideoTitle,
-			},
-			function(results) {
-				if (results && results[0]) {
-					document.getElementById("video-title").textContent = results[0].result
-				}
-			}
-		)
-
-		chrome.scripting.executeScript(
-			{
-				target: {tabId: tabId},
-				function: fetchVideoTimestamp,
-			},
-			function(results) {
-				if (results && results[0]) {
-					document.getElementById("current-timestamp").textContent = results[0].result
-				}
-			}
-		)
-	})
-})
-
-// Go to profile from token setup
-document.getElementById("goLoginFromSetup").addEventListener("click", function(e) {
-	e.preventDefault()
-	const profileURL = `${AppURL}/profile`
-	chrome.tabs.create({ url: profileURL })
-})
-
-// Save notes button handler
-document.getElementById("saveNotesBtn").addEventListener("click", function () {
-	chrome.tabs.query({ active: true, currentWindow: true }, function (tabs) {
-		const tabURL = tabs[0].url
-
-		chrome.scripting.executeScript(
-			{
-				target: { tabId: tabs[0].id },
-				function: fetchVideoTitle,
-			},
-			function (titleResults) {
-				chrome.scripting.executeScript(
-					{
-						target: { tabId: tabs[0].id },
-						function: fetchVideoTimestamp,
-					},
-					function (timestampResults) {
-						const notes = document.getElementById("notes-textarea").value
-						saveNotesToBackend(
-							tabURL,
-							notes,
-							titleResults[0].result,
-							timestampResults[0].result
-						)
-					}
-				)
-			}
-		)
-	})
-})
-
-document.getElementById("viewNotes").addEventListener("click", function(e) {
-	e.preventDefault();
-	chrome.tabs.query({ active: true, currentWindow: true }, function (tabs) {
-		const tabURL = tabs[0].url;
-		const videoId = new URL(tabURL).searchParams.get("v");
-		if (videoId) {
-			const viewNotesURL = `${AppURL}/dashboard/${videoId}`;
-			chrome.tabs.create({ url: viewNotesURL });
-		}
-	});
-});
-
-document.getElementById("goDashboard").addEventListener("click", function(e) {
-	e.preventDefault();
-	const dashboardURL = `${AppURL}/dashboard`;
-	chrome.tabs.create({ url: dashboardURL });
-});

@@ -21,7 +21,8 @@ Provide a system-level view of how VidWiz components interact. Subsystem details
 
 ## Auth Boundaries
 - **JWT**: Required for most `/v2` endpoints.
-- **Long-term tokens**: Accepted only for note creation (extension/mobile automations).
+- **Extension auth sync**: Web app login/logout can sync JWT to the extension via Chrome external messaging.
+- **Long-term tokens**: Accepted only for note creation (primarily mobile automations).
 - **Guest sessions**: `X-Guest-Session-ID` header enables Wiz chat without a JWT.
 - **Admin token**: Required for `/v2/internal` endpoints.
   - Helpers/Lambdas use this token for polling tasks and writing results.

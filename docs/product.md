@@ -29,7 +29,7 @@ Learning from YouTube is friction-heavy: pausing, losing context, and poor note 
 - Review notes by video and jump to timestamps.
 
 ## Functional Requirements
-- **Auth**: Email/password and Google OAuth; long-term tokens for extension/automations.
+- **Auth**: Email/password and Google OAuth; extension auth sync from web login; long-term tokens for automations.
 - **Notes**: Create, list, edit, delete; always timestamped.
 - **Videos**: Store metadata + transcript availability; list/search; stream readiness.
 - **Wiz Chat**: Conversation per video; transcript-only answers with timestamp citations; guest and user quotas.
@@ -44,7 +44,7 @@ Learning from YouTube is friction-heavy: pausing, losing context, and poor note 
 
 ## MVP Definition
 - Web app: auth, dashboard, video detail, notes list, profile.
-- Extension: token setup + note capture.
+- Extension: web-login sync + note capture.
 - Mobile automations: MacroDroid/Shortcuts capture flow.
 - Transcript + metadata helpers.
 - Wiz chat.
@@ -58,6 +58,7 @@ Learning from YouTube is friction-heavy: pausing, losing context, and poor note 
 ## Current Constraints (Product Reality)
 - Web app does not provide note creation; notes are captured via extension/automations.
 - Extension only supports `youtube.com/watch` pages (no Shorts/live/`youtu.be`).
+- Extension depends on web-to-extension token sync; extension ID/origin mismatches block auth sync.
 - Wiz chat depends on S3-hosted transcripts; if transcripts are missing, chat returns `processing` or errors.
 
 ## Open Questions
