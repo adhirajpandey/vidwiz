@@ -131,11 +131,12 @@ export function removeToken(): void {
     localStorage.removeItem('token');
     
     // Sync logout with extension
-    if (typeof chrome !== 'undefined' && chrome.runtime && chrome.runtime.sendMessage) {
-      chrome.runtime.sendMessage(config.EXTENSION_ID, { type: 'LOGOUT' }, (response) => {
-        if (chrome.runtime.lastError) {
+    const runtime = typeof chrome !== 'undefined' ? chrome.runtime : undefined;
+    if (runtime?.sendMessage) {
+      runtime.sendMessage(config.EXTENSION_ID, { type: 'LOGOUT' }, () => {
+        if (runtime.lastError) {
            // Extension not installed or not listening, ignore
-           console.debug("Extension not reachable for logout sync:", chrome.runtime.lastError.message);
+           console.debug("Extension not reachable for logout sync:", runtime.lastError.message);
         }
       });
     }
@@ -154,11 +155,12 @@ export function setToken(token: string): void {
     localStorage.setItem('token', token);
 
     // Sync login with extension
-    if (typeof chrome !== 'undefined' && chrome.runtime && chrome.runtime.sendMessage) {
-        chrome.runtime.sendMessage(config.EXTENSION_ID, { type: 'SYNC_TOKEN', token }, (response) => {
-            if (chrome.runtime.lastError) {
+    const runtime = typeof chrome !== 'undefined' ? chrome.runtime : undefined;
+    if (runtime?.sendMessage) {
+        runtime.sendMessage(config.EXTENSION_ID, { type: 'SYNC_TOKEN', token }, () => {
+            if (runtime.lastError) {
                 // Extension not installed or not listening, ignore
-                console.debug("Extension not reachable for token sync:", chrome.runtime.lastError.message);
+                console.debug("Extension not reachable for token sync:", runtime.lastError.message);
             }
         });
     }
