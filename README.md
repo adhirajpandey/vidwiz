@@ -39,7 +39,7 @@ The platform is built with:
 ### Privacy & Control
    - **Self-Hosted Deployments**: Run VidWiz on your infrastructure and control where data lives.
    - **Pluggable AI**: Choose Gemini or OpenAI via environment configuration.
-   - **Token-Based Access**: Use long-term tokens for extensions and mobile automations.
+   - **Token-Based Access**: Extension login syncs from the web app; long-term tokens support mobile automations.
 
 ## Architecture
 
@@ -74,16 +74,18 @@ Prereqs: Python 3.10–3.13, Node.js, Poetry, running PostgreSQL
 
 ## Extension setup
 1) Load unpacked from `extension/` in a Chromium browser (`chrome://extensions` → Developer mode → Load unpacked)
-2) Configure `AppURL` and `ApiURL` in `extension/popup.js` to match your deployment
-3) Open the extension popup - you'll see a token setup screen
-4) Get your API token:
-   - Log in to the web dashboard
-   - Go to **Profile** → **Developer Access**
-   - Click **Generate New** to create a long-term token
-   - Copy the token
-5) Paste the token in the extension popup and click **Save Token**
+2) Configure deployment URLs in `extension/popup.js`:
+   - `CONSTANTS.API.BASE_URL`
+   - `CONSTANTS.API.API_URL`
+3) Configure your web origin for web-to-extension auth sync:
+   - `extension/manifest.json` → `externally_connectable.matches`
+   - `extension/background.js` → `CONSTANTS.ORIGINS.PROD`
+4) Set the extension ID used by the web app:
+   - `frontend/src/config.ts` → `EXTENSION_ID` (production must be a real ID, not placeholder)
+5) Reload both extension and web app, then log in on the web app
+6) Open the extension popup; it auto-unlocks when token sync succeeds
 
-The extension will then show the note-taking interface when on YouTube videos.
+The extension note UI appears on supported YouTube watch pages after sync.
 
 ## Running tests
 - Backend: `cd backend && poetry run pytest`
