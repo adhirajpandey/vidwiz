@@ -5,6 +5,7 @@ import smartNotesImg from '../public/smart-notes.png';
 import wizImg from '../public/wiz.png';
 import demoVideo from '../public/vidwiz.mp4';
 import { getUserFromToken } from '../lib/authUtils';
+import config from '../config';
 
 export default function LandingPage() {
   const [isLoggedIn, setIsLoggedIn] = useState(false);
@@ -98,6 +99,29 @@ export default function LandingPage() {
               {/* Ambient glow */}
               <div className="absolute inset-0 bg-gradient-to-t from-red-500/10 to-transparent blur-3xl -z-10" />
             </div>
+          </div>
+
+          {/* Chrome Web Store Button - Centered below grid */}
+          <div className="flex justify-center mt-24">
+            <a
+              href={config.CHROME_WEBSTORE_URL}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="group inline-flex items-center gap-2.5 px-5 py-2.5 text-sm font-medium text-foreground/70 bg-white/5 backdrop-blur-xl border border-white/10 rounded-xl hover:bg-white/10 hover:border-white/20 hover:text-foreground/90 hover:shadow-lg hover:shadow-white/5 transition-all duration-300"
+            >
+              {/* Chrome Web Store Icon */}
+              <svg className="w-5 h-5 flex-shrink-0" viewBox="0 0 192 192" xmlns="http://www.w3.org/2000/svg">
+                <path d="M58 24c-8 0-14 6-14 14v4H28c-3 0-5 2-5 5l-7 90c0 3 1 5 3 7s5 3 7 3h140c3 0 5-1 7-3s3-4 3-7l-7-90c0-3-2-5-5-5h-16v-4c0-8-6-14-14-14H58z" fill="#4285F4"/>
+                <path d="M96 88a36 36 0 100 72 36 36 0 000-72z" fill="white"/>
+                <path d="M96 96a28 28 0 00-24 14l14 8a14 14 0 0124 0l14-8a28 28 0 00-28-14z" fill="#EA4335"/>
+                <path d="M72 110a28 28 0 000 28l14-8a14 14 0 010-12l-14-8z" fill="#4285F4"/>
+                <path d="M96 152a28 28 0 0024-14l-14-8a14 14 0 01-24 0l-14 8a28 28 0 0028 14z" fill="#34A853"/>
+                <path d="M120 138a28 28 0 000-28l-14 8a14 14 0 010 12l14 8z" fill="#FBBC05"/>
+                <circle cx="96" cy="124" r="8" fill="#4285F4"/>
+              </svg>
+              <span>Install Chrome Extension</span>
+              <ArrowRight className="w-3.5 h-3.5 opacity-0 -ml-1 group-hover:opacity-100 group-hover:ml-0 transition-all duration-300" />
+            </a>
           </div>
         </div>
       </section>
@@ -253,6 +277,180 @@ export default function LandingPage() {
         </div>
       </section>
 
+      {/* Pricing Section */}
+      <section id="pricing" className="relative py-32 px-4 md:px-6">
+        {/* Background effects */}
+        <div className="absolute inset-0 overflow-hidden pointer-events-none">
+          <div className="absolute top-1/3 left-1/4 w-96 h-96 bg-purple-500/10 rounded-full blur-[120px] animate-pulse" />
+          <div className="absolute bottom-1/3 right-1/4 w-96 h-96 bg-red-500/10 rounded-full blur-[120px] animate-pulse delay-75" />
+        </div>
+
+        <div className="relative max-w-screen-xl mx-auto">
+          {/* Section Header */}
+          <div className="text-center mb-16">
+            <h2 className="text-4xl md:text-6xl font-bold mb-6">
+              <span className="bg-gradient-to-r from-white to-white/60 bg-clip-text text-transparent">
+                Simple,
+              </span>{' '}
+              <span className="bg-gradient-to-r from-red-400 to-purple-400 bg-clip-text text-transparent">
+                Credit-Based Pricing
+              </span>
+            </h2>
+            <p className="text-lg text-foreground/60 max-w-2xl mx-auto">
+              Start free. Buy credits when you need more. No subscriptions, no commitments.
+            </p>
+          </div>
+
+          {/* Pricing Cards */}
+          <div className="grid md:grid-cols-3 gap-8 max-w-5xl mx-auto">
+            
+            {/* Free Tier */}
+            <div className="rounded-2xl bg-white/5 backdrop-blur-xl border border-white/10 p-8 flex flex-col hover:border-white/20 transition-all duration-300">
+              <div className="mb-6">
+                <h3 className="text-xl font-bold text-foreground/90 mb-2">Free</h3>
+                <p className="text-foreground/50 text-sm">Get started with VidWiz</p>
+              </div>
+              <div className="mb-8">
+                <span className="text-5xl font-bold text-foreground">₹0</span>
+                <span className="text-foreground/50 ml-2">forever</span>
+              </div>
+              <ul className="space-y-3 mb-10 flex-1">
+                <li className="flex items-center gap-2.5 text-foreground/70 text-sm">
+                  <div className="w-5 h-5 rounded-full bg-green-500/20 flex items-center justify-center flex-shrink-0">
+                    <svg className="w-3 h-3 text-green-400" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={3}><path strokeLinecap="round" strokeLinejoin="round" d="M5 13l4 4L19 7" /></svg>
+                  </div>
+                  <span>{config.SIGNUP_CREDITS} credits on signup</span>
+                </li>
+                <li className="flex items-center gap-2.5 text-foreground/70 text-sm">
+                  <div className="w-5 h-5 rounded-full bg-green-500/20 flex items-center justify-center flex-shrink-0">
+                    <svg className="w-3 h-3 text-green-400" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={3}><path strokeLinecap="round" strokeLinejoin="round" d="M5 13l4 4L19 7" /></svg>
+                  </div>
+                  <span>Unlimited video notes</span>
+                </li>
+                <li className="flex items-center gap-2.5 text-foreground/70 text-sm">
+                  <div className="w-5 h-5 rounded-full bg-green-500/20 flex items-center justify-center flex-shrink-0">
+                    <svg className="w-3 h-3 text-green-400" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={3}><path strokeLinecap="round" strokeLinejoin="round" d="M5 13l4 4L19 7" /></svg>
+                  </div>
+                  <span>Limited Smart Notes & Wiz</span>
+                </li>
+                <li className="flex items-center gap-2.5 text-foreground/70 text-sm">
+                  <div className="w-5 h-5 rounded-full bg-green-500/20 flex items-center justify-center flex-shrink-0">
+                    <svg className="w-3 h-3 text-green-400" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={3}><path strokeLinecap="round" strokeLinejoin="round" d="M5 13l4 4L19 7" /></svg>
+                  </div>
+                  <span>Chrome extension</span>
+                </li>
+              </ul>
+              <Link
+                to="/signup"
+                className="inline-flex items-center justify-center gap-2 px-6 py-3 text-sm font-semibold text-foreground bg-white/10 border border-white/10 rounded-xl hover:bg-white/15 hover:border-white/20 transition-all duration-300"
+              >
+                Get Started Free
+              </Link>
+            </div>
+
+            {/* 600 Credits Tier - Highlighted */}
+            <div className="relative rounded-2xl bg-white/5 backdrop-blur-xl border border-purple-500/30 p-8 flex flex-col hover:border-purple-400/50 transition-all duration-300 shadow-lg shadow-purple-500/10">
+              {/* Popular badge */}
+              <div className="absolute -top-3.5 left-1/2 -translate-x-1/2">
+                <span className="inline-flex items-center gap-1.5 px-4 py-1 text-xs font-bold text-white bg-gradient-to-r from-purple-600 to-pink-500 rounded-full uppercase tracking-wider">
+                  <Sparkles className="w-3 h-3" />
+                  Most Popular
+                </span>
+              </div>
+              <div className="mb-6">
+                <h3 className="text-xl font-bold text-foreground/90 mb-2">{config.PRICING[1].credits} Credits</h3>
+                <p className="text-foreground/50 text-sm">For regular learners</p>
+              </div>
+              <div className="mb-8">
+                <span className="text-5xl font-bold bg-gradient-to-r from-purple-400 to-pink-400 bg-clip-text text-transparent">₹{config.PRICING[1].price}</span>
+                <span className="text-foreground/50 ml-2">one-time</span>
+              </div>
+              <ul className="space-y-3 mb-10 flex-1">
+                <li className="flex items-center gap-2.5 text-foreground/70 text-sm">
+                  <div className="w-5 h-5 rounded-full bg-green-500/20 flex items-center justify-center flex-shrink-0">
+                    <svg className="w-3 h-3 text-green-400" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={3}><path strokeLinecap="round" strokeLinejoin="round" d="M5 13l4 4L19 7" /></svg>
+                  </div>
+                  <span>{config.PRICING[1].credits} credits</span>
+                </li>
+                <li className="flex items-center gap-2.5 text-foreground/70 text-sm">
+                  <div className="w-5 h-5 rounded-full bg-green-500/20 flex items-center justify-center flex-shrink-0">
+                    <svg className="w-3 h-3 text-green-400" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={3}><path strokeLinecap="round" strokeLinejoin="round" d="M5 13l4 4L19 7" /></svg>
+                  </div>
+                  <span>Everything in Free</span>
+                </li>
+                <li className="flex items-center gap-2.5 text-foreground/70 text-sm">
+                  <div className="w-5 h-5 rounded-full bg-green-500/20 flex items-center justify-center flex-shrink-0">
+                    <svg className="w-3 h-3 text-green-400" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={3}><path strokeLinecap="round" strokeLinejoin="round" d="M5 13l4 4L19 7" /></svg>
+                  </div>
+                  <span>₹{config.PRICING[1].perCredit} per credit</span>
+                </li>
+                <li className="flex items-center gap-2.5 text-foreground/70 text-sm">
+                  <div className="w-5 h-5 rounded-full bg-green-500/20 flex items-center justify-center flex-shrink-0">
+                    <svg className="w-3 h-3 text-green-400" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={3}><path strokeLinecap="round" strokeLinejoin="round" d="M5 13l4 4L19 7" /></svg>
+                  </div>
+                  <span>Credits never expire</span>
+                </li>
+              </ul>
+              <Link
+                to="/profile"
+                className="inline-flex items-center justify-center gap-2 px-6 py-3 text-sm font-semibold text-white bg-gradient-to-r from-purple-600 to-pink-500 rounded-xl hover:shadow-lg hover:shadow-purple-500/30 hover:scale-[1.02] transition-all duration-300"
+              >
+                Buy Credits
+              </Link>
+            </div>
+
+            {/* 1500 Credits Tier */}
+            <div className="rounded-2xl bg-white/5 backdrop-blur-xl border border-white/10 p-8 flex flex-col hover:border-white/20 transition-all duration-300">
+              <div className="mb-6">
+                <h3 className="text-xl font-bold text-foreground/90 mb-2">{config.PRICING[2].credits} Credits</h3>
+                <p className="text-foreground/50 text-sm">For power users</p>
+              </div>
+              <div className="mb-8">
+                <span className="text-5xl font-bold text-foreground">₹{config.PRICING[2].price}</span>
+                <span className="text-foreground/50 ml-2">one-time</span>
+              </div>
+              <ul className="space-y-3 mb-10 flex-1">
+                <li className="flex items-center gap-2.5 text-foreground/70 text-sm">
+                  <div className="w-5 h-5 rounded-full bg-green-500/20 flex items-center justify-center flex-shrink-0">
+                    <svg className="w-3 h-3 text-green-400" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={3}><path strokeLinecap="round" strokeLinejoin="round" d="M5 13l4 4L19 7" /></svg>
+                  </div>
+                  <span>{config.PRICING[2].credits} credits</span>
+                </li>
+                <li className="flex items-center gap-2.5 text-foreground/70 text-sm">
+                  <div className="w-5 h-5 rounded-full bg-green-500/20 flex items-center justify-center flex-shrink-0">
+                    <svg className="w-3 h-3 text-green-400" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={3}><path strokeLinecap="round" strokeLinejoin="round" d="M5 13l4 4L19 7" /></svg>
+                  </div>
+                  <span>Everything in Free</span>
+                </li>
+                <li className="flex items-center gap-2.5 text-foreground/70 text-sm">
+                  <div className="w-5 h-5 rounded-full bg-green-500/20 flex items-center justify-center flex-shrink-0">
+                    <svg className="w-3 h-3 text-green-400" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={3}><path strokeLinecap="round" strokeLinejoin="round" d="M5 13l4 4L19 7" /></svg>
+                  </div>
+                  <span>₹{config.PRICING[2].perCredit} per credit (best value)</span>
+                </li>
+                <li className="flex items-center gap-2.5 text-foreground/70 text-sm">
+                  <div className="w-5 h-5 rounded-full bg-green-500/20 flex items-center justify-center flex-shrink-0">
+                    <svg className="w-3 h-3 text-green-400" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={3}><path strokeLinecap="round" strokeLinejoin="round" d="M5 13l4 4L19 7" /></svg>
+                  </div>
+                  <span>Credits never expire</span>
+                </li>
+              </ul>
+              <Link
+                to="/profile"
+                className="inline-flex items-center justify-center gap-2 px-6 py-3 text-sm font-semibold text-white bg-gradient-to-r from-red-600 to-red-500 rounded-xl hover:shadow-lg hover:shadow-red-500/30 hover:scale-[1.02] transition-all duration-300"
+              >
+                Buy Credits
+              </Link>
+            </div>
+          </div>
+
+          {/* Bottom note */}
+          <p className="text-center text-foreground/40 text-sm mt-10">
+            1 credit = 1 Smart Note. 5 credits = 1 Wiz conversation. No subscriptions, buy only what you need.
+          </p>
+        </div>
+      </section>
+
       {/* Final CTA Section */}
       <section className="relative py-32 px-4 md:px-6">
         {/* Aurora effects */}
@@ -296,6 +494,29 @@ export default function LandingPage() {
                 Ask Wiz
               </Link>
             </div>
+
+              {/* Chrome Web Store Button */}
+              <div className="flex justify-center mt-6">
+                <a
+                  href={config.CHROME_WEBSTORE_URL}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="group inline-flex items-center gap-2.5 px-5 py-2.5 text-sm font-medium text-foreground/70 bg-white/5 backdrop-blur-xl border border-white/10 rounded-xl hover:bg-white/10 hover:border-white/20 hover:text-foreground/90 hover:shadow-lg hover:shadow-white/5 transition-all duration-300"
+                >
+                  {/* Chrome Web Store Icon */}
+                  <svg className="w-5 h-5 flex-shrink-0" viewBox="0 0 192 192" xmlns="http://www.w3.org/2000/svg">
+                    <path d="M58 24c-8 0-14 6-14 14v4H28c-3 0-5 2-5 5l-7 90c0 3 1 5 3 7s5 3 7 3h140c3 0 5-1 7-3s3-4 3-7l-7-90c0-3-2-5-5-5h-16v-4c0-8-6-14-14-14H58z" fill="#4285F4"/>
+                    <path d="M96 88a36 36 0 100 72 36 36 0 000-72z" fill="white"/>
+                    <path d="M96 96a28 28 0 00-24 14l14 8a14 14 0 0124 0l14-8a28 28 0 00-28-14z" fill="#EA4335"/>
+                    <path d="M72 110a28 28 0 000 28l14-8a14 14 0 010-12l-14-8z" fill="#4285F4"/>
+                    <path d="M96 152a28 28 0 0024-14l-14-8a14 14 0 01-24 0l-14 8a28 28 0 0028 14z" fill="#34A853"/>
+                    <path d="M120 138a28 28 0 000-28l-14 8a14 14 0 010 12l14 8z" fill="#FBBC05"/>
+                    <circle cx="96" cy="124" r="8" fill="#4285F4"/>
+                  </svg>
+                  <span>Install Chrome Extension</span>
+                  <ArrowRight className="w-3.5 h-3.5 opacity-0 -ml-1 group-hover:opacity-100 group-hover:ml-0 transition-all duration-300" />
+                </a>
+              </div>
           </div>
         </div>
       </section>

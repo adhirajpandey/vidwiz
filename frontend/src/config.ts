@@ -1,3 +1,9 @@
+const PRICING = [
+  { credits: 200, price: 20, perCredit: 0.10 },
+  { credits: 600, price: 50, perCredit: 0.083 },
+  { credits: 1500, price: 100, perCredit: 0.067 },
+];
+
 const configs = {
   development: {
     API_URL: 'https://api.vidwiz.online/v2',
@@ -11,6 +17,13 @@ const configs = {
   },
 };
 
-const config = import.meta.env.DEV ? configs.development : configs.production;
+const envConfig = import.meta.env.DEV ? configs.development : configs.production;
+
+const config = {
+  ...envConfig,
+  CHROME_WEBSTORE_URL: `https://chromewebstore.google.com/detail/vidwiz/${envConfig.EXTENSION_ID}`,
+  SIGNUP_CREDITS: 100,
+  PRICING,
+};
 
 export default config;
