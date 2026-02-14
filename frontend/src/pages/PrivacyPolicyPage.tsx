@@ -86,11 +86,6 @@ export default function PrivacyPolicyPage() {
             </a>
           </section>
         </div>
-
-        {/* Footer */}
-        <div className="mt-20 text-center text-foreground/40 text-sm">
-          <p>© {new Date().getFullYear()} VidWiz. All rights reserved.</p>
-        </div>
       </div>
     </div>
   );

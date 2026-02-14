@@ -21,7 +21,7 @@ const envConfig = import.meta.env.DEV ? configs.development : configs.production
 
 const config = {
   ...envConfig,
-  CHROME_WEBSTORE_URL: `https://chromewebstore.google.com/detail/vidwiz/${envConfig.EXTENSION_ID}`,
+  CHROME_WEBSTORE_URL: 'https://chromewebstore.google.com/detail/vidwiz/bgiahikcnhdljbfeknfbfpdnbnkpjiop',
   SIGNUP_CREDITS: 100,
   PRICING,
 };

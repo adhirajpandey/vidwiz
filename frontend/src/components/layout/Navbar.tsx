@@ -6,7 +6,11 @@ import { getUserFromToken, removeToken } from '../../lib/authUtils';
 
 export default function Navbar() {
   const [theme, setTheme] = useState<'light' | 'dark'>(() => {
-    if (typeof document !== 'undefined') {
+    if (typeof window !== 'undefined') {
+      const savedTheme = localStorage.getItem('theme');
+      if (savedTheme === 'light' || savedTheme === 'dark') {
+        return savedTheme;
+      }
       return document.documentElement.classList.contains('dark') ? 'dark' : 'light';
     }
     return 'dark';

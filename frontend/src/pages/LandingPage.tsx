@@ -11,6 +11,9 @@ export default function LandingPage() {
   const [isLoggedIn, setIsLoggedIn] = useState(false);
 
   useEffect(() => {
+    // Force dark mode on landing page
+    document.documentElement.classList.add('dark');
+    
     const userInfo = getUserFromToken();
     setIsLoggedIn(!!userInfo);
   }, []);
@@ -32,7 +35,7 @@ export default function LandingPage() {
         </div>
 
         {/* Content - Two Column Layout */}
-        <div className="relative max-w-screen-xl mx-auto px-4 md:px-6 pt-8 pb-20 md:pb-32">
+        <div className="relative max-w-screen-xl mx-auto px-4 md:px-6 pt-8 pb-12 md:pb-20">
           {/* Badge - Centered Above */}
           <div className="text-center mb-12">
             <div className="inline-flex items-center gap-2 px-4 py-2 rounded-full bg-white/5 backdrop-blur-xl border border-white/10 text-sm text-foreground/80">
@@ -120,14 +123,19 @@ export default function LandingPage() {
                 <circle cx="96" cy="124" r="8" fill="#4285F4"/>
               </svg>
               <span>Install Chrome Extension</span>
-              <ArrowRight className="w-3.5 h-3.5 opacity-0 -ml-1 group-hover:opacity-100 group-hover:ml-0 transition-all duration-300" />
+              <ArrowRight className="w-3.5 h-3.5 group-hover:translate-x-1 transition-transform" />
             </a>
+          </div>
+          <div className="flex justify-center mt-3">
+            <Link to="/help" className="inline-flex items-center gap-1 text-sm text-purple-400 hover:text-purple-300 transition-colors">
+              See how it works <ArrowRight className="w-3.5 h-3.5" />
+            </Link>
           </div>
         </div>
       </section>
 
       {/* Product Showcase Section */}
-      <section id="features" className="relative py-32 px-4 md:px-6">
+      <section id="features" className="relative py-12 md:py-20 px-4 md:px-6">
         <div className="max-w-screen-xl mx-auto">
           {/* Section Header */}
           <div className="text-center mb-20">
@@ -146,7 +154,7 @@ export default function LandingPage() {
           </div>
 
           {/* Smart Notes - Left Layout */}
-          <div className="grid md:grid-cols-2 gap-12 items-center mb-32">
+          <div className="grid md:grid-cols-2 gap-12 items-center mb-12 md:mb-20">
             {/* Image */}
             <div className="relative group order-2 md:order-1">
               <img
@@ -278,7 +286,7 @@ export default function LandingPage() {
       </section>
 
       {/* Pricing Section */}
-      <section id="pricing" className="relative py-32 px-4 md:px-6">
+      <section id="pricing" className="relative py-12 md:py-20 px-4 md:px-6">
         {/* Background effects */}
         <div className="absolute inset-0 overflow-hidden pointer-events-none">
           <div className="absolute top-1/3 left-1/4 w-96 h-96 bg-purple-500/10 rounded-full blur-[120px] animate-pulse" />
@@ -299,6 +307,9 @@ export default function LandingPage() {
             <p className="text-lg text-foreground/60 max-w-2xl mx-auto">
               Start free. Buy credits when you need more. No subscriptions, no commitments.
             </p>
+            <Link to="/help" className="inline-flex items-center gap-1 text-sm text-purple-400 hover:text-purple-300 transition-colors mt-3">
+              See how it works <ArrowRight className="w-3.5 h-3.5" />
+            </Link>
           </div>
 
           {/* Pricing Cards */}
@@ -452,7 +463,7 @@ export default function LandingPage() {
       </section>
 
       {/* Final CTA Section */}
-      <section className="relative py-32 px-4 md:px-6">
+      <section className="relative py-12 md:py-20 px-4 md:px-6">
         {/* Aurora effects */}
         <div className="absolute inset-0 overflow-hidden pointer-events-none">
           <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[1000px] h-[600px] bg-gradient-to-r from-red-500/20 via-purple-500/20 to-pink-500/20 rounded-full blur-[150px] animate-pulse" />
@@ -496,7 +507,7 @@ export default function LandingPage() {
             </div>
 
               {/* Chrome Web Store Button */}
-              <div className="flex justify-center mt-6">
+              <div className="flex justify-center mt-10">
                 <a
                   href={config.CHROME_WEBSTORE_URL}
                   target="_blank"
@@ -514,8 +525,13 @@ export default function LandingPage() {
                     <circle cx="96" cy="124" r="8" fill="#4285F4"/>
                   </svg>
                   <span>Install Chrome Extension</span>
-                  <ArrowRight className="w-3.5 h-3.5 opacity-0 -ml-1 group-hover:opacity-100 group-hover:ml-0 transition-all duration-300" />
+                  <ArrowRight className="w-3.5 h-3.5 group-hover:translate-x-1 transition-transform" />
                 </a>
+              </div>
+              <div className="flex justify-center mt-3">
+                <Link to="/help" className="inline-flex items-center gap-1 text-sm text-purple-400 hover:text-purple-300 transition-colors">
+                  See how it works <ArrowRight className="w-3.5 h-3.5" />
+                </Link>
               </div>
           </div>
         </div>
