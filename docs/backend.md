@@ -122,6 +122,7 @@ Describe the FastAPI backend: structure, auth rules, and the request/worker life
   - `endpoint`, `endpoint_source`
   - `request_content_type`, `request_body`, `request_body_bytes`, `request_body_truncated`
   - `response_content_type`, `response_body`, `response_body_bytes`, `response_content_length`, `response_body_truncated`
+- `client_ip` extraction precedence matches rate limiting: `X-Forwarded-For` (first IP), then `X-Real-IP`, then socket client host.
 - Stdout is pretty-printed for readability; Loki receives JSON.
 - Configure Loki via:
   - `LOKI_URL` (Grafana Cloud Loki push URL)

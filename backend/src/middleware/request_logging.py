@@ -173,6 +173,18 @@ def _set_scope_state(scope, key: str, value: Any) -> None:
     setattr(state, key, value)
 
 
+def _extract_client_ip(scope, headers: dict[str, str]) -> str | None:
+    forwarded_for = headers.get("x-forwarded-for")
+    if forwarded_for:
+        return forwarded_for.split(",", 1)[0].strip()
+
+    real_ip = headers.get("x-real-ip")
+    if real_ip:
+        return real_ip.strip()
+
+    return (scope.get("client") or (None, None))[0]
+
+
 def _build_base_fields(
     *,
     scope,
@@ -189,7 +201,7 @@ def _build_base_fields(
         "http_query": scope.get("query_string", b"").decode("latin-1"),
         "http_status": status_code,
         "duration_ms": duration_ms,
-        "client_ip": (scope.get("client") or (None, None))[0],
+        "client_ip": _extract_client_ip(scope, headers),
         "user_agent": headers.get("user-agent"),
         "endpoint": endpoint_name,
         "endpoint_file": endpoint_file,

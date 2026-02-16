@@ -91,6 +91,35 @@ async def test_request_logs_user_fields(client, caplog):
 
 
 @pytest.mark.asyncio
+async def test_request_logs_client_ip_from_forwarded_headers(client, caplog):
+    with caplog.at_level(logging.INFO, logger="vidwiz.api"):
+        await client.get(
+            "/v2/payments/products",
+            headers={
+                "X-Forwarded-For": "203.0.113.10, 198.51.100.7",
+                "X-Real-IP": "198.51.100.8",
+            },
+        )
+
+    record = _find_request_log(caplog, "/v2/payments/products")
+    assert record is not None
+    assert record.client_ip == "203.0.113.10"
+
+
+@pytest.mark.asyncio
+async def test_request_logs_client_ip_from_real_ip_when_forwarded_for_missing(client, caplog):
+    with caplog.at_level(logging.INFO, logger="vidwiz.api"):
+        await client.get(
+            "/v2/payments/products",
+            headers={"X-Real-IP": "198.51.100.8"},
+        )
+
+    record = _find_request_log(caplog, "/v2/payments/products")
+    assert record is not None
+    assert record.client_ip == "198.51.100.8"
+
+
+@pytest.mark.asyncio
 async def test_status_level_mapping(caplog):
     app = create_app()
 
