@@ -30,6 +30,9 @@ Summarize the web app structure, routing, and API integration.
 - **Wiz chat**: Creates a conversation, streams video readiness from `/v2/videos/:id/stream`, and streams chat responses from `/v2/conversations/:id/messages` using `fetch` + manual SSE parsing.
 - **Video readiness**: Uses a 60s stream timeout; on stream failure it falls back to polling `/v2/videos/:id` every 5s and shows a refresh prompt if transcript never becomes available.
 - **Notes UI**: Notes can be edited/deleted in the web app; note creation is not exposed in the UI.
+- **AI note pending state**: Video notes show a pending AI chip (`⏳`) and "Generating AI note..." placeholder when a note is empty, not yet AI-generated, and the user has AI notes enabled.
+- **Notes polling**: The video page polls `/v2/videos/:id/notes` every 4 seconds only while pending AI notes exist, and stops polling automatically once all pending notes are resolved.
+- **AI note edits**: Editing a note sends `generated_by_ai=false` with the note text update so edited AI notes are treated as user-authored.
 - **Dashboard search**: Uses `q` + pagination with `per_page=10`; shows results only after first search.
 - **Profile**: Supports name updates, AI notes toggle, and long-term token create/revoke/copy for automation use cases.
 - **Credits UI**: Profile shows available credits and a credit pack selector; checkout uses backend product list.

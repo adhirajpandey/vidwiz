@@ -1,12 +1,13 @@
-import { useEffect, useState } from 'react';
+import { useCallback, useEffect, useState } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { Sparkles, ChevronDown, ChevronUp } from 'lucide-react';
-import { videosApi, notesApi } from '../api';
+import { authApi, videosApi, notesApi } from '../api';
 import type { VideoRead, NoteRead } from '../api/types';
 import NoteCard from '../components/NoteCard';
 import { useToast } from '../hooks/useToast';
 import { FaExclamationTriangle, FaPlay, FaEye, FaHeart, FaExternalLinkAlt } from 'react-icons/fa';
 import { getToken, removeToken } from '../lib/authUtils';
+import config from '../config';
 
 // Video and Note interfaces removed in favor of VideoRead and NoteRead
 
@@ -14,11 +15,35 @@ export default function VideoPage() {
   const { videoId } = useParams();
   const [video, setVideo] = useState<VideoRead | null>(null);
   const [notes, setNotes] = useState<NoteRead[]>([]);
+  const [userAiNotesEnabled, setUserAiNotesEnabled] = useState(false);
   const [showDeleteModal, setShowDeleteModal] = useState(false);
   const [noteToDelete, setNoteToDelete] = useState<number | null>(null);
   const [isSummaryExpanded, setIsSummaryExpanded] = useState(false);
   const navigate = useNavigate();
   const { addToast } = useToast();
+
+  const fetchNotes = useCallback(async () => {
+    const token = getToken();
+    if (!token || !videoId) return;
+
+    try {
+      const data = await notesApi.listNotes(videoId);
+      setNotes(
+        data.sort(
+          (a: NoteRead, b: NoteRead) =>
+            timestampToSeconds(a.timestamp) - timestampToSeconds(b.timestamp)
+        )
+      );
+    } catch (error: any) {
+      console.error('Failed to fetch notes', error);
+      if (error.response?.status === 401) {
+        removeToken();
+        navigate('/login');
+      } else {
+        setNotes([]);
+      }
+    }
+  }, [videoId, navigate]);
 
   useEffect(() => {
     const fetchVideoDetails = async () => {
@@ -45,32 +70,54 @@ export default function VideoPage() {
       }
     };
 
-    const getNotes = async () => {
+    const getUserPreferences = async () => {
       const token = getToken();
-      if (token && videoId) {
-        try {
-          const data = await notesApi.listNotes(videoId);
-          setNotes(data.sort((a: NoteRead, b: NoteRead) => timestampToSeconds(a.timestamp) - timestampToSeconds(b.timestamp)));
-        } catch (error: any) {
-          console.error('Failed to fetch notes', error);
-          if (error.response?.status === 401) {
-             removeToken();
-             navigate('/login');
-          } else {
-             setNotes([]);
-          }
+      if (!token) {
+        setUserAiNotesEnabled(false);
+        return;
+      }
+
+      try {
+        const user = await authApi.getMe();
+        setUserAiNotesEnabled(Boolean(user.ai_notes_enabled));
+      } catch (error: any) {
+        console.error('Failed to fetch user preferences', error);
+        if (error.response?.status === 401) {
+          removeToken();
+          navigate('/login');
+        } else {
+          setUserAiNotesEnabled(false);
         }
       }
     };
 
     fetchVideoDetails();
-    getNotes();
-  }, [videoId, navigate]);
+    fetchNotes();
+    getUserPreferences();
+  }, [videoId, navigate, fetchNotes]);
+
+  useEffect(() => {
+    if (!videoId || !userAiNotesEnabled) return;
+
+    const hasPendingNotes = notes.some(
+      note => !note.generated_by_ai && (!note.text || !note.text.trim())
+    );
+    if (!hasPendingNotes) return;
+
+    const intervalId = window.setInterval(() => {
+      void fetchNotes();
+    }, config.NOTES_POLL_INTERVAL_MS);
+
+    return () => window.clearInterval(intervalId);
+  }, [videoId, userAiNotesEnabled, notes, fetchNotes]);
 
   const handleUpdateNote = async (noteId: number, newText: string) => {
     try {
-      await notesApi.updateNote(noteId, { text: newText });
-      setNotes(notes.map(n => n.id === noteId ? { ...n, text: newText, generated_by_ai: false } : n));
+      const updatedNote = await notesApi.updateNote(noteId, {
+        text: newText,
+        generated_by_ai: false,
+      });
+      setNotes(prevNotes => prevNotes.map(n => (n.id === noteId ? updatedNote : n)));
       addToast({ title: 'Success', message: 'Note updated successfully', type: 'success' });
     } catch (error: any) {
       console.error('Error updating note:', error);
@@ -88,7 +135,7 @@ export default function VideoPage() {
 
     try {
       await notesApi.deleteNote(noteToDelete);
-      setNotes(notes.filter(n => n.id !== noteToDelete));
+      setNotes(prevNotes => prevNotes.filter(n => n.id !== noteToDelete));
       addToast({ title: 'Success', message: 'Note deleted successfully', type: 'success' });
     } catch (error: any) {
       console.error('Error deleting note:', error);
@@ -288,7 +335,13 @@ export default function VideoPage() {
             ) : (
               <div className="space-y-2 md:space-y-2.5">
                 {notes.map(note => (
-                  <NoteCard key={note.id} note={note} onUpdate={handleUpdateNote} onDelete={openDeleteModal} />
+                  <NoteCard
+                    key={note.id}
+                    note={note}
+                    userAiNotesEnabled={userAiNotesEnabled}
+                    onUpdate={handleUpdateNote}
+                    onDelete={openDeleteModal}
+                  />
                 ))}
               </div>
             )}

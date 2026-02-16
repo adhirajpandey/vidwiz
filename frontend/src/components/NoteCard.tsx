@@ -5,7 +5,7 @@ import { BiUser } from 'react-icons/bi';
 
 interface Note {
   id: number;
-  text: string;
+  text: string | null;
   timestamp: string | number;
   video_id: string;
   generated_by_ai: boolean;
@@ -13,6 +13,7 @@ interface Note {
 
 interface NoteCardProps {
   note: Note;
+  userAiNotesEnabled: boolean;
   onUpdate: (noteId: number, newText: string) => void;
   onDelete: (noteId: number) => void;
 }
@@ -33,9 +34,18 @@ function formatTimestamp(seconds: number): string {
   return `${m}:${s.toString().padStart(2, '0')}`;
 }
 
-export default function NoteCard({ note, onUpdate, onDelete }: NoteCardProps) {
+export default function NoteCard({
+  note,
+  userAiNotesEnabled,
+  onUpdate,
+  onDelete,
+}: NoteCardProps) {
   const [isEditing, setIsEditing] = useState(false);
-  const [editText, setEditText] = useState(note.text);
+  const [editText, setEditText] = useState(note.text || '');
+  const isPendingAI =
+    userAiNotesEnabled &&
+    !note.generated_by_ai &&
+    (!note.text || !note.text.trim());
 
   const handleSave = () => {
     onUpdate(note.id, editText);
@@ -43,7 +53,7 @@ export default function NoteCard({ note, onUpdate, onDelete }: NoteCardProps) {
   };
 
   const handleCancel = () => {
-    setEditText(note.text);
+    setEditText(note.text || '');
     setIsEditing(false);
   };
 
@@ -68,7 +78,15 @@ export default function NoteCard({ note, onUpdate, onDelete }: NoteCardProps) {
           </a>
           
           {/* AI/Human indicator - cleaned up design */}
-          {note.generated_by_ai ? (
+          {isPendingAI ? (
+            <div
+              className="inline-flex items-center gap-1 px-1.5 py-1 md:px-2 md:py-1 rounded-md bg-amber-500/10 border border-amber-500/20"
+              title="AI Processing"
+            >
+              <span className="text-xs md:text-sm leading-none">⏳</span>
+              <span className="text-[10px] md:text-xs font-medium text-amber-400 hidden sm:inline">AI</span>
+            </div>
+          ) : note.generated_by_ai ? (
             <div 
               className="inline-flex items-center gap-1 px-1.5 py-1 md:px-2 md:py-1 rounded-md bg-gradient-to-r from-violet-500/15 to-fuchsia-500/15 border border-violet-500/25"
               title="AI Generated"
@@ -116,7 +134,9 @@ export default function NoteCard({ note, onUpdate, onDelete }: NoteCardProps) {
               </div>
             </div>
           ) : (
-            <p className="text-foreground/70 text-sm leading-relaxed break-words">{note.text}</p>
+            <p className="text-foreground/70 text-sm leading-relaxed break-words">
+              {isPendingAI ? 'Generating AI note...' : note.text}
+            </p>
           )}
         </div>
         
@@ -132,13 +152,15 @@ export default function NoteCard({ note, onUpdate, onDelete }: NoteCardProps) {
             >
               <FaExternalLinkAlt className="w-3 h-3 md:w-3.5 md:h-3.5" />
             </a>
-            <button 
-              onClick={() => setIsEditing(true)} 
-              className="p-1.5 md:p-2 rounded-md text-foreground/40 hover:text-blue-400 hover:bg-blue-500/10 transition-all cursor-pointer" 
-              title="Edit"
-            >
-              <FaEdit className="w-3 h-3 md:w-3.5 md:h-3.5" />
-            </button>
+            {!isPendingAI && (
+              <button 
+                onClick={() => setIsEditing(true)} 
+                className="p-1.5 md:p-2 rounded-md text-foreground/40 hover:text-blue-400 hover:bg-blue-500/10 transition-all cursor-pointer" 
+                title="Edit"
+              >
+                <FaEdit className="w-3 h-3 md:w-3.5 md:h-3.5" />
+              </button>
+            )}
             <button 
               onClick={() => onDelete(note.id)} 
               className="p-1.5 md:p-2 rounded-md text-foreground/40 hover:text-red-400 hover:bg-red-500/10 transition-all cursor-pointer" 

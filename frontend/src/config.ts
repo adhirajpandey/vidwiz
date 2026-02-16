@@ -23,6 +23,7 @@ const config = {
   ...envConfig,
   CHROME_WEBSTORE_URL: 'https://chromewebstore.google.com/detail/vidwiz/bgiahikcnhdljbfeknfbfpdnbnkpjiop',
   SIGNUP_CREDITS: 100,
+  NOTES_POLL_INTERVAL_MS: 4000,
   PRICING,
 };
 
