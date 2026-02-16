@@ -53,6 +53,7 @@ async def test_signup_grants_credits(client):
     assert profile_response.status_code == 200
     payload = profile_response.json()
     assert payload["credits_balance"] == 100
+    assert payload["ai_notes_enabled"] is True
 
 
 @pytest.mark.asyncio

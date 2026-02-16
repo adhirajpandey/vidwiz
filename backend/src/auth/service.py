@@ -25,6 +25,7 @@ def create_user(db: Session, email: str, name: str, password: str) -> User:
         email=email,
         name=name,
         password_hash=generate_password_hash(password),
+        profile_data={"ai_notes_enabled": True},
     )
     db.add(user)
     db.commit()
@@ -184,6 +185,7 @@ def upsert_google_user(
             google_id=google_id,
             name=name,
             profile_image_url=picture,
+            profile_data={"ai_notes_enabled": True},
         )
         db.add(user)
         created = True

@@ -14,6 +14,7 @@ Describe the FastAPI backend: structure, auth rules, and the request/worker life
 - **Long-term tokens**: Only allowed for `POST /v2/videos/{video_id}/notes`.
 - **Guest sessions**: `X-Guest-Session-ID` enables Wiz chat without a JWT.
 - **Admin token**: Required for `/v2/internal/*` endpoints.
+- **Signup defaults**: New users created via `POST /v2/auth/register` and first-time `POST /v2/auth/google` start with `profile_data.ai_notes_enabled = true`.
 - **Secrets**: `SECRET_KEY` is required for JWT issuance and verification; missing it causes auth endpoints to return errors.
 - **JWT expiry**: `JWT_EXPIRY_HOURS` controls JWT lifetime (default 24 hours).
 - **Token payloads**: JWTs include `user_id`, `email`, `name`, `profile_image_url`, `exp`. Long-term tokens include `user_id`, `email`, `type=long_term`, and `iat` (no expiry).

@@ -15,7 +15,7 @@ Provide a system-level view of how VidWiz components interact. Subsystem details
 - **Note creation**: Client posts a note (timestamp + optional text). Backend upserts the video and schedules transcript/metadata tasks.
 - **Conversation start**: Starting Wiz chat also upserts the video and schedules transcript/metadata tasks.
 - **Transcript/metadata**: Helpers poll `/v2/internal/tasks`, fetch data, and submit results. Transcript JSON is stored in S3 when configured; the DB `transcript_available` flag is set either way.
-- **AI notes**: Empty-text notes from users with AI notes enabled are queued to SQS once a transcript is already available; the AI note Lambda writes back via internal API.
+- **AI notes**: Empty-text notes from users with AI notes enabled are queued to SQS once a transcript is already available; the AI note Lambda writes back via internal API. New signups default to AI notes enabled.
 - **Wiz chat**: Transcript-only grounding via Gemini; if transcript is not ready, chat returns `202 Accepted` and waits for processing.
 - **AI summaries**: Task dispatcher Lambda fires on transcript upload (S3) and enqueues summary generation.
 

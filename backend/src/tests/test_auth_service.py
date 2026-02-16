@@ -16,6 +16,7 @@ def test_create_and_find_user(db_session):
     assert user.email == "create@example.com"
     assert user.password_hash is not None
     assert user.password_hash != "password123"
+    assert user.profile_data == {"ai_notes_enabled": True}
 
     found = auth_service.find_user_by_email(db_session, "create@example.com")
     assert found is not None
@@ -172,3 +173,4 @@ def test_upsert_google_user_updates_missing_name(db_session):
         None,
     )
     assert user.name == "Google Name"
+    assert user.profile_data == {"ai_notes_enabled": True}
