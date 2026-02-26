@@ -8,6 +8,7 @@ import { useToast } from '../hooks/useToast';
 import { FaExclamationTriangle, FaPlay, FaEye, FaHeart, FaExternalLinkAlt } from 'react-icons/fa';
 import { getToken, removeToken } from '../lib/authUtils';
 import config from '../config';
+import Seo from '../components/Seo';
 
 // Video and Note interfaces removed in favor of VideoRead and NoteRead
 
@@ -162,8 +163,15 @@ export default function VideoPage() {
   }
 
   return (
-    <div className="min-h-screen bg-background text-foreground">
-      {showDeleteModal && (
+    <>
+      <Seo
+        title={`${video?.title || video?.metadata?.title || 'Video Smart Notes'} | VidWiz`}
+        description="Review, edit, and manage timestamped Smart Notes for this video, plus open Wiz for transcript-grounded chat."
+        path={videoId ? `/dashboard/${videoId}` : '/dashboard'}
+        noIndex
+      />
+      <div className="min-h-screen bg-background text-foreground">
+        {showDeleteModal && (
         <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
           <div className="bg-card rounded-lg p-6 max-w-sm w-full mx-4 select-none">
             <div className="text-center">
@@ -184,7 +192,7 @@ export default function VideoPage() {
           </div>
         </div>
       )}
-      <div className="max-w-4xl mx-auto px-6 py-12">
+        <div className="max-w-4xl mx-auto px-6 py-12">
         {video && (
           <div className="relative bg-gradient-to-br from-card via-card to-card/80 rounded-2xl shadow-2xl overflow-hidden mb-8 border border-border/30 select-none">
             {/* Ambient glow effect */}
@@ -347,7 +355,8 @@ export default function VideoPage() {
             )}
           </div>
         </div>
+        </div>
       </div>
-    </div>
+    </>
   );
 }
