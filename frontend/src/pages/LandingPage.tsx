@@ -6,6 +6,7 @@ import wizImg from '../public/wiz.png';
 import demoVideo from '../public/vidwiz.mp4';
 import { getUserFromToken } from '../lib/authUtils';
 import config from '../config';
+import Seo from '../components/Seo';
 
 export default function LandingPage() {
   const [isLoggedIn, setIsLoggedIn] = useState(false);
@@ -21,7 +22,13 @@ export default function LandingPage() {
   const ctaDestination = isLoggedIn ? '/dashboard' : '/signup';
 
   return (
-    <div className="relative overflow-hidden">
+    <>
+      <Seo
+        title="Smart Notes + Wiz for YouTube Learning | VidWiz"
+        description="Talk to the video. Let the notes follow. Capture timestamped Smart Notes and chat with YouTube transcripts using Wiz."
+        path="/"
+      />
+      <div className="relative overflow-hidden">
       {/* Hero Section */}
       <section className="relative min-h-screen flex items-center justify-center">
         {/* Aurora Background Effects */}
@@ -536,6 +543,7 @@ export default function LandingPage() {
           </div>
         </div>
       </section>
-    </div>
+      </div>
+    </>
   );
 }

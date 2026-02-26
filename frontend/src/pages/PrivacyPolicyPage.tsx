@@ -1,9 +1,16 @@
 
 import { Sparkles } from 'lucide-react';
+import Seo from '../components/Seo';
 
 export default function PrivacyPolicyPage() {
   return (
-    <div className="relative overflow-hidden min-h-screen bg-background text-foreground">
+    <>
+      <Seo
+        title="Privacy Policy | VidWiz"
+        description="Read how VidWiz handles your data, including account information, Smart Notes, and product usage details."
+        path="/privacy"
+      />
+      <div className="relative overflow-hidden min-h-screen bg-background text-foreground">
       {/* Background Effects */}
       <div className="absolute inset-0 overflow-hidden pointer-events-none">
         <div className="absolute top-0 left-1/4 w-96 h-96 bg-red-500/10 rounded-full blur-[120px] animate-pulse" />
@@ -87,6 +94,7 @@ export default function PrivacyPolicyPage() {
           </section>
         </div>
       </div>
-    </div>
+      </div>
+    </>
   );
 }

@@ -2,10 +2,17 @@
 import { Link } from 'react-router-dom';
 import { Sparkles, Download, LogIn, Settings, PenLine, MessageCircle, ArrowRight, Chrome, FileText, Bot } from 'lucide-react';
 import config from '../config';
+import Seo from '../components/Seo';
 
 export default function HelpPage() {
   return (
-    <div className="relative overflow-hidden min-h-screen bg-background text-foreground">
+    <>
+      <Seo
+        title="Help: Smart Notes, Wiz, and Credits | VidWiz"
+        description="Get the most out of VidWiz. Learn how Smart Notes, Wiz, and credits work, plus setup tips for the Chrome extension."
+        path="/help"
+      />
+      <div className="relative overflow-hidden min-h-screen bg-background text-foreground">
       {/* Background Effects */}
       <div className="absolute inset-0 overflow-hidden pointer-events-none">
         <div className="absolute top-0 left-1/4 w-96 h-96 bg-red-500/10 rounded-full blur-[120px] animate-pulse" />
@@ -224,6 +231,7 @@ export default function HelpPage() {
           </p>
         </div>
       </div>
-    </div>
+      </div>
+    </>
   );
 }
