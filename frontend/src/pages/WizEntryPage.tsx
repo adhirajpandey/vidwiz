@@ -48,6 +48,7 @@ function WizEntryPage() {
         title="Wiz: Chat with Any YouTube Transcript | VidWiz"
         description="Ask, don’t scrub. Paste a YouTube link and get transcript-grounded answers from Wiz with clickable timestamp citations."
         path="/wiz"
+        ogImage="https://vidwiz.online/og-wiz.png"
       />
       <div className="relative min-h-screen overflow-hidden">
         <AmbientBackground />

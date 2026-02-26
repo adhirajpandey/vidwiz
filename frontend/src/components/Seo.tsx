@@ -10,6 +10,7 @@ type SeoProps = {
 };
 
 const SITE_URL = 'https://vidwiz.online';
+const DEFAULT_OG_IMAGE_URL = `${SITE_URL}/og-image.png`;
 
 function normalizePath(path: string): string {
   if (!path.startsWith('/')) {
@@ -31,6 +32,7 @@ export default function Seo({
 }: SeoProps) {
   const normalizedPath = normalizePath(path);
   const pageUrl = `${SITE_URL}${normalizedPath}`;
+  const resolvedOgImage = ogImage ?? DEFAULT_OG_IMAGE_URL;
 
   return (
     <Helmet defer={false}>
@@ -42,7 +44,7 @@ export default function Seo({
       <meta property="og:description" content={description} />
       <meta property="og:type" content={ogType} />
       <meta property="og:url" content={pageUrl} />
-      {ogImage ? <meta property="og:image" content={ogImage} /> : null}
+      <meta property="og:image" content={resolvedOgImage} />
 
       {noIndex ? <meta name="robots" content="noindex, nofollow" /> : null}
     </Helmet>

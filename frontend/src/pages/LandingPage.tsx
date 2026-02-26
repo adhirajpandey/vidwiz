@@ -24,7 +24,7 @@ export default function LandingPage() {
   return (
     <>
       <Seo
-        title="Smart Notes + Wiz for YouTube Learning | VidWiz"
+        title="Smart Notes and Wiz for YouTube Learning | VidWiz"
         description="Talk to the video. Let the notes follow. Capture timestamped Smart Notes and chat with YouTube transcripts using Wiz."
         path="/"
       />
