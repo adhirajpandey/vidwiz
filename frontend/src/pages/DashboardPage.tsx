@@ -7,6 +7,7 @@ import { HiSparkles } from 'react-icons/hi2';
 import { getUserFromToken, removeToken } from '../lib/authUtils';
 import { videosApi } from '../api';
 import type { VideoSearchItem } from '../api/types';
+import Seo from '../components/Seo';
 
 export default function DashboardPage() {
   const [user, setUser] = useState<{ email: string; name?: string } | null>(null);
@@ -72,8 +73,15 @@ export default function DashboardPage() {
   };
 
   return (
-    <div className="min-h-screen bg-background text-foreground">
-      <div className="max-w-4xl mx-auto px-4 md:px-6 py-8 md:py-12">
+    <>
+      <Seo
+        title="Dashboard: Your Smart Notes Library | VidWiz"
+        description="Search, manage, and revisit your Smart Notes across saved YouTube videos in your VidWiz dashboard."
+        path="/dashboard"
+        noIndex
+      />
+      <div className="min-h-screen bg-background text-foreground">
+        <div className="max-w-4xl mx-auto px-4 md:px-6 py-8 md:py-12">
         {/* Hero Section */}
         <div className="relative mb-8 md:mb-12">
           {/* Ambient background glow */}
@@ -228,7 +236,8 @@ export default function DashboardPage() {
             </div>
           </div>
         )}
+        </div>
       </div>
-    </div>
+    </>
   );
 }

@@ -5,6 +5,7 @@ import AmbientBackground from '../components/ui/AmbientBackground';
 
 import GlassCard from '../components/ui/GlassCard';
 import { extractVideoId } from '../lib/videoUtils';
+import Seo from '../components/Seo';
 
 
 function WizEntryPage() {
@@ -42,8 +43,15 @@ function WizEntryPage() {
   };
 
   return (
-    <div className="relative min-h-screen overflow-hidden">
-      <AmbientBackground />
+    <>
+      <Seo
+        title="Wiz: Chat with Any YouTube Transcript | VidWiz"
+        description="Ask, don’t scrub. Paste a YouTube link and get transcript-grounded answers from Wiz with clickable timestamp citations."
+        path="/wiz"
+        ogImage="https://vidwiz.online/og-wiz.png"
+      />
+      <div className="relative min-h-screen overflow-hidden">
+        <AmbientBackground />
 
       <main className="relative pt-20 md:pt-32 pb-20">
         
@@ -178,7 +186,8 @@ function WizEntryPage() {
         </section>
 
       </main>
-    </div>
+      </div>
+    </>
   );
 }
 

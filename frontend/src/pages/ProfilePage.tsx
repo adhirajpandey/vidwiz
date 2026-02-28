@@ -7,6 +7,7 @@ import { FaExclamationTriangle, FaEye, FaEyeSlash, FaCopy, FaSpinner, FaKey, FaS
 import { Settings, Zap, User as UserIcon, Calendar, Mail, Coins, Sparkles } from 'lucide-react';
 import { getToken, removeToken } from '../lib/authUtils';
 import type { CreditProduct } from '../api/types';
+import Seo from '../components/Seo';
 
 interface UserProfile {
   email: string;
@@ -227,9 +228,16 @@ export default function ProfilePage() {
   };
 
   return (
-    <div className="min-h-screen bg-background text-foreground">
-      {/* Revoke Modal */}
-      {showRevokeModal && (
+    <>
+      <Seo
+        title="Profile: Smart Notes, Wiz, and Credits Settings | VidWiz"
+        description="Manage your VidWiz profile, Smart Notes settings, long-term token, and credits for Wiz and note generation."
+        path="/profile"
+        noIndex
+      />
+      <div className="min-h-screen bg-background text-foreground">
+        {/* Revoke Modal */}
+        {showRevokeModal && (
         <div className="fixed inset-0 bg-black/60 backdrop-blur-sm flex items-center justify-center z-50">
           <div className="relative bg-gradient-to-br from-card via-card to-card/90 rounded-2xl p-6 max-w-sm w-full mx-4 border border-white/[0.08] shadow-2xl select-none">
             {/* Ambient glow */}
@@ -261,7 +269,7 @@ export default function ProfilePage() {
         </div>
       )}
 
-      <div className="max-w-4xl mx-auto px-4 md:px-6 py-8 md:py-12">
+        <div className="max-w-4xl mx-auto px-4 md:px-6 py-8 md:py-12">
         {user && (
           <div className="space-y-12">
             
@@ -655,7 +663,8 @@ export default function ProfilePage() {
             </div>
           </div>
         )}
+        </div>
       </div>
-    </div>
+    </>
   );
 }

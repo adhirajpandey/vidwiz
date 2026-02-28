@@ -5,6 +5,7 @@ import { FaExternalLinkAlt } from 'react-icons/fa';
 import { extractVideoId } from '../lib/videoUtils';
 import GuestLimitModal from '../components/GuestLimitModal';
 import RegisteredLimitModal from '../components/RegisteredLimitModal';
+import Seo from '../components/Seo';
 import { getAuthHeaders, getToken, removeToken } from '../lib/authUtils';
 import { videosApi, conversationsApi } from '../api';
 import config from '../config';
@@ -613,8 +614,23 @@ function WizWorkspacePage() {
     inputRef.current?.focus();
   };
 
+  const seoVideoTitleRaw = videoData?.title || videoData?.metadata?.title || 'this YouTube video';
+  const seoVideoTitle =
+    seoVideoTitleRaw.length > 32 ? `${seoVideoTitleRaw.slice(0, 32).trim()}..` : seoVideoTitleRaw;
+  const seoTitle = `Wiz: Chat with ${seoVideoTitle} | VidWiz`;
+  const seoDescription = `Ask, don’t scrub. Chat with this YouTube video in Wiz using transcript-grounded answers and clickable timestamp citations.`;
+
   return (
-    <div className="max-w-screen-2xl mx-auto px-4 md:px-6 py-5">
+    <>
+      <Seo
+        key={seoTitle}
+        title={seoTitle}
+        description={seoDescription}
+        path={videoId ? `/wiz/${videoId}` : '/wiz'}
+        ogImage="https://vidwiz.online/og-wiz.png"
+        noIndex
+      />
+      <div className="max-w-screen-2xl mx-auto px-4 md:px-6 py-5">
       {/* Refresh Modal */}
       {showRefreshModal && (
         <div className="fixed inset-0 bg-black/50 backdrop-blur-sm flex items-center justify-center z-50">
@@ -926,7 +942,8 @@ function WizWorkspacePage() {
           </div>
         </div>
       </div>
-    </div>
+      </div>
+    </>
   );
 }
 
