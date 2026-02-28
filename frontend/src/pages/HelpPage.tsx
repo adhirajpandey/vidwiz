@@ -102,7 +102,7 @@ export default function HelpPage() {
             </div>
           </section>
 
-          {/* Step 3: Enable AI Notes */}
+          {/* Step 3: Review Profile & Credits */}
           <section className="bg-white/5 backdrop-blur-md rounded-2xl p-5 md:p-8 border border-white/10 hover:border-white/20 transition-colors">
             <div className="flex items-start gap-3 md:gap-5">
               <div className="flex-shrink-0 w-8 h-8 md:w-10 md:h-10 rounded-lg md:rounded-xl bg-gradient-to-br from-pink-500 to-pink-600 flex items-center justify-center text-white font-bold text-lg shadow-lg shadow-pink-500/20">
@@ -111,10 +111,10 @@ export default function HelpPage() {
               <div className="flex-1">
                 <h2 className="text-lg md:text-2xl font-bold mb-2 md:mb-3 text-white flex items-center gap-2">
                   <Settings className="w-5 h-5 text-pink-400" />
-                  Enable AI Smart Notes
+                  Review Profile & Credits
                 </h2>
                 <p className="text-foreground/80 leading-relaxed mb-4">
-                  Head to your profile page and toggle on <strong className="text-white">AI Smart Notes</strong>. This allows VidWiz to automatically generate intelligent, timestamped notes while you watch any YouTube video.
+                  Head to your profile page to manage your account settings, credits, and tokens for extension or mobile workflows.
                 </p>
                 <Link
                   to="/profile"
@@ -124,7 +124,7 @@ export default function HelpPage() {
                   <ArrowRight className="w-4 h-4 group-hover:translate-x-1 transition-transform" />
                 </Link>
                 <p className="text-foreground/50 text-sm mt-3">
-                  Each AI Smart Note costs 1 credit. Manual notes are always free and unlimited.
+                  AI Smart Notes cost 1 credit each. Manual notes are always free and unlimited.
                 </p>
               </div>
             </div>
