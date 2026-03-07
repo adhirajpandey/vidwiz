@@ -555,21 +555,35 @@ function WizWorkspacePage() {
       }
 
       let fullContent = '';
-      while (true) {
+      let buffer = '';
+      let streamDone = false;
+      while (!streamDone) {
         const { done, value } = await reader.read();
         if (done) break;
 
-        const chunk = decoder.decode(value, { stream: true });
-        const lines = chunk.split('\n');
+        buffer += decoder.decode(value, { stream: true });
+        const parts = buffer.split('\n\n');
+        buffer = parts.pop() || '';
 
-        for (const line of lines) {
-          if (line.startsWith('data: ')) {
-            const data = line.slice(6);
-            if (data === '[DONE]') {
-              break;
-            }
-            try {
-              const parsed = JSON.parse(data);
+        for (const part of parts) {
+          const lines = part.split('\n');
+          for (const line of lines) {
+            if (line.startsWith('data: ')) {
+              const data = line.slice(6);
+              if (data === '[DONE]') {
+                streamDone = true;
+                break;
+              }
+              let parsed: any;
+              try {
+                parsed = JSON.parse(data);
+              } catch {
+                // Incomplete JSON chunk, skip
+                continue;
+              }
+              if (parsed.error) {
+                throw new Error(parsed.error);
+              }
               if (parsed.content) {
                 fullContent += parsed.content;
                 // Update message content in real-time
@@ -582,14 +596,22 @@ function WizWorkspacePage() {
                 );
                 // Stop showing "Thinking..." as soon as we have content
                 setIsLoading(false);
-              } else if (parsed.error) {
-                throw new Error(parsed.error);
               }
-            } catch {
-              // Ignore parse errors for incomplete chunks
             }
           }
+          if (streamDone) break;
         }
+      }
+
+      // If stream completed but no content was received, show an error
+      if (!fullContent) {
+        setMessages((prev) =>
+          prev.map((msg) =>
+            msg.id === assistantMessageId
+              ? { ...msg, content: 'No response received. Please try again.' }
+              : msg
+          )
+        );
       }
     } catch (error) {
       console.error('Chat error:', error);

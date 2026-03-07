@@ -278,7 +278,7 @@ def stream_wiz_response(
         response_stream = client.chat.completions.create(
             model=conversations_settings.openrouter_model_name,
             messages=messages,
-            max_tokens=1000,
+            max_tokens=conversations_settings.wiz_max_tokens,
             stream=True,
         )
 
@@ -294,6 +294,12 @@ def stream_wiz_response(
             save_chat_message(
                 db, conversation_id, DB_ROLE_ASSISTANT, full_response_text
             )
+        else:
+            logger.warning(
+                "OpenRouter returned empty response",
+                extra={"conversation_id": conversation_id},
+            )
+            yield f"data: {json.dumps({'error': 'No response from AI model. Please try again.'})}\n\n"
 
         yield "data: [DONE]\n\n"
         logger.debug("Wiz response complete", extra={"conversation_id": conversation_id})

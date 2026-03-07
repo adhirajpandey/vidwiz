@@ -154,3 +154,45 @@ def test_prepare_chat_returns_history_when_transcript_ready(db_session, monkeypa
     assert transcript == [{"text": "hi", "offset": 0}]
     assert history[-1]["content"] == "hello"
     assert api_key == "key"
+
+
+def test_stream_wiz_response_yields_error_on_empty_content(db_session, monkeypatch):
+    conversation = Conversation(video_id="abc123DEF45", user_id=1)
+    db_session.add(conversation)
+    db_session.commit()
+
+    class _Delta:
+        content = None
+
+    class _Choice:
+        delta = _Delta()
+
+    class _Chunk:
+        choices = [_Choice()]
+
+    class _FakeClient:
+        class chat:
+            class completions:
+                @staticmethod
+                def create(**kwargs):
+                    return [_Chunk(), _Chunk()]
+
+    monkeypatch.setattr(
+        conversations_service, "OpenAI", lambda **kwargs: _FakeClient()
+    )
+
+    events = list(
+        conversations_service.stream_wiz_response(
+            video_title="Test",
+            transcript=[{"text": "hi", "offset": 0}],
+            history=[{"role": "user", "content": "hello"}],
+            conversation_id=conversation.id,
+            db=db_session,
+            api_key="key",
+        )
+    )
+
+    error_events = [e for e in events if "error" in e and "No response" in e]
+    assert len(error_events) == 1
+    assert events[-1] == "data: [DONE]\n\n"
+

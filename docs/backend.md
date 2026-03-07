@@ -36,6 +36,7 @@ Describe the FastAPI backend: structure, auth rules, and the request/worker life
 - **AI notes**: Enqueued only when note text is empty, AI notes are enabled, and the transcript is already available.
   - Enqueue uses `SQS_AI_NOTE_QUEUE_URL` if configured.
 - **Wiz quotas**: Daily message limits enforced separately for users and guests via `WIZ_USER_DAILY_QUOTA` and `WIZ_GUEST_DAILY_QUOTA`.
+- **Wiz token budget**: `WIZ_MAX_TOKENS` (default 4096) controls the max completion tokens per Wiz response. Should be set higher for reasoning models that consume tokens on internal thinking.
 
 ## Async + Workers Integration
 - **Tasks**: Metadata/transcript tasks are stored in the `tasks` table and polled via `/v2/internal/tasks`.
