@@ -1,12 +1,13 @@
 import { useEffect, useState } from 'react';
-import { useNavigate } from 'react-router-dom';
-// config removed
+import { useNavigate, Link } from 'react-router-dom';
+import { ArrowRight } from 'lucide-react';
 import VideoCard from '../components/VideoCard';
 import { FaSearch, FaYoutube, FaVideo, FaChevronLeft, FaChevronRight } from 'react-icons/fa';
 import { HiSparkles } from 'react-icons/hi2';
 import { getUserFromToken, removeToken } from '../lib/authUtils';
 import { videosApi } from '../api';
 import type { VideoSearchItem } from '../api/types';
+import config from '../config';
 import Seo from '../components/Seo';
 
 export default function DashboardPage() {
@@ -15,6 +16,7 @@ export default function DashboardPage() {
   const [searchQuery, setSearchQuery] = useState('');
   const [isSearching, setIsSearching] = useState(false);
   const [hasSearched, setHasSearched] = useState(false);
+  const [hasAnyVideos, setHasAnyVideos] = useState(true); // assume true until initial fetch
   const [currentPage, setCurrentPage] = useState(1);
   const [totalPages, setTotalPages] = useState(0);
   const [totalVideos, setTotalVideos] = useState(0);
@@ -34,12 +36,12 @@ export default function DashboardPage() {
   // Fetch initial videos on page load
   useEffect(() => {
     if (user) {
-      fetchPage(1);
+      fetchPage(1, true);
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [user]);
 
-  const fetchPage = async (page: number) => {
+  const fetchPage = async (page: number, isInitial = false) => {
     setIsSearching(true);
     try {
       // API client automatically handles auth token
@@ -53,6 +55,9 @@ export default function DashboardPage() {
       setCurrentPage(data.page);
       setTotalPages(data.total_pages);
       setTotalVideos(data.total);
+      if (isInitial) {
+        setHasAnyVideos(data.total > 0);
+      }
     } catch (error: any) {
        // 401 handling is done by client interceptor but we can add specific logic if needed
        // client interceptor might redirect, so we might just log here
@@ -165,7 +170,7 @@ export default function DashboardPage() {
                 <div className="w-7 h-7 md:w-8 md:h-8 rounded-lg bg-gradient-to-br from-red-500/20 to-red-600/20 flex items-center justify-center flex-shrink-0">
                   <FaYoutube className="w-3.5 h-3.5 md:w-4 md:h-4 text-red-400" />
                 </div>
-                <h3 className="text-base md:text-lg font-semibold text-foreground tracking-tight">Search Results</h3>
+                <h3 className="text-base md:text-lg font-semibold text-foreground tracking-tight">Your Videos</h3>
               </div>
               <span className="inline-flex items-center px-2 py-0.5 md:px-2.5 md:py-1 rounded-md text-[11px] md:text-xs font-medium bg-white/[0.06] text-foreground/60 border border-white/[0.08]">
                 {totalVideos} {totalVideos === 1 ? 'video' : 'videos'}
@@ -175,13 +180,54 @@ export default function DashboardPage() {
             {/* Results list */}
             <div className="p-3 md:p-5">
               {videos.length === 0 ? (
-                <div className="text-center py-10 md:py-14 select-none">
-                  <div className="w-14 h-14 md:w-16 md:h-16 mx-auto mb-3 md:mb-4 rounded-xl bg-white/[0.04] flex items-center justify-center">
-                    <FaVideo className="w-7 h-7 md:w-8 md:h-8 text-foreground/20" />
+                !hasAnyVideos ? (
+                  /* Onboarding: user has no saved videos yet */
+                  <div className="text-center py-10 md:py-14 px-4 select-none">
+                    <div className="relative inline-block mb-5">
+                      {/* Animated glow ring */}
+                      <div className="absolute inset-0 bg-gradient-to-r from-blue-500/30 to-blue-600/30 rounded-2xl blur-xl animate-pulse"></div>
+                      <div className="relative w-16 h-16 md:w-20 md:h-20 mx-auto rounded-2xl bg-gradient-to-br from-blue-500/20 to-blue-600/10 border border-blue-500/20 flex items-center justify-center">
+                        {/* Chrome Web Store icon */}
+                        <svg className="w-8 h-8 md:w-10 md:h-10 flex-shrink-0" viewBox="0 0 192 192" xmlns="http://www.w3.org/2000/svg">
+                          <path d="M58 24c-8 0-14 6-14 14v4H28c-3 0-5 2-5 5l-7 90c0 3 1 5 3 7s5 3 7 3h140c3 0 5-1 7-3s3-4 3-7l-7-90c0-3-2-5-5-5h-16v-4c0-8-6-14-14-14H58z" fill="#4285F4"/>
+                          <path d="M96 88a36 36 0 100 72 36 36 0 000-72z" fill="white"/>
+                          <path d="M96 96a28 28 0 00-24 14l14 8a14 14 0 0124 0l14-8a28 28 0 00-28-14z" fill="#EA4335"/>
+                          <path d="M72 110a28 28 0 000 28l14-8a14 14 0 010-12l-14-8z" fill="#4285F4"/>
+                          <path d="M96 152a28 28 0 0024-14l-14-8a14 14 0 01-24 0l-14 8a28 28 0 0028 14z" fill="#34A853"/>
+                          <path d="M120 138a28 28 0 000-28l-14 8a14 14 0 010 12l14 8z" fill="#FBBC05"/>
+                          <circle cx="96" cy="124" r="8" fill="#4285F4"/>
+                        </svg>
+                      </div>
+                    </div>
+                    <h3 className="text-lg md:text-xl font-semibold text-foreground mb-2">Get Started with VidWiz</h3>
+                    <p className="text-foreground/40 text-sm max-w-md mx-auto mb-6">
+                      Install the Chrome extension, open any YouTube video, and start taking notes - they'll show up right here.
+                    </p>
+                    <a
+                      href={config.CHROME_WEBSTORE_URL}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="group inline-flex items-center gap-2.5 px-6 py-3 text-sm font-semibold text-white bg-gradient-to-r from-red-600 via-red-500 to-red-600 bg-[length:200%_100%] rounded-xl hover:bg-right transition-all duration-500 shadow-lg shadow-red-500/25 hover:shadow-red-500/40"
+                    >
+                      Install Chrome Extension
+                      <ArrowRight className="w-4 h-4 group-hover:translate-x-1 transition-transform" />
+                    </a>
+                    <div className="mt-4">
+                      <Link to="/help" className="inline-flex items-center gap-1 text-sm text-purple-400 hover:text-purple-300 transition-colors">
+                        See how it works <ArrowRight className="w-3.5 h-3.5" />
+                      </Link>
+                    </div>
                   </div>
-                  <p className="text-foreground/50 text-sm font-medium">No videos found</p>
-                  <p className="text-foreground/30 text-xs mt-1">Try a different search term</p>
-                </div>
+                ) : (
+                  /* Empty search results */
+                  <div className="text-center py-10 md:py-14 select-none">
+                    <div className="w-14 h-14 md:w-16 md:h-16 mx-auto mb-3 md:mb-4 rounded-xl bg-white/[0.04] flex items-center justify-center">
+                      <FaVideo className="w-7 h-7 md:w-8 md:h-8 text-foreground/20" />
+                    </div>
+                    <p className="text-foreground/50 text-sm font-medium">No videos found</p>
+                    <p className="text-foreground/30 text-xs mt-1">Try a different search term</p>
+                  </div>
+                )
               ) : (
                 <div className="space-y-2 md:space-y-3">
                   {videos.map((video) => (
@@ -218,24 +264,6 @@ export default function DashboardPage() {
           </div>
         )}
 
-        {/* Initial state - before any search */}
-        {!hasSearched && (
-          <div className="relative bg-gradient-to-br from-card via-card to-card/90 rounded-xl md:rounded-2xl shadow-xl overflow-hidden border border-white/[0.08] select-none">
-            <div className="text-center py-14 md:py-20 px-6 select-none">
-              <div className="relative inline-block mb-6">
-                {/* Animated glow ring */}
-                <div className="absolute inset-0 bg-gradient-to-r from-red-500/30 to-red-600/30 rounded-2xl blur-xl animate-pulse"></div>
-                <div className="relative w-16 h-16 md:w-20 md:h-20 mx-auto rounded-2xl bg-gradient-to-br from-red-500/20 to-red-600/10 border border-red-500/20 flex items-center justify-center">
-                  <FaYoutube className="w-8 h-8 md:w-10 md:h-10 text-red-400" />
-                </div>
-              </div>
-              <h3 className="text-lg md:text-xl font-semibold text-foreground mb-2">Start Searching</h3>
-              <p className="text-foreground/40 text-sm max-w-md mx-auto">
-                Search for videos by title to view and manage your AI-generated and personal notes
-              </p>
-            </div>
-          </div>
-        )}
         </div>
       </div>
     </>
