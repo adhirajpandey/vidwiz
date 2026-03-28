@@ -1,3 +1,4 @@
+import html
 import json
 import logging
 import boto3
@@ -62,6 +63,8 @@ def resolve_video_by_title(video_title: str) -> tuple[str, str | None]:
         raise NotFoundError("No video found for the provided title")
 
     resolved_title = (item.get("snippet") or {}).get("title")
+    if resolved_title is not None:
+        resolved_title = html.unescape(resolved_title)
     logger.debug(
         "Resolved video by title",
         extra={"video_title": video_title, "resolved_video_id": video_id},

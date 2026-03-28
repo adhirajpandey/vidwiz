@@ -268,6 +268,34 @@ def test_resolve_video_by_title_returns_top_result(monkeypatch):
     }
 
 
+def test_resolve_video_by_title_decodes_html_entities(monkeypatch):
+    class FakeRequest:
+        def execute(self):
+            return {
+                "items": [
+                    {
+                        "id": {"videoId": "resolved12345"},
+                        "snippet": {"title": "The Privacy Iceberg (I&#39;m deep)"},
+                    }
+                ]
+            }
+
+    class FakeSearch:
+        def list(self, **kwargs):
+            return FakeRequest()
+
+    class FakeYoutube:
+        def search(self):
+            return FakeSearch()
+
+    monkeypatch.setattr(notes_service, "_build_youtube_client", lambda: FakeYoutube())
+
+    video_id, title = notes_service.resolve_video_by_title("Privacy Iceberg")
+
+    assert video_id == "resolved12345"
+    assert title == "The Privacy Iceberg (I'm deep)"
+
+
 def test_resolve_video_by_title_raises_not_found_for_empty_results(monkeypatch):
     class FakeRequest:
         def execute(self):
