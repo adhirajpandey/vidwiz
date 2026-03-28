@@ -1,7 +1,7 @@
 import pytest
 
 from src.auth.models import User
-from src.exceptions import ForbiddenError
+from src.exceptions import ForbiddenError, InternalServerError, NotFoundError
 from src.notes import service as notes_service
 from src.notes.models import Note
 from src.videos.models import Video
@@ -163,6 +163,147 @@ def test_create_note_does_not_trigger_ai_when_transcript_missing(
     notes_service.create_note_for_user(
         db_session, video.video_id, "00:01", None, user.id
     )
+
+
+def test_create_note_for_video_title_uses_resolved_result(db_session, monkeypatch):
+    user = User(email="title@example.com", name="Title User", profile_data={})
+    db_session.add(user)
+    db_session.commit()
+
+    monkeypatch.setattr(
+        notes_service,
+        "resolve_video_by_title",
+        lambda video_title: ("resolved12345", "Resolved Title"),
+    )
+
+    note = notes_service.create_note_for_video_title(
+        db_session,
+        "Search Title",
+        "00:01",
+        "hello",
+        user.id,
+    )
+
+    assert note.video_id == "resolved12345"
+    video = notes_service.videos_service.get_video_by_id(db_session, "resolved12345")
+    assert video is not None
+    assert video.title == "Resolved Title"
+
+
+def test_create_note_for_video_title_preserves_ai_enqueue_behavior(
+    db_session, monkeypatch
+):
+    user = User(
+        email="title-ai@example.com",
+        name="Title AI User",
+        profile_data={"ai_notes_enabled": True},
+        credits_balance=1,
+    )
+    db_session.add(user)
+    db_session.commit()
+
+    monkeypatch.setattr(
+        notes_service,
+        "resolve_video_by_title",
+        lambda video_title: ("resolvedAI123", "Resolved AI Title"),
+    )
+
+    scheduled = {"count": 0}
+
+    def fake_schedule(_db, video):
+        video.transcript_available = True
+
+    def fake_push(note):
+        scheduled["count"] += 1
+
+    monkeypatch.setattr(notes_service, "schedule_video_tasks", fake_schedule)
+    monkeypatch.setattr(notes_service, "push_note_to_sqs", fake_push)
+
+    note = notes_service.create_note_for_video_title(
+        db_session,
+        "Search Title",
+        "00:01",
+        None,
+        user.id,
+    )
+
+    assert note.video_id == "resolvedAI123"
+    assert scheduled["count"] == 1
+
+
+def test_resolve_video_by_title_returns_top_result(monkeypatch):
+    captured = {}
+
+    class FakeRequest:
+        def execute(self):
+            return {
+                "items": [
+                    {
+                        "id": {"videoId": "resolved12345"},
+                        "snippet": {"title": "Resolved Title"},
+                    }
+                ]
+            }
+
+    class FakeSearch:
+        def list(self, **kwargs):
+            captured["kwargs"] = kwargs
+            return FakeRequest()
+
+    class FakeYoutube:
+        def search(self):
+            return FakeSearch()
+
+    monkeypatch.setattr(notes_service, "_build_youtube_client", lambda: FakeYoutube())
+
+    video_id, title = notes_service.resolve_video_by_title("Search Title")
+
+    assert video_id == "resolved12345"
+    assert title == "Resolved Title"
+    assert captured["kwargs"] == {
+        "q": "Search Title",
+        "part": "snippet",
+        "type": "video",
+        "maxResults": 1,
+    }
+
+
+def test_resolve_video_by_title_raises_not_found_for_empty_results(monkeypatch):
+    class FakeRequest:
+        def execute(self):
+            return {"items": []}
+
+    class FakeSearch:
+        def list(self, **kwargs):
+            return FakeRequest()
+
+    class FakeYoutube:
+        def search(self):
+            return FakeSearch()
+
+    monkeypatch.setattr(notes_service, "_build_youtube_client", lambda: FakeYoutube())
+
+    with pytest.raises(NotFoundError):
+        notes_service.resolve_video_by_title("Missing Video")
+
+
+def test_resolve_video_by_title_raises_internal_error_for_search_failures(monkeypatch):
+    class FakeRequest:
+        def execute(self):
+            raise RuntimeError("boom")
+
+    class FakeSearch:
+        def list(self, **kwargs):
+            return FakeRequest()
+
+    class FakeYoutube:
+        def search(self):
+            return FakeSearch()
+
+    monkeypatch.setattr(notes_service, "_build_youtube_client", lambda: FakeYoutube())
+
+    with pytest.raises(InternalServerError):
+        notes_service.resolve_video_by_title("Exploding Search")
 
 
 def test_update_note_does_not_trigger_ai_on_update(db_session, monkeypatch):

@@ -32,6 +32,8 @@ Describe the FastAPI backend: structure, auth rules, and the request/worker life
 - **Video search**: `q` is trimmed; queries shorter than 2 chars are treated as empty. Sort keys: `created_at_desc|created_at_asc|title_asc|title_desc`. `per_page` defaults to 10, max 50.
 - **Video stream**: `GET /v2/videos/{video_id}/stream` requires JWT or guest session. The video is not user-scoped for either viewers or guests.
 - **Notes**: List/edit/delete require JWT; create accepts JWT or long-term token.
+- **Create note by title**: `POST /v2/notes/by-title` resolves the provided title against YouTube Data API v3, picks the top video result, then reuses normal note creation.
+  - Requires `YOUTUBE_DATA_API_KEY` only when this endpoint is used.
 - **Task scheduling**: Creating a note or conversation upserts the video and schedules transcript/metadata tasks when missing.
 - **AI notes**: Enqueued only when note text is empty, AI notes are enabled, and the transcript is already available.
   - Enqueue uses `SQS_AI_NOTE_QUEUE_URL` if configured.
@@ -75,6 +77,7 @@ Describe the FastAPI backend: structure, auth rules, and the request/worker life
 ### Notes
 - `GET /v2/videos/{video_id}/notes`
 - `POST /v2/videos/{video_id}/notes`
+- `POST /v2/notes/by-title`
 - `PATCH /v2/notes/{note_id}`
 - `DELETE /v2/notes/{note_id}`
 

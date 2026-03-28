@@ -71,6 +71,63 @@ async def test_notes_crud(client):
 
 
 @pytest.mark.asyncio
+async def test_create_note_by_title(client, monkeypatch):
+    token = await register_and_login(client, "notes-by-title@example.com")
+    headers = {"Authorization": f"Bearer {token}"}
+
+    monkeypatch.setattr(
+        "src.notes.service.resolve_video_by_title",
+        lambda video_title: ("resolved1234A", "Resolved Video Title"),
+    )
+
+    response = await client.post(
+        "/v2/notes/by-title",
+        headers=headers,
+        json={
+            "video_title": "Search Query Title",
+            "timestamp": "01:23",
+            "text": "First title note",
+        },
+    )
+
+    assert response.status_code == 201
+    payload = response.json()
+    assert payload["video_id"] == "resolved1234A"
+    assert payload["text"] == "First title note"
+
+
+@pytest.mark.asyncio
+async def test_create_note_by_title_with_long_term_token(client, monkeypatch):
+    token = await register_and_login(client, "longterm-title@example.com")
+
+    token_response = await client.post(
+        "/v2/auth/tokens",
+        headers={"Authorization": f"Bearer {token}"},
+    )
+    assert token_response.status_code == 200
+    long_term_token = token_response.json()["token"]
+
+    monkeypatch.setattr(
+        "src.notes.service.resolve_video_by_title",
+        lambda video_title: ("resolved9999B", "Resolved Long Term Video"),
+    )
+
+    create_response = await client.post(
+        "/v2/notes/by-title",
+        headers={"Authorization": f"Bearer {long_term_token}"},
+        json={
+            "video_title": "Long Term Title",
+            "timestamp": "00:45",
+            "text": None,
+        },
+    )
+    assert create_response.status_code == 201
+    payload = create_response.json()
+    assert payload["video_id"] == "resolved9999B"
+    assert payload["text"] is None
+
+
+@pytest.mark.asyncio
 async def test_create_note_with_long_term_token(client):
     token = await register_and_login(client, "longterm@example.com")
 
@@ -113,6 +170,58 @@ async def test_create_note_rejects_invalid_timestamp(client):
     assert response.status_code == 422
     payload = response.json()
     assert payload["error"]["code"] == "VALIDATION_ERROR"
+
+
+@pytest.mark.asyncio
+async def test_create_note_by_title_rejects_invalid_timestamp(client):
+    token = await register_and_login(client, "invalid-ts-title@example.com")
+    response = await client.post(
+        "/v2/notes/by-title",
+        headers={"Authorization": f"Bearer {token}"},
+        json={"video_title": "Test", "timestamp": "bad", "text": "note"},
+    )
+    assert response.status_code == 422
+    payload = response.json()
+    assert payload["error"]["code"] == "VALIDATION_ERROR"
+
+
+@pytest.mark.asyncio
+async def test_create_note_by_title_rejects_blank_video_title(client):
+    token = await register_and_login(client, "blank-title@example.com")
+    response = await client.post(
+        "/v2/notes/by-title",
+        headers={"Authorization": f"Bearer {token}"},
+        json={"video_title": "   ", "timestamp": "00:10", "text": "note"},
+    )
+    assert response.status_code == 422
+    payload = response.json()
+    assert payload["error"]["code"] == "VALIDATION_ERROR"
+
+
+@pytest.mark.asyncio
+async def test_create_note_by_title_returns_not_found_when_unresolved(client, monkeypatch):
+    from src.exceptions import NotFoundError
+
+    token = await register_and_login(client, "unresolved-title@example.com")
+
+    def fail_resolve(_video_title: str):
+        raise NotFoundError("No video found for the provided title")
+
+    monkeypatch.setattr("src.notes.service.resolve_video_by_title", fail_resolve)
+
+    response = await client.post(
+        "/v2/notes/by-title",
+        headers={"Authorization": f"Bearer {token}"},
+        json={
+            "video_title": "Missing Result",
+            "timestamp": "00:10",
+            "text": "note",
+        },
+    )
+
+    assert response.status_code == 404
+    payload = response.json()
+    assert payload["error"]["code"] == "NOT_FOUND"
 
 
 @pytest.mark.asyncio

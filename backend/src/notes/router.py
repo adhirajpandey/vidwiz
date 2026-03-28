@@ -9,7 +9,13 @@ from src.database import get_db
 from src.exceptions import BadRequestError
 from src.notes import service as notes_service
 from src.notes.dependencies import get_note_or_404
-from src.notes.schemas import MessageResponse, NoteCreate, NoteRead, NoteUpdate
+from src.notes.schemas import (
+    MessageResponse,
+    NoteCreate,
+    NoteCreateByTitle,
+    NoteRead,
+    NoteUpdate,
+)
 from src.videos.schemas import VideoIdPath
 
 
@@ -51,6 +57,29 @@ def create_note(
     note = notes_service.create_note_for_user(
         db,
         path.video_id,
+        payload.timestamp,
+        payload.text,
+        user_id,
+    )
+    return NoteRead.model_validate(note)
+
+
+@router.post(
+    "/notes/by-title",
+    response_model=NoteRead,
+    status_code=status.HTTP_201_CREATED,
+    description="Create a note by resolving the provided video title on YouTube.",
+)
+def create_note_by_title(
+    request: Request,
+    response: Response,
+    payload: NoteCreateByTitle,
+    db: Session = Depends(get_db),
+    user_id: int = Depends(get_current_user_id_or_long_term),
+) -> NoteRead:
+    note = notes_service.create_note_for_video_title(
+        db,
+        payload.video_title,
         payload.timestamp,
         payload.text,
         user_id,

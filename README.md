@@ -67,6 +67,10 @@ Prereqs: Python 3.10–3.13, Node.js, Poetry, running PostgreSQL
 3. Configure `.env` (use `.env.example` as reference). For required environment variables, see `docs/backend.md`.
 4. Start server: `poetry run uvicorn src.main:app --host 0.0.0.0 --port 5000`
 
+Backend note creation supports:
+- `POST /v2/videos/{video_id}/notes` for known video IDs/URLs
+- `POST /v2/notes/by-title` to resolve a YouTube video from `video_title` and save against the top result
+
 ### Frontend
 1. `cd frontend`
 2. Install dependencies: `npm install`

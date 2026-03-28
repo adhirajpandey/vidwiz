@@ -7,6 +7,7 @@ from sqlalchemy.orm import Session
 
 from src.auth.models import User
 from src.config import settings
+from src.exceptions import InternalServerError, NotFoundError
 from src.internal.scheduling import schedule_video_tasks
 from src.notes.models import Note
 from src.videos.models import Video
@@ -14,6 +15,58 @@ from src.videos import service as videos_service
 from src.credits import service as credits_service
 
 logger = logging.getLogger(__name__)
+
+
+def _build_youtube_client():
+    if not settings.youtube_data_api_key:
+        raise InternalServerError("YOUTUBE_DATA_API_KEY is not configured")
+
+    try:
+        from googleapiclient.discovery import build
+
+        return build("youtube", "v3", developerKey=settings.youtube_data_api_key)
+    except ImportError as exc:
+        logger.exception("google-api-python-client is not installed")
+        raise InternalServerError("YouTube search client is not available") from exc
+    except Exception as exc:
+        logger.exception("Failed to initialize YouTube client")
+        raise InternalServerError("Failed to initialize YouTube client") from exc
+
+
+def resolve_video_by_title(video_title: str) -> tuple[str, str | None]:
+    logger.debug("Resolving video by title", extra={"video_title": video_title})
+    youtube = _build_youtube_client()
+
+    try:
+        response = (
+            youtube.search()
+            .list(
+                q=video_title,
+                part="snippet",
+                type="video",
+                maxResults=1,
+            )
+            .execute()
+        )
+    except Exception as exc:
+        logger.exception("Failed to search YouTube", extra={"video_title": video_title})
+        raise InternalServerError("Failed to search YouTube") from exc
+
+    items = response.get("items") or []
+    if not items:
+        raise NotFoundError("No video found for the provided title")
+
+    item = items[0]
+    video_id = (item.get("id") or {}).get("videoId")
+    if not video_id:
+        raise NotFoundError("No video found for the provided title")
+
+    resolved_title = (item.get("snippet") or {}).get("title")
+    logger.debug(
+        "Resolved video by title",
+        extra={"video_title": video_title, "resolved_video_id": video_id},
+    )
+    return video_id, resolved_title
 
 
 def get_or_create_video(
@@ -125,6 +178,18 @@ def create_note_for_user(
         push_note_to_sqs(note)
 
     return note
+
+
+def create_note_for_video_title(
+    db: Session,
+    video_title: str,
+    timestamp: str,
+    text: str | None,
+    user_id: int,
+) -> Note:
+    resolved_video_id, resolved_title = resolve_video_by_title(video_title)
+    get_or_create_video(db, resolved_video_id, resolved_title)
+    return create_note_for_user(db, resolved_video_id, timestamp, text, user_id)
 
 
 def list_notes_for_video(db: Session, user_id: int, video_id: str) -> list[Note]:

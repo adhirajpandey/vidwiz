@@ -5,6 +5,21 @@ from pydantic import ConfigDict, Field, field_validator
 from src.models import ApiModel
 
 
+def _validate_timestamp(value: str) -> str:
+    if ":" not in value:
+        raise ValueError("timestamp must contain at least one ':'")
+    if sum(char.isdigit() for char in value) < 2:
+        raise ValueError("timestamp must contain at least two numbers")
+    return value
+
+
+def _normalize_text(value: str | None) -> str | None:
+    if value is None:
+        return None
+    trimmed = value.strip()
+    return trimmed if trimmed else None
+
+
 class NoteCreate(ApiModel):
     timestamp: str
     text: str | None = None
@@ -13,19 +28,36 @@ class NoteCreate(ApiModel):
     @field_validator("timestamp")
     @classmethod
     def validate_timestamp(cls, value: str) -> str:
-        if ":" not in value:
-            raise ValueError("timestamp must contain at least one ':'")
-        if sum(char.isdigit() for char in value) < 2:
-            raise ValueError("timestamp must contain at least two numbers")
-        return value
+        return _validate_timestamp(value)
 
     @field_validator("text")
     @classmethod
     def normalize_text(cls, value: str | None) -> str | None:
-        if value is None:
-            return None
+        return _normalize_text(value)
+
+
+class NoteCreateByTitle(ApiModel):
+    video_title: str
+    timestamp: str
+    text: str | None = None
+
+    @field_validator("video_title")
+    @classmethod
+    def validate_video_title(cls, value: str) -> str:
         trimmed = value.strip()
-        return trimmed if trimmed else None
+        if not trimmed:
+            raise ValueError("video_title must not be empty")
+        return trimmed
+
+    @field_validator("timestamp")
+    @classmethod
+    def validate_timestamp(cls, value: str) -> str:
+        return _validate_timestamp(value)
+
+    @field_validator("text")
+    @classmethod
+    def normalize_text(cls, value: str | None) -> str | None:
+        return _normalize_text(value)
 
 
 class NoteUpdate(ApiModel):
