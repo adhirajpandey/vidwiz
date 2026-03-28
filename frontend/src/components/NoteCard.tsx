@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { FaEdit, FaTrashAlt, FaExternalLinkAlt, FaSave, FaTimes, FaPlay } from 'react-icons/fa';
 import { HiSparkles } from 'react-icons/hi';
 import { BiUser } from 'react-icons/bi';
@@ -42,10 +42,26 @@ export default function NoteCard({
 }: NoteCardProps) {
   const [isEditing, setIsEditing] = useState(false);
   const [editText, setEditText] = useState(note.text || '');
+  const [pendingDots, setPendingDots] = useState('.');
   const isPendingAI =
     userAiNotesEnabled &&
     !note.generated_by_ai &&
     (!note.text || !note.text.trim());
+
+  useEffect(() => {
+    if (!isPendingAI) {
+      setPendingDots('.');
+      return;
+    }
+
+    const intervalId = window.setInterval(() => {
+      setPendingDots((currentDots) =>
+        currentDots.length >= 3 ? '.' : `${currentDots}.`
+      );
+    }, 500);
+
+    return () => window.clearInterval(intervalId);
+  }, [isPendingAI]);
 
   const handleSave = () => {
     onUpdate(note.id, editText);
@@ -135,7 +151,7 @@ export default function NoteCard({
             </div>
           ) : (
             <p className="text-foreground/70 text-sm leading-relaxed break-words">
-              {isPendingAI ? 'Generating AI note...' : note.text}
+              {isPendingAI ? `Generating AI note${pendingDots}` : note.text}
             </p>
           )}
         </div>
