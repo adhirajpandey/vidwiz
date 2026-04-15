@@ -10,12 +10,14 @@ Describe background helpers and Lambdas used for transcript/metadata fetching an
   - Fetches transcripts via `youtube_transcript_api` (languages: `en`, `hi`)
   - Normalizes transcript items by renaming `start` -> `offset`
   - Submits results to `/v2/internal/tasks/{id}/result`
-  - CLI args: `--timeout` and `--api-url` (default `https://api.vidwiz.online`)
+  - CLI args: `--timeout` and optional `--api-url`
+  - Internal API base URL resolution: `--api-url` -> `INTERNAL_API_URL`; exits on startup if neither is set
 - **Metadata helper**: `backend/workers/scripts/metadata-helper.py`
   - Polls `/v2/internal/tasks?type=metadata` with long-poll timeout (default 30s)
   - Fetches metadata via `yt_dlp`
   - Submits results to `/v2/internal/tasks/{id}/result`
-  - CLI args: `--timeout` and `--api-url` (default `https://api.vidwiz.online`)
+  - CLI args: `--timeout` and optional `--api-url`
+  - Internal API base URL resolution: `--api-url` -> `INTERNAL_API_URL`; exits on startup if neither is set
 
 ### Lambdas
 - **AI Note Lambda**: `backend/workers/lambdas/ai-note.py`
@@ -49,6 +51,6 @@ Describe background helpers and Lambdas used for transcript/metadata fetching an
 
 ## Configuration (Common)
 - Internal API access: `VIDWIZ_ENDPOINT`, `VIDWIZ_TOKEN` (admin token)
-- Helpers: `ADMIN_TOKEN`, `--api-url` (base), `--timeout`
+- Helpers: `ADMIN_TOKEN`, `INTERNAL_API_URL` or `--api-url` (base), `--timeout`
 - S3 access: `S3_BUCKET_NAME`, AWS credentials
 - LLM provider: OpenRouter (`OPENROUTER_API_KEY`, `OPENROUTER_MODEL`, `OPENROUTER_BASE_URL`)

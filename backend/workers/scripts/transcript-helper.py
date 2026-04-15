@@ -9,6 +9,7 @@ from youtube_transcript_api import YouTubeTranscriptApi
 
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger("vidwiz.transcript_helper")
+INTERNAL_API_URL_ENV_VAR = "INTERNAL_API_URL"
 
 
 def get_auth_token() -> str:
@@ -20,18 +21,16 @@ def get_auth_token() -> str:
     return token
 
 
-def parse_arguments() -> int:
-    """Parse command line arguments and return timeout."""
-    parser = argparse.ArgumentParser(description="YouTube transcript helper for VidWiz")
-    parser.add_argument(
-        "--timeout",
-        type=int,
-        default=30,
-        help="Long poll timeout in seconds (default: 30)",
-    )
-
-    args = parser.parse_args()
-    return args.timeout
+def resolve_api_url(api_url_arg: Optional[str]) -> str:
+    """Resolve the internal API base URL from CLI or environment."""
+    api_url = api_url_arg or os.environ.get(INTERNAL_API_URL_ENV_VAR)
+    if not api_url:
+        logger.error(
+            "Internal API URL is not set. Pass --api-url or set %s.",
+            INTERNAL_API_URL_ENV_VAR,
+        )
+        sys.exit(1)
+    return api_url
 
 
 class TranscriptHelper:
@@ -168,14 +167,16 @@ def main() -> None:
     parser.add_argument(
         "--api-url",
         type=str,
-        default="https://api.vidwiz.online",
-        help="Base API URL (default: https://api.vidwiz.online)",
+        default=None,
+        help=f"Base API URL (overrides {INTERNAL_API_URL_ENV_VAR})",
     )
 
     args = parser.parse_args()
+    api_url = resolve_api_url(args.api_url)
+    logger.info("Using internal API base URL: %s", api_url.rstrip("/"))
 
     helper = TranscriptHelper(
-        auth_token=auth_token, timeout_seconds=args.timeout, api_url=args.api_url
+        auth_token=auth_token, timeout_seconds=args.timeout, api_url=api_url
     )
     helper.run()
 
