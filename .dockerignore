@@ -1,0 +1,13 @@
+.git
+.pytest_cache
+.ruff_cache
+__pycache__
+*.py[cod]
+
+# Host/local environments must not be copied into runtime images.
+.venv
+backend/.venv
+
+# Local editor and environment files are not needed in the image.
+.env
+*.env
