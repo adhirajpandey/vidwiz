@@ -9,6 +9,38 @@ services:
       - "5006:5000"
     depends_on:
       - database
+    healthcheck:
+      test: ["CMD", "curl", "-fsS", "http://127.0.0.1:5000/health"]
+      interval: 10s
+      timeout: 3s
+      retries: 12
+      start_period: 10s
+
+  metadata-helper:
+    container_name: vidwiz-metadata-helper
+    image: adhirajpandey/vidwiz:latest
+    env_file:
+      - .env
+    environment:
+      INTERNAL_API_URL: http://application:5000
+    command: ["poetry", "run", "python", "workers/scripts/metadata-helper.py"]
+    restart: unless-stopped
+    depends_on:
+      application:
+        condition: service_healthy
+
+  transcript-helper:
+    container_name: vidwiz-transcript-helper
+    image: adhirajpandey/vidwiz:latest
+    env_file:
+      - .env
+    environment:
+      INTERNAL_API_URL: http://application:5000
+    command: ["poetry", "run", "python", "workers/scripts/transcript-helper.py"]
+    restart: unless-stopped
+    depends_on:
+      application:
+        condition: service_healthy
 
   database:
     image: postgres:15
