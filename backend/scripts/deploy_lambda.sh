@@ -54,6 +54,12 @@ cleanup() {
   rmdir "${BACKEND_DIR}/build" 2>/dev/null || true
 }
 
+remove_package_artifacts() {
+  find "${BUILD_DIR}" -type d \( -name __pycache__ -o -name test -o -name tests \) \
+    -prune -exec rm -rf -- {} +
+  find "${BUILD_DIR}" -type f \( -name '*.pyc' -o -name '*.pyo' \) -delete
+}
+
 trap cleanup EXIT
 trap 'exit 130' INT
 trap 'exit 143' TERM
@@ -99,11 +105,10 @@ python -m pip install \
 
 cp "${SOURCE_FILE}" "${BUILD_DIR}/lambda_function.py"
 
-find "${BUILD_DIR}" -type d \( -name __pycache__ -o -name test -o -name tests \) \
-  -prune -exec rm -rf -- {} +
-find "${BUILD_DIR}" -type f \( -name '*.pyc' -o -name '*.pyo' \) -delete
+remove_package_artifacts
 
 PYTHONPATH="${BUILD_DIR}" \
+PYTHONDONTWRITEBYTECODE=1 \
 VIDWIZ_ENDPOINT="https://example.invalid" \
 VIDWIZ_TOKEN="deployment-smoke-test" \
 SQS_QUEUE_URL="https://example.invalid/note-queue" \
@@ -120,6 +125,8 @@ handler_module = importlib.import_module("lambda_function")
 if not callable(getattr(handler_module, "lambda_handler", None)):
     raise RuntimeError("lambda_function.lambda_handler is missing or not callable")
 PY
+
+remove_package_artifacts
 
 (
   cd "${BUILD_DIR}"
