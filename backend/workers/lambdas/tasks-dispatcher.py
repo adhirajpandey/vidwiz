@@ -16,6 +16,7 @@ assert VIDWIZ_TOKEN, "VIDWIZ_TOKEN is not set"
 assert SQS_QUEUE_URL, "SQS_QUEUE_URL is not set"
 assert SQS_SUMMARY_QUEUE_URL, "SQS_SUMMARY_QUEUE_URL is not set"
 
+
 logger = Logger()
 
 

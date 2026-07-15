@@ -43,7 +43,6 @@ assert VIDWIZ_ENDPOINT, "VIDWIZ_ENDPOINT is not set"
 assert VIDWIZ_TOKEN, "VIDWIZ_TOKEN is not set"
 assert OPENROUTER_API_KEY, "OPENROUTER_API_KEY is not set"
 
-# Initialize logger
 logger = Logger()
 
 

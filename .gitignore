@@ -24,6 +24,7 @@ server/.env
 
 # Backend
 /backend/vidwiz/dist
+/backend/build/
 
 # Editor directories and files
 .vscode/*

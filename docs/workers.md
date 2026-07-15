@@ -44,6 +44,18 @@ Describe background helpers and Lambdas used for transcript/metadata fetching an
   - For all video IDs: fetches eligible AI-note tasks via `/v2/internal/videos/{video_id}/ai-notes` and batches them to the AI note SQS (batch size 10)
   - Notes fetch uses admin token (`VIDWIZ_TOKEN`)
 
+### Lambda Deployment
+- `.github/workflows/deploy-lambdas.yml` updates Lambda code on relevant pushes to `main`; manual runs redeploy all three functions.
+- Push deployments select only changed Lambda sources. Changes to the shared workflow or `backend/scripts/deploy_lambda.sh` redeploy all three.
+- Deployment mapping:
+  - `tasks-dispatcher.py` -> `trigger_on_s3_upload`
+  - `ai-summary.py` -> `vidwiz-summary`
+  - `ai-note.py` -> `vidwiz-gen-ai-note`
+- The workflow authenticates with the `AWS_ACCESS_KEY_ID` and `AWS_SECRET_ACCESS_KEY` GitHub repository secrets and deploys to `ap-south-1`.
+- The AWS identity needs `lambda:UpdateFunctionCode` and `lambda:GetFunctionConfiguration` for the three mapped functions.
+- Packages contain the selected source as `lambda_function.py`. Dependencies are not included because the existing Lambda layers provide them.
+- Function configuration, layers, triggers, runtime, environment variables, versions, and aliases remain managed outside this workflow until migration to CDK.
+
 ## Data & Storage
 - **Transcripts**: Stored in S3 at `transcripts/{video_id}.json` when configured.
 - **Tasks**: Stored in the DB (`tasks` table) and polled via `/v2/internal/tasks`.

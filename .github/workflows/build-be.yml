@@ -6,6 +6,8 @@ on:
       - main
     paths:
       - 'backend/**'
+      - '!backend/workers/lambdas/**'
+      - '!backend/scripts/deploy_lambda.sh'
   workflow_dispatch:
 
 jobs:
