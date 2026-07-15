@@ -1,0 +1,4 @@
+aws-lambda-powertools[parser]==3.30.0
+boto3==1.42.39
+pydantic==2.12.5
+requests==2.32.5

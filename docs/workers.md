@@ -53,7 +53,10 @@ Describe background helpers and Lambdas used for transcript/metadata fetching an
   - `ai-note.py` -> `vidwiz-gen-ai-note`
 - The workflow authenticates with the `AWS_ACCESS_KEY_ID` and `AWS_SECRET_ACCESS_KEY` GitHub repository secrets and deploys to `ap-south-1`.
 - The AWS identity needs `lambda:UpdateFunctionCode` and `lambda:GetFunctionConfiguration` for the three mapped functions.
-- Packages contain the selected source as `lambda_function.py`. Dependencies are not included because the existing Lambda layers provide them.
+- Packages contain the selected source as `lambda_function.py` plus hash-pinned, Python 3.13-compatible dependencies. The dispatcher and AI functions use separate dependency locks under `backend/workers/lambdas/requirements/`.
+- Before upload, the script validates `lambda_function.lambda_handler`, the `python3.13` runtime, and `x86_64` architecture; it also smoke-imports the built package and checks ZIP integrity and size.
+- Regenerate the committed lock files from their `.in` files with Python 3.13 and `pip-compile --generate-hashes` when dependencies change.
+- Existing dependency layers may remain attached during recovery, but packaged dependencies take precedence. Remove redundant layers only after validation or during the CDK migration.
 - Function configuration, layers, triggers, runtime, environment variables, versions, and aliases remain managed outside this workflow until migration to CDK.
 
 ## Data & Storage

@@ -1,6 +1,7 @@
 from aws_lambda_powertools import Logger
-from aws_lambda_powertools.utilities.parser import BaseModel, envelopes, event_parser
+from aws_lambda_powertools.utilities.parser import envelopes, event_parser
 from aws_lambda_powertools.utilities.typing import LambdaContext
+from pydantic import BaseModel
 from typing import Any, Dict, List, Optional
 import json
 import os

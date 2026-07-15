@@ -8,6 +8,7 @@ on:
       - 'backend/workers/lambdas/tasks-dispatcher.py'
       - 'backend/workers/lambdas/ai-summary.py'
       - 'backend/workers/lambdas/ai-note.py'
+      - 'backend/workers/lambdas/requirements/**'
       - 'backend/scripts/deploy_lambda.sh'
       - '.github/workflows/deploy-lambdas.yml'
   workflow_dispatch:
@@ -56,6 +57,13 @@ jobs:
                 backend/workers/lambdas/ai-note.py)
                   deploy_note=true
                   ;;
+                backend/workers/lambdas/requirements/dispatcher.in|backend/workers/lambdas/requirements/dispatcher.txt)
+                  deploy_dispatcher=true
+                  ;;
+                backend/workers/lambdas/requirements/ai.in|backend/workers/lambdas/requirements/ai.txt)
+                  deploy_summary=true
+                  deploy_note=true
+                  ;;
                 backend/scripts/deploy_lambda.sh|.github/workflows/deploy-lambdas.yml)
                   deploy_all=true
                   ;;
@@ -71,13 +79,13 @@ jobs:
 
           entries=()
           if [[ "${deploy_dispatcher}" == "true" ]]; then
-            entries+=('{"source_file":"workers/lambdas/tasks-dispatcher.py","function_name":"trigger_on_s3_upload","build_name":"trigger"}')
+            entries+=('{"source_file":"workers/lambdas/tasks-dispatcher.py","function_name":"trigger_on_s3_upload","build_name":"trigger","requirements_file":"workers/lambdas/requirements/dispatcher.txt"}')
           fi
           if [[ "${deploy_summary}" == "true" ]]; then
-            entries+=('{"source_file":"workers/lambdas/ai-summary.py","function_name":"vidwiz-summary","build_name":"summary"}')
+            entries+=('{"source_file":"workers/lambdas/ai-summary.py","function_name":"vidwiz-summary","build_name":"summary","requirements_file":"workers/lambdas/requirements/ai.txt"}')
           fi
           if [[ "${deploy_note}" == "true" ]]; then
-            entries+=('{"source_file":"workers/lambdas/ai-note.py","function_name":"vidwiz-gen-ai-note","build_name":"note"}')
+            entries+=('{"source_file":"workers/lambdas/ai-note.py","function_name":"vidwiz-gen-ai-note","build_name":"note","requirements_file":"workers/lambdas/requirements/ai.txt"}')
           fi
 
           matrix_entries="$(IFS=,; echo "${entries[*]}")"
@@ -98,6 +106,13 @@ jobs:
       - name: Checkout code
         uses: actions/checkout@v4
 
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.13'
+          cache: pip
+          cache-dependency-path: backend/${{ matrix.requirements_file }}
+
       - name: Configure AWS credentials
         uses: aws-actions/configure-aws-credentials@v6
         with:
@@ -112,4 +127,5 @@ jobs:
           bash scripts/deploy_lambda.sh \
             "${{ matrix.source_file }}" \
             "${{ matrix.function_name }}" \
-            "${{ matrix.build_name }}"
+            "${{ matrix.build_name }}" \
+            "${{ matrix.requirements_file }}"
