@@ -6,7 +6,7 @@ const PRICING = [
 
 const configs = {
   development: {
-    API_URL: 'https://api.vidwiz.online/v2',
+    API_URL: 'http://localhost:5000/v2',
     GOOGLE_CLIENT_ID: '265946502927-fsb0osc7ch7d9tvu4cr30oks5q4r61pt.apps.googleusercontent.com',
     EXTENSION_ID: 'jmkflagepabkiopnlbdfdflcpnfiahmf',
   },
@@ -21,6 +21,7 @@ const envConfig = import.meta.env.DEV ? configs.development : configs.production
 
 const config = {
   ...envConfig,
+  API_URL: (import.meta.env.VITE_API_URL || envConfig.API_URL).replace(/\/$/, ''),
   CHROME_WEBSTORE_URL: 'https://chromewebstore.google.com/detail/vidwiz/bgiahikcnhdljbfeknfbfpdnbnkpjiop',
   SIGNUP_CREDITS: 100,
   NOTES_POLL_INTERVAL_MS: 4000,

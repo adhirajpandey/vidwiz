@@ -6,6 +6,7 @@ __pycache__/
 todo.txt
 server/.env
 .coverage
+/scripts/outputs/
 
 # Frontend
 /frontend/node_modules

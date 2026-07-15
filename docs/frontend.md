@@ -39,9 +39,32 @@ Summarize the web app structure, routing, and API integration.
 - **Theme**: Navbar toggle adds/removes `dark` on `documentElement` and stores the choice in `localStorage`; toggle is hidden on landing/login/signup.
 
 ## Config
-- `frontend/src/config.ts` hard-codes `API_URL`, `GOOGLE_CLIENT_ID`, and `EXTENSION_ID` for dev/prod (no `.env` usage).
+- `frontend/src/config.ts` defaults API requests to `http://localhost:5000/v2` in development and `https://api.vidwiz.online/v2` in production. Set `VITE_API_URL` before starting Vite to override either default.
+- `GOOGLE_CLIENT_ID` and `EXTENSION_ID` remain defined per environment in `frontend/src/config.ts`.
 - Production `EXTENSION_ID` must be a real installed/store extension ID or token sync will fail.
 
 ## UI Notes
 - Theme toggle adds/removes the `dark` class on `documentElement`.
 - Tailwind tokens are defined via CSS variables in `frontend/src/index.css`.
+
+## UI Screenshot Workflow
+`scripts/screenshot_pages.py` uses Playwright to capture named routes as overlapping desktop and mobile viewport images. The workflow forces dark mode, uses anonymous contexts for public pages, and logs into the local API for protected pages. It does not start the frontend or backend.
+
+Install the development dependencies and Playwright Chromium once:
+
+```powershell
+poetry -C backend install
+poetry -C backend run playwright install chromium
+```
+
+Copy `scripts/.env.example` to `scripts/.env`, then provide an existing local account and a video ID whose metadata and transcript are ready. Process environment variables take precedence over values in that file. Credentials are used only for `POST /v2/auth/login` and are not printed.
+
+Common commands from the repository root:
+
+```powershell
+poetry -C backend run python ../scripts/screenshot_pages.py --list
+poetry -C backend run python ../scripts/screenshot_pages.py --pages landing dashboard --sizes mobile desktop
+poetry -C backend run python ../scripts/screenshot_pages.py --all --sizes mobile desktop --browser-mode headless
+```
+
+Generated PNGs default to `scripts/outputs/ui-images/` and are ignored by Git. Before each page capture, older numbered images for the same page and size are removed. Opening the Wiz workspace follows the real application behavior and creates an empty local conversation, but the script never sends a chat message.
