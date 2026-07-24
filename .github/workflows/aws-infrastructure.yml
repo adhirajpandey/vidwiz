@@ -1,0 +1,172 @@
+name: AWS infrastructure
+
+on:
+  pull_request:
+    paths:
+      - 'infra/**'
+      - 'backend/workers/lambdas/**'
+      - '.github/workflows/aws-infrastructure.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: vidwiz-prod-aws
+  cancel-in-progress: false
+
+jobs:
+  validate:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262
+
+      - name: Set up Python
+        uses: actions/setup-python@a26af69be951a213d495a4c3e4e4022e16d87065
+        with:
+          python-version: '3.13'
+
+      - name: Set up uv
+        uses: astral-sh/setup-uv@94527f2e458b27549849d47d273a16bec83a01e9
+        with:
+          version: '0.8.22'
+          enable-cache: false
+
+      - name: Set up Node.js
+        uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020
+        with:
+          node-version: '22'
+          cache: npm
+          cache-dependency-path: infra/package-lock.json
+
+      - name: Install locked dependencies
+        working-directory: infra
+        run: |
+          uv sync --frozen
+          npm ci --ignore-scripts
+
+      - name: Run static checks and tests
+        working-directory: infra
+        run: |
+          uv run ruff format --check app.py vidwiz_infra scripts tests
+          uv run ruff check app.py vidwiz_infra scripts tests
+          uv run mypy app.py vidwiz_infra scripts tests
+          uv run pytest
+
+      - name: Build and validate Lambda ZIPs
+        working-directory: infra
+        run: |
+          uv run python scripts/build_lambdas.py
+          uv run python scripts/validate_lambdas.py
+
+      - name: Synthesize fixture stack
+        working-directory: infra
+        env:
+          LAMBDA_ENV_FILE_PATH: tests/fixtures/production.env
+        run: npx cdk synth vidwiz-stack --quiet
+
+      - name: Check whitespace
+        run: git diff --check
+
+  deploy-production:
+    if: github.event_name == 'workflow_dispatch'
+    needs: validate
+    runs-on: ubuntu-latest
+    environment: production
+    permissions:
+      contents: read
+      id-token: write
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262
+
+      - name: Set up Python
+        uses: actions/setup-python@a26af69be951a213d495a4c3e4e4022e16d87065
+        with:
+          python-version: '3.13'
+
+      - name: Set up uv
+        uses: astral-sh/setup-uv@94527f2e458b27549849d47d273a16bec83a01e9
+        with:
+          version: '0.8.22'
+          enable-cache: false
+
+      - name: Set up Node.js
+        uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020
+        with:
+          node-version: '22'
+          cache: npm
+          cache-dependency-path: infra/package-lock.json
+
+      - name: Install locked dependencies
+        working-directory: infra
+        run: |
+          uv sync --frozen
+          npm ci --ignore-scripts
+
+      - name: Build Lambda ZIPs
+        working-directory: infra
+        run: uv run python scripts/build_lambdas.py
+
+      - name: Configure AWS credentials through OIDC
+        uses: aws-actions/configure-aws-credentials@451ce2a72e8d729a59ebeaacab82dbce58e7af4c
+        with:
+          role-to-assume: ${{ vars.AWS_GITHUB_DEPLOY_ROLE_ARN }}
+          aws-region: ap-south-1
+          allowed-account-ids: ${{ vars.AWS_ACCOUNT_ID }}
+
+      - name: Verify AWS caller
+        env:
+          EXPECTED_ACCOUNT_ID: ${{ vars.AWS_ACCOUNT_ID }}
+        run: |
+          actual_account="$(aws sts get-caller-identity --query Account --output text)"
+          test "${actual_account}" = "${EXPECTED_ACCOUNT_ID}"
+          aws sts get-caller-identity
+
+      - name: Reconstruct and validate production configuration
+        id: production-config
+        working-directory: infra
+        env:
+          LAMBDA_ENV_FILE: ${{ secrets.LAMBDA_ENV_FILE }}
+        run: |
+          config_file="$(mktemp "${RUNNER_TEMP}/vidwiz-lambda-env.XXXXXX")"
+          chmod 600 "${config_file}"
+          printf '%s' "${LAMBDA_ENV_FILE}" > "${config_file}"
+          echo "path=${config_file}" >> "${GITHUB_OUTPUT}"
+          uv run python scripts/export_secret_parameters.py \
+            "${config_file}" "${GITHUB_ENV}"
+
+      - name: Synthesize and deploy vidwiz-stack
+        working-directory: infra
+        env:
+          LAMBDA_ENV_FILE_PATH: ${{ steps.production-config.outputs.path }}
+        run: |
+          npx cdk synth vidwiz-stack --quiet
+          npx cdk deploy vidwiz-stack \
+            --require-approval never \
+            --parameters "VidwizToken=${VIDWIZ_TOKEN_PARAMETER}" \
+            --parameters "OpenrouterApiKey=${OPENROUTER_API_KEY_PARAMETER}"
+
+      - name: Verify deployed resources
+        run: |
+          aws cloudformation describe-stacks --stack-name vidwiz-stack \
+            --query 'Stacks[0].StackStatus' --output text
+          for function_name in \
+            vidwiz-prod-transcript-dispatcher \
+            vidwiz-prod-ai-note-worker \
+            vidwiz-prod-ai-summary-worker; do
+            aws lambda get-function-configuration \
+              --function-name "${function_name}" \
+              --query '[FunctionName,Runtime,Architectures[0],State]' \
+              --output text
+          done
+
+      - name: Remove temporary production configuration
+        if: always()
+        env:
+          CONFIG_FILE: ${{ steps.production-config.outputs.path }}
+        run: |
+          if [[ -n "${CONFIG_FILE}" && -f "${CONFIG_FILE}" ]]; then
+            rm -- "${CONFIG_FILE}"
+          fi

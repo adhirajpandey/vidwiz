@@ -44,20 +44,30 @@ Describe background helpers and Lambdas used for transcript/metadata fetching an
   - For all video IDs: fetches eligible AI-note tasks via `/v2/internal/videos/{video_id}/ai-notes` and batches them to the AI note SQS (batch size 10)
   - Notes fetch uses admin token (`VIDWIZ_TOKEN`)
 
-### Lambda Deployment
-- `.github/workflows/deploy-lambdas.yml` updates Lambda code on relevant pushes to `main`; manual runs redeploy all three functions.
-- Push deployments select only changed Lambda sources. Changes to the shared workflow or `backend/scripts/deploy_lambda.sh` redeploy all three.
-- Deployment mapping:
-  - `tasks-dispatcher.py` -> `trigger_on_s3_upload`
-  - `ai-summary.py` -> `vidwiz-summary`
-  - `ai-note.py` -> `vidwiz-gen-ai-note`
-- The workflow authenticates with the `AWS_ACCESS_KEY_ID` and `AWS_SECRET_ACCESS_KEY` GitHub repository secrets and deploys to `ap-south-1`.
-- The AWS identity needs `lambda:UpdateFunctionCode` and `lambda:GetFunctionConfiguration` for the three mapped functions.
-- Packages contain the selected source as `lambda_function.py` plus hash-pinned, Python 3.13-compatible dependencies. The dispatcher and AI functions use separate dependency locks under `backend/workers/lambdas/requirements/`.
-- Before upload, the script validates `lambda_function.lambda_handler`, the `python3.13` runtime, and `x86_64` architecture; it also smoke-imports the built package and checks ZIP integrity and size.
+### Lambda Infrastructure and Delivery
+- `infra/` defines all three production functions, queues, the transcript
+  bucket, event sources, log groups, and separate execution roles in
+  `vidwiz-stack`.
+- Canonical function names are `vidwiz-prod-transcript-dispatcher`,
+  `vidwiz-prod-ai-note-worker`, and `vidwiz-prod-ai-summary-worker`.
+- `.github/workflows/aws-infrastructure.yml` validates pull requests without
+  AWS credentials or production secrets. Its production job is deliberately
+  `workflow_dispatch`-only until the initial manual deployment and cutover
+  succeed.
+- The deployment job assumes `VidwizGitHubDeployRole` through GitHub OIDC,
+  rejects an unexpected AWS account, and uses only the production CDK
+  deployment, file-publishing, and lookup bootstrap roles.
+- Each package contains one source renamed to root-level
+  `lambda_function.py` plus its hash-pinned Python 3.13 dependencies. Builds
+  use the pinned official Lambda Python image and produce deterministic ZIPs.
+- Packaging validates integrity, limits, exclusions, dependencies, and a
+  smoke import of `lambda_function.lambda_handler`.
 - Regenerate the committed lock files from their `.in` files with Python 3.13 and `pip-compile --generate-hashes` when dependencies change.
-- Existing dependency layers may remain attached during recovery, but packaged dependencies take precedence. Remove redundant layers only after validation or during the CDK migration.
-- Function configuration, layers, triggers, runtime, environment variables, versions, and aliases remain managed outside this workflow until migration to CDK.
+- Production memory and timeout values must be captured from the legacy
+  functions and supplied in `LAMBDA_ENV_FILE`; synthesis rejects missing
+  values rather than selecting migration defaults.
+- See `docs/aws-infrastructure.md` for validation, initial rollout, access,
+  recovery, and cleanup boundaries.
 
 ## Data & Storage
 - **Transcripts**: Stored in S3 at `transcripts/{video_id}.json` when configured.

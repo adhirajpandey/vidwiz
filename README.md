@@ -93,6 +93,11 @@ The extension note UI appears on supported YouTube watch pages after sync.
 
 ## Running tests
 - Backend: `cd backend && poetry run pytest`
+- AWS infrastructure: `cd infra && uv sync --frozen && npm ci && uv run pytest`
+
+Production AWS serverless resources are defined in `infra/` as
+`vidwiz-stack`. See `docs/aws-infrastructure.md` before any bootstrap,
+deployment, transcript migration, or cutover operation.
 
 ## Project Structure
 ```
@@ -107,6 +112,7 @@ vidwiz/
 │       ├── pages/       # Route-level views
 │       ├── components/  # Reusable UI components
 │       └── public/      # Static assets
+├── infra/               # Production AWS CDK app, packaging, and assertions
 └── extension/           # Chromium browser extension
     ├── manifest.json
     ├── popup.*

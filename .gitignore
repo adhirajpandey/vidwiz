@@ -25,6 +25,9 @@ server/.env
 # Backend
 /backend/vidwiz/dist
 /backend/build/
+/infra/build/
+/infra/cdk.out/
+/infra/node_modules/
 
 # Editor directories and files
 .vscode/*
