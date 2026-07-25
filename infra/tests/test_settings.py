@@ -3,13 +3,13 @@ from pathlib import Path
 import pytest
 from pydantic import SecretStr, ValidationError
 
-from vidwiz_infra.settings import ProductionSettings
+from vidwiz_infra.settings import ProductionDeploymentConfig
 
 FIXTURE_ENV = Path(__file__).parent / "fixtures" / "production.env"
 
 
 def test_loads_valid_fixture_and_protects_secrets() -> None:
-    settings = ProductionSettings.from_env_file(FIXTURE_ENV)
+    settings = ProductionDeploymentConfig.from_env_file(FIXTURE_ENV)
 
     assert settings.aws_region == "ap-south-1"
     assert settings.vidwiz_internal_api_base_url == "https://example.invalid"
@@ -44,7 +44,7 @@ def test_rejects_invalid_production_values(
     env_file.write_text(text)
 
     with pytest.raises(ValidationError):
-        ProductionSettings.from_env_file(env_file)
+        ProductionDeploymentConfig.from_env_file(env_file)
 
 
 def test_missing_configuration_does_not_disclose_secrets(tmp_path: Path) -> None:
@@ -52,7 +52,7 @@ def test_missing_configuration_does_not_disclose_secrets(tmp_path: Path) -> None
     env_file.write_text("VIDWIZ_INTERNAL_API_ADMIN_TOKEN=do-not-disclose\n")
 
     with pytest.raises(ValidationError) as error:
-        ProductionSettings.from_env_file(env_file)
+        ProductionDeploymentConfig.from_env_file(env_file)
 
     assert "do-not-disclose" not in str(error.value)
 
@@ -65,7 +65,7 @@ def test_explicit_configuration_file_ignores_ambient_environment(
     monkeypatch.setenv("VIDWIZ_INTERNAL_API_BASE_URL", "https://ambient.invalid")
     monkeypatch.setenv("VIDWIZ_INTERNAL_API_ADMIN_TOKEN", "ambient-admin-token")
 
-    settings = ProductionSettings.from_env_file(FIXTURE_ENV)
+    settings = ProductionDeploymentConfig.from_env_file(FIXTURE_ENV)
 
     assert settings.aws_account_id == "123456789012"
     assert settings.openrouter_model == "fixture-model"

@@ -55,7 +55,7 @@ def main() -> None:
     for lambda_directory in LAMBDA_DIRECTORIES:
         run(["uv", "lock", "--check"], cwd=lambda_directory)
 
-    synthesis_env = os.environ | {"LAMBDA_ENV_FILE_PATH": FIXTURE_ENV_FILE}
+    synthesis_env = os.environ | {"VIDWIZ_PRODUCTION_CONFIG_PATH": FIXTURE_ENV_FILE}
     run(
         [NPM_COMMAND, "exec", "--", "cdk", "synth", "vidwiz-stack", "--quiet"],
         cwd=INFRA_DIR,

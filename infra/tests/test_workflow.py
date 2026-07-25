@@ -25,7 +25,7 @@ def test_production_job_keeps_branch_oidc_and_serial_deployments() -> None:
     assert "id-token: write" in text
     assert "role-to-assume:" in text
     assert "role-session-name: vidwiz-${{ github.run_id }}" in text
-    assert "allowed-account-ids:" in text
+    assert "allowed-account-ids: ${{ env.VIDWIZ_PRODUCTION_AWS_ACCOUNT_ID }}" in text
     assert "AWS_ACCESS_KEY_ID" not in text
     assert "AWS_SECRET_ACCESS_KEY" not in text
 
@@ -50,6 +50,16 @@ def test_workflow_uses_major_action_versions_and_locked_dependency_caches() -> N
     assert "npm ci --ignore-scripts" in text
 
 
+def test_workflow_uses_canonical_target_from_production_config() -> None:
+    text = WORKFLOW.read_text()
+
+    assert "PRODUCTION_DEPLOYMENT_ENV: ${{ secrets.PRODUCTION_DEPLOYMENT_ENV }}" in text
+    assert "aws-region: ${{ env.VIDWIZ_PRODUCTION_AWS_REGION }}" in text
+    assert "vars.AWS_ACCOUNT_ID" not in text
+    assert "aws-region: ap-south-1" not in text
+    assert text.index("Prepare production configuration") < text.index(
+        "Configure AWS credentials through OIDC"
+    )
 def test_workflow_uses_repository_scripts_and_parameter_free_deployment() -> None:
     text = WORKFLOW.read_text()
 
@@ -67,7 +77,7 @@ def test_workflow_cleans_up_the_temporary_production_configuration() -> None:
     text = WORKFLOW.read_text()
 
     assert "if: always()" in text
-    assert "CONFIG_FILE: ${{ env.LAMBDA_ENV_FILE_PATH }}" in text
+    assert "CONFIG_FILE: ${{ env.VIDWIZ_PRODUCTION_CONFIG_PATH }}" in text
     assert (
         "uv run --locked python scripts/prepare_production_config.py --cleanup" in text
     )

@@ -3,16 +3,18 @@ from pathlib import Path
 
 import aws_cdk as cdk
 
-from vidwiz_infra.settings import ProductionSettings
+from vidwiz_infra.settings import ProductionDeploymentConfig
 from vidwiz_infra.stack import STACK_NAME, VidwizStack
 
 
 def main() -> None:
-    config_path = os.environ.get("LAMBDA_ENV_FILE_PATH")
+    config_path = os.environ.get("VIDWIZ_PRODUCTION_CONFIG_PATH")
     if not config_path:
-        raise ValueError("LAMBDA_ENV_FILE_PATH must point to a validated env file")
+        raise ValueError(
+            "VIDWIZ_PRODUCTION_CONFIG_PATH must point to a validated env file"
+        )
 
-    settings = ProductionSettings.from_env_file(Path(config_path))
+    settings = ProductionDeploymentConfig.from_env_file(Path(config_path))
     app = cdk.App()
     VidwizStack(
         app,

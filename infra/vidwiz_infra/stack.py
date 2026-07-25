@@ -25,7 +25,7 @@ from aws_cdk import (
 from constructs import Construct
 
 from vidwiz_infra.lambda_specs import LAMBDA_SPECS_BY_KEY, LambdaSpec
-from vidwiz_infra.settings import ProductionSettings
+from vidwiz_infra.settings import ProductionDeploymentConfig
 
 STACK_NAME = "vidwiz-stack"
 TRANSCRIPT_BUCKET_NAME = "vidwiz-prod"
@@ -39,7 +39,7 @@ class VidwizStack(cdk.Stack):
         scope: Construct,
         construct_id: str,
         *,
-        settings: ProductionSettings,
+        settings: ProductionDeploymentConfig,
         **kwargs: object,
     ) -> None:
         super().__init__(scope, construct_id, **kwargs)

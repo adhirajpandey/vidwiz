@@ -5,7 +5,7 @@ import pytest
 from aws_cdk import aws_lambda as lambda_
 from aws_cdk.assertions import Match, Template
 
-from vidwiz_infra.settings import ProductionSettings
+from vidwiz_infra.settings import ProductionDeploymentConfig
 from vidwiz_infra.stack import VidwizStack
 
 FIXTURE_ENV = Path(__file__).parent / "fixtures" / "production.env"
@@ -39,7 +39,7 @@ def template() -> Template:
         "vidwiz_infra.stack.lambda_python.PythonFunction",
         _test_python_function,
     )
-    settings = ProductionSettings.from_env_file(FIXTURE_ENV)
+    settings = ProductionDeploymentConfig.from_env_file(FIXTURE_ENV)
     try:
         app = cdk.App()
         stack = VidwizStack(

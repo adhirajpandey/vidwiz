@@ -7,7 +7,7 @@ import tempfile
 from collections.abc import Sequence
 from pathlib import Path
 
-from vidwiz_infra.settings import ProductionSettings
+from vidwiz_infra.settings import ProductionDeploymentConfig
 
 
 def append_github_environment(path: Path, name: str, value: str) -> None:
@@ -16,18 +16,16 @@ def append_github_environment(path: Path, name: str, value: str) -> None:
 
 
 def prepare_production_config(environ: dict[str, str]) -> Path:
-    raw_config = environ.get("LAMBDA_ENV_FILE")
+    raw_config = environ.get("PRODUCTION_DEPLOYMENT_ENV")
     if not raw_config:
-        raise ValueError("LAMBDA_ENV_FILE must contain the production configuration")
-
-    expected_account_id = environ.get("EXPECTED_AWS_ACCOUNT_ID")
-    if not expected_account_id:
-        raise ValueError("EXPECTED_AWS_ACCOUNT_ID must identify the deployment account")
+        raise ValueError(
+            "PRODUCTION_DEPLOYMENT_ENV must contain the production configuration"
+        )
 
     runner_temp = Path(environ.get("RUNNER_TEMP", tempfile.gettempdir()))
     runner_temp.mkdir(parents=True, exist_ok=True)
     descriptor, config_name = tempfile.mkstemp(
-        prefix="vidwiz-production-", suffix=".env", dir=runner_temp
+        prefix="vidwiz-production-config-", suffix=".env", dir=runner_temp
     )
     config_path = Path(config_name)
     try:
@@ -35,11 +33,7 @@ def prepare_production_config(environ: dict[str, str]) -> Path:
         with os.fdopen(descriptor, "w", encoding="utf-8") as config_file:
             config_file.write(raw_config)
 
-        settings = ProductionSettings.from_env_file(config_path)
-        if settings.aws_account_id != expected_account_id:
-            raise ValueError(
-                "AWS_ACCOUNT_ID in LAMBDA_ENV_FILE must match EXPECTED_AWS_ACCOUNT_ID"
-            )
+        settings = ProductionDeploymentConfig.from_env_file(config_path)
 
         for secret in (
             settings.vidwiz_internal_api_admin_token.get_secret_value(),
@@ -50,8 +44,19 @@ def prepare_production_config(environ: dict[str, str]) -> Path:
         github_environment = environ.get("GITHUB_ENV")
         if not github_environment:
             raise ValueError("GITHUB_ENV must be set by GitHub Actions")
+        github_environment_path = Path(github_environment)
         append_github_environment(
-            Path(github_environment), "LAMBDA_ENV_FILE_PATH", str(config_path)
+            github_environment_path, "VIDWIZ_PRODUCTION_CONFIG_PATH", str(config_path)
+        )
+        append_github_environment(
+            github_environment_path,
+            "VIDWIZ_PRODUCTION_AWS_ACCOUNT_ID",
+            settings.aws_account_id,
+        )
+        append_github_environment(
+            github_environment_path,
+            "VIDWIZ_PRODUCTION_AWS_REGION",
+            settings.aws_region,
         )
     except Exception:
         config_path.unlink(missing_ok=True)

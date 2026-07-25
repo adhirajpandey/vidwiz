@@ -51,5 +51,7 @@ def test_runs_all_validation_commands(monkeypatch: pytest.MonkeyPatch) -> None:
     ]
     assert [cwd for _, cwd, _ in calls[4:7]] == list(validate.LAMBDA_DIRECTORIES)
     assert calls[7][2] is not None
-    assert calls[7][2]["LAMBDA_ENV_FILE_PATH"] == "tests/fixtures/production.env"
+    assert (
+        calls[7][2]["VIDWIZ_PRODUCTION_CONFIG_PATH"] == "tests/fixtures/production.env"
+    )
     assert calls[8][1] == validate.REPOSITORY_DIR

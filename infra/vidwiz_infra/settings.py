@@ -18,7 +18,7 @@ LambdaTimeout = Annotated[int, Field(ge=1, le=900)]
 PositiveInt = Annotated[int, Field(ge=1)]
 
 
-class ProductionSettings(BaseSettings):
+class ProductionDeploymentConfig(BaseSettings):
     """Validated production inputs, loaded only by the CDK entrypoint."""
 
     model_config = SettingsConfigDict(
