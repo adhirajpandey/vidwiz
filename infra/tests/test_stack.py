@@ -60,7 +60,7 @@ def test_exact_resource_names_and_security(template: Template) -> None:
     template.has_resource_properties(
         "AWS::S3::Bucket",
         {
-            "BucketName": "vidwiz-prod-transcripts",
+            "BucketName": "vidwiz-prod",
             "BucketEncryption": {
                 "ServerSideEncryptionConfiguration": [
                     {"ServerSideEncryptionByDefault": {"SSEAlgorithm": "AES256"}}
@@ -234,7 +234,7 @@ def test_s3_invoke_permission_is_source_restricted(template: Template) -> None:
         },
     )
     permissions = template.find_resources("AWS::Lambda::Permission")
-    assert "vidwiz-prod-transcripts" in str(permissions)
+    assert "vidwiz-prod" in str(permissions)
 
 
 def test_excluded_cost_resources_are_absent(template: Template) -> None:

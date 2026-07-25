@@ -28,7 +28,7 @@ from vidwiz_infra.lambda_specs import LAMBDA_SPECS_BY_KEY, LambdaSpec
 from vidwiz_infra.settings import ProductionSettings
 
 STACK_NAME = "vidwiz-stack"
-TRANSCRIPT_BUCKET_NAME = "vidwiz-prod-transcripts"
+TRANSCRIPT_BUCKET_NAME = "vidwiz-prod"
 AI_NOTE_QUEUE_NAME = "vidwiz-prod-ai-note-jobs"
 AI_SUMMARY_QUEUE_NAME = "vidwiz-prod-ai-summary-jobs"
 
