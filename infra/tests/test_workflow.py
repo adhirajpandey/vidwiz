@@ -42,10 +42,10 @@ def test_workflow_uses_major_action_versions_and_locked_dependency_caches() -> N
 
     for action in (
         "actions/checkout@v4",
-        "actions/setup-python@v5",
-        "astral-sh/setup-uv@v7",
-        "actions/setup-node@v4",
-        "aws-actions/configure-aws-credentials@v5",
+        "actions/setup-python@v6",
+        "astral-sh/setup-uv@v8",
+        "actions/setup-node@v6",
+        "aws-actions/configure-aws-credentials@v6",
     ):
         assert action in text
     assert "enable-cache: true" in text
@@ -74,4 +74,7 @@ def test_workflow_cleans_up_the_temporary_production_configuration() -> None:
 
     assert "if: always()" in text
     assert "CONFIG_FILE: ${{ env.LAMBDA_ENV_FILE_PATH }}" in text
-    assert 'rm -- "${CONFIG_FILE}"' in text
+    assert (
+        "uv run python scripts/prepare_production_config.py --cleanup" in text
+    )
+    assert 'rm -- "${CONFIG_FILE}"' not in text

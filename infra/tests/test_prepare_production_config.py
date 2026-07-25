@@ -3,7 +3,10 @@ from pathlib import Path
 
 import pytest
 
-from scripts.prepare_production_config import prepare_production_config
+from scripts.prepare_production_config import (
+    cleanup_production_config,
+    prepare_production_config,
+)
 
 FIXTURE_ENV = Path(__file__).parent / "fixtures" / "production.env"
 
@@ -57,3 +60,29 @@ def test_rejects_missing_required_workflow_input(tmp_path: Path, missing: str) -
         prepare_production_config(environment)
 
     assert not list(tmp_path.glob("vidwiz-production-*.env"))
+
+
+@pytest.mark.parametrize("config_file", [None, ""])
+def test_cleanup_succeeds_without_a_config_file(config_file: str | None) -> None:
+    environment = {}
+    if config_file is not None:
+        environment["CONFIG_FILE"] = config_file
+
+    cleanup_production_config(environment)
+
+
+def test_cleanup_removes_the_temporary_config_file(tmp_path: Path) -> None:
+    config_path = tmp_path / "vidwiz-production.env"
+    config_path.write_text("secret=value\n")
+
+    cleanup_production_config({"CONFIG_FILE": str(config_path)})
+
+    assert not config_path.exists()
+
+
+def test_cleanup_succeeds_when_the_config_path_no_longer_exists(
+    tmp_path: Path,
+) -> None:
+    cleanup_production_config(
+        {"CONFIG_FILE": str(tmp_path / "missing-production.env")}
+    )
