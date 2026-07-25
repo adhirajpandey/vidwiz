@@ -138,7 +138,7 @@ Describe the FastAPI backend: structure, auth rules, and the request/worker life
 The server fails on startup if any of the following env vars are missing:
 - `ENVIRONMENT`
 - `SECRET_KEY`
-- `ADMIN_TOKEN`
+- `VIDWIZ_INTERNAL_API_ADMIN_TOKEN`
 - `GOOGLE_CLIENT_ID`
 - `SQS_AI_NOTE_QUEUE_URL`
 - `AWS_ACCESS_KEY_ID`

@@ -16,15 +16,26 @@ def test_pull_requests_have_no_oidc_or_secret_access() -> None:
     assert "AWS_SECRET_ACCESS_KEY" not in text
 
 
-def test_production_is_manual_only_and_serialized() -> None:
+def test_production_runs_for_filtered_main_pushes_or_manual_dispatch() -> None:
     text = WORKFLOW.read_text()
     trigger = text.split("permissions:", maxsplit=1)[0]
 
+    expected_paths = (
+        "'infra/**'",
+        "'backend/workers/lambdas/**'",
+        "'.github/workflows/aws-infrastructure.yml'",
+    )
+
     assert "workflow_dispatch:" in trigger
-    assert "push:" not in trigger
+    assert "push:" in trigger
+    assert "branches: [main]" in trigger
+    assert all(trigger.count(path) == 2 for path in expected_paths)
     assert "group: vidwiz-prod-aws" in text
     assert "cancel-in-progress: false" in text
+    assert "github.ref == 'refs/heads/main'" in text
+    assert "github.event_name == 'push'" in text
     assert "github.event_name == 'workflow_dispatch'" in text
+    assert "environment: production" not in text
 
 
 def test_production_uses_oidc_and_unconditional_cleanup() -> None:
@@ -35,3 +46,7 @@ def test_production_uses_oidc_and_unconditional_cleanup() -> None:
     assert "allowed-account-ids:" in text
     assert "if: always()" in text
     assert 'rm -- "${CONFIG_FILE}"' in text
+    assert (
+        "VidwizInternalApiAdminToken=${CFN_VIDWIZ_INTERNAL_API_ADMIN_TOKEN_VALUE}"
+    ) in text
+    assert "VIDWIZ_TOKEN_PARAMETER" not in text

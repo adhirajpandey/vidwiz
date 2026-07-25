@@ -1,10 +1,12 @@
+import zipfile
 from pathlib import Path
 
 import aws_cdk as cdk
 import pytest
 from aws_cdk.assertions import Match, Template
 
-from vidwiz_infra.packaging import PACKAGES, package_path
+from vidwiz_infra.lambda_specs import LAMBDA_SPECS
+from vidwiz_infra.packaging import package_path, write_manifest
 from vidwiz_infra.settings import ProductionSettings
 from vidwiz_infra.stack import VidwizStack
 
@@ -13,11 +15,17 @@ FIXTURE_ENV = Path(__file__).parent / "fixtures" / "production.env"
 
 @pytest.fixture(scope="module")
 def template() -> Template:
-    for package in PACKAGES:
+    for package in LAMBDA_SPECS:
         archive = package_path(package)
-        if not archive.exists():
-            archive.parent.mkdir(parents=True, exist_ok=True)
-            archive.write_bytes(b"PK\x05\x06" + b"\x00" * 18)
+        archive.parent.mkdir(parents=True, exist_ok=True)
+        with zipfile.ZipFile(archive, "w") as bundle:
+            bundle.writestr(
+                "handler.py",
+                "def lambda_handler(event, context): return None\n",
+            )
+            for dependency in package.required_imports:
+                bundle.writestr(f"{dependency}.py", "VALUE = 1\n")
+        write_manifest(package, archive)
     settings = ProductionSettings.from_env_file(FIXTURE_ENV)
     app = cdk.App()
     stack = VidwizStack(
@@ -127,7 +135,7 @@ def test_lambda_runtime_sizing_logs_and_secret_references(
                 "FunctionName": name,
                 "Runtime": "python3.13",
                 "Architectures": ["x86_64"],
-                "Handler": "lambda_function.lambda_handler",
+                "Handler": "handler.lambda_handler",
                 "MemorySize": memory,
                 "Timeout": timeout,
             },
@@ -139,12 +147,66 @@ def test_lambda_runtime_sizing_logs_and_secret_references(
                 "RetentionInDays": 7,
             },
         )
-    template.has_parameter("VidwizToken", {"NoEcho": True, "Type": "String"})
+    template.has_parameter(
+        "VidwizInternalApiAdminToken",
+        {"NoEcho": True, "Type": "String"},
+    )
     template.has_parameter("OpenrouterApiKey", {"NoEcho": True, "Type": "String"})
     rendered = template.to_json()
     text = str(rendered)
     assert "fixture-admin-token" not in text
     assert "fixture-openrouter-key" not in text
+
+
+def test_lambda_environments_use_domain_specific_contracts(
+    template: Template,
+) -> None:
+    template.has_resource_properties(
+        "AWS::Lambda::Function",
+        {
+            "FunctionName": "vidwiz-prod-transcript-dispatcher",
+            "Environment": {
+                "Variables": Match.object_like(
+                    {
+                        "VIDWIZ_INTERNAL_API_BASE_URL": ("https://example.invalid"),
+                        "VIDWIZ_INTERNAL_API_ADMIN_TOKEN": Match.any_value(),
+                        "SQS_AI_NOTE_QUEUE_URL": Match.any_value(),
+                        "SQS_AI_SUMMARY_QUEUE_URL": Match.any_value(),
+                    }
+                )
+            },
+        },
+    )
+    for function_name in (
+        "vidwiz-prod-ai-note-worker",
+        "vidwiz-prod-ai-summary-worker",
+    ):
+        template.has_resource_properties(
+            "AWS::Lambda::Function",
+            {
+                "FunctionName": function_name,
+                "Environment": {
+                    "Variables": Match.object_like(
+                        {
+                            "S3_TRANSCRIPT_BUCKET_NAME": Match.any_value(),
+                            "VIDWIZ_INTERNAL_API_BASE_URL": ("https://example.invalid"),
+                            "VIDWIZ_INTERNAL_API_ADMIN_TOKEN": Match.any_value(),
+                        }
+                    )
+                },
+            },
+        )
+    retired_names = {
+        "SQS_QUEUE_URL",
+        "SQS_SUMMARY_QUEUE_URL",
+        "S3_BUCKET_NAME",
+        "VIDWIZ_ENDPOINT",
+        "VIDWIZ_TOKEN",
+    }
+    functions = template.find_resources("AWS::Lambda::Function")
+    for function in functions.values():
+        variables = function["Properties"]["Environment"]["Variables"]
+        assert retired_names.isdisjoint(variables)
 
 
 def test_s3_invoke_permission_is_source_restricted(template: Template) -> None:

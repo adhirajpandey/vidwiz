@@ -85,13 +85,21 @@ def test_prepare_chat_returns_processing_when_transcript_missing(db_session):
 
 
 def test_get_transcript_from_s3_returns_none_without_config(monkeypatch):
-    monkeypatch.setattr(conversations_settings, "s3_bucket_name", None, raising=False)
+    monkeypatch.setattr(
+        conversations_settings,
+        "s3_transcript_bucket_name",
+        None,
+        raising=False,
+    )
     assert conversations_service.get_transcript_from_s3("abc123DEF45") is None
 
 
 def test_get_transcript_from_s3_fetches_when_configured(monkeypatch):
     monkeypatch.setattr(
-        conversations_settings, "s3_bucket_name", "bucket", raising=False
+        conversations_settings,
+        "s3_transcript_bucket_name",
+        "bucket",
+        raising=False,
     )
     monkeypatch.setattr(
         conversations_settings, "aws_access_key_id", "key", raising=False
@@ -177,9 +185,7 @@ def test_stream_wiz_response_yields_error_on_empty_content(db_session, monkeypat
                 def create(**kwargs):
                     return [_Chunk(), _Chunk()]
 
-    monkeypatch.setattr(
-        conversations_service, "OpenAI", lambda **kwargs: _FakeClient()
-    )
+    monkeypatch.setattr(conversations_service, "OpenAI", lambda **kwargs: _FakeClient())
 
     events = list(
         conversations_service.stream_wiz_response(
@@ -195,4 +201,3 @@ def test_stream_wiz_response_yields_error_on_empty_content(db_session, monkeypat
     error_events = [e for e in events if "error" in e and "No response" in e]
     assert len(error_events) == 1
     assert events[-1] == "data: [DONE]\n\n"
-

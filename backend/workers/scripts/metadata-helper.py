@@ -9,14 +9,15 @@ import yt_dlp
 
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger("vidwiz.metadata_helper")
-INTERNAL_API_URL_ENV_VAR = "INTERNAL_API_URL"
+INTERNAL_API_URL_ENV_VAR = "VIDWIZ_INTERNAL_API_BASE_URL"
+INTERNAL_API_TOKEN_ENV_VAR = "VIDWIZ_INTERNAL_API_ADMIN_TOKEN"
 
 
 def get_auth_token() -> str:
-    """Load ADMIN_TOKEN from environment. Fail fast if missing."""
-    token = os.environ.get("ADMIN_TOKEN")
+    """Load the internal API admin token. Fail fast if missing."""
+    token = os.environ.get(INTERNAL_API_TOKEN_ENV_VAR)
     if not token:
-        logger.error("ADMIN_TOKEN environment variable is not set")
+        logger.error("%s environment variable is not set", INTERNAL_API_TOKEN_ENV_VAR)
         sys.exit(1)
     return token
 

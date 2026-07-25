@@ -9,10 +9,11 @@ import time
 import boto3
 import requests
 
+
 # Configuration constants
-S3_BUCKET_NAME = os.getenv("S3_BUCKET_NAME")
-VIDWIZ_ENDPOINT = os.getenv("VIDWIZ_ENDPOINT")
-VIDWIZ_TOKEN = os.getenv("VIDWIZ_TOKEN")
+S3_TRANSCRIPT_BUCKET_NAME = os.getenv("S3_TRANSCRIPT_BUCKET_NAME")
+VIDWIZ_INTERNAL_API_BASE_URL = os.getenv("VIDWIZ_INTERNAL_API_BASE_URL")
+VIDWIZ_INTERNAL_API_ADMIN_TOKEN = os.getenv("VIDWIZ_INTERNAL_API_ADMIN_TOKEN")
 OPENROUTER_API_KEY = os.getenv("OPENROUTER_API_KEY")
 OPENROUTER_BASE_URL = os.getenv("OPENROUTER_BASE_URL", "https://openrouter.ai/api/v1")
 OPENROUTER_MODEL = os.getenv("OPENROUTER_MODEL", "google/gemini-3-flash-preview")
@@ -39,9 +40,9 @@ Even if the transcript is in any language, generate the summary in English.
 Return only the summary text, without any additional text or formatting.
 """
 
-assert S3_BUCKET_NAME, "S3_BUCKET_NAME is not set"
-assert VIDWIZ_ENDPOINT, "VIDWIZ_ENDPOINT is not set"
-assert VIDWIZ_TOKEN, "VIDWIZ_TOKEN is not set"
+assert S3_TRANSCRIPT_BUCKET_NAME, "S3_TRANSCRIPT_BUCKET_NAME is not set"
+assert VIDWIZ_INTERNAL_API_BASE_URL, "VIDWIZ_INTERNAL_API_BASE_URL is not set"
+assert VIDWIZ_INTERNAL_API_ADMIN_TOKEN, "VIDWIZ_INTERNAL_API_ADMIN_TOKEN is not set"
 assert OPENROUTER_API_KEY, "OPENROUTER_API_KEY is not set"
 
 logger = Logger()
@@ -130,7 +131,10 @@ def get_transcript_from_s3(video_id: str, attempt: int = 1) -> Optional[List[Dic
     s3_client = get_s3_client()
 
     try:
-        response = s3_client.get_object(Bucket=S3_BUCKET_NAME, Key=transcript_key)
+        response = s3_client.get_object(
+            Bucket=S3_TRANSCRIPT_BUCKET_NAME,
+            Key=transcript_key,
+        )
         transcript_data = json.loads(response["Body"].read().decode("utf-8"))
         if transcript_data is None:
             logger.warning(
@@ -192,10 +196,10 @@ def get_video_metadata(video_id: str) -> Optional[Dict]:
         Response body as dict (e.g. {"title": "..."}) on 200, or None on error/non-200.
     """
     # Use api/v2/internal
-    url = f"{VIDWIZ_ENDPOINT}/v2/internal/videos/{video_id}"
+    url = f"{VIDWIZ_INTERNAL_API_BASE_URL}/v2/internal/videos/{video_id}"
     headers = {
         "Content-Type": "application/json",
-        "Authorization": f"Bearer {VIDWIZ_TOKEN}",
+        "Authorization": f"Bearer {VIDWIZ_INTERNAL_API_ADMIN_TOKEN}",
     }
 
     try:
@@ -371,10 +375,10 @@ def update_vidwiz_summary(video_id: str, ai_summary: str) -> bool:
         True if the update succeeded (HTTP 200), False otherwise.
     """
     # Use api/v2/internal
-    url = f"{VIDWIZ_ENDPOINT}/v2/internal/videos/{video_id}/summary"
+    url = f"{VIDWIZ_INTERNAL_API_BASE_URL}/v2/internal/videos/{video_id}/summary"
     headers = {
         "Content-Type": "application/json",
-        "Authorization": f"Bearer {VIDWIZ_TOKEN}",
+        "Authorization": f"Bearer {VIDWIZ_INTERNAL_API_ADMIN_TOKEN}",
     }
 
     payload = {"summary": ai_summary}

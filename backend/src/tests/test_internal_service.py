@@ -136,7 +136,10 @@ def test_submit_metadata_result_success(db_session):
 
 def test_store_transcript_in_s3_no_config(monkeypatch):
     monkeypatch.setattr(
-        internal_service.conversations_settings, "s3_bucket_name", None, raising=False
+        internal_service.conversations_settings,
+        "s3_transcript_bucket_name",
+        None,
+        raising=False,
     )
     internal_service.store_transcript_in_s3("abc123DEF45", [{"text": "hi"}])
 
@@ -144,7 +147,7 @@ def test_store_transcript_in_s3_no_config(monkeypatch):
 def test_store_transcript_in_s3_success(monkeypatch):
     monkeypatch.setattr(
         internal_service.conversations_settings,
-        "s3_bucket_name",
+        "s3_transcript_bucket_name",
         "bucket",
         raising=False,
     )

@@ -21,7 +21,9 @@ if __name__ == "__main__":
     settings = ProductionSettings.from_env_file(Path(sys.argv[1]))
     github_environment = Path(sys.argv[2])
     secrets = {
-        "VIDWIZ_TOKEN_PARAMETER": settings.vidwiz_token.get_secret_value(),
+        "CFN_VIDWIZ_INTERNAL_API_ADMIN_TOKEN_VALUE": (
+            settings.vidwiz_internal_api_admin_token.get_secret_value()
+        ),
         "OPENROUTER_API_KEY_PARAMETER": (
             settings.openrouter_api_key.get_secret_value()
         ),

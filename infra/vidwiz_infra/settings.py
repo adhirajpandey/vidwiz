@@ -37,8 +37,10 @@ class ProductionSettings(BaseSettings):
     ai_summary_memory_mb: LambdaMemory
     ai_summary_timeout_seconds: LambdaTimeout
 
-    vidwiz_endpoint: str
-    vidwiz_token: SecretStr
+    vidwiz_internal_api_base_url: str = Field(alias="VIDWIZ_INTERNAL_API_BASE_URL")
+    vidwiz_internal_api_admin_token: SecretStr = Field(
+        alias="VIDWIZ_INTERNAL_API_ADMIN_TOKEN"
+    )
     openrouter_api_key: SecretStr
     openrouter_base_url: str
     openrouter_model: Annotated[str, StringConstraints(min_length=1)]
@@ -54,7 +56,7 @@ class ProductionSettings(BaseSettings):
     transcript_fetch_max_retries: PositiveInt
     transcript_fetch_retry_delay: PositiveInt
 
-    @field_validator("vidwiz_endpoint", "openrouter_base_url")
+    @field_validator("vidwiz_internal_api_base_url", "openrouter_base_url")
     @classmethod
     def validate_http_url(cls, value: str) -> str:
         parsed = urlparse(value)
@@ -62,7 +64,7 @@ class ProductionSettings(BaseSettings):
             raise ValueError("must be an absolute HTTP(S) URL")
         return value
 
-    @field_validator("vidwiz_token", "openrouter_api_key")
+    @field_validator("vidwiz_internal_api_admin_token", "openrouter_api_key")
     @classmethod
     def validate_secret(cls, value: SecretStr) -> SecretStr:
         secret = value.get_secret_value()

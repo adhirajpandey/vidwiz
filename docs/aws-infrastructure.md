@@ -37,6 +37,16 @@ uv run python scripts/validate_lambdas.py
 LAMBDA_ENV_FILE_PATH=tests/fixtures/production.env npx cdk synth vidwiz-stack
 ```
 
+Each Lambda ZIP is accompanied by a generated `.zip.manifest.json` file. CDK
+validates its source, requirements, packager, build-image, and ZIP hashes
+before accepting the ZIP, so rebuild the artifacts after changing any of those
+inputs.
+
+The shared Lambda specification registry explicitly maps each source
+directory, artifact, CDK construct, physical function name, requirements file,
+and `handler.lambda_handler` entry point. Each source directory is flattened
+into its own ZIP root; the stack never infers an artifact from a function name.
+
 The fixture is non-production data. Production synthesis uses the private
 multiline GitHub secret `LAMBDA_ENV_FILE`, based on `infra/.env.example`.
 Capture the existing functions' memory, timeout, runtime, architecture,
@@ -61,7 +71,8 @@ Using the existing MFA-protected administrator identity:
    can assume only the deployment, file-publishing, and lookup bootstrap roles.
 5. Configure GitHub variables `AWS_ACCOUNT_ID` and
    `AWS_GITHUB_DEPLOY_ROLE_ARN`, plus the secret `LAMBDA_ENV_FILE`.
-6. Review the synthesized template, then manually dispatch the AWS workflow.
+6. Review the synthesized template, then merge the reviewed infrastructure
+   changes to `main` or manually dispatch the AWS workflow from `main`.
 
 Do not store `AWS_ACCESS_KEY_ID` or `AWS_SECRET_ACCESS_KEY` in GitHub.
 
@@ -82,7 +93,7 @@ After the copy:
 2. Manually create `VidwizApplicationUser` using the exact policy returned by
    `application_user_policy`.
 3. Keep exactly one active key except briefly during rotation.
-4. Configure `S3_BUCKET_NAME=vidwiz-prod-transcripts`,
+4. Configure `S3_TRANSCRIPT_BUCKET_NAME=vidwiz-prod-transcripts`,
    `SQS_AI_NOTE_QUEUE_URL` from the stack output, and
    `AWS_REGION=ap-south-1`.
 5. Restart and verify transcript reads/uploads, dispatch, both queues and
@@ -92,21 +103,24 @@ The application user has only `GetObject`/`PutObject` on `transcripts/*` and
 `SendMessage` on the AI-note queue. It cannot list the bucket, use the summary
 queue, call Lambda or infrastructure APIs, manage IAM, or manage its own key.
 
-## Enabling Automatic Deployment
+## Automatic Deployment
 
-Only after initial production acceptance:
+The AWS workflow deploys after validation when a push to `main` changes
+`infra/**`, `backend/workers/lambdas/**`, or the workflow itself. It can also
+be manually dispatched from `main`; other refs cannot deploy through the
+branch-scoped OIDC role.
 
-1. Add a qualifying `push` trigger for `main` to the AWS workflow.
-2. Protect `main`: require pull requests and infrastructure validation, block
+Protect `main`: require pull requests and infrastructure validation, block
    force pushes and deletion, and require zero approvals if that remains the
    chosen policy.
-3. Remove any legacy permanent AWS keys from GitHub.
-4. Confirm a second unchanged deployment has no replacement or drift.
+Remove any legacy permanent AWS keys from GitHub. Confirm a second unchanged
+deployment has no replacement or drift.
 
 ## Recovery and Legacy Cleanup
 
 If the initial deployment fails, keep Docker on the legacy bucket and queue,
-correct the reviewed CDK/configuration issue, and re-run the manual workflow.
+correct the reviewed CDK/configuration issue, and re-run the failed job or
+manually dispatch the workflow from `main`.
 Do not empty or delete the retained transcript bucket as rollback.
 
 If cutover fails, stop the application, restore the previous Docker

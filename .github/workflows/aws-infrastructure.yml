@@ -1,6 +1,12 @@
 name: AWS infrastructure
 
 on:
+  push:
+    branches: [main]
+    paths:
+      - 'infra/**'
+      - 'backend/workers/lambdas/**'
+      - '.github/workflows/aws-infrastructure.yml'
   pull_request:
     paths:
       - 'infra/**'
@@ -70,10 +76,11 @@ jobs:
         run: git diff --check
 
   deploy-production:
-    if: github.event_name == 'workflow_dispatch'
+    if: >-
+      github.ref == 'refs/heads/main' &&
+      (github.event_name == 'push' || github.event_name == 'workflow_dispatch')
     needs: validate
     runs-on: ubuntu-latest
-    environment: production
     permissions:
       contents: read
       id-token: write
@@ -145,7 +152,7 @@ jobs:
           npx cdk synth vidwiz-stack --quiet
           npx cdk deploy vidwiz-stack \
             --require-approval never \
-            --parameters "VidwizToken=${VIDWIZ_TOKEN_PARAMETER}" \
+            --parameters "VidwizInternalApiAdminToken=${CFN_VIDWIZ_INTERNAL_API_ADMIN_TOKEN_VALUE}" \
             --parameters "OpenrouterApiKey=${OPENROUTER_API_KEY_PARAMETER}"
 
       - name: Verify deployed resources

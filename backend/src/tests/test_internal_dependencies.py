@@ -15,17 +15,32 @@ def test_require_admin_token_errors(monkeypatch):
     with pytest.raises(UnauthorizedError):
         internal_dependencies.require_admin_token(None)
 
-    monkeypatch.setattr(settings, "admin_token", None, raising=False)
+    monkeypatch.setattr(
+        settings,
+        "internal_api_admin_token",
+        None,
+        raising=False,
+    )
     with pytest.raises(InternalServerError):
         internal_dependencies.require_admin_token("Bearer token")
 
-    monkeypatch.setattr(settings, "admin_token", "expected", raising=False)
+    monkeypatch.setattr(
+        settings,
+        "internal_api_admin_token",
+        "expected",
+        raising=False,
+    )
     with pytest.raises(ForbiddenError):
         internal_dependencies.require_admin_token("Bearer wrong")
 
 
 def test_require_admin_token_success(monkeypatch):
-    monkeypatch.setattr(settings, "admin_token", "expected", raising=False)
+    monkeypatch.setattr(
+        settings,
+        "internal_api_admin_token",
+        "expected",
+        raising=False,
+    )
     internal_dependencies.require_admin_token("Bearer expected")
 
 

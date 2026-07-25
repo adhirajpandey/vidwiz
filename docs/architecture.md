@@ -8,7 +8,7 @@ Provide a system-level view of how VidWiz components interact. Subsystem details
 - **Backend**: FastAPI service exposing public `/v2` and admin-only `/v2/internal` endpoints.
 - **Workers**: Helpers + Lambdas for transcript/metadata fetching, AI notes, and AI summaries.
 - **Storage**: PostgreSQL in deployed environments; SQLite by default in local dev.
-- **Object store**: S3 for transcript JSON when `S3_BUCKET_NAME` and AWS credentials are configured.
+- **Object store**: S3 for transcript JSON when `S3_TRANSCRIPT_BUCKET_NAME` and AWS credentials are configured.
 - **Queues**: SQS for AI note jobs (app + dispatcher) and AI summary jobs (dispatcher).
 - **AWS infrastructure**: The production transcript bucket, queues, Lambdas,
   logs, event sources, and runtime roles are defined by the Python CDK app in
@@ -36,9 +36,9 @@ Provide a system-level view of how VidWiz components interact. Subsystem details
 - Transcript storage and Wiz chat require S3 credentials and bucket configuration.
 - Wiz chat also requires `OPENROUTER_API_KEY`; without it, chat requests error.
 - If S3 is not configured, transcripts are not persisted even though `transcript_available` may be true, and Wiz chat will fail to load transcript data.
-- Production AWS changes are validated on pull requests and deployed only by
-  the manually dispatched AWS workflow until the initial migration and cutover
-  are complete. GitHub uses OIDC rather than permanent AWS access keys.
+- Production AWS changes are validated on relevant pull requests and deployed
+  by relevant pushes to `main` or a manual dispatch from `main`. GitHub uses
+  branch-scoped OIDC rather than permanent AWS access keys.
 
 ## Interaction Overview (ASCII)
 ```

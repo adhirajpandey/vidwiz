@@ -5,7 +5,7 @@ from pydantic import ValidationError
 REQUIRED_ENV_VARS = [
     "ENVIRONMENT",
     "SECRET_KEY",
-    "ADMIN_TOKEN",
+    "VIDWIZ_INTERNAL_API_ADMIN_TOKEN",
     "GOOGLE_CLIENT_ID",
     "SQS_AI_NOTE_QUEUE_URL",
     "AWS_ACCESS_KEY_ID",

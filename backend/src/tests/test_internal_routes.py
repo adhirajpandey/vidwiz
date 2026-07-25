@@ -10,7 +10,7 @@ from src.videos.models import Video
 
 
 def admin_headers() -> dict[str, str]:
-    return {"Authorization": f"Bearer {settings.admin_token}"}
+    return {"Authorization": (f"Bearer {settings.internal_api_admin_token}")}
 
 
 @pytest.mark.asyncio
