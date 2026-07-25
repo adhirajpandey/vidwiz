@@ -17,7 +17,10 @@ class ConversationsSettings(BaseSettings):
     wiz_user_daily_quota: int = Field(default=20, alias="WIZ_USER_DAILY_QUOTA")
     wiz_guest_daily_quota: int = Field(default=5, alias="WIZ_GUEST_DAILY_QUOTA")
     wiz_max_tokens: int = Field(default=4096, alias="WIZ_MAX_TOKENS")
-    s3_bucket_name: str | None = Field(default=None, alias="S3_BUCKET_NAME")
+    s3_transcript_bucket_name: str | None = Field(
+        default=None,
+        alias="S3_TRANSCRIPT_BUCKET_NAME",
+    )
     aws_access_key_id: str | None = Field(default=None, alias="AWS_ACCESS_KEY_ID")
     aws_secret_access_key: str | None = Field(
         default=None, alias="AWS_SECRET_ACCESS_KEY"

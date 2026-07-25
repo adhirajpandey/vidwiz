@@ -9,7 +9,9 @@ def _load_module(script_name: str):
     script_path = (
         Path(__file__).resolve().parents[2] / "workers" / "scripts" / script_name
     )
-    module_name = f"test_{script_name.replace('-', '_').replace('.py', '')}_{uuid.uuid4().hex}"
+    module_name = (
+        f"test_{script_name.replace('-', '_').replace('.py', '')}_{uuid.uuid4().hex}"
+    )
     spec = spec_from_file_location(module_name, script_path)
     assert spec is not None
     assert spec.loader is not None
@@ -25,9 +27,14 @@ def _load_module(script_name: str):
         ("metadata-helper.py", "MetadataHelper"),
     ],
 )
-def test_helper_uses_internal_api_url_env(script_name, helper_class_name, monkeypatch):
+def test_helper_uses_canonical_internal_api_url_env(
+    script_name, helper_class_name, monkeypatch
+):
     module = _load_module(script_name)
-    monkeypatch.setenv("INTERNAL_API_URL", "http://internal.example:5000")
+    monkeypatch.setenv(
+        "VIDWIZ_INTERNAL_API_BASE_URL",
+        "http://internal.example:5000",
+    )
 
     resolved = module.resolve_api_url(None)
     helper = getattr(module, helper_class_name)("token", 30, resolved)
@@ -47,7 +54,10 @@ def test_helper_prefers_cli_api_url_over_env(
     script_name, helper_class_name, monkeypatch
 ):
     module = _load_module(script_name)
-    monkeypatch.setenv("INTERNAL_API_URL", "http://internal.example:5000")
+    monkeypatch.setenv(
+        "VIDWIZ_INTERNAL_API_BASE_URL",
+        "http://internal.example:5000",
+    )
 
     resolved = module.resolve_api_url("http://cli.example:5000/")
     helper = getattr(module, helper_class_name)("token", 30, resolved)
@@ -62,7 +72,7 @@ def test_helper_prefers_cli_api_url_over_env(
 )
 def test_helper_exits_when_api_url_missing(script_name, monkeypatch):
     module = _load_module(script_name)
-    monkeypatch.delenv("INTERNAL_API_URL", raising=False)
+    monkeypatch.delenv("VIDWIZ_INTERNAL_API_BASE_URL", raising=False)
 
     with pytest.raises(SystemExit) as exc_info:
         module.resolve_api_url(None)

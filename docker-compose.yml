@@ -22,8 +22,8 @@ services:
     env_file:
       - .env
     environment:
-      INTERNAL_API_URL: http://application:5000
-    command: ["poetry", "run", "python", "workers/scripts/metadata-helper.py"]
+      VIDWIZ_INTERNAL_API_BASE_URL: http://application:5000
+    command: ["python", "workers/scripts/metadata-helper.py"]
     restart: unless-stopped
     depends_on:
       application:
@@ -35,8 +35,8 @@ services:
     env_file:
       - .env
     environment:
-      INTERNAL_API_URL: http://application:5000
-    command: ["poetry", "run", "python", "workers/scripts/transcript-helper.py"]
+      VIDWIZ_INTERNAL_API_BASE_URL: http://application:5000
+    command: ["python", "workers/scripts/transcript-helper.py"]
     restart: unless-stopped
     depends_on:
       application:

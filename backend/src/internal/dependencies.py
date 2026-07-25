@@ -18,10 +18,10 @@ def require_admin_token(
         raise UnauthorizedError("Missing or invalid Authorization header")
 
     token = authorization.split(" ", 1)[1]
-    if not settings.admin_token:
+    if not settings.internal_api_admin_token:
         raise InternalServerError("Admin token is not configured")
 
-    if token != settings.admin_token:
+    if token != settings.internal_api_admin_token:
         raise ForbiddenError("Invalid admin token")
 
 

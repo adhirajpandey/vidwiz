@@ -1,13 +1,21 @@
 import logging
-from pydantic import BaseModel, Field, ValidationError, field_validator
+
+from pydantic import (
+    BaseModel,
+    Field,
+    ValidationError,
+    field_validator,
+)
 from pydantic_settings import BaseSettings, SettingsConfigDict
+
+logger = logging.getLogger(__name__)
 
 
 class Settings(BaseSettings):
     environment: str = Field(alias="ENVIRONMENT")
     db_url: str = Field(default="sqlite:///./vidwiz.db", alias="DB_URL")
     secret_key: str = Field(alias="SECRET_KEY")
-    admin_token: str = Field(alias="ADMIN_TOKEN")
+    internal_api_admin_token: str = Field(alias="VIDWIZ_INTERNAL_API_ADMIN_TOKEN")
     jwt_expiry_hours: int = Field(default=24, alias="JWT_EXPIRY_HOURS")
     google_client_id: str = Field(alias="GOOGLE_CLIENT_ID")
     youtube_data_api_key: str | None = Field(default=None, alias="YOUTUBE_DATA_API_KEY")
@@ -68,8 +76,6 @@ class CreditProductConfig(BaseModel):
             raise ValueError("must be greater than 0")
         return value
 
-
-logger = logging.getLogger(__name__)
 
 try:
     settings = Settings()

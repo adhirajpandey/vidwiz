@@ -5,17 +5,16 @@ import os
 import boto3
 import requests
 
+
 # Configuration constants
-VIDWIZ_ENDPOINT = os.getenv("VIDWIZ_ENDPOINT")
-VIDWIZ_TOKEN = os.getenv("VIDWIZ_TOKEN")
-SQS_QUEUE_URL = os.getenv("SQS_QUEUE_URL")
-SQS_SUMMARY_QUEUE_URL = os.getenv("SQS_SUMMARY_QUEUE_URL")
+VIDWIZ_INTERNAL_API_BASE_URL = os.getenv("VIDWIZ_INTERNAL_API_BASE_URL")
+VIDWIZ_INTERNAL_API_ADMIN_TOKEN = os.getenv("VIDWIZ_INTERNAL_API_ADMIN_TOKEN")
+SQS_AI_NOTE_QUEUE_URL = os.getenv("SQS_AI_NOTE_QUEUE_URL")
+SQS_AI_SUMMARY_QUEUE_URL = os.getenv("SQS_AI_SUMMARY_QUEUE_URL")
 
-assert VIDWIZ_ENDPOINT, "VIDWIZ_ENDPOINT is not set"
-assert VIDWIZ_TOKEN, "VIDWIZ_TOKEN is not set"
-assert SQS_QUEUE_URL, "SQS_QUEUE_URL is not set"
-assert SQS_SUMMARY_QUEUE_URL, "SQS_SUMMARY_QUEUE_URL is not set"
-
+assert VIDWIZ_INTERNAL_API_BASE_URL, "VIDWIZ_INTERNAL_API_BASE_URL is not set"
+assert VIDWIZ_INTERNAL_API_ADMIN_TOKEN, "VIDWIZ_INTERNAL_API_ADMIN_TOKEN is not set"
+assert SQS_AI_NOTE_QUEUE_URL, "SQS_AI_NOTE_QUEUE_URL is not set"
 
 logger = Logger()
 
@@ -50,8 +49,8 @@ def fetch_all_notes(video_id: str) -> Optional[List[Dict[str, Any]]]:
         List of note task dicts, or None if the request fails or returns non-200.
     """
     # Use api/v2/internal
-    url = f"{VIDWIZ_ENDPOINT}/v2/internal/videos/{video_id}/ai-notes"
-    headers = {"Authorization": f"Bearer {VIDWIZ_TOKEN}"}
+    url = f"{VIDWIZ_INTERNAL_API_BASE_URL}/v2/internal/videos/{video_id}/ai-notes"
+    headers = {"Authorization": f"Bearer {VIDWIZ_INTERNAL_API_ADMIN_TOKEN}"}
     try:
         resp = requests.get(url, headers=headers)
         logger.info(
@@ -116,7 +115,9 @@ def push_notes_to_sqs_batch(notes: List[Dict[str, Any]]) -> Dict[str, Any]:
             }
             entries.append(entry)
         try:
-            resp = sqs.send_message_batch(QueueUrl=SQS_QUEUE_URL, Entries=entries)
+            resp = sqs.send_message_batch(
+                QueueUrl=SQS_AI_NOTE_QUEUE_URL, Entries=entries
+            )
             failed = resp.get("Failed", [])
             successful = resp.get("Successful", [])
             total_sent += len(successful)
@@ -146,15 +147,18 @@ def push_summary_to_sqs(video_id: str) -> bool:
     """
     Send a summary generation request to the AI Summary SQS queue.
     """
-    if not SQS_SUMMARY_QUEUE_URL:
-        logger.warning("SQS_SUMMARY_QUEUE_URL is not set, skipping summary dispatch")
+    if not SQS_AI_SUMMARY_QUEUE_URL:
+        logger.warning("SQS_AI_SUMMARY_QUEUE_URL is not set, skipping summary dispatch")
         return False
 
     sqs = boto3.client("sqs")
     message_body = json.dumps({"video_id": video_id})
 
     try:
-        sqs.send_message(QueueUrl=SQS_SUMMARY_QUEUE_URL, MessageBody=message_body)
+        sqs.send_message(
+            QueueUrl=SQS_AI_SUMMARY_QUEUE_URL,
+            MessageBody=message_body,
+        )
         logger.info("Dispatched summary request", extra={"video_id": video_id})
         return True
     except Exception as e:

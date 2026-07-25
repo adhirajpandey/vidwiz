@@ -18,6 +18,15 @@ from src.credits import service as credits_service
 logger = logging.getLogger(__name__)
 
 
+def _build_ai_note_queue_payload(note: Note) -> dict[str, int | str]:
+    return {
+        "id": note.id,
+        "video_id": note.video_id,
+        "timestamp": note.timestamp,
+        "user_id": note.user_id,
+    }
+
+
 def _build_youtube_client():
     if not settings.youtube_data_api_key:
         raise InternalServerError("YOUTUBE_DATA_API_KEY is not configured")
@@ -100,8 +109,8 @@ def get_or_create_video(
 
 
 def push_note_to_sqs(note: Note) -> None:
-    bucket_url = settings.sqs_ai_note_queue_url
-    if not bucket_url:
+    ai_note_queue_url = settings.sqs_ai_note_queue_url
+    if not ai_note_queue_url:
         logger.warning("SQS_AI_NOTE_QUEUE_URL not configured")
         return
 
@@ -112,22 +121,12 @@ def push_note_to_sqs(note: Note) -> None:
             client_kwargs["aws_secret_access_key"] = settings.aws_secret_access_key
 
         sqs = boto3.client("sqs", **client_kwargs)
-        # Format payload to match what ai-note.py expects
-        # ai-note.py expects:
-        # {
-        #    "id": note.id,
-        #    "video_id": note.video_id,
-        #    "timestamp": note.timestamp,
-        #    "user_id": note.user_id
-        # }
-        payload = {
-            "id": note.id,
-            "video_id": note.video_id,
-            "timestamp": note.timestamp,
-            "user_id": note.user_id,
-        }
+        payload = _build_ai_note_queue_payload(note)
 
-        sqs.send_message(QueueUrl=bucket_url, MessageBody=json.dumps(payload))
+        sqs.send_message(
+            QueueUrl=ai_note_queue_url,
+            MessageBody=json.dumps(payload),
+        )
         logger.info("Pushed AI note request to SQS", extra={"note_id": note.id})
     except Exception as e:
         logger.error(
@@ -206,7 +205,9 @@ def list_notes_for_video(db: Session, user_id: int, video_id: str) -> list[Note]
 
 
 def get_note_for_user(db: Session, user_id: int, note_id: int) -> Note | None:
-    logger.debug("Fetching note for user", extra={"user_id": user_id, "note_id": note_id})
+    logger.debug(
+        "Fetching note for user", extra={"user_id": user_id, "note_id": note_id}
+    )
     query = select(Note).where(Note.user_id == user_id, Note.id == note_id)
     return db.execute(query).scalar_one_or_none()
 

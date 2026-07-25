@@ -22,6 +22,7 @@ from src.conversations.config import conversations_settings
 
 logger = logging.getLogger(__name__)
 
+
 def poll_for_task(
     db: Session,
     task_type: str,
@@ -33,7 +34,11 @@ def poll_for_task(
 ) -> Task | None:
     logger.debug(
         "Polling for task",
-        extra={"task_type": task_type, "timeout": timeout, "worker_user_id": worker_user_id},
+        extra={
+            "task_type": task_type,
+            "timeout": timeout,
+            "worker_user_id": worker_user_id,
+        },
     )
     start_time = time.time()
     use_lock = db.get_bind().dialect.name != "sqlite"
@@ -60,7 +65,9 @@ def poll_for_task(
 
         task = db.execute(query).scalars().first()
         if task:
-            logger.debug("Claimed task", extra={"task_id": task.id, "task_type": task_type})
+            logger.debug(
+                "Claimed task", extra={"task_id": task.id, "task_type": task_type}
+            )
             task.status = TaskStatus.IN_PROGRESS
             task.started_at = datetime.utcnow()
             task.retry_count = (task.retry_count or 0) + 1
@@ -174,7 +181,9 @@ def _submit_transcript_result(
 
     db.commit()
     db.refresh(task)
-    logger.debug("Transcript task updated", extra={"task_id": task.id, "status": task.status})
+    logger.debug(
+        "Transcript task updated", extra={"task_id": task.id, "status": task.status}
+    )
     return task
 
 
@@ -213,13 +222,15 @@ def _submit_metadata_result(
 
     db.commit()
     db.refresh(task)
-    logger.debug("Metadata task updated", extra={"task_id": task.id, "status": task.status})
+    logger.debug(
+        "Metadata task updated", extra={"task_id": task.id, "status": task.status}
+    )
     return task
 
 
 def store_transcript_in_s3(video_id: str, transcript: list[dict]) -> None:
     logger.debug("Storing transcript in S3", extra={"video_id": video_id})
-    bucket = conversations_settings.s3_bucket_name
+    bucket = conversations_settings.s3_transcript_bucket_name
     if not bucket:
         logger.debug("S3 bucket not configured", extra={"video_id": video_id})
         return
@@ -281,7 +292,10 @@ def store_metadata(db: Session, video_id: str, metadata: dict) -> Video:
 
 
 def store_summary(db: Session, video_id: str, summary: str | None) -> Video:
-    logger.debug("Storing summary", extra={"video_id": video_id, "has_summary": summary is not None})
+    logger.debug(
+        "Storing summary",
+        extra={"video_id": video_id, "has_summary": summary is not None},
+    )
     video = upsert_video(db, video_id)
     if summary is not None:
         video.summary = summary

@@ -36,9 +36,9 @@ VidWiz helps users take timestamped notes on YouTube videos, enriches notes with
 
 ## Build, Test, and Development Commands
 ### Backend
-- Install: `cd backend && poetry install`
-- Run (local): `cd backend && poetry run uvicorn src.main:app --host 0.0.0.0 --port 5000`
-- Tests: `cd backend && poetry run pytest`
+- Install: `cd backend && uv sync --locked`
+- Run (local): `cd backend && uv run --locked uvicorn src.main:app --host 0.0.0.0 --port 5000`
+- Tests: `cd backend && uv run --locked pytest`
 
 ### Frontend
 - Install: `cd frontend && npm install`

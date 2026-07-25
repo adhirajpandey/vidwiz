@@ -14,7 +14,10 @@ TEST_CREDIT_PRODUCTS = (
 
 os.environ.setdefault("ENVIRONMENT", "test")
 os.environ.setdefault("SECRET_KEY", "test-secret")
-os.environ.setdefault("ADMIN_TOKEN", "test-admin-token")
+os.environ.setdefault(
+    "VIDWIZ_INTERNAL_API_ADMIN_TOKEN",
+    "test-admin-token",
+)
 os.environ.setdefault("GOOGLE_CLIENT_ID", "test-google-client-id")
 os.environ.setdefault("YOUTUBE_DATA_API_KEY", "test-youtube-data-api-key")
 os.environ.setdefault("SQS_AI_NOTE_QUEUE_URL", "test-queue-url")
@@ -51,7 +54,7 @@ def setup_settings() -> None:
     settings.jwt_expiry_hours = 1
     settings.google_client_id = "test-google-client-id"
     settings.youtube_data_api_key = "test-youtube-data-api-key"
-    settings.admin_token = "test-admin-token"
+    settings.internal_api_admin_token = "test-admin-token"
     settings.db_url = TEST_DATABASE_URL
     settings.rate_limit_enabled = False
     settings.sqs_ai_note_queue_url = "test-queue-url"

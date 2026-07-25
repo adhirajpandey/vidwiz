@@ -45,7 +45,11 @@ def create_conversation(
 ) -> Conversation:
     logger.debug(
         "Creating conversation",
-        extra={"video_id": video_id, "user_id": user_id, "guest_session": bool(guest_session_id)},
+        extra={
+            "video_id": video_id,
+            "user_id": user_id,
+            "guest_session": bool(guest_session_id),
+        },
     )
     conversation = Conversation(
         video_id=video_id,
@@ -98,7 +102,11 @@ def save_chat_message(
 ) -> Message:
     logger.debug(
         "Saving chat message",
-        extra={"conversation_id": conversation_id, "role": role, "has_metadata": metadata is not None},
+        extra={
+            "conversation_id": conversation_id,
+            "role": role,
+            "has_metadata": metadata is not None,
+        },
     )
     message = Message(
         conversation_id=conversation_id,
@@ -117,7 +125,8 @@ def fetch_recent_history(
     db: Session, conversation_id: int, limit: int = 10
 ) -> list[Message]:
     logger.debug(
-        "Fetching recent history", extra={"conversation_id": conversation_id, "limit": limit}
+        "Fetching recent history",
+        extra={"conversation_id": conversation_id, "limit": limit},
     )
     query = (
         select(Message)
@@ -171,7 +180,7 @@ def check_daily_quota(
 
 def get_transcript_from_s3(video_id: str) -> list | None:
     logger.debug("Fetching transcript from S3", extra={"video_id": video_id})
-    if not conversations_settings.s3_bucket_name:
+    if not conversations_settings.s3_transcript_bucket_name:
         return None
     if not (
         conversations_settings.aws_access_key_id
@@ -189,7 +198,8 @@ def get_transcript_from_s3(video_id: str) -> list | None:
             region_name=conversations_settings.aws_region,
         )
         response = s3_client.get_object(
-            Bucket=conversations_settings.s3_bucket_name, Key=transcript_key
+            Bucket=conversations_settings.s3_transcript_bucket_name,
+            Key=transcript_key,
         )
         transcript_data = json.loads(response["Body"].read().decode("utf-8"))
         logger.debug("Fetched transcript from S3", extra={"video_id": video_id})
@@ -302,7 +312,9 @@ def stream_wiz_response(
             yield f"data: {json.dumps({'error': 'No response from AI model. Please try again.'})}\n\n"
 
         yield "data: [DONE]\n\n"
-        logger.debug("Wiz response complete", extra={"conversation_id": conversation_id})
+        logger.debug(
+            "Wiz response complete", extra={"conversation_id": conversation_id}
+        )
 
     except Exception as exc:
         logger.error("OpenRouter streaming error", extra={"error": str(exc)})
@@ -330,7 +342,9 @@ def prepare_chat(
 
     transcript_result = get_valid_transcript_or_raise(db, conversation.video_id)
     if transcript_result is None:
-        logger.debug("Transcript processing", extra={"conversation_id": conversation.id})
+        logger.debug(
+            "Transcript processing", extra={"conversation_id": conversation.id}
+        )
         return None, None, [], None
 
     video, transcript = transcript_result

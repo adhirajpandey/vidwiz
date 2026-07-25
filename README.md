@@ -59,13 +59,13 @@ PostgreSQL ←→ Workers + AWS Services
 ```
 
 Quick start
-Prereqs: Python 3.10–3.13, Node.js, Poetry, running PostgreSQL
+Prereqs: Python 3.10–3.13, uv 0.8.22, Node.js, running PostgreSQL
 
 ### Backend
 1. `cd backend`
-2. Install dependencies: `poetry install`
+2. Install dependencies: `uv sync --locked`
 3. Configure `.env` (use `.env.example` as reference). For required environment variables, see `docs/backend.md`.
-4. Start server: `poetry run uvicorn src.main:app --host 0.0.0.0 --port 5000`
+4. Start server: `uv run --locked uvicorn src.main:app --host 0.0.0.0 --port 5000`
 
 Backend note creation supports:
 - `POST /v2/videos/{video_id}/notes` for known video IDs/URLs
@@ -92,7 +92,12 @@ Backend note creation supports:
 The extension note UI appears on supported YouTube watch pages after sync.
 
 ## Running tests
-- Backend: `cd backend && poetry run pytest`
+- Backend: `cd backend && uv sync --locked && uv run --locked pytest`
+- AWS infrastructure: `cd infra && uv sync --locked && npm ci && uv run --locked pytest`
+
+Production AWS serverless resources are defined in `infra/` as
+`vidwiz-stack`. See `docs/aws-infrastructure.md` before any bootstrap,
+deployment, transcript migration, or cutover operation.
 
 ## Project Structure
 ```
@@ -107,6 +112,7 @@ vidwiz/
 │       ├── pages/       # Route-level views
 │       ├── components/  # Reusable UI components
 │       └── public/      # Static assets
+├── infra/               # Production AWS CDK app and assertions
 └── extension/           # Chromium browser extension
     ├── manifest.json
     ├── popup.*

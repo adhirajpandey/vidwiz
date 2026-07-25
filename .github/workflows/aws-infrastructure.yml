@@ -1,0 +1,83 @@
+name: Deploy AWS production infrastructure
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  deploy-production:
+    name: Deploy production
+    if: github.ref == 'refs/heads/main'
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+
+    concurrency:
+      group: vidwiz-prod-aws
+      cancel-in-progress: false
+
+    permissions:
+      contents: read
+      id-token: write
+
+    defaults:
+      run:
+        working-directory: infra
+
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+
+      - name: Set up Python
+        uses: actions/setup-python@v6
+        with:
+          python-version: '3.13'
+
+      - name: Set up uv
+        uses: astral-sh/setup-uv@v8
+        with:
+          version: '0.8.22'
+          enable-cache: true
+          cache-dependency-glob: infra/uv.lock
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v6
+        with:
+          node-version: '22'
+          cache: npm
+          cache-dependency-path: infra/package-lock.json
+
+      - name: Install Python dependencies
+        run: uv sync --locked
+
+      - name: Install Node.js dependencies
+        run: npm ci --ignore-scripts
+
+      - name: Validate infrastructure
+        run: uv run --locked python scripts/validate.py
+
+      - name: Configure AWS credentials through OIDC
+        uses: aws-actions/configure-aws-credentials@v6
+        with:
+          role-to-assume: ${{ vars.AWS_GITHUB_DEPLOY_ROLE_ARN }}
+          role-session-name: vidwiz-${{ github.run_id }}
+          aws-region: ap-south-1
+          allowed-account-ids: ${{ vars.AWS_ACCOUNT_ID }}
+
+      - name: Prepare production configuration
+        env:
+          EXPECTED_AWS_ACCOUNT_ID: ${{ vars.AWS_ACCOUNT_ID }}
+          LAMBDA_ENV_FILE: ${{ secrets.LAMBDA_ENV_FILE }}
+        run: uv run --locked python scripts/prepare_production_config.py
+
+      - name: Deploy production stack
+        run: npm exec -- cdk deploy vidwiz-stack --require-approval never
+
+      - name: Remove temporary production configuration
+        if: always()
+        env:
+          CONFIG_FILE: ${{ env.LAMBDA_ENV_FILE_PATH }}
+        run: uv run --locked python scripts/prepare_production_config.py --cleanup
