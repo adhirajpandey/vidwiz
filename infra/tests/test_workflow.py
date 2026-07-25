@@ -50,3 +50,12 @@ def test_production_uses_oidc_and_unconditional_cleanup() -> None:
         "VidwizInternalApiAdminToken=${CFN_VIDWIZ_INTERNAL_API_ADMIN_TOKEN_VALUE}"
     ) in text
     assert "VIDWIZ_TOKEN_PARAMETER" not in text
+
+
+def test_workflow_uses_cdk_managed_lambda_bundling() -> None:
+    text = WORKFLOW.read_text()
+
+    assert "scripts/build_lambdas.py" not in text
+    assert "scripts/validate_lambdas.py" not in text
+    assert "npx cdk synth vidwiz-stack --quiet --output cdk.out" in text
+    assert "npx cdk deploy --app cdk.out vidwiz-stack" in text

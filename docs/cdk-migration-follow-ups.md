@@ -16,6 +16,15 @@ surrounding application code, and primary GitHub, AWS, CDK, Python, Pydantic,
 and uv documentation. Items labelled as operational choices still require
 production-specific decisions; they are not universal implementation defaults.
 
+### Implementation status
+
+The custom Lambda ZIP packaging recommendation in section 2 has been
+superseded by CDK-managed `PythonFunction` bundling. Lambda source directories
+now contain `handler.py` and `requirements.txt`; CDK creates and publishes the
+assets during synthesis and deployment. References below to custom packaging,
+build images, and artifact manifests are retained only as the original review
+rationale and do not describe the current implementation.
+
 ## Priority Order
 
 Complete the first group before relying on the CDK workflow for production.
@@ -383,9 +392,8 @@ Before the first production deployment, verify all of the following:
   restricted to `main`.
 - The GitHub deployment role can complete post-deploy reads, or the workflow
   explicitly assumes a read-capable role.
-- Each Lambda spec has an exact source-to-artifact-to-function mapping.
-- Artifact manifests prove the ZIP matches the source, requirements, packager,
-  and build image.
+- Each Lambda spec has an exact source-directory-to-function mapping, and CDK
+  bundles the reviewed source during synthesis.
 - SQS and S3 transient failures are retried, with DLQs for terminal failures.
 - The dispatcher processes every `Records` item in an S3 event and has a
   multi-record regression test.

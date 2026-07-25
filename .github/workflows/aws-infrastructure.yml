@@ -60,12 +60,6 @@ jobs:
           uv run mypy app.py vidwiz_infra scripts tests
           uv run pytest
 
-      - name: Build and validate Lambda ZIPs
-        working-directory: infra
-        run: |
-          uv run python scripts/build_lambdas.py
-          uv run python scripts/validate_lambdas.py
-
       - name: Synthesize fixture stack
         working-directory: infra
         env:
@@ -112,10 +106,6 @@ jobs:
           uv sync --frozen
           npm ci --ignore-scripts
 
-      - name: Build Lambda ZIPs
-        working-directory: infra
-        run: uv run python scripts/build_lambdas.py
-
       - name: Configure AWS credentials through OIDC
         uses: aws-actions/configure-aws-credentials@451ce2a72e8d729a59ebeaacab82dbce58e7af4c
         with:
@@ -149,8 +139,8 @@ jobs:
         env:
           LAMBDA_ENV_FILE_PATH: ${{ steps.production-config.outputs.path }}
         run: |
-          npx cdk synth vidwiz-stack --quiet
-          npx cdk deploy vidwiz-stack \
+          npx cdk synth vidwiz-stack --quiet --output cdk.out
+          npx cdk deploy --app cdk.out vidwiz-stack \
             --require-approval never \
             --parameters "VidwizInternalApiAdminToken=${CFN_VIDWIZ_INTERNAL_API_ADMIN_TOKEN_VALUE}" \
             --parameters "OpenrouterApiKey=${OPENROUTER_API_KEY_PARAMETER}"

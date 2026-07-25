@@ -112,7 +112,7 @@ vidwiz/
 │       ├── pages/       # Route-level views
 │       ├── components/  # Reusable UI components
 │       └── public/      # Static assets
-├── infra/               # Production AWS CDK app, packaging, and assertions
+├── infra/               # Production AWS CDK app and assertions
 └── extension/           # Chromium browser extension
     ├── manifest.json
     ├── popup.*

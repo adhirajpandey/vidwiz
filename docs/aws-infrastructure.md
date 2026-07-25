@@ -32,20 +32,15 @@ uv run ruff format --check app.py vidwiz_infra scripts tests
 uv run ruff check app.py vidwiz_infra scripts tests
 uv run mypy app.py vidwiz_infra scripts tests
 uv run pytest
-uv run python scripts/build_lambdas.py
-uv run python scripts/validate_lambdas.py
 LAMBDA_ENV_FILE_PATH=tests/fixtures/production.env npx cdk synth vidwiz-stack
 ```
 
-Each Lambda ZIP is accompanied by a generated `.zip.manifest.json` file. CDK
-validates its source, requirements, packager, build-image, and ZIP hashes
-before accepting the ZIP, so rebuild the artifacts after changing any of those
-inputs.
-
-The shared Lambda specification registry explicitly maps each source
-directory, artifact, CDK construct, physical function name, requirements file,
-and `handler.lambda_handler` entry point. Each source directory is flattened
-into its own ZIP root; the stack never infers an artifact from a function name.
+Each Lambda source directory contains `handler.py` and its fully resolved,
+hash-checked `requirements.txt`. CDK's `PythonFunction` bundles each directory
+in a Lambda-compatible Docker container during synthesis, stages the ZIP assets
+in `cdk.out`, and publishes them during deployment. The shared specification
+registry explicitly maps each source directory, CDK construct, and physical
+function name; all handlers use `handler.lambda_handler`.
 
 The fixture is non-production data. Production synthesis uses the private
 multiline GitHub secret `LAMBDA_ENV_FILE`, based on `infra/.env.example`.

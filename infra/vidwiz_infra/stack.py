@@ -11,6 +11,9 @@ from aws_cdk import (
     aws_lambda_event_sources as event_sources,
 )
 from aws_cdk import (
+    aws_lambda_python_alpha as lambda_python,
+)
+from aws_cdk import (
     aws_logs as logs,
 )
 from aws_cdk import (
@@ -22,7 +25,6 @@ from aws_cdk import (
 from constructs import Construct
 
 from vidwiz_infra.lambda_specs import LAMBDA_SPECS_BY_KEY, LambdaSpec
-from vidwiz_infra.packaging import asset_hash, validate_artifact
 from vidwiz_infra.settings import ProductionSettings
 
 STACK_NAME = "vidwiz-stack"
@@ -253,9 +255,7 @@ class VidwizStack(cdk.Stack):
         memory: int,
         timeout: int,
         environment: Mapping[str, str],
-    ) -> lambda_.Function:
-        archive = validate_artifact(spec)
-
+    ) -> lambda_python.PythonFunction:
         log_group = logs.LogGroup(
             self,
             f"{spec.construct_id}LogGroup",
@@ -274,18 +274,15 @@ class VidwizStack(cdk.Stack):
                 resources=[f"{log_group.log_group_arn}:*"],
             )
         )
-        function = lambda_.Function(
+        function = lambda_python.PythonFunction(
             self,
             spec.construct_id,
+            entry=str(spec.source),
             function_name=spec.function_name,
             runtime=lambda_.Runtime.PYTHON_3_13,
             architecture=lambda_.Architecture.X86_64,
-            handler=spec.handler,
-            code=lambda_.Code.from_asset(
-                str(archive),
-                asset_hash=asset_hash(spec),
-                asset_hash_type=cdk.AssetHashType.CUSTOM,
-            ),
+            index="handler.py",
+            handler="lambda_handler",
             memory_size=memory,
             timeout=cdk.Duration.seconds(timeout),
             role=role,

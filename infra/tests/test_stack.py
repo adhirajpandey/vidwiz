@@ -1,43 +1,59 @@
-import zipfile
 from pathlib import Path
 
 import aws_cdk as cdk
 import pytest
+from aws_cdk import aws_lambda as lambda_
 from aws_cdk.assertions import Match, Template
 
-from vidwiz_infra.lambda_specs import LAMBDA_SPECS
-from vidwiz_infra.packaging import package_path, write_manifest
 from vidwiz_infra.settings import ProductionSettings
 from vidwiz_infra.stack import VidwizStack
 
 FIXTURE_ENV = Path(__file__).parent / "fixtures" / "production.env"
 
 
+def _test_python_function(
+    scope: cdk.Stack,
+    construct_id: str,
+    *,
+    entry: str,
+    index: str,
+    handler: str,
+    **kwargs: object,
+) -> lambda_.Function:
+    del entry
+    return lambda_.Function(
+        scope,
+        construct_id,
+        code=lambda_.Code.from_inline(
+            "def lambda_handler(event, context): return None"
+        ),
+        handler=f"{index.removesuffix('.py')}.{handler}",
+        **kwargs,
+    )
+
+
 @pytest.fixture(scope="module")
 def template() -> Template:
-    for package in LAMBDA_SPECS:
-        archive = package_path(package)
-        archive.parent.mkdir(parents=True, exist_ok=True)
-        with zipfile.ZipFile(archive, "w") as bundle:
-            bundle.writestr(
-                "handler.py",
-                "def lambda_handler(event, context): return None\n",
-            )
-            for dependency in package.required_imports:
-                bundle.writestr(f"{dependency}.py", "VALUE = 1\n")
-        write_manifest(package, archive)
-    settings = ProductionSettings.from_env_file(FIXTURE_ENV)
-    app = cdk.App()
-    stack = VidwizStack(
-        app,
-        "vidwiz-stack",
-        settings=settings,
-        env=cdk.Environment(
-            account=settings.aws_account_id,
-            region=settings.aws_region,
-        ),
+    monkeypatch = pytest.MonkeyPatch()
+    monkeypatch.setattr(
+        "vidwiz_infra.stack.lambda_python.PythonFunction",
+        _test_python_function,
     )
-    return Template.from_stack(stack)
+    settings = ProductionSettings.from_env_file(FIXTURE_ENV)
+    try:
+        app = cdk.App()
+        stack = VidwizStack(
+            app,
+            "vidwiz-stack",
+            settings=settings,
+            env=cdk.Environment(
+                account=settings.aws_account_id,
+                region=settings.aws_region,
+            ),
+        )
+        return Template.from_stack(stack)
+    finally:
+        monkeypatch.undo()
 
 
 def test_exact_resource_names_and_security(template: Template) -> None:
