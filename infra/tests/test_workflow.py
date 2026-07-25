@@ -60,6 +60,8 @@ def test_workflow_uses_canonical_target_from_production_config() -> None:
     assert text.index("Prepare production configuration") < text.index(
         "Configure AWS credentials through OIDC"
     )
+
+
 def test_workflow_uses_repository_scripts_and_parameter_free_deployment() -> None:
     text = WORKFLOW.read_text()
 
