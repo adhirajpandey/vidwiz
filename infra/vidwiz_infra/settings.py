@@ -2,6 +2,7 @@ from pathlib import Path
 from typing import Annotated, Literal, Self
 from urllib.parse import urlparse
 
+from dotenv import dotenv_values
 from pydantic import (
     Field,
     SecretStr,
@@ -25,6 +26,7 @@ class ProductionSettings(BaseSettings):
         env_file_encoding="utf-8",
         extra="forbid",
         hide_input_in_errors=True,
+        populate_by_name=True,
     )
 
     aws_account_id: AwsAccountId
@@ -84,4 +86,9 @@ class ProductionSettings(BaseSettings):
     def from_env_file(cls, path: Path) -> Self:
         if not path.is_file():
             raise ValueError(f"Configuration file does not exist: {path}")
-        return cls(_env_file=path)
+        values = {
+            name.lower(): value
+            for name, value in dotenv_values(path).items()
+            if value is not None
+        }
+        return cls(_env_file=None, **values)

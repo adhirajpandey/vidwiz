@@ -136,7 +136,7 @@ def test_queues_and_event_sources(template: Template) -> None:
     )
 
 
-def test_lambda_runtime_sizing_logs_and_secret_references(
+def test_lambda_runtime_sizing_logs_and_configuration_values(
     template: Template,
 ) -> None:
     expected = {
@@ -163,15 +163,12 @@ def test_lambda_runtime_sizing_logs_and_secret_references(
                 "RetentionInDays": 7,
             },
         )
-    template.has_parameter(
-        "VidwizInternalApiAdminToken",
-        {"NoEcho": True, "Type": "String"},
-    )
-    template.has_parameter("OpenrouterApiKey", {"NoEcho": True, "Type": "String"})
     rendered = template.to_json()
     text = str(rendered)
-    assert "fixture-admin-token" not in text
-    assert "fixture-openrouter-key" not in text
+    assert "VidwizInternalApiAdminToken" not in rendered.get("Parameters", {})
+    assert "OpenrouterApiKey" not in rendered.get("Parameters", {})
+    assert "fixture-admin-token" in text
+    assert "fixture-openrouter-key" in text
 
 
 def test_lambda_environments_use_domain_specific_contracts(
@@ -185,7 +182,7 @@ def test_lambda_environments_use_domain_specific_contracts(
                 "Variables": Match.object_like(
                     {
                         "VIDWIZ_INTERNAL_API_BASE_URL": ("https://example.invalid"),
-                        "VIDWIZ_INTERNAL_API_ADMIN_TOKEN": Match.any_value(),
+                        "VIDWIZ_INTERNAL_API_ADMIN_TOKEN": "fixture-admin-token",
                         "SQS_AI_NOTE_QUEUE_URL": Match.any_value(),
                         "SQS_AI_SUMMARY_QUEUE_URL": Match.any_value(),
                     }
@@ -206,7 +203,8 @@ def test_lambda_environments_use_domain_specific_contracts(
                         {
                             "S3_TRANSCRIPT_BUCKET_NAME": Match.any_value(),
                             "VIDWIZ_INTERNAL_API_BASE_URL": ("https://example.invalid"),
-                            "VIDWIZ_INTERNAL_API_ADMIN_TOKEN": Match.any_value(),
+                            "VIDWIZ_INTERNAL_API_ADMIN_TOKEN": "fixture-admin-token",
+                            "OPENROUTER_API_KEY": "fixture-openrouter-key",
                         }
                     )
                 },

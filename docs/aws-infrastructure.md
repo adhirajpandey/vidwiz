@@ -28,11 +28,7 @@ Requirements are Python 3.13, uv, Node.js, npm, and Docker.
 cd infra
 uv sync --frozen
 npm ci --ignore-scripts
-uv run ruff format --check app.py vidwiz_infra scripts tests
-uv run ruff check app.py vidwiz_infra scripts tests
-uv run mypy app.py vidwiz_infra scripts tests
-uv run pytest
-LAMBDA_ENV_FILE_PATH=tests/fixtures/production.env npx cdk synth vidwiz-stack
+uv run python scripts/validate.py
 ```
 
 Each Lambda source directory contains `handler.py` and its fully resolved,
@@ -48,10 +44,13 @@ Capture the existing functions' memory, timeout, runtime, architecture,
 environment, event mappings, queue batch configuration, layers, and ZIPs
 before filling that file.
 
-Lambda secrets remain environment variables to avoid another paid service.
-They enter CloudFormation through `NoEcho` parameters and are absent from the
-synthesized template, but privileged AWS identities can still inspect Lambda
-configuration.
+Lambda secrets remain environment variables to avoid another paid service. The
+workflow reconstructs the multiline GitHub secret as a private temporary file,
+validates it, masks its individual secret values, and exposes its path only to
+the CDK deployment and cleanup steps. CDK synthesizes those values into Lambda
+configuration, so they are present in the CloudFormation template and can be
+inspected by privileged AWS identities. Do not upload, cache, or print
+`cdk.out`.
 
 ## Manual Preparation and Initial Deployment
 
@@ -100,14 +99,14 @@ queue, call Lambda or infrastructure APIs, manage IAM, or manage its own key.
 
 ## Automatic Deployment
 
-The AWS workflow deploys after validation when a push to `main` changes
-`infra/**`, `backend/workers/lambdas/**`, or the workflow itself. It can also
-be manually dispatched from `main`; other refs cannot deploy through the
-branch-scoped OIDC role.
+The AWS workflow validates and deploys in one production job when a push to
+`main` changes `infra/**`, `backend/workers/lambdas/**`, or the workflow
+itself. It can also be manually dispatched from `main`; other refs cannot
+deploy through the branch-scoped OIDC role. Pull requests do not run this
+workflow.
 
-Protect `main`: require pull requests and infrastructure validation, block
-   force pushes and deletion, and require zero approvals if that remains the
-   chosen policy.
+Protect `main`: require pull requests and relevant checks, block force pushes
+and deletion, and require zero approvals if that remains the chosen policy.
 Remove any legacy permanent AWS keys from GitHub. Confirm a second unchanged
 deployment has no replacement or drift.
 

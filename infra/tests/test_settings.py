@@ -55,3 +55,15 @@ def test_missing_configuration_does_not_disclose_secrets(tmp_path: Path) -> None
         ProductionSettings.from_env_file(env_file)
 
     assert "do-not-disclose" not in str(error.value)
+
+
+def test_explicit_configuration_file_ignores_ambient_environment(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setenv("AWS_ACCOUNT_ID", "210987654321")
+    monkeypatch.setenv("OPENROUTER_MODEL", "ambient-model")
+
+    settings = ProductionSettings.from_env_file(FIXTURE_ENV)
+
+    assert settings.aws_account_id == "123456789012"
+    assert settings.openrouter_model == "fixture-model"

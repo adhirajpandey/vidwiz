@@ -52,21 +52,6 @@ class VidwizStack(cdk.Stack):
         }.items():
             cdk.Tags.of(self).add(key, value)
 
-        internal_api_admin_token = cdk.CfnParameter(
-            self,
-            "VidwizInternalApiAdminToken",
-            type="String",
-            no_echo=True,
-            description="Production internal API administrator token",
-        )
-        openrouter_api_key = cdk.CfnParameter(
-            self,
-            "OpenrouterApiKey",
-            type="String",
-            no_echo=True,
-            description="Production OpenRouter API key",
-        )
-
         bucket = s3.Bucket(
             self,
             "TranscriptBucket",
@@ -111,7 +96,7 @@ class VidwizStack(cdk.Stack):
                     settings.vidwiz_internal_api_base_url
                 ),
                 "VIDWIZ_INTERNAL_API_ADMIN_TOKEN": (
-                    internal_api_admin_token.value_as_string
+                    settings.vidwiz_internal_api_admin_token.get_secret_value()
                 ),
                 "SQS_AI_NOTE_QUEUE_URL": ai_note_queue.queue_url,
                 "SQS_AI_SUMMARY_QUEUE_URL": ai_summary_queue.queue_url,
@@ -123,8 +108,8 @@ class VidwizStack(cdk.Stack):
             timeout=settings.ai_note_timeout_seconds,
             environment={
                 **self._worker_environment(
-                    internal_api_admin_token.value_as_string,
-                    openrouter_api_key.value_as_string,
+                    settings.vidwiz_internal_api_admin_token.get_secret_value(),
+                    settings.openrouter_api_key.get_secret_value(),
                     TRANSCRIPT_BUCKET_NAME,
                 ),
                 "TRANSCRIPT_BUFFER_SECONDS": str(settings.transcript_buffer_seconds),
@@ -139,8 +124,8 @@ class VidwizStack(cdk.Stack):
             timeout=settings.ai_summary_timeout_seconds,
             environment={
                 **self._worker_environment(
-                    internal_api_admin_token.value_as_string,
-                    openrouter_api_key.value_as_string,
+                    settings.vidwiz_internal_api_admin_token.get_secret_value(),
+                    settings.openrouter_api_key.get_secret_value(),
                     TRANSCRIPT_BUCKET_NAME,
                 ),
                 "MIN_SUMMARY_LENGTH": str(settings.min_summary_length),
