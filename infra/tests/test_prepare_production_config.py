@@ -83,6 +83,4 @@ def test_cleanup_removes_the_temporary_config_file(tmp_path: Path) -> None:
 def test_cleanup_succeeds_when_the_config_path_no_longer_exists(
     tmp_path: Path,
 ) -> None:
-    cleanup_production_config(
-        {"CONFIG_FILE": str(tmp_path / "missing-production.env")}
-    )
+    cleanup_production_config({"CONFIG_FILE": str(tmp_path / "missing-production.env")})

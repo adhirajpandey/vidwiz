@@ -16,4 +16,6 @@ def test_lambda_specs_map_each_function_to_a_self_contained_entry() -> None:
 
     for spec in LAMBDA_SPECS:
         assert (spec.source / "handler.py").is_file()
-        assert (spec.source / "requirements.txt").is_file()
+        assert (spec.source / "pyproject.toml").is_file()
+        assert (spec.source / "uv.lock").is_file()
+        assert not (spec.source / "requirements.txt").exists()

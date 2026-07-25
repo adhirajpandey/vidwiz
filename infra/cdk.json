@@ -1,5 +1,5 @@
 {
-  "app": "uv run python app.py",
+  "app": "uv run --locked python app.py",
   "context": {
     "@aws-cdk/aws-lambda:recognizeLayerVersion": true
   }

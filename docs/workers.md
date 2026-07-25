@@ -58,12 +58,12 @@ Describe background helpers and Lambdas used for transcript/metadata fetching an
   rejects an unexpected AWS account, and uses only the production CDK
   deployment, file-publishing, and lookup bootstrap roles.
 - Each Lambda has its own source directory and explicit infrastructure
-  specification. It contains root-level `handler.py` and a fully resolved,
-  hash-checked `requirements.txt`; CDK bundles that directory in a
-  Lambda-compatible Docker container during synthesis.
+  specification. It contains root-level `handler.py`, `pyproject.toml`, and a
+  committed `uv.lock`; CDK bundles that directory in a Lambda-compatible
+  Docker container during synthesis.
 - CDK stages each generated ZIP asset in `cdk.out` and publishes it during
-  deployment. Dependency changes are made directly in the worker's committed
-  `requirements.txt`.
+  deployment. Dependency changes are made in the worker's `pyproject.toml`;
+  use uv to update its committed `uv.lock`.
 - Production memory and timeout values must be captured from the legacy
   functions and supplied in `LAMBDA_ENV_FILE`; synthesis rejects missing
   values rather than selecting migration defaults.

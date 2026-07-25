@@ -20,7 +20,7 @@ production-specific decisions; they are not universal implementation defaults.
 
 The custom Lambda ZIP packaging recommendation in section 2 has been
 superseded by CDK-managed `PythonFunction` bundling. Lambda source directories
-now contain `handler.py` and `requirements.txt`; CDK creates and publishes the
+now contain `handler.py`, `pyproject.toml`, and `uv.lock`; CDK creates and publishes the
 assets during synthesis and deployment. References below to custom packaging,
 build images, and artifact manifests are retained only as the original review
 rationale and do not describe the current implementation.
@@ -330,13 +330,9 @@ after review and validation.
 
 ### Enforce lockfile freshness
 
-`uv sync --frozen` does not verify that `uv.lock` matches `pyproject.toml`.
-Later plain `uv run` calls can update the stale lock automatically.
-
-Use `uv sync --locked` and `uv run --locked`. Update `cdk.json` from
-`uv run python app.py` to `uv run --locked python app.py`; otherwise CDK
-synthesis can still update the lock. This should match the intent already
-expressed by `npm ci`.
+Use `uv sync --locked` and `uv run --locked` so every command verifies that
+`uv.lock` matches `pyproject.toml` and cannot update the lock during CI or CDK
+synthesis. This now matches the intent already expressed by `npm ci`.
 
 ### Check whitespace in the actual change range
 
@@ -377,8 +373,8 @@ The manual policy module is useful, but the runbook should provide an explicit
 command that renders the returned dictionaries as policy JSON. For example:
 
 ```text
-uv run python scripts/render_manual_policy.py github-deploy-role
-uv run python scripts/render_manual_policy.py application-user
+uv run --locked python scripts/render_manual_policy.py github-deploy-role
+uv run --locked python scripts/render_manual_policy.py application-user
 ```
 
 Document that these policies are bootstrap resources outside the CDK stack and

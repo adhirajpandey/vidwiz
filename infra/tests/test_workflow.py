@@ -52,15 +52,15 @@ def test_workflow_uses_major_action_versions_and_locked_dependency_caches() -> N
     assert "cache-dependency-glob: infra/uv.lock" in text
     assert "cache: npm" in text
     assert "cache-dependency-path: infra/package-lock.json" in text
-    assert "uv sync --frozen" in text
+    assert "uv sync --locked" in text
     assert "npm ci --ignore-scripts" in text
 
 
 def test_workflow_uses_repository_scripts_and_parameter_free_deployment() -> None:
     text = WORKFLOW.read_text()
 
-    assert "uv run python scripts/validate.py" in text
-    assert "uv run python scripts/prepare_production_config.py" in text
+    assert "uv run --locked python scripts/validate.py" in text
+    assert "uv run --locked python scripts/prepare_production_config.py" in text
     assert "npm exec -- cdk deploy vidwiz-stack --require-approval never" in text
     assert "--parameters" not in text
     assert "cdk synth" not in text
@@ -75,6 +75,6 @@ def test_workflow_cleans_up_the_temporary_production_configuration() -> None:
     assert "if: always()" in text
     assert "CONFIG_FILE: ${{ env.LAMBDA_ENV_FILE_PATH }}" in text
     assert (
-        "uv run python scripts/prepare_production_config.py --cleanup" in text
+        "uv run --locked python scripts/prepare_production_config.py --cleanup" in text
     )
     assert 'rm -- "${CONFIG_FILE}"' not in text

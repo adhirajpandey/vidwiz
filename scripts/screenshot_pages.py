@@ -1,9 +1,9 @@
 """Capture deterministic VidWiz UI screenshots with Playwright.
 
 Examples (run from the repository root):
-  poetry -C backend run python ../scripts/screenshot_pages.py --list
-  poetry -C backend run python ../scripts/screenshot_pages.py --pages landing dashboard --sizes mobile desktop
-  poetry -C backend run python ../scripts/screenshot_pages.py --all --sizes mobile desktop --browser-mode headless
+  uv -C backend run --locked python ../scripts/screenshot_pages.py --list
+  uv -C backend run --locked python ../scripts/screenshot_pages.py --pages landing dashboard --sizes mobile desktop
+  uv -C backend run --locked python ../scripts/screenshot_pages.py --all --sizes mobile desktop --browser-mode headless
 """
 
 from __future__ import annotations

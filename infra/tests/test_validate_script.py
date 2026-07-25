@@ -21,6 +21,7 @@ def test_runs_all_validation_commands(monkeypatch: pytest.MonkeyPatch) -> None:
         [
             "uv",
             "run",
+            "--locked",
             "ruff",
             "format",
             "--check",
@@ -29,12 +30,26 @@ def test_runs_all_validation_commands(monkeypatch: pytest.MonkeyPatch) -> None:
             "scripts",
             "tests",
         ],
-        ["uv", "run", "ruff", "check", "app.py", "vidwiz_infra", "scripts", "tests"],
-        ["uv", "run", "mypy", "app.py", "vidwiz_infra", "scripts", "tests"],
-        ["uv", "run", "pytest"],
+        [
+            "uv",
+            "run",
+            "--locked",
+            "ruff",
+            "check",
+            "app.py",
+            "vidwiz_infra",
+            "scripts",
+            "tests",
+        ],
+        ["uv", "run", "--locked", "mypy", "app.py", "vidwiz_infra", "scripts", "tests"],
+        ["uv", "run", "--locked", "pytest"],
+        ["uv", "lock", "--check"],
+        ["uv", "lock", "--check"],
+        ["uv", "lock", "--check"],
         [validate.NPM_COMMAND, "exec", "--", "cdk", "synth", "vidwiz-stack", "--quiet"],
         ["git", "diff", "--check"],
     ]
-    assert calls[4][2] is not None
-    assert calls[4][2]["LAMBDA_ENV_FILE_PATH"] == "tests/fixtures/production.env"
-    assert calls[5][1] == validate.REPOSITORY_DIR
+    assert [cwd for _, cwd, _ in calls[4:7]] == list(validate.LAMBDA_DIRECTORIES)
+    assert calls[7][2] is not None
+    assert calls[7][2]["LAMBDA_ENV_FILE_PATH"] == "tests/fixtures/production.env"
+    assert calls[8][1] == validate.REPOSITORY_DIR

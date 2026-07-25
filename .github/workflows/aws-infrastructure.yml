@@ -55,13 +55,13 @@ jobs:
           cache-dependency-path: infra/package-lock.json
 
       - name: Install Python dependencies
-        run: uv sync --frozen
+        run: uv sync --locked
 
       - name: Install Node.js dependencies
         run: npm ci --ignore-scripts
 
       - name: Validate infrastructure
-        run: uv run python scripts/validate.py
+        run: uv run --locked python scripts/validate.py
 
       - name: Configure AWS credentials through OIDC
         uses: aws-actions/configure-aws-credentials@v6
@@ -75,7 +75,7 @@ jobs:
         env:
           EXPECTED_AWS_ACCOUNT_ID: ${{ vars.AWS_ACCOUNT_ID }}
           LAMBDA_ENV_FILE: ${{ secrets.LAMBDA_ENV_FILE }}
-        run: uv run python scripts/prepare_production_config.py
+        run: uv run --locked python scripts/prepare_production_config.py
 
       - name: Deploy production stack
         run: npm exec -- cdk deploy vidwiz-stack --require-approval never
@@ -84,4 +84,4 @@ jobs:
         if: always()
         env:
           CONFIG_FILE: ${{ env.LAMBDA_ENV_FILE_PATH }}
-        run: uv run python scripts/prepare_production_config.py --cleanup
+        run: uv run --locked python scripts/prepare_production_config.py --cleanup

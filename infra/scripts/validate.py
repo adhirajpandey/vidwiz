@@ -10,6 +10,11 @@ INFRA_DIR = Path(__file__).resolve().parents[1]
 REPOSITORY_DIR = INFRA_DIR.parent
 FIXTURE_ENV_FILE = "tests/fixtures/production.env"
 NPM_COMMAND = "npm.cmd" if os.name == "nt" else "npm"
+LAMBDA_DIRECTORIES = (
+    REPOSITORY_DIR / "backend/workers/lambdas/transcript_dispatcher",
+    REPOSITORY_DIR / "backend/workers/lambdas/ai_note_worker",
+    REPOSITORY_DIR / "backend/workers/lambdas/ai_summary_worker",
+)
 
 
 def run(command: list[str], *, cwd: Path, env: dict[str, str] | None = None) -> None:
@@ -21,6 +26,7 @@ def main() -> None:
         [
             "uv",
             "run",
+            "--locked",
             "ruff",
             "format",
             "--check",
@@ -29,12 +35,25 @@ def main() -> None:
             "scripts",
             "tests",
         ],
-        ["uv", "run", "ruff", "check", "app.py", "vidwiz_infra", "scripts", "tests"],
-        ["uv", "run", "mypy", "app.py", "vidwiz_infra", "scripts", "tests"],
-        ["uv", "run", "pytest"],
+        [
+            "uv",
+            "run",
+            "--locked",
+            "ruff",
+            "check",
+            "app.py",
+            "vidwiz_infra",
+            "scripts",
+            "tests",
+        ],
+        ["uv", "run", "--locked", "mypy", "app.py", "vidwiz_infra", "scripts", "tests"],
+        ["uv", "run", "--locked", "pytest"],
     )
     for command in validation_commands:
         run(command, cwd=INFRA_DIR)
+
+    for lambda_directory in LAMBDA_DIRECTORIES:
+        run(["uv", "lock", "--check"], cwd=lambda_directory)
 
     synthesis_env = os.environ | {"LAMBDA_ENV_FILE_PATH": FIXTURE_ENV_FILE}
     run(

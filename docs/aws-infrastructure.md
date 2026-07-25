@@ -26,17 +26,18 @@ Requirements are Python 3.13, uv, Node.js, npm, and Docker.
 
 ```text
 cd infra
-uv sync --frozen
+uv sync --locked
 npm ci --ignore-scripts
-uv run python scripts/validate.py
+uv run --locked python scripts/validate.py
 ```
 
-Each Lambda source directory contains `handler.py` and its fully resolved,
-hash-checked `requirements.txt`. CDK's `PythonFunction` bundles each directory
-in a Lambda-compatible Docker container during synthesis, stages the ZIP assets
-in `cdk.out`, and publishes them during deployment. The shared specification
-registry explicitly maps each source directory, CDK construct, and physical
-function name; all handlers use `handler.lambda_handler`.
+Each Lambda source directory contains `handler.py`, `pyproject.toml`, and a
+committed `uv.lock`. CDK's `PythonFunction` exports the lockfile during
+bundling, installs the locked dependencies in a Lambda-compatible Docker
+container, stages the ZIP assets in `cdk.out`, and publishes them during
+deployment. The shared specification registry explicitly maps each source
+directory, CDK construct, and physical function name; all handlers use
+`handler.lambda_handler`.
 
 The fixture is non-production data. Production synthesis uses the private
 multiline GitHub secret `LAMBDA_ENV_FILE`, based on `infra/.env.example`.
