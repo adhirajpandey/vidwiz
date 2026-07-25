@@ -234,14 +234,6 @@ def store_transcript_in_s3(video_id: str, transcript: list[dict]) -> None:
     if not bucket:
         logger.debug("S3 bucket not configured", extra={"video_id": video_id})
         return
-    if not (
-        conversations_settings.aws_access_key_id
-        and conversations_settings.aws_secret_access_key
-        and conversations_settings.aws_region
-    ):
-        logger.debug("S3 credentials not configured", extra={"video_id": video_id})
-        return
-
     transcript_key = f"transcripts/{video_id}.json"
     s3_client = boto3.client(
         "s3",

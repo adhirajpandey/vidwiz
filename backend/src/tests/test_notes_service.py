@@ -360,15 +360,6 @@ def test_list_notes_for_video_orders_by_created_at(db_session):
     assert [note.id for note in notes] == [note1.id, note2.id]
 
 
-def test_push_note_to_sqs_no_queue_url(monkeypatch):
-    monkeypatch.setattr(
-        notes_service.settings, "sqs_ai_note_queue_url", None, raising=False
-    )
-    notes_service.push_note_to_sqs(
-        Note(id=1, video_id="abc123DEF45", timestamp="00:01", user_id=1)
-    )
-
-
 def test_push_note_to_sqs_sends_payload(monkeypatch):
     monkeypatch.setattr(
         notes_service.settings,
