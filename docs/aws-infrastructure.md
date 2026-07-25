@@ -40,15 +40,20 @@ directory, CDK construct, and physical function name; all handlers use
 `handler.lambda_handler`.
 
 The fixture is non-production data. Production synthesis uses the private
-multiline GitHub secret `LAMBDA_ENV_FILE`, based on `infra/.env.example`.
+multiline GitHub secret `PRODUCTION_DEPLOYMENT_ENV`, based on
+`infra/.env.example`. Its `AWS_ACCOUNT_ID` and `AWS_REGION` values are the
+canonical deployment target.
+
 Capture the existing functions' memory, timeout, runtime, architecture,
 environment, event mappings, queue batch configuration, layers, and ZIPs
 before filling that file.
 
 Lambda secrets remain environment variables to avoid another paid service. The
 workflow reconstructs the multiline GitHub secret as a private temporary file,
-validates it, masks its individual secret values, and exposes its path only to
-the CDK deployment and cleanup steps. CDK synthesizes those values into Lambda
+validates it, masks its individual secret values, and exposes its path through
+`VIDWIZ_PRODUCTION_CONFIG_PATH` only to the CDK deployment and cleanup steps.
+The same validated account and region configure OIDC, whose allowed-account
+check rejects a mismatched authenticated account. CDK synthesizes those values into Lambda
 configuration, so they are present in the CloudFormation template and can be
 inspected by privileged AWS identities. Do not upload, cache, or print
 `cdk.out`.
@@ -64,8 +69,9 @@ Using the existing MFA-protected administrator identity:
 4. Create `VidwizGitHubDeployRole` with the trust and permissions returned by
    `vidwiz_infra.manual_policies`. It trusts only the `main` branch subject and
    can assume only the deployment, file-publishing, and lookup bootstrap roles.
-5. Configure GitHub variables `AWS_ACCOUNT_ID` and
-   `AWS_GITHUB_DEPLOY_ROLE_ARN`, plus the secret `LAMBDA_ENV_FILE`.
+5. Configure the GitHub variable `AWS_GITHUB_DEPLOY_ROLE_ARN` and the secret
+   `PRODUCTION_DEPLOYMENT_ENV`. Do not create a separate `AWS_ACCOUNT_ID`
+   variable; account and region come from the validated secret.
 6. Review the synthesized template, merge the reviewed infrastructure changes
    to `main`, then manually dispatch the AWS workflow from `main`.
 
@@ -93,9 +99,9 @@ After the copy:
 2. Manually create `VidwizApplicationUser` using the exact policy returned by
    `application_user_policy`.
 3. Keep exactly one active key except briefly during rotation.
-4. Configure `S3_TRANSCRIPT_BUCKET_NAME=vidwiz-prod`,
-   `SQS_AI_NOTE_QUEUE_URL` from the stack output, and
-   `AWS_REGION=ap-south-1`.
+4. Configure `AWS_ACCESS_KEY_ID` and `AWS_SECRET_ACCESS_KEY` from the
+   application user, `S3_TRANSCRIPT_BUCKET_NAME=vidwiz-prod`,
+   `SQS_AI_NOTE_QUEUE_URL` from the stack output, and `AWS_REGION=ap-south-1`.
 5. Restart and verify transcript reads/uploads, dispatch, both queues and
    workers, internal API updates, and logs.
 

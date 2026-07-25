@@ -254,15 +254,10 @@ One multiline GitHub secret is a valid source of all production configuration.
 The problem is not having one file; it is calling that mixed deployment input a
 Lambda environment file.
 
-Rename the GitHub secret and path variable:
-
-```text
-PRODUCTION_DEPLOYMENT_ENV
-VIDWIZ_PRODUCTION_CONFIG_PATH
-```
-
-The temporary file should have a corresponding name such as
-`vidwiz-production-config.XXXXXX`.
+The production workflow now uses the GitHub secret
+`PRODUCTION_DEPLOYMENT_ENV`, exports the validated temporary path as
+`VIDWIZ_PRODUCTION_CONFIG_PATH`, and creates private temporary files with the
+`vidwiz-production-config-` prefix.
 
 Keep one file, but split it into explicit in-memory models after parsing:
 
@@ -280,19 +275,14 @@ parameter values, which then become Lambda environment variables.
 
 ### Load the explicit file without ambient overrides
 
-`ProductionSettings.from_env_file()` currently still reads process environment
-variables first because Pydantic gives them higher precedence than dotenv
-values. A runner or developer variable can therefore silently override the
-reviewed GitHub secret file.
-
-For this explicit-file loader, customize Pydantic settings sources to omit
-`env_settings` (or parse the file and pass only its values). Add a regression
-test that sets a conflicting process variable and proves the file remains the
-source of truth.
+`ProductionDeploymentConfig.from_env_file()` parses the explicit file with
+`dotenv_values` and passes only those parsed values to Pydantic with ambient
+environment-file loading disabled. A regression test sets conflicting process
+variables and proves the reviewed file remains the source of truth.
 
 Use terminology that distinguishes the layers:
 
-| Current term | Recommended term |
+| Former term | Current term |
 |---|---|
 | `LAMBDA_ENV_FILE` | `PRODUCTION_DEPLOYMENT_ENV` |
 | `LAMBDA_ENV_FILE_PATH` | `VIDWIZ_PRODUCTION_CONFIG_PATH` |
@@ -307,12 +297,10 @@ Use consistent `OpenRouter` casing in CloudFormation parameter names as well.
 
 ### Declare one source of truth for the deployment target
 
-The AWS account currently appears in both the GitHub variable and the secret
-configuration file, while the region is also hard-coded in the workflow.
-
-Choose a primary target configuration and compare every other source against it
-before synthesis. The workflow must fail early if the GitHub caller account,
-configured CDK target account, or region differs.
+`AWS_ACCOUNT_ID` and `AWS_REGION` in `PRODUCTION_DEPLOYMENT_ENV` are now the
+canonical target. The workflow uses those parsed values for both OIDC and CDK,
+and uses the credentials action's allowed-account check. The redundant GitHub
+account variable and hard-coded workflow region have been removed.
 
 ## 6. Workflow and CI Boundaries
 

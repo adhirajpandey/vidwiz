@@ -5,7 +5,7 @@ Describe the FastAPI backend: structure, auth rules, and the request/worker life
 
 ## Structure
 - **App factory**: `backend/src/main.py` configures the FastAPI app and routers.
-- **Settings**: `backend/src/config.py` (DB, JWT, OAuth, AWS, queues). Conversation settings live in `backend/src/conversations/config.py` (Gemini, quotas, S3).
+- **Settings**: `backend/src/config.py` (DB, JWT, OAuth, AWS, queues). Conversation settings live in `backend/src/conversations/config.py` (OpenRouter, quotas, S3).
 - **Domains**: `auth`, `videos`, `notes`, `conversations`, `internal` follow `models/schemas/service/router/dependencies`.
 - **ASGI entrypoint**: `backend/wsgi.py`.
 
@@ -36,7 +36,7 @@ Describe the FastAPI backend: structure, auth rules, and the request/worker life
   - Requires `YOUTUBE_DATA_API_KEY` only when this endpoint is used.
 - **Task scheduling**: Creating a note or conversation upserts the video and schedules transcript/metadata tasks when missing.
 - **AI notes**: Enqueued only when note text is empty, AI notes are enabled, and the transcript is already available.
-  - Enqueue uses `SQS_AI_NOTE_QUEUE_URL` if configured.
+  - Enqueue uses the required `SQS_AI_NOTE_QUEUE_URL`.
 - **Wiz quotas**: Daily message limits enforced separately for users and guests via `WIZ_USER_DAILY_QUOTA` and `WIZ_GUEST_DAILY_QUOTA`.
 - **Wiz token budget**: `WIZ_MAX_TOKENS` (default 4096) controls the max completion tokens per Wiz response. Should be set higher for reasoning models that consume tokens on internal thinking.
 
@@ -44,7 +44,7 @@ Describe the FastAPI backend: structure, auth rules, and the request/worker life
 - **Tasks**: Metadata/transcript tasks are stored in the `tasks` table and polled via `/v2/internal/tasks`.
 - **Task polling**: `/v2/internal/tasks?type=transcript|metadata` blocks up to a configurable timeout and returns `204` when no work is available.
 - **Task lifecycle**: On claim, a task is marked `in_progress`, `started_at` is set, and `retry_count` increments. Stale `in_progress` tasks can be reclaimed after a timeout.
-- **Transcript storage**: Transcripts are written to S3 when AWS credentials and bucket are configured; `transcript_available` is still set even if S3 is not configured.
+- **Transcript storage**: Transcripts are written to S3 when `S3_TRANSCRIPT_BUCKET_NAME` is configured, using the application's required AWS credentials; `transcript_available` is still set when the bucket is not configured.
 - **Wiz chat**: Requires S3 transcript access and `OPENROUTER_API_KEY`. If transcript is not ready, `POST /v2/conversations/{id}/messages` returns `202 Accepted` with `status=processing`. If the transcript flag is set but S3 data is missing, the request errors with `Transcript data missing`.
 
 ## Streaming (SSE)

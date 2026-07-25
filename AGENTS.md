@@ -41,8 +41,8 @@ VidWiz helps users take timestamped notes on YouTube videos, enriches notes with
 - Tests: `cd backend && uv run --locked pytest`
 
 ### Frontend
-- Install: `cd frontend && npm install`
-- Run: `cd frontend && npm run dev`
+- Install: `cd frontend && pnpm install --frozen-lockfile`
+- Run: `cd frontend && pnpm dev`
 
 ## Architecture
 - Refer to `docs/architecture.md` for system-level interactions.

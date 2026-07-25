@@ -19,6 +19,10 @@ Describe background helpers and Lambdas used for transcript/metadata fetching an
   - CLI args: `--timeout` and optional `--api-url`
   - Internal API base URL resolution: `--api-url` -> `VIDWIZ_INTERNAL_API_BASE_URL`; exits on startup if neither is set
 
+The production helper processes are owned by the `metadata-helper` and
+`transcript-helper` services in `docker-compose.yml`; no repository workflow
+or systemd unit manages parallel helper processes.
+
 ### Lambdas
 - **AI Note Lambda**: `backend/workers/lambdas/ai_note_worker/handler.py`
   - Triggered by SQS messages containing note payloads (minimal: `{ id, video_id, timestamp, user_id }`)
@@ -64,7 +68,7 @@ Describe background helpers and Lambdas used for transcript/metadata fetching an
   deployment. Dependency changes are made in the worker's `pyproject.toml`;
   use uv to update its committed `uv.lock`.
 - Production memory and timeout values must be captured from the legacy
-  functions and supplied in `LAMBDA_ENV_FILE`; synthesis rejects missing
+  functions and supplied in `PRODUCTION_DEPLOYMENT_ENV`; synthesis rejects missing
   values rather than selecting migration defaults.
 - See `docs/aws-infrastructure.md` for validation, initial rollout, access,
   recovery, and cleanup boundaries.

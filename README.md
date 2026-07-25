@@ -11,7 +11,7 @@ The platform is built with:
 - **Frontend**: React (Vite) with TypeScript and Tailwind CSS
 - **Backend**: FastAPI (Python) REST API
 - **Database**: PostgreSQL for data persistence
-- **AI/LLM**: OpenAI/Gemini models for intelligent note generation and wiz chat
+- **AI/LLM**: OpenRouter for intelligent note generation and Wiz chat, with the model selected through `OPENROUTER_MODEL`
 - **Cloud**: AWS (SQS for async processing, S3 for storage)
 
 [Check Screenshots](#screenshots)
@@ -38,7 +38,7 @@ The platform is built with:
 
 ### Privacy & Control
    - **Self-Hosted Deployments**: Run VidWiz on your infrastructure and control where data lives.
-   - **Pluggable AI**: Choose Gemini or OpenAI via environment configuration.
+   - **Pluggable AI**: Use OpenRouter as the provider layer and choose the underlying Gemini, OpenAI, or other supported model through `OPENROUTER_MODEL`.
    - **Token-Based Access**: Extension login syncs from the web app; long-term tokens support mobile automations.
 
 ## Architecture
@@ -64,8 +64,10 @@ Prereqs: Python 3.10–3.13, uv 0.8.22, Node.js, running PostgreSQL
 ### Backend
 1. `cd backend`
 2. Install dependencies: `uv sync --locked`
-3. Configure `.env` (use `.env.example` as reference). For required environment variables, see `docs/backend.md`.
-4. Start server: `uv run --locked uvicorn src.main:app --host 0.0.0.0 --port 5000`
+3. Copy the root environment template: `cp ../.env.example .env`.
+4. When running the API outside Compose against the Compose PostgreSQL container, change the `DB_URL` host and port from `database:5432` to `localhost:5433`.
+5. Fill the required values documented in `docs/backend.md`.
+6. Start server: `uv run --locked uvicorn src.main:app --host 0.0.0.0 --port 5000`
 
 Backend note creation supports:
 - `POST /v2/videos/{video_id}/notes` for known video IDs/URLs
@@ -73,8 +75,8 @@ Backend note creation supports:
 
 ### Frontend
 1. `cd frontend`
-2. Install dependencies: `npm install`
-3. Start development server: `npm run dev`
+2. Install dependencies: `pnpm install --frozen-lockfile`
+3. Start development server: `pnpm dev`
 
 ## Extension setup
 1) Load unpacked from `extension/` in a Chromium browser (`chrome://extensions` → Developer mode → Load unpacked)
@@ -93,6 +95,7 @@ The extension note UI appears on supported YouTube watch pages after sync.
 
 ## Running tests
 - Backend: `cd backend && uv sync --locked && uv run --locked pytest`
+- Frontend: `cd frontend && pnpm install --frozen-lockfile && pnpm lint && pnpm build`
 - AWS infrastructure: `cd infra && uv sync --locked && npm ci && uv run --locked pytest`
 
 Production AWS serverless resources are defined in `infra/` as
@@ -104,8 +107,7 @@ deployment, transcript migration, or cutover operation.
 vidwiz/
 ├── backend/              # FastAPI backend
 │   ├── src/              # App modules (routers, services, schemas, models)
-│   ├── workers/          # Background workers and lambdas
-│   ├── infra/            # Systemd/service unit files for helpers
+│   ├── workers/          # Background helpers and Lambdas
 │   └── wsgi.py           # ASGI entrypoint
 ├── frontend/            # React + Vite web app
 │   └── src/
