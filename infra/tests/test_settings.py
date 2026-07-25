@@ -62,8 +62,15 @@ def test_explicit_configuration_file_ignores_ambient_environment(
 ) -> None:
     monkeypatch.setenv("AWS_ACCOUNT_ID", "210987654321")
     monkeypatch.setenv("OPENROUTER_MODEL", "ambient-model")
+    monkeypatch.setenv("VIDWIZ_INTERNAL_API_BASE_URL", "https://ambient.invalid")
+    monkeypatch.setenv("VIDWIZ_INTERNAL_API_ADMIN_TOKEN", "ambient-admin-token")
 
     settings = ProductionSettings.from_env_file(FIXTURE_ENV)
 
     assert settings.aws_account_id == "123456789012"
     assert settings.openrouter_model == "fixture-model"
+    assert settings.vidwiz_internal_api_base_url == "https://example.invalid"
+    assert (
+        settings.vidwiz_internal_api_admin_token.get_secret_value()
+        == "fixture-admin-token"
+    )

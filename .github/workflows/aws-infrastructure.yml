@@ -1,12 +1,6 @@
 name: Deploy AWS production infrastructure
 
 on:
-  push:
-    branches: [main]
-    paths:
-      - 'infra/**'
-      - 'backend/workers/lambdas/**'
-      - '.github/workflows/aws-infrastructure.yml'
   workflow_dispatch:
 
 permissions:
@@ -34,6 +28,8 @@ jobs:
     steps:
       - name: Check out repository
         uses: actions/checkout@v4
+        with:
+          persist-credentials: false
 
       - name: Set up Python
         uses: actions/setup-python@v6

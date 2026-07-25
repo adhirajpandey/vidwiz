@@ -66,8 +66,8 @@ Using the existing MFA-protected administrator identity:
    can assume only the deployment, file-publishing, and lookup bootstrap roles.
 5. Configure GitHub variables `AWS_ACCOUNT_ID` and
    `AWS_GITHUB_DEPLOY_ROLE_ARN`, plus the secret `LAMBDA_ENV_FILE`.
-6. Review the synthesized template, then merge the reviewed infrastructure
-   changes to `main` or manually dispatch the AWS workflow from `main`.
+6. Review the synthesized template, merge the reviewed infrastructure changes
+   to `main`, then manually dispatch the AWS workflow from `main`.
 
 Do not store `AWS_ACCESS_KEY_ID` or `AWS_SECRET_ACCESS_KEY` in GitHub.
 
@@ -79,8 +79,13 @@ cost-bearing resources.
 
 Transcript copying is intentionally manual and has no repository script.
 Compare source and destination object counts, total size, representative keys,
-and JSON contents. Copying `transcripts/*.json` invokes the new dispatcher, so
-stop the Docker application or accept idempotent duplicate submissions.
+and JSON contents. Copying `transcripts/*.json` invokes the new dispatcher and
+can generate duplicate AI work and external-model cost. Before copying,
+temporarily disable dispatcher processing through a reviewed infrastructure
+change (for example, remove the transcript S3 notification), then restore it
+after verification and manually replay the copied video IDs to the dispatcher.
+Do not perform the copy with dispatcher processing enabled unless durable
+idempotency has been implemented and validated.
 
 After the copy:
 
@@ -98,13 +103,11 @@ The application user has only `GetObject`/`PutObject` on `transcripts/*` and
 `SendMessage` on the AI-note queue. It cannot list the bucket, use the summary
 queue, call Lambda or infrastructure APIs, manage IAM, or manage its own key.
 
-## Automatic Deployment
+## Manual Deployment
 
-The AWS workflow validates and deploys in one production job when a push to
-`main` changes `infra/**`, `backend/workers/lambdas/**`, or the workflow
-itself. It can also be manually dispatched from `main`; other refs cannot
-deploy through the branch-scoped OIDC role. Pull requests do not run this
-workflow.
+The AWS workflow validates and deploys in one production job only when manually
+dispatched from `main`; other refs cannot deploy through the branch-scoped OIDC
+role. Pull requests do not run this workflow.
 
 Protect `main`: require pull requests and relevant checks, block force pushes
 and deletion, and require zero approvals if that remains the chosen policy.
@@ -114,9 +117,13 @@ deployment has no replacement or drift.
 ## Recovery and Legacy Cleanup
 
 If the initial deployment fails, keep Docker on the legacy bucket and queue,
-correct the reviewed CDK/configuration issue, and re-run the failed job or
-manually dispatch the workflow from `main`.
-Do not empty or delete the retained transcript bucket as rollback.
+correct the reviewed CDK/configuration issue, and manually dispatch the
+workflow from `main`. If rollback retained `vidwiz-prod-transcripts`, do not
+rerun stack creation until CloudFormation has been reconciled with that bucket:
+prepare the matching reviewed template, import the existing bucket as logical
+ID `TranscriptBucket` with CloudFormation/CDK import, and verify the resulting
+stack and drift state. Do not empty or delete the retained transcript bucket
+as rollback.
 
 If cutover fails, stop the application, restore the previous Docker
 configuration and credential, restart it, and verify the legacy path before

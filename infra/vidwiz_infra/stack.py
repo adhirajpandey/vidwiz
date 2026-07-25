@@ -220,6 +220,9 @@ class VidwizStack(cdk.Stack):
         transcript_bucket_name: str,
     ) -> dict[str, str]:
         settings = self._settings
+        # Intentional migration tradeoff: these credentials remain plaintext
+        # Lambda environment variables. Move them to Secrets Manager or SSM in
+        # a dedicated security change rather than altering this deployment path.
         return {
             "S3_TRANSCRIPT_BUCKET_NAME": transcript_bucket_name,
             "VIDWIZ_INTERNAL_API_BASE_URL": str(settings.vidwiz_internal_api_base_url),

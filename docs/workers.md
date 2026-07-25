@@ -51,9 +51,8 @@ Describe background helpers and Lambdas used for transcript/metadata fetching an
   `vidwiz-stack`.
 - Canonical function names are `vidwiz-prod-transcript-dispatcher`,
   `vidwiz-prod-ai-note-worker`, and `vidwiz-prod-ai-summary-worker`.
-- `.github/workflows/aws-infrastructure.yml` validates relevant pull requests
-  without AWS credentials or production secrets. It deploys relevant pushes to
-  `main` and also supports manual dispatch from `main`.
+- `.github/workflows/aws-infrastructure.yml` validates and deploys production
+  infrastructure only when manually dispatched from `main`.
 - The deployment job assumes `VidwizGitHubDeployRole` through GitHub OIDC,
   rejects an unexpected AWS account, and uses only the production CDK
   deployment, file-publishing, and lookup bootstrap roles.

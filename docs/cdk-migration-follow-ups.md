@@ -45,14 +45,11 @@ Complete the first group before relying on the CDK workflow for production.
 
 The deployment job does not declare a GitHub Environment, so GitHub's default
 OIDC subject remains the `main` branch reference accepted by the manually
-created role policy. Relevant pushes to `main` deploy automatically, and
-manual dispatch remains available only from `main`. The job guard enforces
-both trigger and ref:
+created role policy. Manual dispatch is available only from `main`. The job
+guard enforces that ref:
 
 ```yaml
-if: >-
-  github.ref == 'refs/heads/main' &&
-  (github.event_name == 'push' || github.event_name == 'workflow_dispatch')
+if: github.ref == 'refs/heads/main'
 ```
 
 Before applying the policy, inspect an actual GitHub OIDC token claim. Custom
@@ -358,9 +355,9 @@ paths in the trigger, and run the producer/consumer contract test there.
 
 ### Automatic-deployment transition
 
-The workflow deploys relevant pushes to `main` and retains manual dispatch from
-`main`. Both paths share the branch-scoped OIDC trust; pull requests run only
-validation and receive neither OIDC credentials nor production secrets.
+The workflow deploys only through manual dispatch from `main`. Pull requests
+do not run this workflow and receive neither OIDC credentials nor production
+secrets from it.
 
 ## 7. Resource Names, Manual Policies, and Documentation
 

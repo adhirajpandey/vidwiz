@@ -115,8 +115,12 @@ def test_get_transcript_from_s3_fetches_when_configured(monkeypatch):
         def read(self):
             return json.dumps([{"text": "hi", "offset": 0}]).encode("utf-8")
 
+    captured = {}
+
     class _S3:
         def get_object(self, Bucket, Key):
+            captured["Bucket"] = Bucket
+            captured["Key"] = Key
             return {"Body": _Body()}
 
     monkeypatch.setattr(
@@ -124,6 +128,10 @@ def test_get_transcript_from_s3_fetches_when_configured(monkeypatch):
     )
     transcript = conversations_service.get_transcript_from_s3("abc123DEF45")
     assert transcript == [{"text": "hi", "offset": 0}]
+    assert captured == {
+        "Bucket": "bucket",
+        "Key": "transcripts/abc123DEF45.json",
+    }
 
 
 def test_ensure_openrouter_api_key_raises(monkeypatch):

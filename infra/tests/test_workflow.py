@@ -5,20 +5,13 @@ WORKFLOW = (
 )
 
 
-def test_production_runs_for_filtered_main_pushes_or_manual_dispatch() -> None:
+def test_production_runs_only_when_manually_dispatched() -> None:
     text = WORKFLOW.read_text()
     trigger = text.split("permissions:", maxsplit=1)[0]
 
     assert "workflow_dispatch:" in trigger
-    assert "push:" in trigger
-    assert "branches: [main]" in trigger
+    assert "push:" not in trigger
     assert "pull_request:" not in trigger
-    for path in (
-        "'infra/**'",
-        "'backend/workers/lambdas/**'",
-        "'.github/workflows/aws-infrastructure.yml'",
-    ):
-        assert trigger.count(path) == 1
 
 
 def test_production_job_keeps_branch_oidc_and_serial_deployments() -> None:
@@ -48,6 +41,7 @@ def test_workflow_uses_major_action_versions_and_locked_dependency_caches() -> N
         "aws-actions/configure-aws-credentials@v6",
     ):
         assert action in text
+    assert "persist-credentials: false" in text
     assert "enable-cache: true" in text
     assert "cache-dependency-glob: infra/uv.lock" in text
     assert "cache: npm" in text

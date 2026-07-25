@@ -36,8 +36,8 @@ Provide a system-level view of how VidWiz components interact. Subsystem details
 - Transcript storage and Wiz chat require S3 credentials and bucket configuration.
 - Wiz chat also requires `OPENROUTER_API_KEY`; without it, chat requests error.
 - If S3 is not configured, transcripts are not persisted even though `transcript_available` may be true, and Wiz chat will fail to load transcript data.
-- Production AWS changes are validated on relevant pull requests and deployed
-  by relevant pushes to `main` or a manual dispatch from `main`. GitHub uses
+- Production AWS changes are deployed only by a manual workflow dispatch from
+  `main`. GitHub uses
   branch-scoped OIDC rather than permanent AWS access keys.
 
 ## Interaction Overview (ASCII)
@@ -60,7 +60,7 @@ FastAPI API
 
 The production AWS path is:
 
-```
+```text
 GitHub OIDC -> VidwizGitHubDeployRole -> CDK bootstrap roles -> vidwiz-stack
                                                                |
                          +-------------------------------------+----------+

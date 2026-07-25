@@ -10,8 +10,10 @@ REGION = "ap-south-1"
 
 def test_github_trust_is_limited_to_main_branch() -> None:
     trust = github_deploy_role_trust(ACCOUNT)
+    assert len(trust["Statement"]) == 1
     statement = trust["Statement"][0]
 
+    assert statement["Effect"] == "Allow"
     assert statement["Principal"]["Federated"] == (
         f"arn:aws:iam::{ACCOUNT}:oidc-provider/token.actions.githubusercontent.com"
     )
@@ -28,8 +30,10 @@ def test_github_trust_is_limited_to_main_branch() -> None:
 
 def test_github_can_assume_only_required_bootstrap_roles() -> None:
     policy = github_deploy_role_policy(ACCOUNT, REGION)
+    assert len(policy["Statement"]) == 1
     resources = policy["Statement"][0]["Resource"]
 
+    assert policy["Statement"][0]["Effect"] == "Allow"
     assert resources == [
         f"arn:aws:iam::{ACCOUNT}:role/cdk-hnb659fds-deploy-role-{ACCOUNT}-{REGION}",
         f"arn:aws:iam::{ACCOUNT}:role/cdk-hnb659fds-file-publishing-role-{ACCOUNT}-{REGION}",

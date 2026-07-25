@@ -98,6 +98,14 @@ def test_dispatcher_uses_domain_specific_queue_urls(monkeypatch):
     assert calls[1]["QueueUrl"] == "summary-queue"
 
 
+def test_dispatcher_skips_summary_dispatch_without_summary_queue(monkeypatch):
+    _set_worker_environment(monkeypatch)
+    monkeypatch.delenv("SQS_AI_SUMMARY_QUEUE_URL")
+    handler = _load_handler("transcript_dispatcher", monkeypatch)
+
+    assert handler.push_summary_to_sqs("video-id") is False
+
+
 def test_ai_note_producer_payload_validates_against_worker_model(monkeypatch):
     _set_worker_environment(monkeypatch)
     worker = _load_handler("ai_note_worker", monkeypatch)

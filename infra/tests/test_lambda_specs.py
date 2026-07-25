@@ -2,6 +2,7 @@ from vidwiz_infra.lambda_specs import LAMBDA_SPECS
 
 
 def test_lambda_specs_map_each_function_to_a_self_contained_entry() -> None:
+    assert len(LAMBDA_SPECS) == 3
     assert {
         (spec.key, spec.construct_id, spec.function_name) for spec in LAMBDA_SPECS
     } == {
