@@ -12,7 +12,7 @@ and policies have been reviewed.
 
 The CDK stack owns:
 
-- `vidwiz-prod-transcripts`, retained if the stack is deleted or replaced.
+- `vidwiz-prod`, retained if the stack is deleted or replaced.
 - `vidwiz-prod-ai-note-jobs` and `vidwiz-prod-ai-summary-jobs`.
 - The transcript dispatcher, AI-note worker, and AI-summary worker.
 - Explicit seven-day log groups, event sources, and separate runtime roles.
@@ -58,7 +58,7 @@ inspected by privileged AWS identities. Do not upload, cache, or print
 Using the existing MFA-protected administrator identity:
 
 1. Confirm the AWS account, `ap-south-1`, and global availability of
-   `vidwiz-prod-transcripts`.
+   `vidwiz-prod`.
 2. Perform a modern CDK bootstrap.
 3. Configure the GitHub OIDC provider.
 4. Create `VidwizGitHubDeployRole` with the trust and permissions returned by
@@ -93,7 +93,7 @@ After the copy:
 2. Manually create `VidwizApplicationUser` using the exact policy returned by
    `application_user_policy`.
 3. Keep exactly one active key except briefly during rotation.
-4. Configure `S3_TRANSCRIPT_BUCKET_NAME=vidwiz-prod-transcripts`,
+4. Configure `S3_TRANSCRIPT_BUCKET_NAME=vidwiz-prod`,
    `SQS_AI_NOTE_QUEUE_URL` from the stack output, and
    `AWS_REGION=ap-south-1`.
 5. Restart and verify transcript reads/uploads, dispatch, both queues and
@@ -118,7 +118,7 @@ deployment has no replacement or drift.
 
 If the initial deployment fails, keep Docker on the legacy bucket and queue,
 correct the reviewed CDK/configuration issue, and manually dispatch the
-workflow from `main`. If rollback retained `vidwiz-prod-transcripts`, do not
+workflow from `main`. If rollback retained `vidwiz-prod`, do not
 rerun stack creation until CloudFormation has been reconciled with that bucket:
 prepare the matching reviewed template, import the existing bucket as logical
 ID `TranscriptBucket` with CloudFormation/CDK import, and verify the resulting

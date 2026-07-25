@@ -61,7 +61,7 @@ def application_user_policy(account_id: str, region: str) -> PolicyDocument:
                 "Sid": "TranscriptObjects",
                 "Effect": "Allow",
                 "Action": ["s3:GetObject", "s3:PutObject"],
-                "Resource": ("arn:aws:s3:::vidwiz-prod-transcripts/transcripts/*"),
+                "Resource": ("arn:aws:s3:::vidwiz-prod/transcripts/*"),
             },
             {
                 "Sid": "SubmitAiNoteJobs",
