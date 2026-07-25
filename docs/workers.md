@@ -63,7 +63,10 @@ or systemd unit manages parallel helper processes.
 - Each Lambda has its own source directory and explicit infrastructure
   specification. It contains root-level `handler.py`, `pyproject.toml`, and a
   committed `uv.lock`; CDK bundles that directory in a Lambda-compatible
-  Docker container during synthesis.
+  Docker container during synthesis. The AI-note and AI-summary handlers are
+  thin SQS adapters over `backend/workers/shared/vidwiz_worker`. CDK mounts and
+  copies that package into each worker's staging directory, so both retain
+  independently deployable ZIPs without duplicating worker implementation.
 - CDK stages each generated ZIP asset in `cdk.out` and publishes it during
   deployment. Dependency changes are made in the worker's `pyproject.toml`;
   use uv to update its committed `uv.lock`.

@@ -1,411 +1,278 @@
-# CDK Migration Follow-up Plan
+# AWS Deployment and Worker Follow-up Findings
 
 ## Purpose
 
-This document consolidates the corrections and maintainability improvements
-identified during review of the `feat/cdk-migration` branch. It is an
-implementation plan, not an authorization to deploy, migrate transcripts, or
-remove legacy AWS resources.
+This document is the current follow-up record for VidWiz's AWS serverless
+workers and the Docker-hosted API/helpers. It was reconciled with `main` on
+2026-07-26, including the commits that standardised production configuration,
+consolidated the environment template, removed the obsolete backend deployment
+workflow, and aligned the Docker image with Python 3.13.
 
-The goals are to make the production deployment path reliable, ensure the
-reviewed Lambda source is what gets deployed, and replace implicit naming and
-configuration conventions with explicit contracts.
+It is not authorization to deploy, migrate transcripts, create IAM resources,
+or change production credentials.
 
-The recommendations below were validated against the migration branch,
-surrounding application code, and primary GitHub, AWS, CDK, Python, Pydantic,
-and uv documentation. Items labelled as operational choices still require
-production-specific decisions; they are not universal implementation defaults.
+## Current Deployment Shape
 
-### Implementation status
+```text
+GitHub Actions (manual, main only)
+  -> GitHub OIDC deploy role
+  -> CDK bootstrap roles
+  -> vidwiz-stack
+       -> transcript S3 bucket -> transcript dispatcher
+       -> AI-note SQS -> AI-note Lambda
+       -> AI-summary SQS -> AI-summary Lambda
 
-The custom Lambda ZIP packaging recommendation in section 2 has been
-superseded by CDK-managed `PythonFunction` bundling. Lambda source directories
-now contain `handler.py`, `pyproject.toml`, and `uv.lock`; CDK creates and publishes the
-assets during synthesis and deployment. References below to custom packaging,
-build images, and artifact manifests are retained only as the original review
-rationale and do not describe the current implementation.
-
-## Priority Order
-
-Complete the first group before relying on the CDK workflow for production.
-
-1. Fix deployment authentication and post-deploy verification permissions.
-2. Fix Lambda artifact provenance and explicit Lambda-to-package mapping.
-3. Fix S3/SQS failure semantics so transient failures are retried rather than
-   acknowledged and lost.
-4. Process every record delivered in an S3 event.
-5. Correct the initial-deployment and transcript-migration runbooks.
-6. Make the single GitHub configuration file unambiguous, immune to ambient
-   overrides, and validate its deployment target.
-7. Complete the structural cleanup and CI contract coverage.
-
-## 1. Deployment Authentication and Verification
-
-### Align GitHub OIDC trust with the deployment triggers
-
-The deployment job does not declare a GitHub Environment, so GitHub's default
-OIDC subject remains the `main` branch reference accepted by the manually
-created role policy. Manual dispatch is available only from `main`. The job
-guard enforces that ref:
-
-```yaml
-if: github.ref == 'refs/heads/main'
+Docker Compose host
+  -> FastAPI API + PostgreSQL + transcript helper + metadata helper
+  -> S3 transcript bucket and AI-note SQS using application credentials
 ```
 
-Before applying the policy, inspect an actual GitHub OIDC token claim. Custom
-subject templates can change the exact value, so the trust policy must match
-the repository's configured format.
+`infra/` owns the production serverless resources. The GitHub OIDC provider,
+GitHub deployment role, and Docker application's IAM identity remain manual
+bootstrap resources. Compose owns the API, database, and helper definitions;
+there is currently no repository-managed GitHub Actions workflow that deploys
+the Docker host.
 
-### Permit post-deployment verification
+## Recent Improvements Confirmed
 
-The GitHub deployment role is intentionally limited to assuming CDK bootstrap
-roles. That is enough for `cdk deploy`, but the later standalone AWS CLI calls
-run as the original GitHub role, not as the temporary CDK deploy-role session.
-
-Choose one of these approaches:
-
-- Grant the GitHub role narrowly scoped `cloudformation:DescribeStacks` for
-  `vidwiz-stack` and `lambda:GetFunctionConfiguration` for the three Lambda
-  functions.
-- Explicitly assume an appropriate read-capable role before verification and
-  export the resulting temporary credentials for that step.
-
-## 2. Lambda Packaging and Deployment Provenance
-
-### Make Lambda definitions explicit
-
-One Lambda currently has several independently maintained identities:
-
-| Concern | Current transcript dispatcher name |
+| Area | Current state |
 |---|---|
-| Source file | `tasks-dispatcher.py` |
-| Package key and ZIP stem | `transcript-dispatcher` |
-| CDK construct | `TranscriptDispatcher` |
-| Physical Lambda name | `vidwiz-prod-transcript-dispatcher` |
-| Packaged handler module | `lambda_function.py` |
+| Lambda packaging | Complete. Each Lambda has an explicit source directory, `pyproject.toml`, and locked dependencies; CDK `PythonFunction` bundles the reviewed source. |
+| Production config names | Complete. `PRODUCTION_DEPLOYMENT_ENV`, `VIDWIZ_PRODUCTION_CONFIG_PATH`, and `ProductionDeploymentConfig` replace the ambiguous Lambda-specific names. |
+| Deployment target | Complete. Account and region are parsed from the validated production configuration and used for OIDC's allowed-account check and CDK. |
+| Ambient config override | Complete. The explicit deployment file is parsed directly and is covered by a regression test that rejects ambient overrides. |
+| Backend deployment ownership | Improved. The obsolete workflow that both ran Compose helpers and restarted systemd helpers was removed. Do not reintroduce a second helper supervisor without an explicit ownership decision. |
+| Environment template | Improved. The single root `.env.example` now documents Compose, API, helper, and optional integration settings. |
+| Runtime alignment | Improved. The backend Docker image now uses Python 3.13, matching the current project tooling and Lambda runtime. |
 
-The stack chooses the package with a substring search against the physical
-function name. This makes a rename brittle and can select the wrong package if
-names later overlap.
+The infrastructure unit suite verifies these completed contracts. A real CDK
+synthesis still requires Docker because `PythonFunction` bundles each Lambda in
+a Lambda-compatible container.
 
-The implementation replaces `PACKAGES` plus the `_function()` substring lookup
-with a single explicit definition registry shared by packaging and CDK:
+## Open Findings
 
-```python
-@dataclass(frozen=True)
-class LambdaSpec:
-    key: str
-    artifact_stem: str
-    construct_id: str
-    function_name: str
-    source: Path
-    requirements: Path
-    required_imports: tuple[str, ...]
-    handler: str
-```
+### P0: Lambda failures can be acknowledged and lost
 
-`packaging.py` builds each `LambdaSpec`; `stack.py` receives that same spec
-directly. Tests assert every spec maps to exactly one source, artifact,
-function name, and handler.
+The AI-note and AI-summary handlers catch per-message exceptions and continue.
+With the current SQS event mappings (`batch_size=1` and
+`report_batch_item_failures=False`), a normal handler return acknowledges the
+message even when fetching a transcript, calling OpenRouter, or persisting the
+result failed.
 
-### Use meaningful Python module names
+The dispatcher has the same acknowledgement problem for S3-triggered work. It
+also processes only `Records[0]`, does not URL-decode S3 object keys, and logs
+partial SQS batch failures without making the invocation fail.
 
-The former hyphenated source names could not be imported as Python modules and
-forced the build to rename every source to `lambda_function.py`. Each Lambda
-now has one source directory:
+Required change:
 
-```text
-backend/workers/lambdas/
-  transcript_dispatcher/handler.py
-  ai_note_worker/handler.py
-  ai_summary_worker/handler.py
-```
+1. Process every S3 record and URL-decode each key before deriving the video
+   ID.
+2. Classify malformed input and permanent business rejections separately from
+   retriable infrastructure/provider errors.
+3. Raise retriable errors from batch-size-one handlers. If batches grow, use
+   Lambda partial-batch responses and Powertools Batch Processor.
+4. Add a dead-letter queue and redrive policy to each source queue, including
+   alerting and a documented replay procedure.
+5. Add regression tests for multi-record S3 events, SQS send partial failures,
+   retriable handler failures, and DLQ configuration.
 
-Each directory's contents are copied into its independent ZIP root without
-renaming, so every deployed artifact contains root-level `handler.py` and uses
-`handler.lambda_handler`. The artifact and explicit specification provide the
-Lambda identity without adding a nested package solely for deployment.
+SQS/Lambda delivery is at least once, and AWS recommends idempotent handlers,
+redrive policies, and partial-batch responses where applicable. See [Using
+Lambda with SQS](https://docs.aws.amazon.com/lambda/latest/dg/with-sqs.html)
+and [SQS error handling](https://docs.aws.amazon.com/lambda/latest/dg/services-sqs-errorhandling.html).
 
-### Prove that the ZIP matches the reviewed source
+### P0: There is no durable idempotency boundary for AI work
 
-`stack.py` currently only checks whether the ZIP exists, while its custom CDK
-asset hash is recomputed from the current source. A stale ZIP can therefore be
-uploaded with a hash that describes newer source code.
+S3 notifications and SQS deliveries can be duplicated. Repeated dispatcher
+invocations can enqueue the same empty AI note again before the worker updates
+it; the summary's read-before-write check has the same race. This can generate
+duplicate model calls and cost even when the final database value is harmless.
 
-Prefer CDK bundling so the asset is built as part of synthesis. If separate
-packaging remains necessary, create a manifest next to each ZIP containing:
+Use the existing PostgreSQL-backed API as the source of truth. Introduce an
+async job record, or equivalent atomic claim state, keyed by job type, entity,
+and transcript/input version. The dispatcher should enqueue a `job_id`; a
+worker should atomically claim, complete, or fail that job through the internal
+API. This provides idempotency, retries, replay, status visibility, and cost
+attribution without introducing DynamoDB only for Lambda idempotency.
 
-- source hash;
-- requirements hash;
-- packaging-code hash;
-- exact build-image reference; and
-- artifact hash.
+### P1: Lambda secrets still enter CloudFormation and Lambda environment configuration
 
-Require `stack.py` to validate the manifest before accepting the artifact.
+The multiline production configuration is intentionally a single GitHub secret
+that contains deployment target, sizing, non-secret runtime settings, and two
+runtime secrets. CDK materializes the internal API token and OpenRouter key in
+the Lambda environment configuration. This is an accepted migration tradeoff,
+but privileged CloudFormation and Lambda identities can inspect those values.
 
-### Use one build-image identity
+For the next security-focused change:
 
-The code hashes `BUILD_IMAGE_ID` but Docker executes `BUILD_IMAGE`. The two
-references may intentionally be a manifest list and its AMD64 child image, but
-the code does not prove that relationship.
+- Keep deployment identity, account, region, resource names, and tuning values
+  as typed non-secret configuration.
+- Store API keys and authorization tokens in AWS Secrets Manager; use a
+  narrowly scoped runtime role and cached retrieval through Powertools.
+- Use SSM Parameter Store for simple non-secret configuration that must be
+  changed without code deployment; use AppConfig only for genuinely dynamic
+  operational controls.
+- Keep GitHub secrets limited to the values required to deploy, not every
+  runtime secret where AWS can become the source of truth.
 
-Prefer one immutable `LAMBDA_BUILD_IMAGE` reference for both Docker execution
-and the artifact hash. If a manifest and platform-specific digest are both
-required, name them explicitly and verify their relationship in a test.
+AWS recommends Secrets Manager rather than Lambda environment variables for
+API keys and authorization tokens. See [Use Secrets Manager secrets in Lambda
+functions](https://docs.aws.amazon.com/lambda/latest/dg/with-secrets-manager.html).
 
-### Support documented local validation
+### P1: Docker Compose exposes the complete environment to every service
 
-`os.getuid()` and `os.getgid()` are Unix-only. If native Windows local
-validation is supported, make Docker's `--user` argument conditional. Also make
-the documented lock-regeneration tool reproducible: either pin `pip-tools`, or
-replace the documented command with a reviewed `uv pip compile` or pinned `uvx`
-workflow and verify the resulting lockfiles.
+The API, both helpers, and PostgreSQL all import the same `.env` file. This
+gives the database and helpers secrets and payment configuration they do not
+need. The consolidated template is easier to discover, but it is not a least-
+privilege runtime contract.
 
-## 3. Event and Queue Failure Semantics
+Retain one human-maintained template if desired, but project only the required
+keys into each Compose service. The intended ownership is:
 
-### Preserve retry behavior for SQS workers
-
-The AI note and summary handlers currently catch operational failures and return
-normally. The new SQS event mappings treat that as a successful invocation, so
-Lambda deletes the message on the first attempt.
-
-With the current batch size of one, make retriable provider and infrastructure
-failures raise from the handler. Keep malformed messages and permanent business
-rejections distinct so they do not retry forever. Alternatively, implement
-Lambda partial-batch responses and set `report_batch_item_failures=True`.
-
-Add dead-letter queues and redrive policies for terminal failures. AWS strongly
-recommends a redrive policy; choose max receives, retention, alerting, and a
-replay procedure as production operational decisions.
-
-### Preserve retry behavior for the S3 dispatcher
-
-The dispatcher also catches API and SQS failures. An S3-triggered Lambda
-invocation then succeeds from Lambda's perspective, so asynchronous retry does
-not occur.
-
-Make failed note lookup, summary enqueue, and note enqueue operations fail the
-invocation after recording context. Add idempotency before relying on retries,
-because S3 and SQS delivery are at least once.
-
-### Process every S3 event record
-
-The dispatcher currently reads only `Records[0]`. An S3 notification can carry
-multiple records, so later transcript objects in the same invocation are
-silently skipped. Iterate every S3 record, URL-decode each object key before
-extracting the video ID, and add a regression test with multiple records.
-
-### Name runtime contracts by their domain
-
-Use `SQS_AI_NOTE_QUEUE_URL` and `SQS_AI_SUMMARY_QUEUE_URL` for queue URLs,
-`S3_TRANSCRIPT_BUCKET_NAME` for transcript storage, and
-`VIDWIZ_INTERNAL_API_BASE_URL` plus `VIDWIZ_INTERNAL_API_ADMIN_TOKEN` for
-worker access to the internal API.
-
-Treat the backend note payload and Lambda note model as one contract. Add a
-shared schema or contract test covering the producer in
-`backend/src/notes/service.py` and the worker consumer.
-
-## 4. Storage Lifecycle and Migration Runbook
-
-### Make first-deployment recovery possible
-
-The transcript bucket has a fixed global name and `RemovalPolicy.RETAIN`.
-During an initial stack-create rollback, CloudFormation can retain that bucket
-outside the failed stack. The next deployment cannot recreate or automatically
-adopt it under the same name.
-
-Use retain-except-on-create semantics (`RETAIN_ON_UPDATE_OR_DELETE`) for this
-resource, or explicitly document the import/recovery procedure for an orphaned
-bucket. Keep the normal deletion and replacement retention behavior for
-accepted production data.
-
-### Retain the bucket policy with the bucket
-
-The generated bucket policy that enforces HTTPS is a separate CloudFormation
-resource. Retaining the bucket without retaining the policy leaves data behind
-but removes that security control if the stack is deleted.
-
-Apply matching retention behavior to the bucket policy, or document and
-automate the policy restoration procedure.
-
-### Correct transcript-copy sequencing
-
-Copying transcript objects triggers the dispatcher, which requires the backend
-internal API. The current runbook suggests stopping the Docker application
-during copying, which makes dispatch fail. It also describes duplicate work as
-idempotent even though duplicate deliveries can repeat AI-note generation and
-its external model cost.
-
-Choose one safe sequence:
-
-1. If the legacy and new paths can safely coexist, keep the backend available
-   during copying, make workers idempotent, and verify all dispatch results
-   before cutover; or
-2. Disable the new event processing during copying, complete the application
-   cutover, then explicitly replay the copied transcript keys.
-
-Do not describe the process as idempotent until note generation has a durable
-idempotency mechanism.
-
-## 5. One GitHub-managed Configuration File
-
-One multiline GitHub secret is a valid source of all production configuration.
-The problem is not having one file; it is calling that mixed deployment input a
-Lambda environment file.
-
-The production workflow now uses the GitHub secret
-`PRODUCTION_DEPLOYMENT_ENV`, exports the validated temporary path as
-`VIDWIZ_PRODUCTION_CONFIG_PATH`, and creates private temporary files with the
-`vidwiz-production-config-` prefix.
-
-Keep one file, but split it into explicit in-memory models after parsing:
-
-```text
-ProductionDeploymentConfig
-  DeploymentTarget       # account and region
-  WorkerSizing           # memory and timeout by worker
-  RuntimeConfiguration   # URLs, model, retry and length settings
-  RuntimeSecrets         # internal API admin token and OpenRouter key
-```
-
-The non-secret values are used during CDK synthesis. The secret values are
-extracted from the same file only at deploy time and supplied as CloudFormation
-parameter values, which then become Lambda environment variables.
-
-### Load the explicit file without ambient overrides
-
-`ProductionDeploymentConfig.from_env_file()` parses the explicit file with
-`dotenv_values` and passes only those parsed values to Pydantic with ambient
-environment-file loading disabled. A regression test sets conflicting process
-variables and proves the reviewed file remains the source of truth.
-
-Use terminology that distinguishes the layers:
-
-| Former term | Current term |
+| Consumer | Required configuration scope |
 |---|---|
-| `LAMBDA_ENV_FILE` | `PRODUCTION_DEPLOYMENT_ENV` |
-| `LAMBDA_ENV_FILE_PATH` | `VIDWIZ_PRODUCTION_CONFIG_PATH` |
-| `ProductionSettings` | `ProductionDeploymentConfig` |
-| `VIDWIZ_TOKEN_PARAMETER` | `CFN_VIDWIZ_INTERNAL_API_ADMIN_TOKEN_VALUE` |
-| `OPENROUTER_API_KEY_PARAMETER` | `CFN_OPENROUTER_API_KEY_VALUE` |
-| `export_secret_parameters.py` | `prepare_deploy_parameters.py` |
-| `VIDWIZ_ENDPOINT` | `VIDWIZ_INTERNAL_API_BASE_URL` |
-| `VIDWIZ_TOKEN` | `VIDWIZ_INTERNAL_API_ADMIN_TOKEN` |
+| PostgreSQL | `POSTGRES_*` only |
+| API | database, auth, payments, logging, S3/SQS, Wiz/OpenRouter |
+| Transcript/metadata helpers | internal API base URL and internal API credential only |
+| Lambda dispatcher | internal API credential and queue URLs |
+| AI-note/summary Lambdas | transcript bucket, internal API credential, OpenRouter, and worker tuning |
 
-Use consistent `OpenRouter` casing in CloudFormation parameter names as well.
+The API currently requires static AWS access keys at startup. Continue to use
+the present narrowly scoped application identity during the migration, but
+change Boto3 use to support the normal credential provider chain. That enables
+an EC2 role when hosted on AWS, and a later IAM Roles Anywhere adoption for a
+Raspberry Pi or other non-AWS host. [AWS recommends temporary role
+credentials](https://docs.aws.amazon.com/IAM/latest/UserGuide/securing_access-keys.html)
+over long-lived access keys where possible.
 
-### Declare one source of truth for the deployment target
+### P1: Deployment verification and governance are incomplete
 
-`AWS_ACCOUNT_ID` and `AWS_REGION` in `PRODUCTION_DEPLOYMENT_ENV` are now the
-canonical target. The workflow uses those parsed values for both OIDC and CDK,
-and uses the credentials action's allowed-account check. The redundant GitHub
-account variable and hard-coded workflow region have been removed.
+The production AWS workflow correctly deploys only by manual dispatch from
+`main`, but it has no post-deploy verification, no drift check, and no
+production GitHub Environment. It also does not provide pull-request or push
+validation for infrastructure changes; the full validation suite runs only in
+the manual production deployment workflow.
 
-## 6. Workflow and CI Boundaries
+Add a no-secret infrastructure CI workflow for pull requests and pushes that
+runs formatting, linting, typing, unit tests, Lambda lock checks, and fixture
+synthesis. Then add a protected `production` GitHub Environment to the deploy
+job, with an approval rule if appropriate, and narrow post-deployment read
+permissions to stack outputs and Lambda configuration.
 
-### Deploy the synthesized assembly, not a second synthesis
+Adding a GitHub Environment changes the default OIDC subject from a branch
+subject to an environment subject. Verify an actual OIDC claim and update the
+manual trust policy before making that change. GitHub also documents immutable
+OIDC subject formats for newly created or renamed repositories. See [GitHub
+OIDC claims](https://docs.github.com/en/actions/reference/security/oidc) and
+[deployment environments](https://docs.github.com/en/actions/concepts/workflows-and-actions/deployment-environments).
 
-The workflow runs `cdk synth` and then `cdk deploy`, which synthesizes again.
-The first assembly is discarded, so it is not the exact artifact deployed.
+### P2: Lambda source duplication is high
 
-Either keep the first command as an explicitly named preflight, or synthesize
-once and deploy the generated cloud assembly (for example with `--app cdk.out`)
-after review and validation.
-
-### Enforce lockfile freshness
-
-Use `uv sync --locked` and `uv run --locked` so every command verifies that
-`uv.lock` matches `pyproject.toml` and cannot update the lock during CI or CDK
-synthesis. This now matches the intent already expressed by `npm ci`.
-
-### Check whitespace in the actual change range
-
-`git diff --check` without commits compares the checkout worktree to its index,
-which normally contains no PR changes. It does not validate the pull request
-diff.
-
-For pull requests, use the explicit range:
-
-```text
-git diff --check ${{ github.event.pull_request.base.sha }}...${{ github.sha }}
-```
-
-Choose and document a deliberate comparison range for manually dispatched
-runs.
-
-### Trigger validation for both sides of the queue contract
-
-The infrastructure workflow watches `infra/**` and Lambda source paths, but it
-does not watch the backend code that creates AI-note messages or defines
-`SQS_AI_NOTE_QUEUE_URL`. Include the producer and relevant backend configuration
-paths in the trigger, and run the producer/consumer contract test there.
-
-### Automatic-deployment transition
-
-The workflow deploys only through manual dispatch from `main`. Pull requests
-do not run this workflow and receive neither OIDC credentials nor production
-secrets from it.
-
-## 7. Resource Names, Manual Policies, and Documentation
-
-Move bucket, queue, and function physical names to a neutral module such as
-`infra/vidwiz_infra/resource_names.py`. Use it from the CDK stack and manual
-policy generator. Prefer CloudFormation stack outputs for post-deployment
-verification instead of repeating function names in the workflow.
-
-The manual policy module is useful, but the runbook should provide an explicit
-command that renders the returned dictionaries as policy JSON. For example:
+The AI-note and AI-summary handlers independently implement configuration,
+S3 transcript retrieval/retries, internal API calls, OpenRouter calls, models,
+and batch handling. Keep each Lambda as an independently deployable ZIP, but
+eliminate source-level duplication with a shared worker package:
 
 ```text
-uv run --locked python scripts/render_manual_policy.py github-deploy-role
-uv run --locked python scripts/render_manual_policy.py application-user
+backend/workers/
+  lambda_runtime/src/vidwiz_worker/
+    config.py
+    errors.py
+    transcript_store.py
+    internal_api.py
+    openrouter.py
+    message_models.py
+  lambdas/
+    transcript_dispatcher/handler.py
+    ai_note_worker/handler.py
+    ai_summary_worker/handler.py
 ```
 
-Document that these policies are bootstrap resources outside the CDK stack and
-that changing a physical resource name requires regenerating them.
+Each handler should only parse the event, call a domain service, and return or
+raise. Bundle the shared package into each function artifact first; do not add
+a Lambda layer unless package size or build time proves it useful. A layer
+would add version coupling without reducing the need to deploy every consumer
+when shared source changes.
 
-## Validation Checklist
+Create one versioned message schema for the backend producer and Lambda
+consumer, and keep a producer/consumer contract test in the backend suite.
 
-Before the first production deployment, verify all of the following:
+### P2: Production Docker delivery is not represented in the repository
 
-- OIDC trust accepts the `main` branch subject and both deployment paths are
-  restricted to `main`.
-- The GitHub deployment role can complete post-deploy reads, or the workflow
-  explicitly assumes a read-capable role.
-- Each Lambda spec has an exact source-directory-to-function mapping, and CDK
-  bundles the reviewed source during synthesis.
-- SQS and S3 transient failures are retried, with DLQs for terminal failures.
-- The dispatcher processes every `Records` item in an S3 event and has a
-  multi-record regression test.
-- The transcript-copy procedure keeps required internal API dependencies
-  available or replays events after cutover.
-- A failed initial stack creation can be recovered without an orphaned bucket
-  blocking redeployment.
-- The retained bucket retains or restores its HTTPS enforcement policy.
-- The single production configuration file passes validation and agrees with
-  the GitHub deployment target.
-- The explicit production-file loader cannot be overridden by ambient process
-  environment variables.
-- CI validates Lambda code, the backend queue producer, and their shared
-  message contract.
-- The final deployment uses the reviewed synthesized cloud assembly.
-- CI whitespace validation compares the intended commit range rather than a
-  clean checkout worktree.
+The repository no longer contains the former Docker image build/deploy
+workflows. That removes the conflicting Compose/systemd behavior, but leaves
+the actual production Docker delivery process outside version control.
 
-## Primary References Used for Validation
+Choose and document one deployment owner before rebuilding automation. The
+minimum safe contract should deploy an immutable image digest or commit tag,
+project component-specific environment variables, run health checks, retain a
+rollback target, and avoid stopping PostgreSQL for an API-only release. Docker
+recommends production-specific Compose overlays and targeted recreation rather
+than full stack teardown. See [Use Compose in
+production](https://docs.docker.com/compose/how-tos/production/).
 
+### P2: Infrastructure is production-only
+
+`vidwiz-stack`, its physical names, tags, account region, and manual policies
+are production-specific. The application supports `local` and `staging`
+runtime modes, but there is no corresponding isolated AWS environment.
+
+Do not clone the current stack. First make an environment identity explicit:
+
+```text
+EnvironmentConfig
+  name                 # staging or production
+  account and region
+  stack and resource prefix
+  data retention policy
+  worker sizing and tuning
+  secret/parameter paths
+```
+
+Prefer separate AWS accounts for staging and production. If that is not yet
+practical, use isolated stack names, bucket names, queues, roles, secrets, and
+resource prefixes in the same account. Keep production retention behavior
+separate from disposable non-production resources.
+
+## Recommended Delivery Sequence
+
+1. **Reliability first:** fix S3/SQS retry semantics, add DLQs, and add
+   durable idempotency before refactoring shared code.
+2. **Extract the worker runtime:** introduce shared source modules, thin
+   handlers, typed settings, reusable clients, and versioned message schemas.
+3. **Separate configuration from secrets:** project least-privilege Compose
+   variables, move Lambda secrets to AWS, and support the standard AWS
+   credential provider chain.
+4. **Add environments and CI:** create no-secret infrastructure CI, then
+   staging and protected production deployment environments.
+5. **Restore reproducible Docker delivery:** decide the deployment owner,
+   deploy immutable images, verify health, and support rollback.
+
+## Production Readiness Checklist
+
+Before relying on the workflow for a production cutover, verify:
+
+- The manual OIDC trust policy matches the actual GitHub token subject.
+- The reviewed Lambda source is bundled by CDK and every lockfile is current.
+- Every transient S3, SQS, API, and provider failure is retried rather than
+  acknowledged.
+- Queue redrive, DLQ alerting, and replay procedures are tested.
+- S3 multi-record delivery and duplicate delivery are covered by regression
+  tests.
+- AI note and summary work have durable idempotency/claim state.
+- The retained bucket recovery and transcript-copy runbook have been rehearsed
+  with event processing disabled or safely replayed after cutover.
+- Production configuration and secrets have a defined owner, rotation process,
+  and least-privilege consumer mapping.
+- The deployment has a post-deploy smoke check and a documented rollback path.
+
+## References
+
+- [AWS Lambda with SQS](https://docs.aws.amazon.com/lambda/latest/dg/with-sqs.html)
+- [AWS Lambda SQS error handling](https://docs.aws.amazon.com/lambda/latest/dg/services-sqs-errorhandling.html)
+- [AWS Lambda asynchronous error handling](https://docs.aws.amazon.com/lambda/latest/dg/invocation-async-error-handling.html)
+- [Amazon S3 event message structure](https://docs.aws.amazon.com/AmazonS3/latest/userguide/notification-content-structure.html)
+- [AWS Secrets Manager with Lambda](https://docs.aws.amazon.com/lambda/latest/dg/with-secrets-manager.html)
 - [GitHub OIDC claims](https://docs.github.com/en/actions/reference/security/oidc)
-  and [OIDC with AWS](https://docs.github.com/en/actions/how-tos/secure-your-work/security-harden-deployments/oidc-in-aws)
-- [AWS CDK deployment](https://docs.aws.amazon.com/cdk/v2/guide/deploy.html)
-  and [CDK removal policies](https://docs.aws.amazon.com/cdk/api/v2/python/aws_cdk/RemovalPolicy.html)
-- [CloudFormation deletion policies](https://docs.aws.amazon.com/AWSCloudFormation/latest/TemplateReference/aws-attribute-deletionpolicy.html)
-  and [S3 bucket policies](https://docs.aws.amazon.com/AWSCloudFormation/latest/TemplateReference/aws-resource-s3-bucketpolicy.html)
-- [Lambda with SQS](https://docs.aws.amazon.com/lambda/latest/dg/with-sqs.html),
-  [SQS error handling](https://docs.aws.amazon.com/lambda/latest/dg/services-sqs-errorhandling.html),
-  and [asynchronous Lambda failure handling](https://docs.aws.amazon.com/lambda/latest/dg/invocation-async-error-handling.html)
-- [Amazon S3 event notifications](https://docs.aws.amazon.com/AmazonS3/latest/userguide/EventNotifications.html)
-  and [AWS Powertools S3 event data classes](https://docs.aws.amazon.com/powertools/python/latest/utilities/data_classes/#s3)
-- [Pydantic settings source priority](https://pydantic.dev/docs/validation/latest/concepts/pydantic_settings/#field-value-priority)
-- [uv project sync and locking](https://docs.astral.sh/uv/concepts/projects/sync/)
-  and [git diff](https://git-scm.com/docs/git-diff.html)
+- [GitHub deployment environments](https://docs.github.com/en/actions/concepts/workflows-and-actions/deployment-environments)
+- [Docker Compose in production](https://docs.docker.com/compose/how-tos/production/)

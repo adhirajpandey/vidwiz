@@ -21,6 +21,7 @@ def _test_python_function(
     **kwargs: object,
 ) -> lambda_.Function:
     del entry
+    kwargs.pop("bundling", None)
     return lambda_.Function(
         scope,
         construct_id,

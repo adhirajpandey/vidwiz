@@ -15,10 +15,25 @@ LAMBDA_DIRECTORIES = (
     REPOSITORY_DIR / "backend/workers/lambdas/ai_note_worker",
     REPOSITORY_DIR / "backend/workers/lambdas/ai_summary_worker",
 )
+AI_WORKER_PACKAGE = "vidwiz_worker"
 
 
 def run(command: list[str], *, cwd: Path, env: dict[str, str] | None = None) -> None:
     subprocess.run(command, cwd=cwd, env=env, check=True)
+
+
+def validate_ai_worker_artifacts() -> None:
+    assets = list((INFRA_DIR / "cdk.out").glob("asset.*"))
+    packaged_workers = [
+        asset
+        for asset in assets
+        if (asset / "handler.py").is_file()
+        and (asset / AI_WORKER_PACKAGE / "__init__.py").is_file()
+    ]
+    if len(packaged_workers) != 2:
+        raise RuntimeError(
+            "Expected shared worker package in both AI worker Lambda artifacts"
+        )
 
 
 def main() -> None:
@@ -61,6 +76,7 @@ def main() -> None:
         cwd=INFRA_DIR,
         env=synthesis_env,
     )
+    validate_ai_worker_artifacts()
     run(["git", "diff", "--check"], cwd=REPOSITORY_DIR)
 
 

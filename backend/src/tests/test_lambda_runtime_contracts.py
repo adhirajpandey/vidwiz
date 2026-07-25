@@ -48,13 +48,9 @@ def _install_powertools_stubs(monkeypatch):
 
 def _load_handler(relative_path: str, monkeypatch):
     _install_powertools_stubs(monkeypatch)
-    handler_path = (
-        Path(__file__).resolve().parents[2]
-        / "workers"
-        / "lambdas"
-        / relative_path
-        / "handler.py"
-    )
+    workers_dir = Path(__file__).resolve().parents[2] / "workers"
+    monkeypatch.syspath_prepend(str(workers_dir / "shared"))
+    handler_path = workers_dir / "lambdas" / relative_path / "handler.py"
     module_name = f"test_{relative_path}_{uuid.uuid4().hex}"
     spec = spec_from_file_location(module_name, handler_path)
     assert spec is not None
@@ -118,3 +114,22 @@ def test_ai_note_producer_payload_validates_against_worker_model(monkeypatch):
     assert validated.video_id == "abc123"
     assert validated.timestamp == "01:23"
     assert validated.user_id == 7
+
+
+def test_ai_handlers_only_delegate_parsed_batches_to_services(monkeypatch):
+    _set_worker_environment(monkeypatch)
+    note_handler = _load_handler("ai_note_worker", monkeypatch)
+    summary_handler = _load_handler("ai_summary_worker", monkeypatch)
+    calls = []
+
+    class FakeService:
+        def process_batch(self, event):
+            calls.append(event)
+
+    note_handler.service = FakeService()
+    summary_handler.service = FakeService()
+
+    note_handler.lambda_handler(["note"], object())
+    summary_handler.lambda_handler(["summary"], object())
+
+    assert calls == [["note"], ["summary"]]

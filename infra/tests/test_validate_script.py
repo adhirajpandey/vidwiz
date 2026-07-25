@@ -14,6 +14,12 @@ def test_runs_all_validation_commands(monkeypatch: pytest.MonkeyPatch) -> None:
         calls.append((command, cwd, env))
 
     monkeypatch.setattr(validate, "run", record)
+    artifact_validation_calls = []
+    monkeypatch.setattr(
+        validate,
+        "validate_ai_worker_artifacts",
+        lambda: artifact_validation_calls.append(True),
+    )
 
     validate.main()
 
@@ -55,3 +61,4 @@ def test_runs_all_validation_commands(monkeypatch: pytest.MonkeyPatch) -> None:
         calls[7][2]["VIDWIZ_PRODUCTION_CONFIG_PATH"] == "tests/fixtures/production.env"
     )
     assert calls[8][1] == validate.REPOSITORY_DIR
+    assert artifact_validation_calls == [True]
