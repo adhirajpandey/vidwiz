@@ -115,7 +115,11 @@ Describe the FastAPI backend: structure, auth rules, and the request/worker life
 - `POST /v2/payments/webhooks/dodo`
 
 ## Operational Notes
-- OpenAPI docs are enabled only in `local` and `staging` environments.
+- The generated OpenAPI schema is available at `/openapi.json` and interactive
+  Swagger UI is available at `/docs` in every environment. ReDoc is disabled.
+- Swagger includes public, internal, and payment webhook routes. Protected
+  operations still require their existing JWT, guest-session, or admin
+  credentials.
 - SQLite is the default when `DB_URL` is not set; Postgres is used in deployed environments.
 - CORS allows all origins with credentials enabled and exposes `X-Request-ID`
   and `Retry-After` to browser clients; browsers will reject credentialed
