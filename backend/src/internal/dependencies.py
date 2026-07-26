@@ -1,4 +1,5 @@
-from fastapi import Header, Query
+from fastapi import Query, Security
+from fastapi.security import HTTPAuthorizationCredentials, HTTPBearer
 
 from src.config import settings
 from src.exceptions import (
@@ -11,13 +12,20 @@ from src.internal import constants as internal_constants
 from src.internal.schemas import TaskPollParams
 
 
+admin_auth = HTTPBearer(
+    scheme_name="AdminBearer",
+    description="Administrative token for internal worker endpoints.",
+    auto_error=False,
+)
+
+
 def require_admin_token(
-    authorization: str | None = Header(default=None),
+    authorization: HTTPAuthorizationCredentials | None = Security(admin_auth),
 ) -> None:
-    if not authorization or not authorization.startswith("Bearer "):
+    if not authorization:
         raise UnauthorizedError("Missing or invalid Authorization header")
 
-    token = authorization.split(" ", 1)[1]
+    token = authorization.credentials
     if not settings.internal_api_admin_token:
         raise InternalServerError("Admin token is not configured")
 

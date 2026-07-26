@@ -2,6 +2,7 @@ from datetime import datetime, timedelta, timezone
 
 import jwt
 import pytest
+from fastapi.security import HTTPAuthorizationCredentials
 
 from src.auth import service as auth_service
 from src.auth.dependencies import (
@@ -11,6 +12,10 @@ from src.auth.dependencies import (
 )
 from src.config import settings
 from src.exceptions import UnauthorizedError
+
+
+def bearer_credentials(token: str) -> HTTPAuthorizationCredentials:
+    return HTTPAuthorizationCredentials(scheme="Bearer", credentials=token)
 
 
 def make_access_token(user_id: int, email: str = "user@example.com") -> str:
@@ -31,18 +36,13 @@ def make_long_term_token(user_id: int, email: str = "user@example.com") -> str:
 
 def test_get_current_user_id_accepts_valid_token():
     token = make_access_token(42)
-    assert get_current_user_id(f"Bearer {token}") == 42
+    assert get_current_user_id(bearer_credentials(token)) == 42
 
 
 def test_get_current_user_id_rejects_long_term_token():
     token = make_long_term_token(42)
     with pytest.raises(UnauthorizedError):
-        get_current_user_id(f"Bearer {token}")
-
-
-def test_get_current_user_id_rejects_invalid_header():
-    with pytest.raises(UnauthorizedError):
-        get_current_user_id("Token abc123")
+        get_current_user_id(bearer_credentials(token))
 
 
 def test_get_current_user_id_rejects_invalid_payload():
@@ -52,7 +52,7 @@ def test_get_current_user_id_rejects_invalid_payload():
         algorithm="HS256",
     )
     with pytest.raises(UnauthorizedError):
-        get_current_user_id(f"Bearer {token}")
+        get_current_user_id(bearer_credentials(token))
 
 
 def test_get_current_user_id_rejects_expired_token():
@@ -66,7 +66,7 @@ def test_get_current_user_id_rejects_expired_token():
         algorithm="HS256",
     )
     with pytest.raises(UnauthorizedError):
-        get_current_user_id(f"Bearer {token}")
+        get_current_user_id(bearer_credentials(token))
 
 
 def test_get_current_user_id_rejects_missing_header():
@@ -77,7 +77,7 @@ def test_get_current_user_id_rejects_missing_header():
 def test_get_viewer_context_prefers_auth():
     token = make_access_token(7)
     context = get_viewer_context(
-        authorization=f"Bearer {token}",
+        authorization=bearer_credentials(token),
         guest_session_id="guest-1",
     )
     assert context.user_id == 7
@@ -105,7 +105,7 @@ def test_get_current_user_id_or_long_term_accepts_active_token(db_session):
     token = auth_service.create_long_term_token(db_session, user, settings.secret_key)
     assert (
         get_current_user_id_or_long_term(
-            authorization=f"Bearer {token}",
+            authorization=bearer_credentials(token),
             db=db_session,
         )
         == user.id
@@ -124,7 +124,7 @@ def test_get_current_user_id_or_long_term_rejects_revoked_token(db_session):
 
     with pytest.raises(UnauthorizedError):
         get_current_user_id_or_long_term(
-            authorization=f"Bearer {token}",
+            authorization=bearer_credentials(token),
             db=db_session,
         )
 
@@ -132,6 +132,6 @@ def test_get_current_user_id_or_long_term_rejects_revoked_token(db_session):
 def test_get_current_user_id_or_long_term_rejects_invalid_token(db_session):
     with pytest.raises(UnauthorizedError):
         get_current_user_id_or_long_term(
-            authorization="Bearer invalid-token",
+            authorization=bearer_credentials("invalid-token"),
             db=db_session,
         )
