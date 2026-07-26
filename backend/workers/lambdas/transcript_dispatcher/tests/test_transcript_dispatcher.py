@@ -10,20 +10,30 @@ WORKER_DIR = Path(__file__).resolve().parents[1]
 
 
 class FakeLogger:
-    def info(self, *_args, **_kwargs):
-        pass
+    inject_options = None
 
-    def error(self, *_args, **_kwargs):
-        pass
+    def __init__(self):
+        self.records = []
 
-    def warning(self, *_args, **_kwargs):
-        pass
+    def _record(self, level, message, kwargs):
+        self.records.append((level, message, kwargs.get("extra", {})))
 
-    def inject_lambda_context(self, **_kwargs):
+    def info(self, message, **kwargs):
+        self._record("info", message, kwargs)
+
+    def error(self, message, **kwargs):
+        self._record("error", message, kwargs)
+
+    def exception(self, message, **kwargs):
+        self._record("exception", message, kwargs)
+
+    def inject_lambda_context(self, **kwargs):
+        FakeLogger.inject_options = kwargs
         return lambda function: function
 
 
 def _install_powertools_stub(monkeypatch):
+    FakeLogger.inject_options = None
     powertools = ModuleType("aws_lambda_powertools")
     powertools.Logger = FakeLogger
     monkeypatch.setitem(sys.modules, "aws_lambda_powertools", powertools)
@@ -98,6 +108,40 @@ def test_fetch_all_notes_uses_configured_request_timeout(monkeypatch):
 
     assert dispatch_service.fetch_all_notes("video-id") == []
     assert calls[0][1]["timeout"] == 17
+    assert "response_preview" not in dispatch_service.logger.records[0][2]
+
+
+def test_sqs_partial_failure_log_excludes_message_and_body(monkeypatch):
+    dispatch_service = _load_module("dispatch_service.py", monkeypatch)
+
+    class FakeSqs:
+        def send_message_batch(self, **_kwargs):
+            return {
+                "Successful": [{"Id": "0"}],
+                "Failed": [
+                    {
+                        "Id": "1",
+                        "Code": "InternalError",
+                        "SenderFault": False,
+                        "Message": "sensitive AWS detail",
+                    }
+                ],
+            }
+
+    monkeypatch.setattr(dispatch_service.boto3, "client", lambda _name: FakeSqs())
+
+    result = dispatch_service.push_notes_to_sqs_batch(
+        [{"id": 1, "text": "private body"}, {"id": 2, "text": "private body"}]
+    )
+
+    assert result["sent"] == 1
+    assert result["failed"] == 1
+    assert any(
+        record[2].get("failed") == 1
+        for record in dispatch_service.logger.records
+    )
+    assert "sensitive AWS detail" not in str(dispatch_service.logger.records)
+    assert "private body" not in str(dispatch_service.logger.records)
 
 
 def test_handler_delegates_s3_and_manual_video_ids(monkeypatch):
@@ -116,6 +160,7 @@ def test_handler_delegates_s3_and_manual_video_ids(monkeypatch):
     handler.lambda_handler(event, object())
 
     assert calls == [(["s3-video", "manual-video"], True)]
+    assert FakeLogger.inject_options == {"log_event": False}
 
 
 def test_handler_reraises_dispatch_failure(monkeypatch):

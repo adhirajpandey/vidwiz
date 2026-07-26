@@ -31,39 +31,27 @@ llm = OpenRouterClient(settings, logger)
 
 
 def process_batch(notes: list[Note]) -> None:
-    logger.info("Starting note processing", extra={"note_count": len(notes)})
-    for index, note in enumerate(notes, start=1):
-        logger.info(
-            "Processing note batch item",
-            extra={
-                "item_index": index,
-                "total_items": len(notes),
-                "note_id": note.id,
-            },
-        )
+    for note in notes:
         process_note(note)
-    logger.info(
-        "Completed note processing batch", extra={"processed_count": len(notes)}
-    )
 
 
 def process_note(note: Note) -> None:
+    logger.info(
+        "Processing AI note",
+        extra={"note_id": note.id, "video_id": note.video_id},
+    )
     transcript = transcripts.get(note.video_id)
     if not transcript:
         logger.error(
-            "Cannot process note - transcript not available",
-            extra={"video_id": note.video_id, "note_id": note.id},
+            "Transcript not available for AI note",
+            extra={"note_id": note.id, "video_id": note.video_id},
         )
         raise RuntimeError(f"Transcript not available for note {note.id}")
     context = relevant_context(transcript, note.timestamp, settings)
     if context is None:
         logger.error(
-            "Cannot process note - relevant transcript not found",
-            extra={
-                "video_id": note.video_id,
-                "note_id": note.id,
-                "timestamp": note.timestamp,
-            },
+            "Relevant transcript context not found for AI note",
+            extra={"note_id": note.id, "video_id": note.video_id},
         )
         raise RuntimeError(f"Relevant transcript not found for note {note.id}")
     title = note.video.title if note.video and note.video.title else None
@@ -72,10 +60,21 @@ def process_note(note: Note) -> None:
         title = metadata.get("title") if metadata else None
     note_text = _valid_note(title, note.timestamp, format_context(context))
     if not note_text:
-        logger.error("Failed to generate AI note", extra={"note_id": note.id})
+        logger.error(
+            "Failed to generate AI note",
+            extra={"note_id": note.id, "video_id": note.video_id},
+        )
         raise RuntimeError(f"Failed to generate AI note {note.id}")
     if not api.update_note(note.id, note_text):
+        logger.error(
+            "Failed to save AI note",
+            extra={"note_id": note.id, "video_id": note.video_id},
+        )
         raise RuntimeError(f"Failed to update AI note {note.id}")
+    logger.info(
+        "AI note saved",
+        extra={"note_id": note.id, "video_id": note.video_id},
+    )
 
 
 def _valid_note(title: str | None, timestamp: str, transcript: str) -> str | None:
@@ -93,4 +92,12 @@ def _valid_note(title: str | None, timestamp: str, transcript: str) -> str | Non
         generated = generated.strip().replace("\n", " ")
         if settings.min_note_length <= len(generated) <= settings.max_note_length:
             return generated
+        logger.warning(
+            "Generated AI note has invalid length",
+            extra={
+                "attempt": attempt,
+                "max_retries": settings.max_retries,
+                "generated_length": len(generated),
+            },
+        )
     return None

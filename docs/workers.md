@@ -58,6 +58,12 @@ or systemd unit manages parallel helper processes.
   - Notes fetch uses `VIDWIZ_INTERNAL_API_ADMIN_TOKEN`
   - Propagates unhandled dispatch failures so Lambda retry/DLQ handling can run
 
+### Lambda Logging
+Lambdas log processing milestones and failures with safe identifiers and
+counts. They do not log complete events, request or response bodies, prompts,
+transcripts, generated content, authorization values, or provider error
+payloads.
+
 ### Lambda Infrastructure and Delivery
 - `infra/` defines all three production functions, queues, the transcript
   bucket, event sources, log groups, and separate execution roles in

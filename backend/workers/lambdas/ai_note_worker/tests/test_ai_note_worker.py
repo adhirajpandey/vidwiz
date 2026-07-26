@@ -38,20 +38,30 @@ from vidwiz_worker.models import Note  # noqa: E402
 
 
 class FakeLogger:
-    def info(self, *_args, **_kwargs):
-        pass
+    inject_options = None
 
-    def error(self, *_args, **_kwargs):
-        pass
+    def __init__(self):
+        self.records = []
 
-    def warning(self, *_args, **_kwargs):
-        pass
+    def _record(self, level, message, kwargs):
+        self.records.append((level, message, kwargs.get("extra", {})))
 
-    def inject_lambda_context(self, **_kwargs):
+    def info(self, message, **kwargs):
+        self._record("info", message, kwargs)
+
+    def error(self, message, **kwargs):
+        self._record("error", message, kwargs)
+
+    def warning(self, message, **kwargs):
+        self._record("warning", message, kwargs)
+
+    def inject_lambda_context(self, **kwargs):
+        FakeLogger.inject_options = kwargs
         return lambda function: function
 
 
 def _install_powertools_stubs(monkeypatch):
+    FakeLogger.inject_options = None
     powertools = ModuleType("aws_lambda_powertools")
     powertools.Logger = FakeLogger
     utilities = ModuleType("aws_lambda_powertools.utilities")
@@ -132,6 +142,11 @@ def test_process_note_falls_back_to_video_metadata_and_persists(monkeypatch):
     )
 
     assert api.updated == (12, "Generated note")
+    assert note_service.logger.records[-1] == (
+        "info",
+        "AI note saved",
+        {"note_id": 12, "video_id": "video-id"},
+    )
 
 
 @pytest.mark.parametrize(
@@ -204,6 +219,17 @@ def test_valid_note_returns_none_after_invalid_final_retry(monkeypatch):
     )
 
     assert note_service._valid_note(None, "00:01", "Transcript") is None
+    warnings = [
+        record for record in note_service.logger.records if record[0] == "warning"
+    ]
+    assert len(warnings) == 2
+    assert warnings[-1][1] == "Generated AI note has invalid length"
+    assert warnings[-1][2] == {
+        "attempt": 2,
+        "max_retries": 2,
+        "generated_length": 30,
+    }
+    assert "too long for configured bounds" not in str(warnings)
 
 
 def test_process_batch_propagates_item_failure(monkeypatch):
@@ -232,3 +258,4 @@ def test_handler_delegates_parsed_batch(monkeypatch):
     handler.lambda_handler(["note"], object())
 
     assert calls == [["note"]]
+    assert FakeLogger.inject_options == {"log_event": False}

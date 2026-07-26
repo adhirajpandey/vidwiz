@@ -7,7 +7,7 @@ from vidwiz_worker.models import SummaryRequest
 logger = summary_service.logger
 
 
-@logger.inject_lambda_context(log_event=True)
+@logger.inject_lambda_context(log_event=False)
 @event_parser(model=SummaryRequest, envelope=envelopes.SqsEnvelope)
 def lambda_handler(event: list[SummaryRequest], context: LambdaContext) -> None:
     del context
