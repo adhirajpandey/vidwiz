@@ -13,6 +13,8 @@ def test_loads_valid_fixture_and_protects_secrets() -> None:
 
     assert settings.aws_region == "ap-south-1"
     assert settings.vidwiz_internal_api_base_url == "https://example.invalid"
+    assert settings.min_question_length == 20
+    assert settings.max_question_length == 120
     assert isinstance(settings.vidwiz_internal_api_admin_token, SecretStr)
     assert "fixture-admin-token" not in repr(settings)
     assert "fixture-openrouter-key" not in repr(settings)
@@ -55,6 +57,18 @@ def test_missing_configuration_does_not_disclose_secrets(tmp_path: Path) -> None
         ProductionDeploymentConfig.from_env_file(env_file)
 
     assert "do-not-disclose" not in str(error.value)
+
+
+def test_rejects_inverted_question_length_range(tmp_path: Path) -> None:
+    text = FIXTURE_ENV.read_text().replace(
+        "MIN_QUESTION_LENGTH=20",
+        "MIN_QUESTION_LENGTH=121",
+    )
+    env_file = tmp_path / "invalid-question-range.env"
+    env_file.write_text(text)
+
+    with pytest.raises(ValidationError, match="MIN_QUESTION_LENGTH"):
+        ProductionDeploymentConfig.from_env_file(env_file)
 
 
 def test_explicit_configuration_file_ignores_ambient_environment(
