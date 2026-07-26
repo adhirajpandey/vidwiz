@@ -137,8 +137,7 @@ def test_sqs_partial_failure_log_excludes_message_and_body(monkeypatch):
     assert result["sent"] == 1
     assert result["failed"] == 1
     assert any(
-        record[2].get("failed") == 1
-        for record in dispatch_service.logger.records
+        record[2].get("failed") == 1 for record in dispatch_service.logger.records
     )
     assert "sensitive AWS detail" not in str(dispatch_service.logger.records)
     assert "private body" not in str(dispatch_service.logger.records)
