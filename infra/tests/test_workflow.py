@@ -57,9 +57,9 @@ def test_workflow_uses_canonical_target_from_production_config() -> None:
     assert "aws-region: ${{ env.VIDWIZ_PRODUCTION_AWS_REGION }}" in text
     assert "vars.AWS_ACCOUNT_ID" not in text
     assert "aws-region: ap-south-1" not in text
-    assert text.index("Prepare production configuration") < text.index(
-        "Configure AWS credentials through OIDC"
-    )
+    assert text.index(
+        "run: uv run --locked python scripts/prepare_production_config.py"
+    ) < text.index("uses: aws-actions/configure-aws-credentials@v6")
 
 
 def test_workflow_uses_repository_scripts_and_parameter_free_deployment() -> None:
