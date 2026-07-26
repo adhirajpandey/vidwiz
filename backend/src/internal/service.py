@@ -283,7 +283,12 @@ def store_metadata(db: Session, video_id: str, metadata: dict) -> Video:
     return video
 
 
-def store_summary(db: Session, video_id: str, summary: str | None) -> Video:
+def store_summary(
+    db: Session,
+    video_id: str,
+    summary: str | None,
+    miscellaneous_data: dict | None = None,
+) -> Video:
     logger.debug(
         "Storing summary",
         extra={"video_id": video_id, "has_summary": summary is not None},
@@ -291,6 +296,11 @@ def store_summary(db: Session, video_id: str, summary: str | None) -> Video:
     video = upsert_video(db, video_id)
     if summary is not None:
         video.summary = summary
+    if miscellaneous_data:
+        video.miscellaneous_data = {
+            **(video.miscellaneous_data or {}),
+            **miscellaneous_data,
+        }
     db.commit()
     db.refresh(video)
     return video

@@ -183,6 +183,39 @@ def test_store_transcript_in_s3_success(monkeypatch):
     assert captured["Key"] == "transcripts/abc123DEF45.json"
 
 
+def test_store_summary_merges_miscellaneous_data(db_session):
+    video = Video(
+        video_id="summary12345",
+        title="Video",
+        miscellaneous_data={"existing_key": "preserved"},
+    )
+    db_session.add(video)
+    db_session.commit()
+
+    result = internal_service.store_summary(
+        db_session,
+        video.video_id,
+        "Generated summary",
+        {
+            "suggested_questions": [
+                "What is the first idea?",
+                "How is the idea supported?",
+                "What conclusion is reached?",
+            ]
+        },
+    )
+
+    assert result.summary == "Generated summary"
+    assert result.miscellaneous_data == {
+        "existing_key": "preserved",
+        "suggested_questions": [
+            "What is the first idea?",
+            "How is the idea supported?",
+            "What conclusion is reached?",
+        ],
+    }
+
+
 def test_fetch_ai_note_task_notes_sqlite_branch(db_session):
     video = Video(video_id="abc123DEF45", title="Video")
     user = User(email="ai@example.com", profile_data={"ai_notes_enabled": True})

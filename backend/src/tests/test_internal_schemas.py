@@ -37,3 +37,41 @@ def test_transcript_write_validates_items():
 
 def test_summary_write_limits_length():
     SummaryWrite.model_validate({"summary": "ok"})
+
+
+def test_summary_write_validates_suggested_questions():
+    payload = SummaryWrite.model_validate(
+        {
+            "summary": "ok",
+            "miscellaneous_data": {
+                "suggested_questions": [
+                    "  What is the first idea?  ",
+                    "How is the idea supported?",
+                    "What conclusion is reached?",
+                ]
+            },
+        }
+    )
+
+    assert payload.miscellaneous_data is not None
+    assert payload.miscellaneous_data.suggested_questions[0] == (
+        "What is the first idea?"
+    )
+
+    with pytest.raises(ValidationError):
+        SummaryWrite.model_validate(
+            {
+                "summary": "ok",
+                "miscellaneous_data": {
+                    "suggested_questions": ["Duplicate?", "duplicate?", "Different?"]
+                },
+            }
+        )
+
+    with pytest.raises(ValidationError):
+        SummaryWrite.model_validate(
+            {
+                "summary": "ok",
+                "miscellaneous_data": {"suggested_questions": ["Only one?"]},
+            }
+        )

@@ -160,7 +160,7 @@ def store_metadata(
     "/videos/{video_id}/summary",
     response_model=VideoRead,
     status_code=status.HTTP_200_OK,
-    description="Store summary text (upsert video).",
+    description="Store summary text and optional miscellaneous data (upsert video).",
 )
 @limiter.exempt
 def store_summary(
@@ -171,7 +171,16 @@ def store_summary(
     db: Session = Depends(get_db),
     _: None = Depends(require_admin_token),
 ) -> VideoRead:
-    video = internal_service.store_summary(db, path.video_id, payload.summary)
+    video = internal_service.store_summary(
+        db,
+        path.video_id,
+        payload.summary,
+        (
+            payload.miscellaneous_data.model_dump()
+            if payload.miscellaneous_data is not None
+            else None
+        ),
+    )
     return VideoRead.model_validate(video)
 
 

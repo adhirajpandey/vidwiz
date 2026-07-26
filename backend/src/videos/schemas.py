@@ -14,6 +14,7 @@ class VideoRead(ApiModel):
     metadata: dict | None = Field(default=None, validation_alias="video_metadata")
     transcript_available: bool
     summary: str | None = None
+    suggested_questions: list[str] | None = None
     created_at: datetime
     updated_at: datetime
 
