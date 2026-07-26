@@ -24,7 +24,7 @@ from aws_cdk import (
 )
 from constructs import Construct
 
-from vidwiz_infra.bundling import shared_worker_bundling
+from vidwiz_infra.bundling import lambda_bundling, shared_worker_bundling
 from vidwiz_infra.lambda_specs import LAMBDA_SPECS_BY_KEY, LambdaSpec
 from vidwiz_infra.settings import ProductionDeploymentConfig
 
@@ -281,7 +281,7 @@ class VidwizStack(cdk.Stack):
             bundling=(
                 shared_worker_bundling()
                 if spec.key in {"ai_note_worker", "ai_summary_worker"}
-                else None
+                else lambda_bundling()
             ),
         )
         function.node.add_dependency(log_group)
