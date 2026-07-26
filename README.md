@@ -68,6 +68,8 @@ Prereqs: Python 3.10–3.13, uv 0.8.22, Node.js, running PostgreSQL
 4. When running the API outside Compose against the Compose PostgreSQL container, change the `DB_URL` host and port from `database:5432` to `localhost:5433`.
 5. Fill the required values documented in `docs/backend.md`.
 6. Start server: `uv run --locked uvicorn src.main:app --host 0.0.0.0 --port 5000`
+7. Open Swagger UI at `http://localhost:5000/docs` or fetch the generated
+   OpenAPI schema from `http://localhost:5000/openapi.json`.
 
 Backend note creation supports:
 - `POST /v2/videos/{video_id}/notes` for known video IDs/URLs

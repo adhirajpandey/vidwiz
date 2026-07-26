@@ -1,4 +1,5 @@
-from fastapi import Depends, Header, Request
+from fastapi import Depends, Request, Security
+from fastapi.security import APIKeyHeader, HTTPAuthorizationCredentials, HTTPBearer
 import jwt
 from sqlalchemy.orm import Session
 
@@ -7,6 +8,22 @@ from src.auth.schemas import ViewerContext
 from src.database import get_db
 from src.config import settings
 from src.exceptions import UnauthorizedError, InternalServerError
+
+
+bearer_auth = HTTPBearer(
+    bearerFormat="JWT",
+    scheme_name="BearerAuth",
+    description=(
+        "JWT access token. Long-term JWTs are accepted only by note creation."
+    ),
+    auto_error=False,
+)
+guest_session_auth = APIKeyHeader(
+    name="X-Guest-Session-ID",
+    scheme_name="GuestSession",
+    description="Guest session ID for Wiz chat and video status streams.",
+    auto_error=False,
+)
 
 
 def _require_secret_key() -> str:
@@ -31,13 +48,13 @@ def _get_cached_payload(
 
 
 def get_current_user_id(
-    authorization: str | None = Header(default=None),
+    authorization: HTTPAuthorizationCredentials | None = Security(bearer_auth),
     request: Request = None,
 ) -> int:
-    if not authorization or not authorization.startswith("Bearer "):
+    if not authorization:
         raise UnauthorizedError("Missing or invalid Authorization header")
 
-    token = authorization.split(" ", 1)[1]
+    token = authorization.credentials
     secret_key = _require_secret_key()
 
     try:
@@ -60,14 +77,14 @@ def get_current_user_id(
 
 
 def get_viewer_context(
-    authorization: str | None = Header(default=None),
+    authorization: HTTPAuthorizationCredentials | None = Security(bearer_auth),
     request: Request = None,
-    guest_session_id: str | None = Header(default=None, alias="X-Guest-Session-ID"),
+    guest_session_id: str | None = Security(guest_session_auth),
 ) -> ViewerContext:
     context = ViewerContext()
 
-    if authorization and authorization.startswith("Bearer "):
-        token = authorization.split(" ", 1)[1]
+    if authorization:
+        token = authorization.credentials
         secret_key = _require_secret_key()
         try:
             payload = _get_cached_payload(request, token) or jwt.decode(
@@ -89,14 +106,14 @@ def get_viewer_context(
 
 
 def get_current_user_id_or_long_term(
-    authorization: str | None = Header(default=None),
+    authorization: HTTPAuthorizationCredentials | None = Security(bearer_auth),
     request: Request = None,
     db: Session = Depends(get_db),
 ) -> int:
-    if not authorization or not authorization.startswith("Bearer "):
+    if not authorization:
         raise UnauthorizedError("Missing or invalid Authorization header")
 
-    token = authorization.split(" ", 1)[1]
+    token = authorization.credentials
     secret_key = _require_secret_key()
 
     try:

@@ -33,7 +33,9 @@ Provide a system-level view of how VidWiz components interact. Subsystem details
   - Helpers/Lambdas use this token for polling tasks and writing results.
 
 ## Operational Notes
-- OpenAPI docs are enabled only in `local` and `staging` environments.
+- The runtime-generated OpenAPI schema (`/openapi.json`) and Swagger UI
+  (`/docs`) are available in every environment. They include internal route
+  definitions, but the routes continue to enforce admin authentication.
 - `DB_URL` defaults to SQLite if not provided.
 - Transcript storage and Wiz chat require S3 credentials and bucket configuration.
 - Wiz chat also requires `OPENROUTER_API_KEY`; without it, chat requests error.

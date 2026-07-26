@@ -20,9 +20,6 @@ from src.logging import setup_logging, shutdown_logging
 from src.middleware.request_logging import RequestLoggingMiddleware
 
 
-SHOW_DOCS_ENVIRONMENT = ("local", "staging")
-
-
 def register_exception_handlers(app: FastAPI) -> None:
     @app.exception_handler(APIError)
     async def handle_api_error(_: Request, exc: APIError) -> JSONResponse:
@@ -103,11 +100,16 @@ def register_exception_handlers(app: FastAPI) -> None:
 
 def create_app() -> FastAPI:
     setup_logging(settings)
-    app_configs = {"title": "VidWiz API"}
-    if settings.environment not in SHOW_DOCS_ENVIRONMENT:
-        app_configs["openapi_url"] = None
-
-    app = FastAPI(**app_configs)
+    app = FastAPI(
+        title="VidWiz API",
+        description=(
+            "Create timestamped YouTube notes and use transcript-grounded AI chat."
+        ),
+        version="2.0.0",
+        openapi_url="/openapi.json",
+        docs_url="/docs",
+        redoc_url=None,
+    )
     app.state.limiter = limiter
     app.add_middleware(SlowAPIMiddleware)
     app.add_middleware(RequestLoggingMiddleware)

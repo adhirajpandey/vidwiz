@@ -294,6 +294,19 @@ async def test_profile_requires_auth(client):
 
 
 @pytest.mark.asyncio
+async def test_profile_rejects_non_bearer_auth(client):
+    response = await client.get(
+        "/v2/users/me",
+        headers={"Authorization": "Token invalid"},
+    )
+
+    assert response.status_code == 401
+    assert response.json()["error"]["message"] == (
+        "Missing or invalid Authorization header"
+    )
+
+
+@pytest.mark.asyncio
 async def test_update_profile_validates_name(client):
     await register_user(client, "profile-update@example.com")
     login_response = await login_user(client, "profile-update@example.com")

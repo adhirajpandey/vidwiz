@@ -1,4 +1,5 @@
 import pytest
+from fastapi.security import HTTPAuthorizationCredentials
 
 from src.internal import dependencies as internal_dependencies
 from src.internal import constants as internal_constants
@@ -9,6 +10,10 @@ from src.exceptions import (
     UnauthorizedError,
 )
 from src.config import settings
+
+
+def bearer_credentials(token: str) -> HTTPAuthorizationCredentials:
+    return HTTPAuthorizationCredentials(scheme="Bearer", credentials=token)
 
 
 def test_require_admin_token_errors(monkeypatch):
@@ -22,7 +27,7 @@ def test_require_admin_token_errors(monkeypatch):
         raising=False,
     )
     with pytest.raises(InternalServerError):
-        internal_dependencies.require_admin_token("Bearer token")
+        internal_dependencies.require_admin_token(bearer_credentials("token"))
 
     monkeypatch.setattr(
         settings,
@@ -31,7 +36,7 @@ def test_require_admin_token_errors(monkeypatch):
         raising=False,
     )
     with pytest.raises(ForbiddenError):
-        internal_dependencies.require_admin_token("Bearer wrong")
+        internal_dependencies.require_admin_token(bearer_credentials("wrong"))
 
 
 def test_require_admin_token_success(monkeypatch):
@@ -41,7 +46,7 @@ def test_require_admin_token_success(monkeypatch):
         "expected",
         raising=False,
     )
-    internal_dependencies.require_admin_token("Bearer expected")
+    internal_dependencies.require_admin_token(bearer_credentials("expected"))
 
 
 def test_get_task_poll_params_validation():
