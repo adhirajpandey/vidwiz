@@ -12,20 +12,30 @@ sys.path.insert(0, str(SHARED_DIR))
 
 
 class FakeLogger:
-    def info(self, *_args, **_kwargs):
-        pass
+    inject_options = None
 
-    def error(self, *_args, **_kwargs):
-        pass
+    def __init__(self):
+        self.records = []
 
-    def warning(self, *_args, **_kwargs):
-        pass
+    def _record(self, level, message, kwargs):
+        self.records.append((level, message, kwargs.get("extra", {})))
 
-    def inject_lambda_context(self, **_kwargs):
+    def info(self, message, **kwargs):
+        self._record("info", message, kwargs)
+
+    def error(self, message, **kwargs):
+        self._record("error", message, kwargs)
+
+    def warning(self, message, **kwargs):
+        self._record("warning", message, kwargs)
+
+    def inject_lambda_context(self, **kwargs):
+        FakeLogger.inject_options = kwargs
         return lambda function: function
 
 
 def _install_powertools_stubs(monkeypatch):
+    FakeLogger.inject_options = None
     powertools = ModuleType("aws_lambda_powertools")
     powertools.Logger = FakeLogger
     utilities = ModuleType("aws_lambda_powertools.utilities")
@@ -78,6 +88,11 @@ def test_process_summary_skips_existing_summary(monkeypatch):
     monkeypatch.setattr(summary_service, "llm", Unused())
 
     summary_service.process_summary("video-id")
+    assert summary_service.logger.records[-1] == (
+        "info",
+        "AI summary already exists; skipping",
+        {"video_id": "video-id"},
+    )
 
 
 def test_process_batch_propagates_item_failure(monkeypatch):
@@ -130,6 +145,16 @@ def test_valid_summary_returns_none_after_invalid_final_retry(monkeypatch):
     )
 
     assert summary_service._valid_summary(None, "Transcript") is None
+    warnings = [
+        record for record in summary_service.logger.records if record[0] == "warning"
+    ]
+    assert len(warnings) == 2
+    assert warnings[-1][2] == {
+        "attempt": 2,
+        "max_retries": 2,
+        "generated_length": 30,
+    }
+    assert "too long for configured bounds" not in str(warnings)
 
 
 def test_handler_delegates_parsed_batch(monkeypatch):
@@ -144,3 +169,33 @@ def test_handler_delegates_parsed_batch(monkeypatch):
     handler.lambda_handler(["summary"], object())
 
     assert calls == [["summary"]]
+    assert FakeLogger.inject_options == {"log_event": False}
+
+
+def test_process_summary_logs_completion_after_persistence(monkeypatch):
+    summary_service = _load_module("summary_service.py", monkeypatch)
+
+    class Api:
+        def get_video(self, _video_id):
+            return {"title": "Video", "summary": None}
+
+        def update_summary(self, _video_id, _summary):
+            return True
+
+    monkeypatch.setattr(summary_service, "api", Api())
+    monkeypatch.setattr(
+        summary_service,
+        "transcripts",
+        SimpleNamespace(get=lambda _video_id: [{"text": "Transcript"}]),
+    )
+    monkeypatch.setattr(
+        summary_service, "_valid_summary", lambda *_args: "Generated summary"
+    )
+
+    summary_service.process_summary("video-id")
+
+    assert summary_service.logger.records[-1] == (
+        "info",
+        "AI summary saved",
+        {"video_id": "video-id"},
+    )

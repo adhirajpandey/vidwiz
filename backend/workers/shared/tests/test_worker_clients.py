@@ -10,8 +10,11 @@ from vidwiz_worker.config import WorkerSettings
 
 
 class FakeLogger:
-    def error(self, *_args, **_kwargs):
-        pass
+    def __init__(self):
+        self.records = []
+
+    def error(self, message, **kwargs):
+        self.records.append(("error", message, kwargs.get("extra", {})))
 
 
 @pytest.fixture
@@ -66,3 +69,35 @@ def test_internal_api_client_updates_ai_note(settings):
     assert client.update_note(12, "Generated note") is True
     assert calls[0][0] == ("https://internal.example/v2/internal/notes/12",)
     assert calls[0][1]["json"] == {"text": "Generated note", "generated_by_ai": True}
+
+
+def test_openrouter_client_logs_safe_provider_error(settings):
+    class Response:
+        def raise_for_status(self):
+            pass
+
+        def json(self):
+            return {
+                "error": {
+                    "code": "provider_unavailable",
+                    "message": "sensitive provider response",
+                    "metadata": {"raw": "do not log"},
+                }
+            }
+
+    class Session:
+        def post(self, *_args, **_kwargs):
+            return Response()
+
+    logger = FakeLogger()
+    client = OpenRouterClient(settings, logger, session=Session())
+
+    assert client.complete("private prompt") is None
+    assert logger.records == [
+        (
+            "error",
+            "OpenRouter API returned an error",
+            {"error_code": "provider_unavailable"},
+        )
+    ]
+    assert "sensitive provider response" not in str(logger.records)

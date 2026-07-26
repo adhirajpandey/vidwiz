@@ -117,8 +117,19 @@ class OpenRouterClient:
             response.raise_for_status()
             data = response.json()
             if "error" in data:
+                provider_error = data["error"]
+                error_code = (
+                    provider_error.get("code")
+                    if isinstance(provider_error, dict)
+                    else None
+                )
                 self._logger.error(
-                    "OpenRouter API returned error", extra={"error": data["error"]}
+                    "OpenRouter API returned an error",
+                    extra=(
+                        {"error_code": str(error_code)[:100]}
+                        if error_code is not None
+                        else {}
+                    ),
                 )
                 return None
             choices = data.get("choices", [])
@@ -126,6 +137,12 @@ class OpenRouterClient:
             return message.get("content") if message else None
         except Exception as error:
             self._logger.error(
-                "OpenRouter API request failed", extra={"error": str(error)}
+                "OpenRouter API request failed",
+                extra={
+                    "error_type": type(error).__name__,
+                    "status_code": getattr(
+                        getattr(error, "response", None), "status_code", None
+                    ),
+                },
             )
             return None

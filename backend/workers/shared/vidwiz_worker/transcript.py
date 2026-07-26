@@ -1,3 +1,5 @@
+import json
+import time
 from typing import Any
 
 import boto3
@@ -104,35 +106,45 @@ class S3TranscriptRepository:
                 response = self._s3_client.get_object(
                     Bucket=self._settings.transcript_bucket_name, Key=transcript_key
                 )
-                import json
-
                 transcript = json.loads(response["Body"].read().decode("utf-8"))
                 if transcript is None or not isinstance(transcript, list):
-                    self._logger.warning(
+                    self._logger.error(
                         "Transcript payload is invalid",
-                        extra={"video_id": video_id, "attempt": attempt},
+                        extra={
+                            "video_id": video_id,
+                            "attempt": attempt,
+                        },
                     )
                     return None
                 self._logger.info(
-                    "Successfully loaded transcript from S3",
-                    extra={"video_id": video_id, "segment_count": len(transcript)},
+                    "Loaded transcript from S3",
+                    extra={
+                        "video_id": video_id,
+                        "segment_count": len(transcript),
+                    },
                 )
                 return transcript
             except Exception as error:
-                self._logger.warning(
-                    "Failed to get transcript from S3",
-                    extra={
-                        "video_id": video_id,
-                        "attempt": attempt,
-                        "max_retries": self._settings.transcript_fetch_max_retries,
-                        "error": str(error),
-                    },
-                )
                 if attempt < self._settings.transcript_fetch_max_retries:
-                    import time
-
+                    self._logger.warning(
+                        "Failed to load transcript from S3; retrying",
+                        extra={
+                            "video_id": video_id,
+                            "attempt": attempt,
+                            "max_retries": (
+                                self._settings.transcript_fetch_max_retries
+                            ),
+                            "error_type": type(error).__name__,
+                        },
+                    )
                     time.sleep(self._settings.transcript_fetch_retry_delay)
-        self._logger.error(
-            "Max retries reached for transcript fetch", extra={"video_id": video_id}
-        )
+                else:
+                    self._logger.error(
+                        "Failed to load transcript from S3",
+                        extra={
+                            "video_id": video_id,
+                            "attempt": attempt,
+                            "error_type": type(error).__name__,
+                        },
+                    )
         return None

@@ -1,10 +1,10 @@
-from typing import Any, Dict, List, Optional
 import json
 import os
+from typing import Any, Dict, List, Optional
 
-from aws_lambda_powertools import Logger
 import boto3
 import requests
+from aws_lambda_powertools import Logger
 
 VIDWIZ_INTERNAL_API_BASE_URL = os.getenv("VIDWIZ_INTERNAL_API_BASE_URL")
 VIDWIZ_INTERNAL_API_ADMIN_TOKEN = os.getenv("VIDWIZ_INTERNAL_API_ADMIN_TOKEN")
@@ -24,24 +24,37 @@ def fetch_all_notes(video_id: str) -> Optional[List[Dict[str, Any]]]:
     headers = {"Authorization": f"Bearer {VIDWIZ_INTERNAL_API_ADMIN_TOKEN}"}
     try:
         response = requests.get(url, headers=headers, timeout=REQUEST_TIMEOUT)
-        logger.info(
-            "VidWiz response received",
+        if response.status_code == 200:
+            notes = response.json().get("notes", [])
+            logger.info(
+                "Fetched AI note tasks",
+                extra={
+                    "video_id": video_id,
+                    "status_code": response.status_code,
+                    "note_count": len(notes),
+                },
+            )
+            return notes
+        if response.status_code == 404:
+            logger.info(
+                "No eligible AI notes found",
+                extra={"video_id": video_id},
+            )
+            return []
+        logger.error(
+            "Failed to fetch AI note tasks",
             extra={
                 "video_id": video_id,
                 "status_code": response.status_code,
-                "response_preview": response.text[:200] if response.text else "",
             },
-        )
-        if response.status_code == 200:
-            return response.json().get("notes", [])
-        logger.error(
-            "Error while getting notes for video",
-            extra={"video_id": video_id, "status_code": response.status_code},
         )
     except Exception as error:
         logger.error(
-            "Exception while fetching notes",
-            extra={"video_id": video_id, "error": str(error)},
+            "Error fetching AI note tasks",
+            extra={
+                "video_id": video_id,
+                "error_type": type(error).__name__,
+            },
         )
     return None
 
@@ -71,7 +84,7 @@ def push_notes_to_sqs_batch(notes: List[Dict[str, Any]]) -> Dict[str, Any]:
             total_sent += len(successful)
             total_failed += len(failed)
             logger.info(
-                "SQS batch send result",
+                "Sent AI note batch to SQS",
                 extra={
                     "batch_index": batch_index,
                     "sent": len(successful),
@@ -79,13 +92,23 @@ def push_notes_to_sqs_batch(notes: List[Dict[str, Any]]) -> Dict[str, Any]:
                 },
             )
             if failed:
-                logger.error("SQS batch failed entries", extra={"failed": failed})
+                logger.error(
+                    "Some AI note messages failed to send",
+                    extra={
+                        "batch_index": batch_index,
+                        "failed": len(failed),
+                    },
+                )
             results.append(response)
         except Exception as error:
             total_failed += len(entries)
             logger.error(
-                "Exception while sending SQS batch",
-                extra={"batch_index": batch_index, "error": str(error)},
+                "Failed to send AI note batch to SQS",
+                extra={
+                    "batch_index": batch_index,
+                    "failed": len(entries),
+                    "error_type": type(error).__name__,
+                },
             )
 
     return {"sent": total_sent, "failed": total_failed, "batches": len(results)}
@@ -93,7 +116,10 @@ def push_notes_to_sqs_batch(notes: List[Dict[str, Any]]) -> Dict[str, Any]:
 
 def push_summary_to_sqs(video_id: str) -> bool:
     if not SQS_AI_SUMMARY_QUEUE_URL:
-        logger.warning("SQS_AI_SUMMARY_QUEUE_URL is not set, skipping summary dispatch")
+        logger.error(
+            "Summary queue is not configured",
+            extra={"video_id": video_id},
+        )
         return False
 
     sqs = boto3.client("sqs")
@@ -102,33 +128,48 @@ def push_summary_to_sqs(video_id: str) -> bool:
             QueueUrl=SQS_AI_SUMMARY_QUEUE_URL,
             MessageBody=json.dumps({"video_id": video_id}),
         )
-        logger.info("Dispatched summary request", extra={"video_id": video_id})
+        logger.info(
+            "Sent AI summary request to SQS",
+            extra={"video_id": video_id},
+        )
         return True
     except Exception as error:
         logger.error(
-            "Failed to dispatch summary request",
-            extra={"video_id": video_id, "error": str(error)},
+            "Failed to send AI summary request to SQS",
+            extra={
+                "video_id": video_id,
+                "error_type": type(error).__name__,
+            },
         )
         return False
 
 
 def dispatch_videos(video_ids: List[str], dispatch_summary: bool) -> None:
     for video_id in video_ids:
-        logger.info(f"Processing video_id: {video_id}")
+        logger.info(
+            "Processing video dispatch",
+            extra={"video_id": video_id},
+        )
 
         if dispatch_summary:
             push_summary_to_sqs(video_id)
 
         notes = fetch_all_notes(video_id)
         if notes is None:
-            logger.error(f"Failed to fetch notes for video {video_id}")
             continue
         if not notes:
-            logger.info("No notes to enqueue", extra={"video_id": video_id})
+            logger.info(
+                "No AI notes to dispatch",
+                extra={"video_id": video_id},
+            )
             continue
 
         result = push_notes_to_sqs_batch(notes)
         logger.info(
-            "Enqueue to SQS completed",
-            extra={"video_id": video_id, **result},
+            "Completed AI note dispatch",
+            extra={
+                "video_id": video_id,
+                "sent": result["sent"],
+                "failed": result["failed"],
+            },
         )

@@ -7,7 +7,7 @@ from vidwiz_worker.models import Note
 logger = note_service.logger
 
 
-@logger.inject_lambda_context(log_event=True)
+@logger.inject_lambda_context(log_event=False)
 @event_parser(model=Note, envelope=envelopes.SqsEnvelope)
 def lambda_handler(event: list[Note], context: LambdaContext) -> None:
     del context

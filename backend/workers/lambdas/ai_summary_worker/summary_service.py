@@ -26,41 +26,29 @@ llm = OpenRouterClient(settings, logger)
 
 
 def process_batch(requests: list[SummaryRequest]) -> None:
-    logger.info("Starting summary processing", extra={"request_count": len(requests)})
-    for index, request in enumerate(requests, start=1):
-        logger.info(
-            "Processing summary batch item",
-            extra={
-                "item_index": index,
-                "total_items": len(requests),
-                "video_id": request.video_id,
-            },
-        )
+    for request in requests:
         process_summary(request.video_id)
-    logger.info(
-        "Completed summary processing batch",
-        extra={"processed_count": len(requests)},
-    )
 
 
 def process_summary(video_id: str) -> None:
+    logger.info(
+        "Processing AI summary",
+        extra={"video_id": video_id},
+    )
     video = api.get_video(video_id)
     if not video:
-        logger.error(
-            "Failed to fetch video details, cannot proceed",
-            extra={"video_id": video_id},
-        )
+        logger.error("Failed to fetch video details", extra={"video_id": video_id})
         return
     if video.get("summary"):
         logger.info(
-            "Summary already exists for video, skipping generation",
+            "AI summary already exists; skipping",
             extra={"video_id": video_id},
         )
         return
     transcript = transcripts.get(video_id)
     if not transcript:
         logger.error(
-            "Cannot process summary - transcript not available",
+            "Transcript not available for AI summary",
             extra={"video_id": video_id},
         )
         return
@@ -68,10 +56,16 @@ def process_summary(video_id: str) -> None:
         video.get("title"),
         build_transcript_text(transcript, include_timestamps=False),
     )
-    if summary:
-        api.update_summary(video_id, summary)
-    else:
+    if not summary:
         logger.error("Failed to generate AI summary", extra={"video_id": video_id})
+        return
+    if not api.update_summary(video_id, summary):
+        logger.error("Failed to save AI summary", extra={"video_id": video_id})
+        return
+    logger.info(
+        "AI summary saved",
+        extra={"video_id": video_id},
+    )
 
 
 def _valid_summary(title: str | None, transcript: str) -> str | None:
@@ -88,4 +82,12 @@ def _valid_summary(title: str | None, transcript: str) -> str | None:
         generated = generated.strip().replace("\n", " ")
         if settings.min_summary_length <= len(generated) <= settings.max_summary_length:
             return generated
+        logger.warning(
+            "Generated AI summary has invalid length",
+            extra={
+                "attempt": attempt,
+                "max_retries": settings.max_retries,
+                "generated_length": len(generated),
+            },
+        )
     return None

@@ -9,11 +9,16 @@ def extract_valid_video_id(key: str) -> Optional[str]:
     try:
         return key.split("/")[-1].replace(".json", "")
     except Exception as error:
-        logger.error("Error extracting video_id", extra={"error": str(error)})
+        logger.error(
+            "Failed to extract video ID",
+            extra={
+                "error_type": type(error).__name__,
+            },
+        )
         return None
 
 
-@logger.inject_lambda_context(log_event=True)
+@logger.inject_lambda_context(log_event=False)
 def lambda_handler(event: Dict[str, Any], context: Any) -> None:
     del context
     try:
@@ -30,20 +35,20 @@ def lambda_handler(event: Dict[str, Any], context: Any) -> None:
                 if video_id:
                     video_ids.append(video_id)
                 else:
-                    logger.error(f"Could not extract video_id from key: {key}")
+                    logger.error("Could not extract video ID from S3 key")
 
         incoming_ids = event.get("video_ids")
         if incoming_ids:
             if isinstance(incoming_ids, list):
                 video_ids.extend(incoming_ids)
             else:
-                logger.error("`video_ids` field must be a list of strings")
+                logger.error("video_ids must be a list")
 
         if not video_ids:
-            logger.error("No video IDs found in the event")
+            logger.error("No video IDs found in dispatcher event")
             return
 
         dispatch_service.dispatch_videos(video_ids, is_s3_event)
-    except Exception as error:
-        logger.error(f"Unhandled exception: {error}", exc_info=True)
+    except Exception:
+        logger.exception("Unhandled dispatcher error")
         raise
