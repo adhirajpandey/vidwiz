@@ -1,4 +1,3 @@
-
 import pytest
 
 import src.database as database

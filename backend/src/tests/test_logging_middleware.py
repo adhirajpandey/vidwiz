@@ -107,7 +107,9 @@ async def test_request_logs_client_ip_from_forwarded_headers(client, caplog):
 
 
 @pytest.mark.asyncio
-async def test_request_logs_client_ip_from_real_ip_when_forwarded_for_missing(client, caplog):
+async def test_request_logs_client_ip_from_real_ip_when_forwarded_for_missing(
+    client, caplog
+):
     with caplog.at_level(logging.INFO, logger="vidwiz.api"):
         await client.get(
             "/v2/payments/products",

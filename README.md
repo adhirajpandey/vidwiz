@@ -94,9 +94,12 @@ Backend note creation supports:
 The extension note UI appears on supported YouTube watch pages after sync.
 
 ## Running tests
-- Backend: `cd backend && uv sync --locked && uv run --locked pytest`
-- Frontend: `cd frontend && pnpm install --frozen-lockfile && pnpm lint && pnpm build`
-- AWS infrastructure: `cd infra && uv sync --locked && npm ci && uv run --locked pytest`
+- Backend: `cd backend && uv sync --locked && uv run --locked ruff format --check src workers && uv run --locked ruff check src workers && uv run --locked pytest`
+- Frontend: `cd frontend && pnpm install --frozen-lockfile && pnpm lint && pnpm test && pnpm build`
+- AWS infrastructure: `cd infra && uv sync --locked && npm ci --ignore-scripts && uv run --locked python scripts/validate.py`
+
+GitHub Actions runs these three checks in parallel for every pull request to
+`main` and every push to `main`.
 
 Production AWS serverless resources are defined in `infra/` as
 `vidwiz-stack`. See `docs/aws-infrastructure.md` before any bootstrap,

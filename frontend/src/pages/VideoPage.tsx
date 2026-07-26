@@ -2,6 +2,7 @@ import { useCallback, useEffect, useState } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { Sparkles, ChevronDown, ChevronUp } from 'lucide-react';
 import { authApi, videosApi, notesApi } from '../api';
+import { normalizeApiError } from '../api/errors';
 import type { VideoRead, NoteRead } from '../api/types';
 import NoteCard from '../components/NoteCard';
 import { useToast } from '../hooks/useToast';
@@ -35,9 +36,10 @@ export default function VideoPage() {
             timestampToSeconds(a.timestamp) - timestampToSeconds(b.timestamp)
         )
       );
-    } catch (error: any) {
+    } catch (error) {
+      const { status } = normalizeApiError(error, 'Failed to fetch notes');
       console.error('Failed to fetch notes', error);
-      if (error.response?.status === 401) {
+      if (status === 401) {
         removeToken();
         navigate('/login');
       } else {
@@ -58,10 +60,11 @@ export default function VideoPage() {
       try {
         const data = await videosApi.getVideo(videoId);
         setVideo(data);
-      } catch (error: any) {
+      } catch (error) {
+        const { status } = normalizeApiError(error, 'Failed to fetch video details');
         console.error('Failed to fetch video details', error);
         // If 401, client interceptor might have handled it, else navigating
-        if (error.response?.status === 401) {
+        if (status === 401) {
            removeToken();
            navigate('/login');
         } else {
@@ -81,9 +84,10 @@ export default function VideoPage() {
       try {
         const user = await authApi.getMe();
         setUserAiNotesEnabled(Boolean(user.ai_notes_enabled));
-      } catch (error: any) {
+      } catch (error) {
+        const { status } = normalizeApiError(error, 'Failed to fetch user preferences');
         console.error('Failed to fetch user preferences', error);
-        if (error.response?.status === 401) {
+        if (status === 401) {
           removeToken();
           navigate('/login');
         } else {
@@ -120,9 +124,10 @@ export default function VideoPage() {
       });
       setNotes(prevNotes => prevNotes.map(n => (n.id === noteId ? updatedNote : n)));
       addToast({ title: 'Success', message: 'Note updated successfully', type: 'success' });
-    } catch (error: any) {
+    } catch (error) {
+      const { status } = normalizeApiError(error, 'Failed to update note');
       console.error('Error updating note:', error);
-      if (error.response?.status === 401) {
+      if (status === 401) {
         removeToken();
         navigate('/login');
       } else {
@@ -138,9 +143,10 @@ export default function VideoPage() {
       await notesApi.deleteNote(noteToDelete);
       setNotes(prevNotes => prevNotes.filter(n => n.id !== noteToDelete));
       addToast({ title: 'Success', message: 'Note deleted successfully', type: 'success' });
-    } catch (error: any) {
+    } catch (error) {
+      const { status } = normalizeApiError(error, 'Failed to delete note');
       console.error('Error deleting note:', error);
-      if (error.response?.status === 401) {
+      if (status === 401) {
         removeToken();
         navigate('/login');
       } else {

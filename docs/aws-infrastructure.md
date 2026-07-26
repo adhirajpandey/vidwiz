@@ -31,13 +31,15 @@ npm ci --ignore-scripts
 uv run --locked python scripts/validate.py
 ```
 
-Each Lambda source directory contains `handler.py`, `pyproject.toml`, and a
-committed `uv.lock`. CDK's `PythonFunction` exports the lockfile during
-bundling, installs the locked dependencies in a Lambda-compatible Docker
-container, stages the ZIP assets in `cdk.out`, and publishes them during
-deployment. The shared specification registry explicitly maps each source
-directory, CDK construct, and physical function name; all handlers use
-`handler.lambda_handler`.
+Each Lambda source directory contains `handler.py`, a domain-specific service
+module, colocated tests, `pyproject.toml`, and a committed `uv.lock`. CDK's
+`PythonFunction` excludes tests and Python bytecode caches, exports the
+lockfile during bundling, installs the locked dependencies in a
+Lambda-compatible Docker container, stages the ZIP assets in `cdk.out`, and
+publishes them during deployment. The shared specification registry explicitly
+maps each source directory, service file, CDK construct, and physical function
+name; all handlers use `handler.lambda_handler`. The two AI worker assets also
+include the shared `vidwiz_worker` package.
 
 The fixture is non-production data. Production synthesis uses the private
 multiline GitHub secret `PRODUCTION_DEPLOYMENT_ENV`, based on

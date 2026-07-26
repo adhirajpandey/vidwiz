@@ -44,9 +44,7 @@ async def test_create_and_get_conversation_as_guest(client, db_session):
 
 
 @pytest.mark.asyncio
-async def test_create_conversation_blocks_when_insufficient_credits(
-    client, db_session
-):
+async def test_create_conversation_blocks_when_insufficient_credits(client, db_session):
     user = auth_service.create_user(
         db_session, "credits-low@example.com", "Credits Low", "password123"
     )

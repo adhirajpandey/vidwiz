@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useCallback, useEffect, useState } from 'react';
 import { Check, X, AlertCircle } from 'lucide-react';
 
 interface ToastProps {
@@ -14,6 +14,13 @@ export type { ToastProps };
 export default function Toast({ id, title, message, type, onClose }: ToastProps) {
   const [isExiting, setIsExiting] = useState(false);
   const [progress, setProgress] = useState(100);
+
+  const handleClose = useCallback(() => {
+    setIsExiting(true);
+    setTimeout(() => {
+      onClose(id);
+    }, 200);
+  }, [id, onClose]);
 
   useEffect(() => {
     // Progress bar animation
@@ -33,14 +40,7 @@ export default function Toast({ id, title, message, type, onClose }: ToastProps)
       clearInterval(progressTimer);
       clearTimeout(closeTimer);
     };
-  }, []);
-
-  const handleClose = () => {
-    setIsExiting(true);
-    setTimeout(() => {
-      onClose(id);
-    }, 200);
-  };
+  }, [handleClose]);
 
   const typeConfig = {
     success: {

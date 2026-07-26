@@ -36,7 +36,7 @@ package = false
 
 [tool.pytest.ini_options]
 pythonpath = "."
-testpaths = ["src/tests"]
+testpaths = ["src/tests", "workers"]
 
 [dependency-groups]
 dev = [

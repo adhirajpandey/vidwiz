@@ -1,7 +1,8 @@
 
-import { useEffect, useState } from 'react';
+import { useCallback, useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { authApi, paymentsApi } from '../api';
+import { normalizeApiError } from '../api/errors';
 import { useToast } from '../hooks/useToast';
 import { FaExclamationTriangle, FaEye, FaEyeSlash, FaCopy, FaSpinner, FaKey, FaShieldAlt, FaSave, FaPen, FaTimes } from 'react-icons/fa';
 import { Settings, Zap, User as UserIcon, Calendar, Mail, Coins, Sparkles } from 'lucide-react';
@@ -36,7 +37,7 @@ export default function ProfilePage() {
   const navigate = useNavigate();
   const { addToast } = useToast();
 
-  const fetchProfile = async () => {
+  const fetchProfile = useCallback(async () => {
     // getMe is protected by client interceptor/header injection
     // But we should check if we have a token locally first if we want to avoid 401?
     // Actually client handles it.
@@ -56,9 +57,10 @@ export default function ProfilePage() {
           created_at: data.created_at,
         });
         
-      } catch (error: any) {
+      } catch (error) {
+        const { status } = normalizeApiError(error, 'Failed to load profile data');
         console.error('Failed to fetch profile', error);
-        if (error.response?.status === 401) {
+        if (status === 401) {
             removeToken();
             navigate('/login');
         } else {
@@ -66,11 +68,11 @@ export default function ProfilePage() {
         }
       }
     }
-  };
+  }, [addToast, navigate]);
 
   useEffect(() => {
-    fetchProfile();
-  }, [navigate]);
+    void fetchProfile();
+  }, [fetchProfile]);
 
   const buildProductKey = (product: CreditProduct, index: number) =>
     `${product.product_id}-${product.credits}-${product.price_inr}-${index}`;
@@ -86,7 +88,7 @@ export default function ProfilePage() {
         if (sortedProducts.length > 0) {
           setSelectedProductKey(prev => prev ?? buildProductKey(sortedProducts[0], 0));
         }
-      } catch (error: any) {
+      } catch (error) {
         console.error('Failed to load credit products', error);
       }
     };
@@ -101,13 +103,13 @@ export default function ProfilePage() {
       const data = await authApi.updateProfile({ name: editName });
       setUser(prev => prev ? { ...prev, name: data.name } : null);
       addToast({ title: 'Success', message: 'Profile updated successfully', type: 'success' });
-    } catch (error: any) {
+    } catch (error) {
+      const { message, status } = normalizeApiError(error, 'Failed to update profile');
       console.error('Failed to save details', error);
-      if (error.response?.status === 401) {
+      if (status === 401) {
         removeToken();
         navigate('/login');
       } else {
-        const message = error.response?.data?.error || 'Failed to update profile';
         addToast({ title: 'Error', message, type: 'error' });
       }
     } finally {
@@ -121,9 +123,10 @@ export default function ProfilePage() {
       const data = await authApi.updateProfile({ ai_notes_enabled: !user.ai_notes_enabled });
       setUser(prev => prev ? { ...prev, ai_notes_enabled: data.ai_notes_enabled } : null);
       addToast({ title: 'Success', message: 'Profile updated successfully', type: 'success' });
-    } catch (error: any) {
+    } catch (error) {
+      const { status } = normalizeApiError(error, 'Failed to update AI notes setting');
       console.error('Failed to update profile', error);
-      if (error.response?.status === 401) {
+      if (status === 401) {
         removeToken();
         navigate('/login');
       } else {
@@ -139,13 +142,13 @@ export default function ProfilePage() {
       setApiToken(data.token);
       setUser(prev => prev ? { ...prev, token_exists: true } : null);
       addToast({ title: 'Success', message: data.message || 'API token generated successfully', type: 'success' });
-    } catch (error: any) {
+    } catch (error) {
+      const { message, status } = normalizeApiError(error, 'Failed to generate token');
       console.error('Error generating token:', error);
-      if (error.response?.status === 401) {
+      if (status === 401) {
         removeToken();
         navigate('/login');
       } else {
-        const message = error.response?.data?.error || 'Failed to generate token';
         addToast({ title: 'Error', message, type: 'error' });
       }
     } finally {
@@ -160,13 +163,13 @@ export default function ProfilePage() {
       setApiToken(null);
       setUser(prev => prev ? { ...prev, token_exists: false } : null);
       addToast({ title: 'Success', message: data.message || 'API token revoked successfully', type: 'success' });
-    } catch (error: any) {
+    } catch (error) {
+      const { message, status } = normalizeApiError(error, 'Failed to revoke token');
       console.error('Error revoking token:', error);
-      if (error.response?.status === 401) {
+      if (status === 401) {
         removeToken();
         navigate('/login');
       } else {
-         const message = error.response?.data?.error || 'Failed to revoke token';
          addToast({ title: 'Error', message, type: 'error' });
       }
     } finally {
@@ -214,9 +217,10 @@ export default function ProfilePage() {
         quantity: 1,
       });
       window.location.href = data.checkout_url;
-    } catch (error: any) {
+    } catch (error) {
+      const { status } = normalizeApiError(error, 'Unable to start checkout');
       console.error('Failed to start checkout', error);
-      if (error.response?.status === 401) {
+      if (status === 401) {
         removeToken();
         navigate('/login');
       } else {
