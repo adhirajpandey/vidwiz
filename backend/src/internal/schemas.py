@@ -1,4 +1,6 @@
-from pydantic import Field, field_validator
+from typing import Annotated
+
+from pydantic import Field, StringConstraints, field_validator
 
 from src.models import ApiModel
 from src.notes.schemas import NoteRead
@@ -78,8 +80,26 @@ class MetadataWrite(ApiModel):
     metadata: dict
 
 
+QuestionText = Annotated[
+    str,
+    StringConstraints(strip_whitespace=True, min_length=1, max_length=500),
+]
+
+
+class MiscellaneousDataWrite(ApiModel):
+    suggested_questions: list[QuestionText] = Field(min_length=3, max_length=3)
+
+    @field_validator("suggested_questions")
+    @classmethod
+    def validate_unique_questions(cls, value: list[str]) -> list[str]:
+        if len({question.casefold() for question in value}) != len(value):
+            raise ValueError("suggested questions must be unique")
+        return value
+
+
 class SummaryWrite(ApiModel):
     summary: str | None = Field(default=None, max_length=10000)
+    miscellaneous_data: MiscellaneousDataWrite | None = None
 
 
 class VideoNotesResponse(ApiModel):

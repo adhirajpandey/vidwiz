@@ -22,6 +22,8 @@ class WorkerSettings:
     min_note_length: int
     max_summary_length: int
     min_summary_length: int
+    max_question_length: int
+    min_question_length: int
     max_retries: int
     request_timeout: int
     transcript_fetch_max_retries: int
@@ -33,6 +35,13 @@ class WorkerSettings:
 
     @classmethod
     def from_env(cls) -> "WorkerSettings":
+        min_question_length = int(os.getenv("MIN_QUESTION_LENGTH", "20"))
+        max_question_length = int(os.getenv("MAX_QUESTION_LENGTH", "120"))
+        if not 1 <= min_question_length <= max_question_length <= 500:
+            raise ValueError(
+                "question length settings must satisfy "
+                "1 <= MIN_QUESTION_LENGTH <= MAX_QUESTION_LENGTH <= 500"
+            )
         return cls(
             transcript_bucket_name=_required("S3_TRANSCRIPT_BUCKET_NAME"),
             internal_api_base_url=_required("VIDWIZ_INTERNAL_API_BASE_URL"),
@@ -50,6 +59,8 @@ class WorkerSettings:
             min_note_length=int(os.getenv("MIN_NOTE_LENGTH", "40")),
             max_summary_length=int(os.getenv("MAX_SUMMARY_LENGTH", "800")),
             min_summary_length=int(os.getenv("MIN_SUMMARY_LENGTH", "200")),
+            max_question_length=max_question_length,
+            min_question_length=min_question_length,
             max_retries=int(os.getenv("MAX_RETRIES", "3")),
             request_timeout=int(os.getenv("REQUEST_TIMEOUT", "30")),
             transcript_fetch_max_retries=int(

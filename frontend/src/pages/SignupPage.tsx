@@ -8,7 +8,10 @@ import GoogleSignInButton from '../components/GoogleSignInButton';
 import AuthLayout from '../components/auth/AuthLayout';
 import { setToken } from '../lib/authUtils';
 import { authApi } from '../api';
-import { normalizeApiError } from '../api/errors';
+import {
+  getValidationFieldErrors,
+  normalizeApiError,
+} from '../api/errors';
 import Seo from '../components/Seo';
 
 export default function SignupPage() {
@@ -17,6 +20,7 @@ export default function SignupPage() {
   const [password, setPassword] = useState('');
   const [confirmPassword, setConfirmPassword] = useState('');
   const [passwordError, setPasswordError] = useState(false);
+  const [fieldErrors, setFieldErrors] = useState<Record<string, string>>({});
   const [isLoading, setIsLoading] = useState(false);
   const { addToast } = useToast();
 
@@ -54,6 +58,7 @@ export default function SignupPage() {
   };
 
   const handleSignup = async () => {
+    setFieldErrors({});
     if (password !== confirmPassword) {
       addToast({
         title: 'Validation Error',
@@ -84,11 +89,17 @@ export default function SignupPage() {
       });
       navigate('/login');
     } catch (error) {
-      const { message } = normalizeApiError(error, 'Something went wrong');
+      const normalized = normalizeApiError(error, 'Something went wrong');
+      const nextFieldErrors = getValidationFieldErrors(normalized);
+      if (Object.keys(nextFieldErrors).length > 0) {
+        setFieldErrors(nextFieldErrors);
+        return;
+      }
       addToast({
         title: 'Registration Failed',
-        message,
+        message: normalized.message,
         type: 'error',
+        referenceId: normalized.requestId,
       });
     } finally {
       setIsLoading(false);
@@ -107,11 +118,12 @@ export default function SignupPage() {
       });
       navigate('/dashboard');
     } catch (error) {
-      const { message } = normalizeApiError(error, 'Google sign-up failed');
+      const normalized = normalizeApiError(error, 'Google sign-up failed');
       addToast({
         title: 'Sign-up Failed',
-        message,
+        message: normalized.message,
         type: 'error',
+        referenceId: normalized.requestId,
       });
     } finally {
       setIsLoading(false);
@@ -179,15 +191,25 @@ export default function SignupPage() {
                 type="email"
                 required
                 value={email}
-                onChange={(e) => setEmail(e.target.value)}
+                onChange={(e) => {
+                  setEmail(e.target.value);
+                  setFieldErrors((current) => ({ ...current, email: '' }));
+                }}
+                aria-invalid={Boolean(fieldErrors.email)}
+                aria-describedby={fieldErrors.email ? 'signup-email-error' : undefined}
                 className="block w-full rounded-xl border border-white/[0.08] bg-white/[0.03] pl-10 pr-3 py-3 text-white placeholder-white/20 focus:border-red-500/50 focus:bg-white/[0.05] focus:outline-none focus:ring-1 focus:ring-red-500/50 transition-all sm:text-sm"
                 placeholder="Enter your email"
               />
             </div>
+            {fieldErrors.email && (
+              <p id="signup-email-error" className="ml-1 text-xs text-red-400">
+                {fieldErrors.email}
+              </p>
+            )}
             {email && !isEmailValid && (
               <p className="text-xs text-amber-400 ml-1 mt-1 animate-in slide-in-from-top-1">Please enter a valid email address</p>
             )}
-            {isEmailValid && (
+            {isEmailValid && !fieldErrors.email && (
               <p className="text-xs text-green-400 ml-1 mt-1 animate-in slide-in-from-top-1">✓ Email is valid</p>
             )}
           </div>
@@ -206,15 +228,25 @@ export default function SignupPage() {
                 type="text"
                 required
                 value={name}
-                onChange={(e) => setName(e.target.value)}
+                onChange={(e) => {
+                  setName(e.target.value);
+                  setFieldErrors((current) => ({ ...current, name: '' }));
+                }}
+                aria-invalid={Boolean(fieldErrors.name)}
+                aria-describedby={fieldErrors.name ? 'signup-name-error' : undefined}
                 className="block w-full rounded-xl border border-white/[0.08] bg-white/[0.03] pl-10 pr-3 py-3 text-white placeholder-white/20 focus:border-red-500/50 focus:bg-white/[0.05] focus:outline-none focus:ring-1 focus:ring-red-500/50 transition-all sm:text-sm"
                 placeholder="Enter your name"
               />
             </div>
+            {fieldErrors.name && (
+              <p id="signup-name-error" className="ml-1 text-xs text-red-400">
+                {fieldErrors.name}
+              </p>
+            )}
             {name && !isNameValid && (
               <p className="text-xs text-amber-400 ml-1 mt-1 animate-in slide-in-from-top-1">Name must be at least 2 characters</p>
             )}
-            {isNameValid && (
+            {isNameValid && !fieldErrors.name && (
               <p className="text-xs text-green-400 ml-1 mt-1 animate-in slide-in-from-top-1">✓ Name is valid</p>
             )}
           </div>
@@ -233,15 +265,25 @@ export default function SignupPage() {
                 type="password"
                 required
                 value={password}
-                onChange={(e) => setPassword(e.target.value)}
+                onChange={(e) => {
+                  setPassword(e.target.value);
+                  setFieldErrors((current) => ({ ...current, password: '' }));
+                }}
+                aria-invalid={Boolean(fieldErrors.password)}
+                aria-describedby={fieldErrors.password ? 'signup-password-error' : undefined}
                 className="block w-full rounded-xl border border-white/[0.08] bg-white/[0.03] pl-10 pr-3 py-3 text-white placeholder-white/20 focus:border-red-500/50 focus:bg-white/[0.05] focus:outline-none focus:ring-1 focus:ring-red-500/50 transition-all sm:text-sm"
                 placeholder="Create a password"
               />
             </div>
+            {fieldErrors.password && (
+              <p id="signup-password-error" className="ml-1 text-xs text-red-400">
+                {fieldErrors.password}
+              </p>
+            )}
             {password && !isPasswordValid && (
               <p className="text-xs text-amber-400 ml-1 mt-1 animate-in slide-in-from-top-1">Password must be more than 6 characters</p>
             )}
-            {isPasswordValid && (
+            {isPasswordValid && !fieldErrors.password && (
               <p className="text-xs text-green-400 ml-1 mt-1 animate-in slide-in-from-top-1">✓ Password length is valid</p>
             )}
           </div>

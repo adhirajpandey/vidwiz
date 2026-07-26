@@ -211,6 +211,20 @@ def test_lambda_environments_use_domain_specific_contracts(
                 },
             },
         )
+    template.has_resource_properties(
+        "AWS::Lambda::Function",
+        {
+            "FunctionName": "vidwiz-prod-ai-summary-worker",
+            "Environment": {
+                "Variables": Match.object_like(
+                    {
+                        "MIN_QUESTION_LENGTH": "20",
+                        "MAX_QUESTION_LENGTH": "120",
+                    }
+                )
+            },
+        },
+    )
     retired_names = {
         "SQS_QUEUE_URL",
         "SQS_SUMMARY_QUEUE_URL",

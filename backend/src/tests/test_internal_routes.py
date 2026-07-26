@@ -164,9 +164,23 @@ async def test_internal_store_transcript_metadata_summary(client, monkeypatch):
     summary_response = await client.post(
         f"/v2/internal/videos/{video_id}/summary",
         headers=admin_headers(),
-        json={"summary": "Summary"},
+        json={
+            "summary": "Summary",
+            "miscellaneous_data": {
+                "suggested_questions": [
+                    "What is the first idea?",
+                    "How is the idea supported?",
+                    "What conclusion is reached?",
+                ]
+            },
+        },
     )
     assert summary_response.status_code == 200
+    assert summary_response.json()["suggested_questions"] == [
+        "What is the first idea?",
+        "How is the idea supported?",
+        "What conclusion is reached?",
+    ]
 
 
 @pytest.mark.asyncio

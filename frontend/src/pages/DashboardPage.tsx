@@ -6,9 +6,12 @@ import { FaSearch, FaYoutube, FaVideo, FaChevronLeft, FaChevronRight } from 'rea
 import { HiSparkles } from 'react-icons/hi2';
 import { getUserFromToken, removeToken } from '../lib/authUtils';
 import { videosApi } from '../api';
+import { normalizeApiError } from '../api/errors';
+import type { NormalizedApiError } from '../api/errors';
 import type { VideoSearchItem } from '../api/types';
 import config from '../config';
 import Seo from '../components/Seo';
+import ErrorState from '../components/ui/ErrorState';
 
 export default function DashboardPage() {
   const [user, setUser] = useState<{ email: string; name?: string } | null>(null);
@@ -20,6 +23,7 @@ export default function DashboardPage() {
   const [currentPage, setCurrentPage] = useState(1);
   const [totalPages, setTotalPages] = useState(0);
   const [totalVideos, setTotalVideos] = useState(0);
+  const [loadError, setLoadError] = useState<NormalizedApiError | null>(null);
   const navigate = useNavigate();
 
   useEffect(() => {
@@ -43,6 +47,7 @@ export default function DashboardPage() {
 
   const fetchPage = async (page: number, isInitial = false) => {
     setIsSearching(true);
+    setLoadError(null);
     try {
       // API client automatically handles auth token
       const data = await videosApi.listVideos({
@@ -59,12 +64,13 @@ export default function DashboardPage() {
         setHasAnyVideos(data.total > 0);
       }
     } catch (error) {
-       // 401 handling is done by client interceptor but we can add specific logic if needed
-       // client interceptor might redirect, so we might just log here
+       const normalized = normalizeApiError(
+         error,
+         'Unable to load your videos. Check your connection and try again.'
+       );
        console.error('Failed to fetch videos', error);
-       setVideos([]);
-       setTotalPages(0);
-       setTotalVideos(0);
+       if (normalized.handled) return;
+       setLoadError(normalized);
     } finally {
       setIsSearching(false);
       setHasSearched(true);
@@ -179,7 +185,18 @@ export default function DashboardPage() {
             
             {/* Results list */}
             <div className="p-3 md:p-5">
-              {videos.length === 0 ? (
+              {loadError ? (
+                <ErrorState
+                  compact
+                  headingLevel={4}
+                  title="Unable to load videos"
+                  message={loadError.message}
+                  referenceId={loadError.requestId}
+                  onRetry={() =>
+                    void fetchPage(currentPage || 1, searchQuery.trim() === '')
+                  }
+                />
+              ) : videos.length === 0 ? (
                 !hasAnyVideos ? (
                   /* Onboarding: user has no saved videos yet */
                   <div className="text-center py-10 md:py-14 px-4 select-none">

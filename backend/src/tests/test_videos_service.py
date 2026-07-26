@@ -104,6 +104,13 @@ def test_is_video_ready(db_session):
 def test_format_event_payload(db_session):
     video = seed_video(db_session, "fmt1234567", "Format")
     video.video_metadata = {"title": "Format"}
+    video.miscellaneous_data = {
+        "suggested_questions": [
+            "What is the first idea?",
+            "How is the idea supported?",
+            "What conclusion is reached?",
+        ]
+    }
     db_session.commit()
 
     event = videos_service._format_event("snapshot", video)
@@ -112,6 +119,23 @@ def test_format_event_payload(db_session):
     payload = json.loads(data_line.replace("data: ", "", 1))
     assert payload["event"] == "snapshot"
     assert payload["video"]["video_id"] == "fmt1234567"
+    assert payload["video"]["suggested_questions"] == [
+        "What is the first idea?",
+        "How is the idea supported?",
+        "What conclusion is reached?",
+    ]
+
+
+def test_video_read_hides_invalid_suggested_questions(db_session):
+    video = seed_video(db_session, "invalid12345", "Invalid")
+    video.miscellaneous_data = {"suggested_questions": ["Only one?"]}
+    db_session.commit()
+
+    event = videos_service._format_event("snapshot", video)
+    data_line = [line for line in event.splitlines() if line.startswith("data: ")][0]
+    payload = json.loads(data_line.replace("data: ", "", 1))
+
+    assert payload["video"]["suggested_questions"] is None
 
 
 def test_compute_total_pages_zero():

@@ -4,7 +4,7 @@ import { Lock, X, Timer } from 'lucide-react';
 interface RegisteredLimitModalProps {
   isOpen: boolean;
   onClose: () => void;
-  resetInSeconds: number;
+  resetInSeconds: number | null;
 }
 
 const RegisteredLimitModal: React.FC<RegisteredLimitModalProps> = ({ 
@@ -15,10 +15,10 @@ const RegisteredLimitModal: React.FC<RegisteredLimitModalProps> = ({
   const [timeLeft, setTimeLeft] = useState(initialResetSeconds);
 
   useEffect(() => {
-    if (!isOpen || timeLeft <= 0) return;
+    if (!isOpen || timeLeft === null || timeLeft <= 0) return;
 
     const timer = setInterval(() => {
-      setTimeLeft((prev) => Math.max(0, prev - 1));
+      setTimeLeft((prev) => prev === null ? null : Math.max(0, prev - 1));
     }, 1000);
 
     return () => clearInterval(timer);
@@ -85,10 +85,15 @@ const RegisteredLimitModal: React.FC<RegisteredLimitModalProps> = ({
           <div className="bg-muted/30 border border-border rounded-xl p-4 mb-6">
             <div className="flex items-center justify-center gap-2 text-indigo-400 mb-1">
               <Timer className="w-4 h-4" />
-              <span className="text-xs font-semibold uppercase tracking-wider">Unfreezes In</span>
+              <span className="text-xs font-semibold uppercase tracking-wider">
+                {timeLeft === null ? 'Availability' : 'Available again in'}
+              </span>
             </div>
-            <div className="text-3xl font-mono font-bold text-foreground">
-              {formatTime(timeLeft)}
+            <div className={timeLeft === null
+              ? 'text-base font-semibold text-foreground'
+              : 'text-3xl font-mono font-bold text-foreground'
+            }>
+              {timeLeft === null ? 'Please try again later' : formatTime(timeLeft)}
             </div>
           </div>
 

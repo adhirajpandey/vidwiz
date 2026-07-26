@@ -6,6 +6,8 @@ import './index.css'
 import App from './App.tsx'
 import ToastProvider from './components/ToastProvider'
 import ScrollToTop from './components/ScrollToTop'
+import SessionExpiredHandler from './components/SessionExpiredHandler'
+import ErrorBoundary from './components/ErrorBoundary'
 
 createRoot(document.getElementById('root')!).render(
   <StrictMode>
@@ -13,7 +15,10 @@ createRoot(document.getElementById('root')!).render(
       <BrowserRouter>
         <ScrollToTop />
         <ToastProvider>
-          <App />
+          <ErrorBoundary>
+            <SessionExpiredHandler />
+            <App />
+          </ErrorBoundary>
         </ToastProvider>
       </BrowserRouter>
     </HelmetProvider>

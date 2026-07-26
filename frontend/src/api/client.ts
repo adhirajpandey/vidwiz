@@ -1,6 +1,11 @@
 import axios, { type AxiosError, type AxiosResponse, type InternalAxiosRequestConfig } from 'axios';
 import config from '../config';
-import { getToken, removeToken } from '../lib/authUtils';
+import { getToken } from '../lib/authUtils';
+import {
+  markSessionExpiredHandled,
+  notifySessionExpired,
+  shouldNotifySessionExpired,
+} from './session';
 
 const apiClient = axios.create({
   baseURL: config.API_URL,
@@ -36,18 +41,15 @@ apiClient.interceptors.response.use(
     return response;
   },
   (error: AxiosError) => {
-    if (error.response) {
-      // Handle 401 Unauthorized - clear token and potentially redirect
-      if (error.response.status === 401) {
-        removeToken();
-        // Ideally we'd redirect here, but doing it in a plain JS file is tricky
-        // without passing the router/navigate function.
-        // Components should listen for 401s or check auth state.
-        // Or we can emit an event.
-        if (window.location.pathname !== '/login' && window.location.pathname !== '/signup') {
-            window.location.href = '/login';
-        }
-      }
+    if (
+      error.response?.status === 401 &&
+      shouldNotifySessionExpired(error.config?.url, error.config?.headers)
+    ) {
+      markSessionExpiredHandled(error);
+      const requestId = error.response.headers?.['x-request-id'];
+      notifySessionExpired({
+        requestId: typeof requestId === 'string' ? requestId : undefined,
+      });
     }
     return Promise.reject(error);
   }

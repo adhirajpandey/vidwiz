@@ -57,6 +57,8 @@ def _set_environment(monkeypatch):
     monkeypatch.setenv("OPENROUTER_API_KEY", "openrouter-token")
     monkeypatch.setenv("MIN_SUMMARY_LENGTH", "1")
     monkeypatch.setenv("MAX_SUMMARY_LENGTH", "800")
+    monkeypatch.setenv("MIN_QUESTION_LENGTH", "20")
+    monkeypatch.setenv("MAX_QUESTION_LENGTH", "120")
 
 
 def _load_module(filename, monkeypatch):
@@ -107,44 +109,113 @@ def test_process_batch_propagates_item_failure(monkeypatch):
         summary_service.process_batch([SimpleNamespace(video_id="video-id")])
 
 
-def test_valid_summary_preserves_braces_in_transcript(monkeypatch):
+def test_valid_artifacts_preserve_braces_and_use_structured_output(monkeypatch):
     summary_service = _load_module("summary_service.py", monkeypatch)
-    prompts = []
+    calls = []
     monkeypatch.setattr(
         summary_service,
         "settings",
-        SimpleNamespace(max_retries=1, min_summary_length=1, max_summary_length=100),
+        SimpleNamespace(
+            max_retries=1,
+            min_summary_length=1,
+            max_summary_length=100,
+            min_question_length=20,
+            max_question_length=120,
+        ),
     )
     monkeypatch.setattr(
         summary_service,
         "llm",
         SimpleNamespace(
-            complete=lambda prompt: prompts.append(prompt) or "Valid summary"
+            complete=lambda prompt, **options: (
+                calls.append((prompt, options))
+                or (
+                    '{"summary":"Valid summary","suggested_questions":'
+                    '["What is the first important idea?",'
+                    '"How does the speaker support that idea?",'
+                    '"What conclusion follows from the discussion?"]}'
+                )
+            )
         ),
     )
 
-    assert (
-        summary_service._valid_summary(None, "Transcript with {literal} braces")
-        == "Valid summary"
-    )
-    assert "Transcript with {literal} braces" in prompts[0]
-    assert "{{literal}}" not in prompts[0]
+    result = summary_service._valid_artifacts(None, "Transcript with {literal} braces")
+    assert result.summary == "Valid summary"
+    assert len(result.suggested_questions) == 3
+    assert "Transcript with {literal} braces" in calls[0][0]
+    assert "{{literal}}" not in calls[0][0]
+    response_format = calls[0][1]["response_format"]
+    schema = response_format["json_schema"]["schema"]
+    assert schema["properties"]["summary"] == {
+        "type": "string",
+        "description": (
+            "A concise English summary grounded only in the video transcript."
+        ),
+    }
+    questions_schema = schema["properties"]["suggested_questions"]
+    assert questions_schema["minItems"] == 3
+    assert questions_schema["maxItems"] == 3
+    assert questions_schema["items"] == {"type": "string"}
+    assert "uniqueItems" not in questions_schema
+    assert calls[0][1]["require_parameters"] is True
 
 
-def test_valid_summary_returns_none_after_invalid_final_retry(monkeypatch):
+def test_valid_artifacts_reuses_prompt_and_schema_across_retries(monkeypatch):
     summary_service = _load_module("summary_service.py", monkeypatch)
+    prompts = []
+    response_formats = []
     monkeypatch.setattr(
         summary_service,
         "settings",
-        SimpleNamespace(max_retries=2, min_summary_length=5, max_summary_length=10),
+        SimpleNamespace(
+            max_retries=2,
+            min_summary_length=5,
+            max_summary_length=100,
+            min_question_length=20,
+            max_question_length=120,
+        ),
     )
     monkeypatch.setattr(
         summary_service,
         "llm",
-        SimpleNamespace(complete=lambda _prompt: "too long for configured bounds"),
+        SimpleNamespace(
+            complete=lambda prompt, **options: (
+                prompts.append(prompt)
+                or response_formats.append(options["response_format"])
+                or '{"summary":"bad"}'
+            )
+        ),
     )
 
-    assert summary_service._valid_summary(None, "Transcript") is None
+    with pytest.raises(RuntimeError, match="structured summary"):
+        summary_service._valid_artifacts("Title", "Transcript")
+
+    assert len(prompts) == 2
+    assert prompts[0] is prompts[1]
+    assert response_formats[0] is response_formats[1]
+
+
+def test_valid_artifacts_raise_after_invalid_final_retry(monkeypatch):
+    summary_service = _load_module("summary_service.py", monkeypatch)
+    monkeypatch.setattr(
+        summary_service,
+        "settings",
+        SimpleNamespace(
+            max_retries=2,
+            min_summary_length=5,
+            max_summary_length=20,
+            min_question_length=20,
+            max_question_length=120,
+        ),
+    )
+    monkeypatch.setattr(
+        summary_service,
+        "llm",
+        SimpleNamespace(complete=lambda _prompt, **_options: '{"summary":"bad"}'),
+    )
+
+    with pytest.raises(RuntimeError, match="structured summary"):
+        summary_service._valid_artifacts(None, "Transcript")
     warnings = [
         record for record in summary_service.logger.records if record[0] == "warning"
     ]
@@ -152,9 +223,8 @@ def test_valid_summary_returns_none_after_invalid_final_retry(monkeypatch):
     assert warnings[-1][2] == {
         "attempt": 2,
         "max_retries": 2,
-        "generated_length": 30,
     }
-    assert "too long for configured bounds" not in str(warnings)
+    assert '{"summary":"bad"}' not in str(warnings)
 
 
 def test_handler_delegates_parsed_batch(monkeypatch):
@@ -179,7 +249,7 @@ def test_process_summary_logs_completion_after_persistence(monkeypatch):
         def get_video(self, _video_id):
             return {"title": "Video", "summary": None}
 
-        def update_summary(self, _video_id, _summary):
+        def update_summary(self, _video_id, _summary, _questions):
             return True
 
     monkeypatch.setattr(summary_service, "api", Api())
@@ -189,7 +259,16 @@ def test_process_summary_logs_completion_after_persistence(monkeypatch):
         SimpleNamespace(get=lambda _video_id: [{"text": "Transcript"}]),
     )
     monkeypatch.setattr(
-        summary_service, "_valid_summary", lambda *_args: "Generated summary"
+        summary_service,
+        "_valid_artifacts",
+        lambda *_args: SimpleNamespace(
+            summary="Generated summary",
+            suggested_questions=[
+                "What is the first important idea?",
+                "How does the speaker support that idea?",
+                "What conclusion follows from the discussion?",
+            ],
+        ),
     )
 
     summary_service.process_summary("video-id")
@@ -199,3 +278,36 @@ def test_process_summary_logs_completion_after_persistence(monkeypatch):
         "AI summary saved",
         {"video_id": "video-id"},
     )
+
+
+def test_process_summary_raises_when_persistence_fails(monkeypatch):
+    summary_service = _load_module("summary_service.py", monkeypatch)
+
+    class Api:
+        def get_video(self, _video_id):
+            return {"title": "Video", "summary": None}
+
+        def update_summary(self, _video_id, _summary, _questions):
+            return False
+
+    monkeypatch.setattr(summary_service, "api", Api())
+    monkeypatch.setattr(
+        summary_service,
+        "transcripts",
+        SimpleNamespace(get=lambda _video_id: [{"text": "Transcript"}]),
+    )
+    monkeypatch.setattr(
+        summary_service,
+        "_valid_artifacts",
+        lambda *_args: SimpleNamespace(
+            summary="Generated summary",
+            suggested_questions=[
+                "What is the first important idea?",
+                "How does the speaker support that idea?",
+                "What conclusion follows from the discussion?",
+            ],
+        ),
+    )
+
+    with pytest.raises(RuntimeError, match="persist"):
+        summary_service.process_summary("video-id")

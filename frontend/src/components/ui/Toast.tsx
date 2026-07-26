@@ -6,12 +6,22 @@ interface ToastProps {
   title: string;
   message: string;
   type: 'success' | 'error' | 'info';
+  durationMs?: number;
+  referenceId?: string;
   onClose: (id: number) => void;
 }
 
 export type { ToastProps };
 
-export default function Toast({ id, title, message, type, onClose }: ToastProps) {
+export default function Toast({
+  id,
+  title,
+  message,
+  type,
+  durationMs,
+  referenceId,
+  onClose,
+}: ToastProps) {
   const [isExiting, setIsExiting] = useState(false);
   const [progress, setProgress] = useState(100);
 
@@ -24,7 +34,7 @@ export default function Toast({ id, title, message, type, onClose }: ToastProps)
 
   useEffect(() => {
     // Progress bar animation
-    const duration = 4000;
+    const duration = durationMs ?? (type === 'error' ? 6000 : 4000);
     const interval = 50;
     const decrement = (interval / duration) * 100;
     
@@ -40,7 +50,7 @@ export default function Toast({ id, title, message, type, onClose }: ToastProps)
       clearInterval(progressTimer);
       clearTimeout(closeTimer);
     };
-  }, [handleClose]);
+  }, [durationMs, handleClose, type]);
 
   const typeConfig = {
     success: {
@@ -90,6 +100,11 @@ export default function Toast({ id, title, message, type, onClose }: ToastProps)
         <div className="flex-1 min-w-0 pt-0.5">
           <p className="text-sm font-medium text-foreground leading-tight">{title}</p>
           <p className="mt-0.5 text-[13px] text-muted-foreground leading-snug">{message}</p>
+          {referenceId && (
+            <p className="mt-1 text-[11px] font-mono text-muted-foreground/70 break-all">
+              Reference: {referenceId}
+            </p>
+          )}
         </div>
 
         {/* Close Button */}

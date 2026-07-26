@@ -67,6 +67,7 @@ export interface VideoRead {
   transcript_available: boolean;
   metadata: VideoMetadata | null;
   summary: string | null;
+  suggested_questions: string[] | null;
   created_at: string;
   updated_at: string;
 }

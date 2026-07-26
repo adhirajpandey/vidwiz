@@ -51,6 +51,16 @@ Describe the FastAPI backend: structure, auth rules, and the request/worker life
 - **Video readiness**: `/v2/videos/{id}/stream` emits `snapshot`, `update`, and `done` when metadata, transcript, and summary are all ready (timeout 60s).
 - **Wiz responses**: `/v2/conversations/{id}/messages` streams chunked `data: {"content": ...}` and ends with `data: [DONE]`.
 
+## Wiz Starter Questions
+- `VideoRead.suggested_questions` exposes only the validated question list; the
+  complete `miscellaneous_data` object is not part of the public API.
+- Videos without generated questions return `suggested_questions=null` and
+  retain the existing metadata + transcript + summary readiness rules.
+- The internal summary write accepts summary text plus nested miscellaneous
+  data and shallow-merges it into the existing object. Unrelated top-level keys
+  are preserved, duplicate top-level keys are overwritten, and nested objects
+  are replaced rather than recursively merged.
+
 ## Error Shape
 - API errors are normalized to `{"error": {"code", "message", "details"}}` for handled exceptions.
 ## Response Conventions
@@ -58,7 +68,9 @@ Describe the FastAPI backend: structure, auth rules, and the request/worker life
 
 ## Data Model (Core Tables)
 - **users**: Email/password or Google login; stores `long_term_token` and `profile_data`.
-- **videos**: Metadata JSON, `transcript_available`, and optional `summary`.
+- **videos**: Metadata JSON, `transcript_available`, optional `summary`, and
+  general-purpose `miscellaneous_data` JSON. Wiz starter questions are stored
+  under `miscellaneous_data.suggested_questions`.
 - **notes**: Timestamped notes tied to `videos.video_id` and a `user_id` (user foreign key is not enforced at the DB layer).
 - **conversations/messages**: Threaded chat history per video; supports guest sessions.
 - **tasks**: Internal work queue with `task_details`, `worker_details`, and retry metadata.
@@ -105,7 +117,9 @@ Describe the FastAPI backend: structure, auth rules, and the request/worker life
 ## Operational Notes
 - OpenAPI docs are enabled only in `local` and `staging` environments.
 - SQLite is the default when `DB_URL` is not set; Postgres is used in deployed environments.
-- CORS allows all origins with credentials enabled; browsers will reject credentialed requests with wildcard origins.
+- CORS allows all origins with credentials enabled and exposes `X-Request-ID`
+  and `Retry-After` to browser clients; browsers will reject credentialed
+  requests with wildcard origins.
 - Rate limiting uses SlowAPI with an in-memory store by default and IP-only keys.
   - Env vars: `RATE_LIMIT_ENABLED`, `RATE_LIMIT_DEFAULT`, `RATE_LIMIT_AUTH`, `RATE_LIMIT_CONVERSATIONS`, `RATE_LIMIT_VIDEOS`.
   - `/v2/internal/*` endpoints are exempt.

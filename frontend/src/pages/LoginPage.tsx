@@ -8,17 +8,22 @@ import GoogleSignInButton from '../components/GoogleSignInButton';
 import AuthLayout from '../components/auth/AuthLayout';
 import { setToken } from '../lib/authUtils';
 import { authApi } from '../api';
-import { normalizeApiError } from '../api/errors';
+import {
+  getValidationFieldErrors,
+  normalizeApiError,
+} from '../api/errors';
 import Seo from '../components/Seo';
 
 export default function LoginPage() {
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
+  const [fieldErrors, setFieldErrors] = useState<Record<string, string>>({});
   const [isLoading, setIsLoading] = useState(false);
   const { addToast } = useToast();
   const navigate = useNavigate();
 
   const handleLogin = async () => {
+    setFieldErrors({});
     setIsLoading(true);
     try {
       const { token } = await authApi.login({ email, password });
@@ -30,11 +35,17 @@ export default function LoginPage() {
       });
       navigate('/dashboard');
     } catch (error) {
-      const { message } = normalizeApiError(error, 'Invalid credentials');
+      const normalized = normalizeApiError(error, 'Invalid credentials');
+      const nextFieldErrors = getValidationFieldErrors(normalized);
+      if (Object.keys(nextFieldErrors).length > 0) {
+        setFieldErrors(nextFieldErrors);
+        return;
+      }
       addToast({
         title: 'Access Denied',
-        message,
+        message: normalized.message,
         type: 'error',
+        referenceId: normalized.requestId,
       });
     } finally {
       setIsLoading(false);
@@ -53,11 +64,12 @@ export default function LoginPage() {
       });
       navigate('/dashboard');
     } catch (error) {
-      const { message } = normalizeApiError(error, 'Google sign-in failed');
+      const normalized = normalizeApiError(error, 'Google sign-in failed');
       addToast({
         title: 'Sign-in Failed',
-        message,
+        message: normalized.message,
         type: 'error',
+        referenceId: normalized.requestId,
       });
     } finally {
       setIsLoading(false);
@@ -125,11 +137,21 @@ export default function LoginPage() {
                 type="email"
                 required
                 value={email}
-                onChange={(e) => setEmail(e.target.value)}
+                onChange={(e) => {
+                  setEmail(e.target.value);
+                  setFieldErrors((current) => ({ ...current, email: '' }));
+                }}
+                aria-invalid={Boolean(fieldErrors.email)}
+                aria-describedby={fieldErrors.email ? 'login-email-error' : undefined}
                 className="block w-full rounded-xl border border-white/[0.08] bg-white/[0.03] pl-10 pr-3 py-3 text-white placeholder-white/20 focus:border-red-500/50 focus:bg-white/[0.05] focus:outline-none focus:ring-1 focus:ring-red-500/50 transition-all sm:text-sm"
                 placeholder="Enter your email"
               />
             </div>
+            {fieldErrors.email && (
+              <p id="login-email-error" className="ml-1 text-xs text-red-400">
+                {fieldErrors.email}
+              </p>
+            )}
           </div>
 
           <div className="space-y-2">
@@ -148,11 +170,21 @@ export default function LoginPage() {
                 type="password"
                 required
                 value={password}
-                onChange={(e) => setPassword(e.target.value)}
+                onChange={(e) => {
+                  setPassword(e.target.value);
+                  setFieldErrors((current) => ({ ...current, password: '' }));
+                }}
+                aria-invalid={Boolean(fieldErrors.password)}
+                aria-describedby={fieldErrors.password ? 'login-password-error' : undefined}
                 className="block w-full rounded-xl border border-white/[0.08] bg-white/[0.03] pl-10 pr-3 py-3 text-white placeholder-white/20 focus:border-red-500/50 focus:bg-white/[0.05] focus:outline-none focus:ring-1 focus:ring-red-500/50 transition-all sm:text-sm"
                 placeholder="••••••••"
               />
             </div>
+            {fieldErrors.password && (
+              <p id="login-password-error" className="ml-1 text-xs text-red-400">
+                {fieldErrors.password}
+              </p>
+            )}
           </div>
         </div>
 

@@ -3,13 +3,15 @@ import { useParams, useNavigate } from 'react-router-dom';
 import { Sparkles, ChevronDown, ChevronUp } from 'lucide-react';
 import { authApi, videosApi, notesApi } from '../api';
 import { normalizeApiError } from '../api/errors';
+import type { NormalizedApiError } from '../api/errors';
 import type { VideoRead, NoteRead } from '../api/types';
 import NoteCard from '../components/NoteCard';
 import { useToast } from '../hooks/useToast';
 import { FaExclamationTriangle, FaPlay, FaEye, FaHeart, FaExternalLinkAlt } from 'react-icons/fa';
-import { getToken, removeToken } from '../lib/authUtils';
+import { getToken } from '../lib/authUtils';
 import config from '../config';
 import Seo from '../components/Seo';
+import ErrorState from '../components/ui/ErrorState';
 
 // Video and Note interfaces removed in favor of VideoRead and NoteRead
 
@@ -21,15 +23,24 @@ export default function VideoPage() {
   const [showDeleteModal, setShowDeleteModal] = useState(false);
   const [noteToDelete, setNoteToDelete] = useState<number | null>(null);
   const [isSummaryExpanded, setIsSummaryExpanded] = useState(false);
+  const [isVideoLoading, setIsVideoLoading] = useState(true);
+  const [isNotesLoading, setIsNotesLoading] = useState(true);
+  const [videoError, setVideoError] = useState<NormalizedApiError | null>(null);
+  const [notesError, setNotesError] = useState<NormalizedApiError | null>(null);
   const navigate = useNavigate();
   const { addToast } = useToast();
 
-  const fetchNotes = useCallback(async () => {
+  const fetchNotes = useCallback(async (background = false) => {
     const token = getToken();
-    if (!token || !videoId) return;
+    if (!token || !videoId) {
+      if (!background) setIsNotesLoading(false);
+      return;
+    }
 
+    if (!background) setIsNotesLoading(true);
     try {
       const data = await notesApi.listNotes(videoId);
+      setNotesError(null);
       setNotes(
         data.sort(
           (a: NoteRead, b: NoteRead) =>
@@ -37,69 +48,70 @@ export default function VideoPage() {
         )
       );
     } catch (error) {
-      const { status } = normalizeApiError(error, 'Failed to fetch notes');
+      const normalized = normalizeApiError(
+        error,
+        'Unable to load notes. Please try again.'
+      );
       console.error('Failed to fetch notes', error);
-      if (status === 401) {
-        removeToken();
-        navigate('/login');
-      } else {
-        setNotes([]);
-      }
+      if (normalized.handled) return;
+      if (!background) setNotesError(normalized);
+    } finally {
+      if (!background) setIsNotesLoading(false);
     }
-  }, [videoId, navigate]);
+  }, [videoId]);
+
+  const fetchVideoDetails = useCallback(async () => {
+    if (!videoId) return;
+    setIsVideoLoading(true);
+    setVideoError(null);
+    try {
+      const data = await videosApi.getVideo(videoId);
+      setVideo(data);
+    } catch (error) {
+      const normalized = normalizeApiError(
+        error,
+        'Unable to load this video. Please try again.'
+      );
+      console.error('Failed to fetch video details', error);
+      if (normalized.handled) return;
+      setVideoError(normalized);
+    } finally {
+      setIsVideoLoading(false);
+    }
+  }, [videoId]);
+
+  const getUserPreferences = useCallback(async () => {
+    const token = getToken();
+    if (!token) {
+      setUserAiNotesEnabled(false);
+      return;
+    }
+
+    try {
+      const user = await authApi.getMe();
+      setUserAiNotesEnabled(Boolean(user.ai_notes_enabled));
+    } catch (error) {
+      const normalized = normalizeApiError(
+        error,
+        'Some note preferences could not be loaded.'
+      );
+      console.error('Failed to fetch user preferences', error);
+      if (normalized.handled) return;
+      setUserAiNotesEnabled(false);
+      addToast({
+        title: 'Preferences unavailable',
+        message: normalized.message,
+        type: 'error',
+        referenceId: normalized.requestId,
+      });
+    }
+  }, [addToast]);
 
   useEffect(() => {
-    const fetchVideoDetails = async () => {
-      // videosApi.getVideo handles auth internally if header is needed, 
-      // but getVideo is public. 401 handling is for protected routes.
-      // However, frontend flow seems to check token for everything if protected.
-      // Backend: /videos/{id} is public? Check router.
-      // Usually videos are public or protected.
-      // If we need token, client handles it.
-      if (!videoId) return;
-      try {
-        const data = await videosApi.getVideo(videoId);
-        setVideo(data);
-      } catch (error) {
-        const { status } = normalizeApiError(error, 'Failed to fetch video details');
-        console.error('Failed to fetch video details', error);
-        // If 401, client interceptor might have handled it, else navigating
-        if (status === 401) {
-           removeToken();
-           navigate('/login');
-        } else {
-           // On other errors (404 etc), go to dashboard
-           navigate('/dashboard');
-        }
-      }
-    };
-
-    const getUserPreferences = async () => {
-      const token = getToken();
-      if (!token) {
-        setUserAiNotesEnabled(false);
-        return;
-      }
-
-      try {
-        const user = await authApi.getMe();
-        setUserAiNotesEnabled(Boolean(user.ai_notes_enabled));
-      } catch (error) {
-        const { status } = normalizeApiError(error, 'Failed to fetch user preferences');
-        console.error('Failed to fetch user preferences', error);
-        if (status === 401) {
-          removeToken();
-          navigate('/login');
-        } else {
-          setUserAiNotesEnabled(false);
-        }
-      }
-    };
-
     fetchVideoDetails();
     fetchNotes();
     getUserPreferences();
-  }, [videoId, navigate, fetchNotes]);
+  }, [fetchNotes, fetchVideoDetails, getUserPreferences]);
 
   useEffect(() => {
     if (!videoId || !userAiNotesEnabled) return;
@@ -110,7 +122,7 @@ export default function VideoPage() {
     if (!hasPendingNotes) return;
 
     const intervalId = window.setInterval(() => {
-      void fetchNotes();
+      void fetchNotes(true);
     }, config.NOTES_POLL_INTERVAL_MS);
 
     return () => window.clearInterval(intervalId);
@@ -125,14 +137,15 @@ export default function VideoPage() {
       setNotes(prevNotes => prevNotes.map(n => (n.id === noteId ? updatedNote : n)));
       addToast({ title: 'Success', message: 'Note updated successfully', type: 'success' });
     } catch (error) {
-      const { status } = normalizeApiError(error, 'Failed to update note');
+      const normalized = normalizeApiError(error, 'Failed to update note');
       console.error('Error updating note:', error);
-      if (status === 401) {
-        removeToken();
-        navigate('/login');
-      } else {
-        addToast({ title: 'Error', message: 'Failed to update note', type: 'error' });
-      }
+      if (normalized.handled) return;
+      addToast({
+        title: 'Unable to update note',
+        message: normalized.message,
+        type: 'error',
+        referenceId: normalized.requestId,
+      });
     }
   };
 
@@ -144,14 +157,15 @@ export default function VideoPage() {
       setNotes(prevNotes => prevNotes.filter(n => n.id !== noteToDelete));
       addToast({ title: 'Success', message: 'Note deleted successfully', type: 'success' });
     } catch (error) {
-      const { status } = normalizeApiError(error, 'Failed to delete note');
+      const normalized = normalizeApiError(error, 'Failed to delete note');
       console.error('Error deleting note:', error);
-      if (status === 401) {
-        removeToken();
-        navigate('/login');
-      } else {
-        addToast({ title: 'Error', message: 'Failed to delete note', type: 'error' });
-      }
+      if (normalized.handled) return;
+      addToast({
+        title: 'Unable to delete note',
+        message: normalized.message,
+        type: 'error',
+        referenceId: normalized.requestId,
+      });
     }
     setShowDeleteModal(false);
     setNoteToDelete(null);
@@ -199,7 +213,24 @@ export default function VideoPage() {
         </div>
       )}
         <div className="max-w-4xl mx-auto px-6 py-12">
-        {video && (
+        {isVideoLoading && (
+          <div
+            aria-busy="true"
+            aria-label="Loading video"
+            className="mb-8 h-72 animate-pulse rounded-2xl border border-border/30 bg-card"
+          />
+        )}
+        {videoError && (
+          <div className="mb-8 rounded-2xl border border-border bg-card">
+            <ErrorState
+              title={videoError.kind === 'not_found' ? 'Video not found' : 'Unable to load video'}
+              message={videoError.message}
+              referenceId={videoError.requestId}
+              onRetry={() => void fetchVideoDetails()}
+            />
+          </div>
+        )}
+        {video && !videoError && (
           <div className="relative bg-gradient-to-br from-card via-card to-card/80 rounded-2xl shadow-2xl overflow-hidden mb-8 border border-border/30 select-none">
             {/* Ambient glow effect */}
             <div className="absolute -inset-1 bg-gradient-to-r from-red-500/20 via-transparent to-red-500/20 rounded-2xl blur-xl opacity-50"></div>
@@ -336,7 +367,24 @@ export default function VideoPage() {
           
           {/* Notes list */}
           <div className="p-3 md:p-5">
-            {notes.length === 0 ? (
+            {isNotesLoading ? (
+              <div
+                aria-busy="true"
+                className="space-y-3 px-2 py-6"
+              >
+                <div className="h-20 animate-pulse rounded-xl bg-muted" />
+                <div className="h-20 animate-pulse rounded-xl bg-muted" />
+              </div>
+            ) : notesError ? (
+              <ErrorState
+                compact
+                headingLevel={4}
+                title="Unable to load notes"
+                message={notesError.message}
+                referenceId={notesError.requestId}
+                onRetry={() => void fetchNotes()}
+              />
+            ) : notes.length === 0 ? (
               <div className="text-center py-10 md:py-14 select-none">
                 <div className="w-14 h-14 md:w-16 md:h-16 mx-auto mb-3 md:mb-4 rounded-xl bg-white/[0.04] flex items-center justify-center">
                   <svg className="w-7 h-7 md:w-8 md:h-8 text-foreground/20" fill="none" stroke="currentColor" viewBox="0 0 24 24">

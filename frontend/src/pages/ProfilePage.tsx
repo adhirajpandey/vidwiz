@@ -1,14 +1,18 @@
 
 import { useCallback, useEffect, useState } from 'react';
-import { useNavigate } from 'react-router-dom';
 import { authApi, paymentsApi } from '../api';
-import { normalizeApiError } from '../api/errors';
+import {
+  getValidationFieldErrors,
+  normalizeApiError,
+} from '../api/errors';
+import type { NormalizedApiError } from '../api/errors';
 import { useToast } from '../hooks/useToast';
 import { FaExclamationTriangle, FaEye, FaEyeSlash, FaCopy, FaSpinner, FaKey, FaShieldAlt, FaSave, FaPen, FaTimes } from 'react-icons/fa';
 import { Settings, Zap, User as UserIcon, Calendar, Mail, Coins, Sparkles } from 'lucide-react';
-import { getToken, removeToken } from '../lib/authUtils';
+import { getToken } from '../lib/authUtils';
 import type { CreditProduct } from '../api/types';
 import Seo from '../components/Seo';
+import ErrorState from '../components/ui/ErrorState';
 
 interface UserProfile {
   email: string;
@@ -19,6 +23,9 @@ interface UserProfile {
   credits_balance: number;
   created_at?: string;
 }
+
+const buildProductKey = (product: CreditProduct, index: number) =>
+  `${product.product_id}-${product.credits}-${product.price_inr}-${index}`;
 
 export default function ProfilePage() {
   const [user, setUser] = useState<UserProfile | null>(null);
@@ -34,15 +41,18 @@ export default function ProfilePage() {
   const [isBuyingCredits, setIsBuyingCredits] = useState(false);
   const [creditProducts, setCreditProducts] = useState<CreditProduct[]>([]);
   const [selectedProductKey, setSelectedProductKey] = useState<string | null>(null);
-  const navigate = useNavigate();
+  const [isProfileLoading, setIsProfileLoading] = useState(true);
+  const [profileError, setProfileError] = useState<NormalizedApiError | null>(null);
+  const [isProductsLoading, setIsProductsLoading] = useState(true);
+  const [productsError, setProductsError] = useState<NormalizedApiError | null>(null);
+  const [nameError, setNameError] = useState<string | null>(null);
   const { addToast } = useToast();
 
   const fetchProfile = useCallback(async () => {
-    // getMe is protected by client interceptor/header injection
-    // But we should check if we have a token locally first if we want to avoid 401?
-    // Actually client handles it.
     const token = getToken();
     if (token) {
+      setIsProfileLoading(true);
+      setProfileError(null);
       try {
         const data = await authApi.getMe();
         setEditName(data.name || '');
@@ -58,60 +68,79 @@ export default function ProfilePage() {
         });
         
       } catch (error) {
-        const { status } = normalizeApiError(error, 'Failed to load profile data');
+        const normalized = normalizeApiError(
+          error,
+          'Unable to load your profile. Please try again.'
+        );
         console.error('Failed to fetch profile', error);
-        if (status === 401) {
-            removeToken();
-            navigate('/login');
-        } else {
-            addToast({ title: 'Error', message: 'Failed to load profile data', type: 'error' });
-        }
+        if (normalized.handled) return;
+        setProfileError(normalized);
+      } finally {
+        setIsProfileLoading(false);
       }
+    } else {
+      setIsProfileLoading(false);
     }
-  }, [addToast, navigate]);
+  }, []);
 
   useEffect(() => {
     void fetchProfile();
   }, [fetchProfile]);
 
-  const buildProductKey = (product: CreditProduct, index: number) =>
-    `${product.product_id}-${product.credits}-${product.price_inr}-${index}`;
-
-  useEffect(() => {
-    const loadProducts = async () => {
-      try {
-        const data = await paymentsApi.listProducts();
-        const sortedProducts = [...data.products].sort(
-          (a, b) => a.price_inr - b.price_inr
-        );
-        setCreditProducts(sortedProducts);
-        if (sortedProducts.length > 0) {
-          setSelectedProductKey(prev => prev ?? buildProductKey(sortedProducts[0], 0));
-        }
-      } catch (error) {
-        console.error('Failed to load credit products', error);
+  const loadProducts = useCallback(async () => {
+    setIsProductsLoading(true);
+    setProductsError(null);
+    try {
+      const data = await paymentsApi.listProducts();
+      const sortedProducts = [...data.products].sort(
+        (a, b) => a.price_inr - b.price_inr
+      );
+      setCreditProducts(sortedProducts);
+      if (sortedProducts.length > 0) {
+        setSelectedProductKey(prev => prev ?? buildProductKey(sortedProducts[0], 0));
       }
-    };
-
-    loadProducts();
+    } catch (error) {
+      const normalized = normalizeApiError(
+        error,
+        'Unable to load credit packs. Please try again.'
+      );
+      console.error('Failed to load credit products', error);
+      if (normalized.handled) return;
+      setProductsError(normalized);
+    } finally {
+      setIsProductsLoading(false);
+    }
   }, []);
 
+  useEffect(() => {
+    void loadProducts();
+  }, [loadProducts]);
+
   const handleSaveDetails = async () => {
-    if (!user) return;
+    if (!user) return false;
+    setNameError(null);
     setIsSavingDetails(true);
     try {
       const data = await authApi.updateProfile({ name: editName });
       setUser(prev => prev ? { ...prev, name: data.name } : null);
       addToast({ title: 'Success', message: 'Profile updated successfully', type: 'success' });
+      return true;
     } catch (error) {
-      const { message, status } = normalizeApiError(error, 'Failed to update profile');
+      const normalized = normalizeApiError(error, 'Failed to update profile');
+      const fieldErrors = getValidationFieldErrors(normalized);
       console.error('Failed to save details', error);
-      if (status === 401) {
-        removeToken();
-        navigate('/login');
+      if (normalized.handled) return false;
+      if (fieldErrors.name) {
+        setNameError(fieldErrors.name);
       } else {
-        addToast({ title: 'Error', message, type: 'error' });
+        addToast({
+          title: 'Unable to update profile',
+          message: normalized.message,
+          type: 'error',
+          referenceId: normalized.requestId,
+        });
       }
+      return false;
     } finally {
       setIsSavingDetails(false);
     }
@@ -124,14 +153,18 @@ export default function ProfilePage() {
       setUser(prev => prev ? { ...prev, ai_notes_enabled: data.ai_notes_enabled } : null);
       addToast({ title: 'Success', message: 'Profile updated successfully', type: 'success' });
     } catch (error) {
-      const { status } = normalizeApiError(error, 'Failed to update AI notes setting');
+      const normalized = normalizeApiError(
+        error,
+        'Failed to update AI notes setting'
+      );
       console.error('Failed to update profile', error);
-      if (status === 401) {
-        removeToken();
-        navigate('/login');
-      } else {
-        addToast({ title: 'Error', message: 'Failed to update AI notes setting', type: 'error' });
-      }
+      if (normalized.handled) return;
+      addToast({
+        title: 'Unable to update preference',
+        message: normalized.message,
+        type: 'error',
+        referenceId: normalized.requestId,
+      });
     }
   };
 
@@ -143,14 +176,15 @@ export default function ProfilePage() {
       setUser(prev => prev ? { ...prev, token_exists: true } : null);
       addToast({ title: 'Success', message: data.message || 'API token generated successfully', type: 'success' });
     } catch (error) {
-      const { message, status } = normalizeApiError(error, 'Failed to generate token');
+      const normalized = normalizeApiError(error, 'Failed to generate token');
       console.error('Error generating token:', error);
-      if (status === 401) {
-        removeToken();
-        navigate('/login');
-      } else {
-        addToast({ title: 'Error', message, type: 'error' });
-      }
+      if (normalized.handled) return;
+      addToast({
+        title: 'Unable to generate token',
+        message: normalized.message,
+        type: 'error',
+        referenceId: normalized.requestId,
+      });
     } finally {
       setIsGeneratingToken(false);
     }
@@ -164,24 +198,34 @@ export default function ProfilePage() {
       setUser(prev => prev ? { ...prev, token_exists: false } : null);
       addToast({ title: 'Success', message: data.message || 'API token revoked successfully', type: 'success' });
     } catch (error) {
-      const { message, status } = normalizeApiError(error, 'Failed to revoke token');
+      const normalized = normalizeApiError(error, 'Failed to revoke token');
       console.error('Error revoking token:', error);
-      if (status === 401) {
-        removeToken();
-        navigate('/login');
-      } else {
-         addToast({ title: 'Error', message, type: 'error' });
-      }
+      if (normalized.handled) return;
+      addToast({
+        title: 'Unable to revoke token',
+        message: normalized.message,
+        type: 'error',
+        referenceId: normalized.requestId,
+      });
     } finally {
       setIsRevokingToken(false);
       setShowRevokeModal(false);
     }
   };
 
-  const handleCopyToken = () => {
+  const handleCopyToken = async () => {
     if (apiToken) {
-      navigator.clipboard.writeText(apiToken);
-      addToast({ title: 'Copied!', message: 'Token copied to clipboard', type: 'success' });
+      try {
+        await navigator.clipboard.writeText(apiToken);
+        addToast({ title: 'Copied!', message: 'Token copied to clipboard', type: 'success' });
+      } catch (error) {
+        console.error('Failed to copy token', error);
+        addToast({
+          title: 'Unable to copy',
+          message: 'Copy the token manually from the field.',
+          type: 'error',
+        });
+      }
     } else {
       addToast({ title: 'No Token', message: 'Generate a token first', type: 'error' });
     }
@@ -218,14 +262,15 @@ export default function ProfilePage() {
       });
       window.location.href = data.checkout_url;
     } catch (error) {
-      const { status } = normalizeApiError(error, 'Unable to start checkout');
+      const normalized = normalizeApiError(error, 'Unable to start checkout');
       console.error('Failed to start checkout', error);
-      if (status === 401) {
-        removeToken();
-        navigate('/login');
-      } else {
-        addToast({ title: 'Error', message: 'Unable to start checkout', type: 'error' });
-      }
+      if (normalized.handled) return;
+      addToast({
+        title: 'Unable to start checkout',
+        message: normalized.message,
+        type: 'error',
+        referenceId: normalized.requestId,
+      });
     } finally {
       setIsBuyingCredits(false);
     }
@@ -274,7 +319,24 @@ export default function ProfilePage() {
       )}
 
         <div className="max-w-4xl mx-auto px-4 md:px-6 py-8 md:py-12">
-        {user && (
+        {isProfileLoading && (
+          <div
+            aria-busy="true"
+            aria-label="Loading profile"
+            className="h-80 animate-pulse rounded-2xl border border-border bg-card"
+          />
+        )}
+        {profileError && (
+          <div className="rounded-2xl border border-border bg-card">
+            <ErrorState
+              title="Unable to load profile"
+              message={profileError.message}
+              referenceId={profileError.requestId}
+              onRetry={() => void fetchProfile()}
+            />
+          </div>
+        )}
+        {user && !profileError && (
           <div className="space-y-12">
             
             {/* Profile Identity Section */}
@@ -357,6 +419,34 @@ export default function ProfilePage() {
                       </div>
 
                       <div className="flex flex-col gap-4 md:items-end">
+                        {isProductsLoading ? (
+                          <div
+                            aria-busy="true"
+                            aria-label="Loading credit packs"
+                            className="grid w-full gap-3 sm:grid-cols-3"
+                          >
+                            {[0, 1, 2].map((item) => (
+                              <div
+                                key={item}
+                                className="h-[104px] animate-pulse rounded-xl bg-muted"
+                              />
+                            ))}
+                          </div>
+                        ) : productsError ? (
+                          <ErrorState
+                            compact
+                            headingLevel={3}
+                            className="py-3"
+                            title="Unable to load credit packs"
+                            message={productsError.message}
+                            referenceId={productsError.requestId}
+                            onRetry={() => void loadProducts()}
+                          />
+                        ) : creditProducts.length === 0 ? (
+                          <p className="py-4 text-sm text-muted-foreground">
+                            No credit packs are currently available.
+                          </p>
+                        ) : (
                         <div className="grid gap-3 sm:grid-cols-3">
                           {creditProducts.map((product, index) => {
                             const productKey = buildProductKey(product, index);
@@ -412,6 +502,7 @@ export default function ProfilePage() {
                             );
                           })}
                         </div>
+                        )}
                       </div>
                     </div>
                   </div>
@@ -446,7 +537,12 @@ export default function ProfilePage() {
                           id="name"
                           type="text"
                           value={editName}
-                          onChange={(e) => setEditName(e.target.value)}
+                          onChange={(e) => {
+                            setEditName(e.target.value);
+                            setNameError(null);
+                          }}
+                          aria-invalid={Boolean(nameError)}
+                          aria-describedby={nameError ? 'profile-name-error' : undefined}
                           placeholder="Enter your name"
                           className="w-full px-4 py-2.5 text-sm bg-black/20 border border-white/[0.08] rounded-lg text-foreground focus:outline-none focus:border-violet-500/50 transition-colors"
                         />
@@ -454,6 +550,11 @@ export default function ProfilePage() {
                         <div className="w-full px-4 py-2.5 text-sm bg-black/10 border border-white/[0.04] rounded-lg text-foreground/80">
                           {user?.name || <span className="text-foreground/40 italic">Not set</span>}
                         </div>
+                      )}
+                      {nameError && (
+                        <p id="profile-name-error" className="text-xs text-red-500 dark:text-red-400">
+                          {nameError}
+                        </p>
                       )}
                     </div>
                     
@@ -473,8 +574,9 @@ export default function ProfilePage() {
                       <div className="pt-2 flex items-center gap-3">
                         <button
                           onClick={async () => {
-                            await handleSaveDetails();
-                            setIsEditingDetails(false);
+                            if (await handleSaveDetails()) {
+                              setIsEditingDetails(false);
+                            }
                           }}
                           disabled={isSavingDetails}
                           className="inline-flex items-center gap-2 px-5 py-2 text-sm font-semibold text-white bg-gradient-to-r from-violet-600 via-violet-500 to-violet-600 bg-[length:200%_100%] rounded-lg hover:bg-right transition-all duration-500 shadow-lg shadow-violet-500/20 disabled:opacity-50 disabled:cursor-not-allowed cursor-pointer"
@@ -485,6 +587,7 @@ export default function ProfilePage() {
                         <button
                           onClick={() => {
                             setEditName(user?.name || '');
+                            setNameError(null);
                             setIsEditingDetails(false);
                           }}
                           disabled={isSavingDetails}

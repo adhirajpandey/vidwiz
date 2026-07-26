@@ -43,10 +43,17 @@ or systemd unit manages parallel helper processes.
   - Triggered by SQS messages containing `{ video_id }`
   - Reads transcript from S3 with retry/backoff and builds a full transcript string
   - Skips generation if summary already exists
-  - Uses OpenRouter via OpenAI-compatible API (`OPENROUTER_API_KEY`)
-  - Updates video via `/v2/internal/videos/{id}/summary`
+  - Uses one OpenRouter structured-output request to generate the summary and
+    exactly three video-specific Wiz questions
+  - Enforces summary and question character limits in the prompt and local
+    validation. The JSON Schema enforces the response shape and exactly three
+    questions while avoiding constraints unsupported by some providers
+  - Updates the summary and `miscellaneous_data.suggested_questions` together
+    via `/v2/internal/videos/{id}/summary`
   - Propagates processing exceptions so the single-record SQS batch is retried
-  - Configurable: `MIN_SUMMARY_LENGTH`, `MAX_SUMMARY_LENGTH`, `MAX_RETRIES`
+  - Configurable: `MIN_SUMMARY_LENGTH`, `MAX_SUMMARY_LENGTH`,
+    `MIN_QUESTION_LENGTH` (default 20), `MAX_QUESTION_LENGTH` (default 120),
+    `MAX_RETRIES`
 
 - **Task Dispatcher Lambda**:
   `backend/workers/lambdas/transcript_dispatcher`

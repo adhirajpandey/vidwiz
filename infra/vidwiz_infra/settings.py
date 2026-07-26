@@ -16,6 +16,7 @@ AwsAccountId = Annotated[str, StringConstraints(pattern=r"^\d{12}$")]
 LambdaMemory = Annotated[int, Field(ge=128, le=10_240)]
 LambdaTimeout = Annotated[int, Field(ge=1, le=900)]
 PositiveInt = Annotated[int, Field(ge=1)]
+QuestionMaxLength = Annotated[int, Field(ge=1, le=500)]
 
 
 class ProductionDeploymentConfig(BaseSettings):
@@ -53,6 +54,8 @@ class ProductionDeploymentConfig(BaseSettings):
     max_note_length: PositiveInt
     min_summary_length: PositiveInt
     max_summary_length: PositiveInt
+    min_question_length: PositiveInt
+    max_question_length: QuestionMaxLength
     max_retries: PositiveInt
     request_timeout: PositiveInt
     transcript_fetch_max_retries: PositiveInt
@@ -80,6 +83,8 @@ class ProductionDeploymentConfig(BaseSettings):
             raise ValueError("MIN_NOTE_LENGTH must not exceed MAX_NOTE_LENGTH")
         if self.min_summary_length > self.max_summary_length:
             raise ValueError("MIN_SUMMARY_LENGTH must not exceed MAX_SUMMARY_LENGTH")
+        if self.min_question_length > self.max_question_length:
+            raise ValueError("MIN_QUESTION_LENGTH must not exceed MAX_QUESTION_LENGTH")
         return self
 
     @classmethod

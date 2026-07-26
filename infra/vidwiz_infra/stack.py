@@ -131,6 +131,8 @@ class VidwizStack(cdk.Stack):
                 ),
                 "MIN_SUMMARY_LENGTH": str(settings.min_summary_length),
                 "MAX_SUMMARY_LENGTH": str(settings.max_summary_length),
+                "MIN_QUESTION_LENGTH": str(settings.min_question_length),
+                "MAX_QUESTION_LENGTH": str(settings.max_question_length),
             },
         )
 

@@ -53,6 +53,39 @@ def test_openrouter_client_uses_configured_model_and_auth(settings):
     assert calls[0][1]["json"]["model"] == "google/gemini-3-flash-preview"
 
 
+def test_openrouter_client_sends_structured_output_options(settings):
+    calls = []
+
+    class Response:
+        def raise_for_status(self):
+            pass
+
+        def json(self):
+            return {"choices": [{"message": {"content": '{"summary": "result"}'}}]}
+
+    class Session:
+        def post(self, *args, **kwargs):
+            calls.append((args, kwargs))
+            return Response()
+
+    client = OpenRouterClient(settings, FakeLogger(), session=Session())
+    response_format = {
+        "type": "json_schema",
+        "json_schema": {"name": "video_summary"},
+    }
+
+    assert (
+        client.complete(
+            "prompt",
+            response_format=response_format,
+            require_parameters=True,
+        )
+        == '{"summary": "result"}'
+    )
+    assert calls[0][1]["json"]["response_format"] == response_format
+    assert calls[0][1]["json"]["provider"] == {"require_parameters": True}
+
+
 def test_internal_api_client_updates_ai_note(settings):
     calls = []
 
@@ -69,6 +102,34 @@ def test_internal_api_client_updates_ai_note(settings):
     assert client.update_note(12, "Generated note") is True
     assert calls[0][0] == ("https://internal.example/v2/internal/notes/12",)
     assert calls[0][1]["json"] == {"text": "Generated note", "generated_by_ai": True}
+
+
+def test_internal_api_client_updates_summary_and_questions(settings):
+    calls = []
+
+    class Response:
+        status_code = 200
+
+    class Session:
+        def post(self, *args, **kwargs):
+            calls.append((args, kwargs))
+            return Response()
+
+    client = InternalApiClient(settings, FakeLogger(), session=Session())
+    questions = [
+        "What is the first important idea?",
+        "How does the speaker support that idea?",
+        "What conclusion follows from the discussion?",
+    ]
+
+    assert client.update_summary("video-id", "Generated summary", questions)
+    assert calls[0][0] == (
+        "https://internal.example/v2/internal/videos/video-id/summary",
+    )
+    assert calls[0][1]["json"] == {
+        "summary": "Generated summary",
+        "miscellaneous_data": {"suggested_questions": questions},
+    }
 
 
 def test_openrouter_client_logs_safe_provider_error(settings):
