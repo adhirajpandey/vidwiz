@@ -24,11 +24,30 @@ Summarize the web app structure, routing, and API integration.
 ## Key Behavior
 - **Auth**: JWT stored in `localStorage`, validated on read, and injected into axios requests.
 - **Web-to-extension auth sync**: `setToken`/`removeToken` send `SYNC_TOKEN`/`LOGOUT` to the configured extension ID.
-- **Auth failure handling**: Axios interceptors clear tokens and redirect to `/login` on `401` (except on login/signup routes).
+- **Auth failure handling**: Axios and Fetch requests emit one session-expired
+  event on application `401` responses. The React session handler clears the
+  token, shows one notification, and redirects to `/login`; credential failures
+  on login/signup remain on their forms.
 - **Guest sessions**: Wiz chat generates a `guestSessionId` in `sessionStorage` when no JWT exists; axios attaches `X-Guest-Session-ID` when present on all requests.
 - **Wiz entry**: Rejects playlist URLs and normalizes to a clean video ID before routing.
-- **Wiz chat**: Creates a conversation, streams video readiness from `/v2/videos/:id/stream`, and streams chat responses from `/v2/conversations/:id/messages` using `fetch` + manual SSE parsing.
+- **Wiz chat**: Creates a conversation, streams video readiness from
+  `/v2/videos/:id/stream`, and streams chat responses from
+  `/v2/conversations/:id/messages` through the shared authenticated Fetch and
+  SSE utilities.
+- **Wiz starter questions**: The empty chat renders three video-specific
+  questions from `VideoRead.suggested_questions`. Clicking one fills the input;
+  videos without generated questions show no generic fallback chips.
 - **Video readiness**: Uses a 60s stream timeout; on stream failure it falls back to polling `/v2/videos/:id` every 5s and shows a refresh prompt if transcript never becomes available.
+- **API errors**: Axios, Fetch, and SSE failures normalize to a shared frontend
+  error type. Safe handled `4xx` messages may be shown to users; `5xx` and
+  malformed responses use curated fallback copy and may include the backend
+  `X-Request-ID` as a support reference.
+- **Error presentation**: Field validation is inline, action failures use
+  toasts, and failed page/section loads render persistent retry states. Loading
+  failures are kept separate from legitimate empty results.
+- **Runtime failures**: A root error boundary provides reload/home recovery for
+  unexpected React render failures. No external frontend telemetry is
+  configured.
 - **Notes UI**: Notes can be edited/deleted in the web app; note creation is not exposed in the UI.
 - **AI note pending state**: Video notes show a pending AI chip (`⏳`) and "Generating AI note..." placeholder when a note is empty, not yet AI-generated, and the user has AI notes enabled.
 - **Notes polling**: The video page polls `/v2/videos/:id/notes` every 4 seconds only while pending AI notes exist, and stops polling automatically once all pending notes are resolved.

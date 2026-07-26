@@ -20,7 +20,9 @@ Provide a system-level view of how VidWiz components interact. Subsystem details
 - **Transcript/metadata**: Helpers poll `/v2/internal/tasks`, fetch data, and submit results. Transcript JSON is stored in S3 when configured; the DB `transcript_available` flag is set either way.
 - **AI notes**: Empty-text notes from users with AI notes enabled are queued to SQS once a transcript is already available; the AI note Lambda writes back via internal API. New signups default to AI notes enabled.
 - **Wiz chat**: Transcript-only grounding through OpenRouter; the underlying model is selected with `OPENROUTER_MODEL`. If the transcript is not ready, chat returns `202 Accepted` and waits for processing.
-- **AI summaries**: Task dispatcher Lambda fires on transcript upload (S3) and enqueues summary generation.
+- **AI summaries + Wiz questions**: Task dispatcher Lambda fires on transcript
+  upload (S3) and enqueues one structured generation that returns the video
+  summary and three transcript-grounded starter questions.
 
 ## Auth Boundaries
 - **JWT**: Required for most `/v2` endpoints.

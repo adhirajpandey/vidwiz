@@ -35,6 +35,8 @@ Learning from YouTube is friction-heavy: pausing, losing context, and poor note 
 - **Wiz Chat**: Conversation per video; transcript-only answers with timestamp citations; guest and user quotas.
 - **AI Notes**: Generate when note text is empty, AI notes are enabled, and transcript is already available.
 - **AI Summary**: Generate after transcript availability; optional display in video detail.
+- **Wiz starter questions**: Generate three transcript-grounded questions with
+  each new summary and show them in the empty Wiz chat.
 
 ## Non-Functional Requirements
 - Secure token handling.
