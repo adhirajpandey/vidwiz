@@ -32,11 +32,21 @@ class InternalApiClient:
             note_id,
         )
 
-    def update_summary(self, video_id: str, summary: str) -> bool:
+    def update_summary(
+        self,
+        video_id: str,
+        summary: str,
+        suggested_questions: list[str],
+    ) -> bool:
         return self._request_success(
             "post",
             f"/v2/internal/videos/{video_id}/summary",
-            {"summary": summary},
+            {
+                "summary": summary,
+                "miscellaneous_data": {
+                    "suggested_questions": suggested_questions,
+                },
+            },
             "video_id",
             video_id,
         )
@@ -100,7 +110,22 @@ class OpenRouterClient:
         self._logger = logger
         self._session = session
 
-    def complete(self, prompt: str) -> str | None:
+    def complete(
+        self,
+        prompt: str,
+        *,
+        response_format: dict[str, Any] | None = None,
+        require_parameters: bool = False,
+    ) -> str | None:
+        request_payload: dict[str, Any] = {
+            "model": self._settings.openrouter_model,
+            "messages": [{"role": "user", "content": prompt}],
+        }
+        if response_format is not None:
+            request_payload["response_format"] = response_format
+        if require_parameters:
+            request_payload["provider"] = {"require_parameters": True}
+
         try:
             response = self._session.post(
                 self._settings.openrouter_endpoint,
@@ -108,10 +133,7 @@ class OpenRouterClient:
                     "Content-Type": "application/json",
                     "Authorization": f"Bearer {self._settings.openrouter_api_key}",
                 },
-                json={
-                    "model": self._settings.openrouter_model,
-                    "messages": [{"role": "user", "content": prompt}],
-                },
+                json=request_payload,
                 timeout=self._settings.request_timeout,
             )
             response.raise_for_status()
