@@ -45,7 +45,7 @@ def test_backend_job_uses_locked_dependencies_and_all_quality_gates() -> None:
 
     assert "actions/checkout@v7" in text
     assert "actions/setup-python@v7" in text
-    assert "astral-sh/setup-uv@v9" in text
+    assert "astral-sh/setup-uv@v9.0.0" in text
     assert "python-version: '3.13'" in text
     assert "version: '0.8.22'" in text
     assert "cache-dependency-glob: backend/uv.lock" in text
