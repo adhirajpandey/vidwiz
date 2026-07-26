@@ -57,7 +57,9 @@ Describe the FastAPI backend: structure, auth rules, and the request/worker life
 - Videos without generated questions return `suggested_questions=null` and
   retain the existing metadata + transcript + summary readiness rules.
 - The internal summary write accepts summary text plus nested miscellaneous
-  data and merges new keys without deleting existing miscellaneous values.
+  data and shallow-merges it into the existing object. Unrelated top-level keys
+  are preserved, duplicate top-level keys are overwritten, and nested objects
+  are replaced rather than recursively merged.
 
 ## Error Shape
 - API errors are normalized to `{"error": {"code", "message", "details"}}` for handled exceptions.

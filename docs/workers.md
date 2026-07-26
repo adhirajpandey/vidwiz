@@ -45,8 +45,9 @@ or systemd unit manages parallel helper processes.
   - Skips generation if summary already exists
   - Uses one OpenRouter structured-output request to generate the summary and
     exactly three video-specific Wiz questions
-  - Enforces summary and question character limits in the prompt, JSON Schema,
-    and local validation
+  - Enforces summary and question character limits in the prompt and local
+    validation. The JSON Schema enforces the response shape and exactly three
+    questions while avoiding constraints unsupported by some providers
   - Updates the summary and `miscellaneous_data.suggested_questions` together
     via `/v2/internal/videos/{id}/summary`
   - Propagates processing exceptions so the single-record SQS batch is retried

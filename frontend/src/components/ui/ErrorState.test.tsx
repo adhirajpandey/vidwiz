@@ -18,5 +18,19 @@ describe('ErrorState', () => {
     expect(html).toContain('Reference: request-123');
     expect(html).toContain('Try again');
     expect(html).toContain('role="alert"');
+    expect(html).toContain('<h2');
+  });
+
+  it('uses the configured heading level in embedded contexts', () => {
+    const html = renderToStaticMarkup(
+      <ErrorState
+        headingLevel={4}
+        title="Unable to load notes"
+        message="Please try again."
+      />
+    );
+
+    expect(html).toContain('<h4');
+    expect(html).not.toContain('<h2');
   });
 });

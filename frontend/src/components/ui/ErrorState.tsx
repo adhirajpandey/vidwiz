@@ -7,6 +7,7 @@ interface ErrorStateProps {
   onRetry?: () => void;
   retryLabel?: string;
   compact?: boolean;
+  headingLevel?: 2 | 3 | 4;
   className?: string;
 }
 
@@ -17,8 +18,12 @@ export default function ErrorState({
   onRetry,
   retryLabel = 'Try again',
   compact = false,
+  headingLevel = 2,
   className,
 }: ErrorStateProps) {
+  const Heading =
+    headingLevel === 2 ? 'h2' : headingLevel === 3 ? 'h3' : 'h4';
+
   return (
     <div
       role="alert"
@@ -28,9 +33,9 @@ export default function ErrorState({
         className
       )}
     >
-      <h2 className="text-base font-semibold text-red-600 dark:text-red-400">
+      <Heading className="text-base font-semibold text-red-600 dark:text-red-400">
         {title}
-      </h2>
+      </Heading>
       <p className="mt-1 max-w-md text-sm leading-relaxed text-muted-foreground">
         {message}
       </p>

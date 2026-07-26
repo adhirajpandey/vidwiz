@@ -4,13 +4,17 @@ import {
   type AxiosResponse,
   type InternalAxiosRequestConfig,
 } from 'axios';
-import { describe, expect, it } from 'vitest';
+import { afterEach, describe, expect, it, vi } from 'vitest';
 import {
   getValidationFieldErrors,
   normalizeApiError,
   normalizeFetchError,
 } from './errors';
 import { markSessionExpiredHandled } from './session';
+
+afterEach(() => {
+  vi.useRealTimers();
+});
 
 function createAxiosError(data: unknown, status = 400): AxiosError {
   const config: InternalAxiosRequestConfig = {
@@ -228,6 +232,47 @@ describe('normalizeApiError', () => {
       kind: 'rate_limit',
       retryable: true,
     });
+  });
+
+  it('supports an HTTP-date Retry-After header', async () => {
+    vi.useFakeTimers();
+    vi.setSystemTime(new Date('2026-07-27T10:00:00Z'));
+    const response = new Response(
+      JSON.stringify({ error: { message: 'Try later' } }),
+      {
+        status: 429,
+        headers: {
+          'Content-Type': 'application/json',
+          'Retry-After': 'Mon, 27 Jul 2026 10:00:42 GMT',
+        },
+      }
+    );
+
+    await expect(normalizeFetchError(response, 'Try later')).resolves.toMatchObject({
+      retryAfterSeconds: 42,
+    });
+  });
+
+  it.each([
+    'Mon, 27 Jul 2026 09:59:59 GMT',
+    'not-a-date',
+  ])('ignores an invalid or past Retry-After value: %s', async (retryAfter) => {
+    vi.useFakeTimers();
+    vi.setSystemTime(new Date('2026-07-27T10:00:00Z'));
+    const response = new Response(
+      JSON.stringify({ error: { message: 'Try later' } }),
+      {
+        status: 429,
+        headers: {
+          'Content-Type': 'application/json',
+          'Retry-After': retryAfter,
+        },
+      }
+    );
+
+    await expect(normalizeFetchError(response, 'Try later')).resolves.not.toHaveProperty(
+      'retryAfterSeconds'
+    );
   });
 
   it('uses a safe fallback for a non-JSON fetch server error', async () => {

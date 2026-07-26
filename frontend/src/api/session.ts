@@ -7,8 +7,32 @@ export interface SessionExpiredDetail {
 const AUTH_ATTEMPT_PATTERN = /\/auth\/(?:login|register|google)(?:$|[?#])/;
 const handledSessionErrors = new WeakSet<object>();
 
-export function shouldNotifySessionExpired(url: string | undefined): boolean {
-  return !url || !AUTH_ATTEMPT_PATTERN.test(url);
+function headerValue(headers: unknown, name: string): string | undefined {
+  if (!headers || typeof headers !== 'object') return undefined;
+
+  const getter = (headers as { get?: unknown }).get;
+  if (typeof getter === 'function') {
+    const value = getter.call(headers, name);
+    return typeof value === 'string' ? value : undefined;
+  }
+
+  for (const [key, value] of Object.entries(headers)) {
+    if (key.toLowerCase() === name.toLowerCase()) {
+      return typeof value === 'string' ? value : undefined;
+    }
+  }
+  return undefined;
+}
+
+export function shouldNotifySessionExpired(
+  url: string | undefined,
+  headers: unknown
+): boolean {
+  const authorization = headerValue(headers, 'Authorization');
+  return (
+    Boolean(authorization && /^Bearer\s+\S+$/i.test(authorization.trim())) &&
+    (!url || !AUTH_ATTEMPT_PATTERN.test(url))
+  );
 }
 
 export function notifySessionExpired(detail: SessionExpiredDetail = {}): void {

@@ -16,6 +16,7 @@ AwsAccountId = Annotated[str, StringConstraints(pattern=r"^\d{12}$")]
 LambdaMemory = Annotated[int, Field(ge=128, le=10_240)]
 LambdaTimeout = Annotated[int, Field(ge=1, le=900)]
 PositiveInt = Annotated[int, Field(ge=1)]
+QuestionMaxLength = Annotated[int, Field(ge=1, le=500)]
 
 
 class ProductionDeploymentConfig(BaseSettings):
@@ -54,7 +55,7 @@ class ProductionDeploymentConfig(BaseSettings):
     min_summary_length: PositiveInt
     max_summary_length: PositiveInt
     min_question_length: PositiveInt
-    max_question_length: PositiveInt
+    max_question_length: QuestionMaxLength
     max_retries: PositiveInt
     request_timeout: PositiveInt
     transcript_fetch_max_retries: PositiveInt

@@ -92,18 +92,19 @@ def process_summary(video_id: str) -> None:
 
 
 def _valid_artifacts(title: str | None, transcript: str) -> SummaryArtifacts:
+    prompt = SUMMARY_PROMPT_TEMPLATE.format(
+        min_length=settings.min_summary_length,
+        max_length=settings.max_summary_length,
+        min_question_length=settings.min_question_length,
+        max_question_length=settings.max_question_length,
+        title=title or "",
+        transcript=transcript,
+    )
+    response_format = _response_format()
     for attempt in range(1, settings.max_retries + 1):
-        prompt = SUMMARY_PROMPT_TEMPLATE.format(
-            min_length=settings.min_summary_length,
-            max_length=settings.max_summary_length,
-            min_question_length=settings.min_question_length,
-            max_question_length=settings.max_question_length,
-            title=title or "",
-            transcript=transcript,
-        )
         generated = llm.complete(
             prompt,
-            response_format=_response_format(),
+            response_format=response_format,
             require_parameters=True,
         )
         if generated is not None:
@@ -138,8 +139,6 @@ def _response_format() -> dict:
                             "A concise English summary grounded only in the video "
                             "transcript."
                         ),
-                        "minLength": settings.min_summary_length,
-                        "maxLength": settings.max_summary_length,
                     },
                     "suggested_questions": {
                         "type": "array",
@@ -149,12 +148,7 @@ def _response_format() -> dict:
                         ),
                         "minItems": 3,
                         "maxItems": 3,
-                        "uniqueItems": True,
-                        "items": {
-                            "type": "string",
-                            "minLength": settings.min_question_length,
-                            "maxLength": settings.max_question_length,
-                        },
+                        "items": {"type": "string"},
                     },
                 },
                 "required": ["summary", "suggested_questions"],

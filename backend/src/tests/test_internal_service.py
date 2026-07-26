@@ -187,7 +187,10 @@ def test_store_summary_merges_miscellaneous_data(db_session):
     video = Video(
         video_id="summary12345",
         title="Video",
-        miscellaneous_data={"existing_key": "preserved"},
+        miscellaneous_data={
+            "existing_key": "preserved",
+            "nested": {"preserved": True, "replaced": "old"},
+        },
     )
     db_session.add(video)
     db_session.commit()
@@ -197,17 +200,19 @@ def test_store_summary_merges_miscellaneous_data(db_session):
         video.video_id,
         "Generated summary",
         {
+            "nested": {"replaced": "new"},
             "suggested_questions": [
                 "What is the first idea?",
                 "How is the idea supported?",
                 "What conclusion is reached?",
-            ]
+            ],
         },
     )
 
     assert result.summary == "Generated summary"
     assert result.miscellaneous_data == {
         "existing_key": "preserved",
+        "nested": {"replaced": "new"},
         "suggested_questions": [
             "What is the first idea?",
             "How is the idea supported?",

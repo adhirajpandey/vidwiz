@@ -349,7 +349,6 @@ export default function VideoPage() {
             </div>
           </div>
         )}
-        {!videoError && (
         <div className="relative bg-gradient-to-br from-card via-card to-card/90 rounded-xl md:rounded-2xl shadow-xl overflow-hidden border border-white/[0.08]">
           {/* Header */}
           <div className="px-4 py-3 md:px-6 md:py-4 border-b border-white/[0.06] bg-white/[0.02] flex items-center justify-between select-none">
@@ -379,6 +378,7 @@ export default function VideoPage() {
             ) : notesError ? (
               <ErrorState
                 compact
+                headingLevel={4}
                 title="Unable to load notes"
                 message={notesError.message}
                 referenceId={notesError.requestId}
@@ -409,7 +409,6 @@ export default function VideoPage() {
             )}
           </div>
         </div>
-        )}
         </div>
       </div>
     </>

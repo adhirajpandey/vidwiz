@@ -43,7 +43,7 @@ interface VideoData {
     upload_date?: string;
   } | null;
   summary: string | null;
-  suggested_questions: string[] | null;
+  suggested_questions?: string[] | null;
 }
 
 interface WizStreamPayload {
@@ -303,21 +303,21 @@ function WizWorkspacePage() {
     }
   }, [messages]);
 
-  // Stream video status via SSE, fallback to polling if stream fails
+  // Stream video status via SSE and reconnect within the existing deadline.
   useEffect(() => {
     if (!videoId) return;
+    const activeVideoId = videoId;
 
     const STREAM_TIMEOUT_MS = 60000;
-    const POLL_INTERVAL_MS = 5000;
+    const RECONNECT_DELAY_MS = 5000;
     let isCancelled = false;
     let abortController: AbortController | null = null;
     let timeoutId: number | undefined;
-    let intervalId: number | undefined;
+    let reconnectId: number | undefined;
     let hasTimedOut = false;
-    let pollingStarted = false;
     let hasSuccessfulStatusCheck = false;
     let lastStatusError: NormalizedApiError | null = null;
-    let consecutivePollFailures = 0;
+    let lastAttemptFailed = false;
 
     const handleTimeout = () => {
       hasTimedOut = true;
@@ -325,7 +325,7 @@ function WizWorkspacePage() {
       if (!videoDataRef.current?.transcript_available) {
         if (
           lastStatusError &&
-          (!hasSuccessfulStatusCheck || consecutivePollFailures > 0)
+          (!hasSuccessfulStatusCheck || lastAttemptFailed)
         ) {
           setStatusError(lastStatusError);
         } else {
@@ -335,55 +335,29 @@ function WizWorkspacePage() {
       if (abortController) {
         abortController.abort();
       }
-      if (intervalId) {
-        clearInterval(intervalId);
+      if (reconnectId) {
+        clearTimeout(reconnectId);
       }
     };
 
-    const pollFallback = async () => {
-      try {
-        const data = await videosApi.getVideo(videoId);
-        hasSuccessfulStatusCheck = true;
-        lastStatusError = null;
-        consecutivePollFailures = 0;
-        setStatusError(null);
-        setVideoData(data);
-        if (data.transcript_available && data.metadata && data.summary) {
-          setIsPolling(false);
-          if (intervalId) {
-            clearInterval(intervalId);
-          }
-          if (timeoutId) {
-            clearTimeout(timeoutId);
-          }
-        }
-      } catch (error) {
-        lastStatusError = normalizeApiError(
-          error,
-          'Unable to check the video status. Please try again.'
-        );
-        consecutivePollFailures += 1;
-        console.error('Failed to fetch video status:', error);
+    const scheduleReconnect = () => {
+      if (isCancelled || hasTimedOut || reconnectId) return;
+      const remaining =
+        STREAM_TIMEOUT_MS - (Date.now() - pollingStartTime.current);
+      if (remaining <= 0) {
+        handleTimeout();
+        return;
       }
+      reconnectId = window.setTimeout(() => {
+        reconnectId = undefined;
+        void startStream();
+      }, Math.min(RECONNECT_DELAY_MS, remaining));
     };
 
-    const startPolling = () => {
-      if (pollingStarted || hasTimedOut) return;
-      pollingStarted = true;
-      void pollFallback();
-      intervalId = window.setInterval(() => {
-        if (Date.now() - pollingStartTime.current >= STREAM_TIMEOUT_MS) {
-          handleTimeout();
-          return;
-        }
-        void pollFallback();
-      }, POLL_INTERVAL_MS);
-    };
-
-    const startStream = async () => {
+    async function startStream() {
+      if (isCancelled || hasTimedOut) return;
       setIsPolling(true);
       setStatusError(null);
-      timeoutId = window.setTimeout(handleTimeout, STREAM_TIMEOUT_MS);
 
       // Ensure guest session id exists for unauthenticated users
       const token = getToken();
@@ -394,14 +368,23 @@ function WizWorkspacePage() {
       abortController = new AbortController();
 
       try {
-        const response = await apiFetch(videosApi.getStreamUrl(videoId), {
+        const response = await apiFetch(videosApi.getStreamUrl(activeVideoId), {
           method: 'GET',
           signal: abortController.signal,
         });
 
         if (response.status === 401) {
-          if (timeoutId) clearTimeout(timeoutId);
-          setIsPolling(false);
+          if (token) {
+            if (timeoutId) clearTimeout(timeoutId);
+            setIsPolling(false);
+            return;
+          }
+          lastStatusError = await normalizeFetchError(
+            response,
+            'Unable to check the video status. Please try again.'
+          );
+          lastAttemptFailed = true;
+          scheduleReconnect();
           return;
         }
 
@@ -421,6 +404,7 @@ function WizWorkspacePage() {
           throw new Error('Video status stream unavailable');
         }
 
+        lastAttemptFailed = false;
         for await (const event of readSseEvents(response.body)) {
           if (isCancelled) return;
           const payload = parseJsonPayload(event.data);
@@ -431,6 +415,9 @@ function WizWorkspacePage() {
             throw new Error('The server returned an invalid video status.');
           }
           hasSuccessfulStatusCheck = true;
+          lastStatusError = null;
+          lastAttemptFailed = false;
+          setStatusError(null);
           setVideoData(payload.video);
           if (event.event === 'done') {
             setIsPolling(false);
@@ -444,7 +431,8 @@ function WizWorkspacePage() {
             kind: 'stream',
             retryable: true,
           };
-          startPolling();
+          lastAttemptFailed = true;
+          scheduleReconnect();
         }
       } catch (error) {
         if (!isCancelled && !hasTimedOut) {
@@ -455,13 +443,21 @@ function WizWorkspacePage() {
               retryable: true,
             };
           }
+          lastAttemptFailed = true;
           console.error('Video status stream error:', error);
-          startPolling();
+          scheduleReconnect();
         }
       }
-    };
+    }
 
-    startStream();
+    const remaining =
+      STREAM_TIMEOUT_MS - (Date.now() - pollingStartTime.current);
+    if (remaining <= 0) {
+      handleTimeout();
+    } else {
+      timeoutId = window.setTimeout(handleTimeout, remaining);
+      void startStream();
+    }
 
     return () => {
       isCancelled = true;
@@ -471,8 +467,8 @@ function WizWorkspacePage() {
       if (timeoutId) {
         clearTimeout(timeoutId);
       }
-      if (intervalId) {
-        clearInterval(intervalId);
+      if (reconnectId) {
+        clearTimeout(reconnectId);
       }
     };
   }, [statusAttempt, videoId]);
@@ -577,6 +573,7 @@ function WizWorkspacePage() {
     };
     setMessages((prev) => [...prev, assistantMessage]);
 
+    let fullContent = '';
     try {
       const response = await apiFetch(
         conversationsApi.getSendMessageUrl(activeConversationId),
@@ -650,7 +647,6 @@ function WizWorkspacePage() {
         );
       }
 
-      let fullContent = '';
       let streamDone = false;
       for await (const event of readSseEvents(response.body)) {
         if (event.data === '[DONE]') {
@@ -713,7 +709,7 @@ function WizWorkspacePage() {
           msg.id === assistantMessageId
             ? {
                 ...msg,
-                content: `Error: ${message}${referenceId ? `\n\nReference: ${referenceId}` : ''}`,
+                content: `${fullContent ? `${fullContent}\n\n` : ''}Error: ${message}${referenceId ? `\n\nReference: ${referenceId}` : ''}`,
               }
             : msg
         )

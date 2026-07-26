@@ -134,9 +134,13 @@ function retryAfterSeconds(
 
   if (!retryAfterHeader) return undefined;
   const seconds = Number(retryAfterHeader);
-  return Number.isFinite(seconds) && seconds >= 0
-    ? Math.floor(seconds)
-    : undefined;
+  if (Number.isFinite(seconds) && seconds >= 0) {
+    return Math.floor(seconds);
+  }
+
+  const retryAt = Date.parse(retryAfterHeader);
+  if (!Number.isFinite(retryAt) || retryAt <= Date.now()) return undefined;
+  return Math.ceil((retryAt - Date.now()) / 1000);
 }
 
 function normalizeResponse(

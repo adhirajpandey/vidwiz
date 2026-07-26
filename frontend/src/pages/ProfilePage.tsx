@@ -435,6 +435,7 @@ export default function ProfilePage() {
                         ) : productsError ? (
                           <ErrorState
                             compact
+                            headingLevel={3}
                             className="py-3"
                             title="Unable to load credit packs"
                             message={productsError.message}

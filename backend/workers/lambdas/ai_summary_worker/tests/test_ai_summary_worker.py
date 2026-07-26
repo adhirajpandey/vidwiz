@@ -146,13 +146,53 @@ def test_valid_artifacts_preserve_braces_and_use_structured_output(monkeypatch):
     assert "{{literal}}" not in calls[0][0]
     response_format = calls[0][1]["response_format"]
     schema = response_format["json_schema"]["schema"]
-    assert schema["properties"]["summary"]["maxLength"] == 100
-    assert schema["properties"]["suggested_questions"]["items"] == {
+    assert schema["properties"]["summary"] == {
         "type": "string",
-        "minLength": 20,
-        "maxLength": 120,
+        "description": (
+            "A concise English summary grounded only in the video transcript."
+        ),
     }
+    questions_schema = schema["properties"]["suggested_questions"]
+    assert questions_schema["minItems"] == 3
+    assert questions_schema["maxItems"] == 3
+    assert questions_schema["items"] == {"type": "string"}
+    assert "uniqueItems" not in questions_schema
     assert calls[0][1]["require_parameters"] is True
+
+
+def test_valid_artifacts_reuses_prompt_and_schema_across_retries(monkeypatch):
+    summary_service = _load_module("summary_service.py", monkeypatch)
+    prompts = []
+    response_formats = []
+    monkeypatch.setattr(
+        summary_service,
+        "settings",
+        SimpleNamespace(
+            max_retries=2,
+            min_summary_length=5,
+            max_summary_length=100,
+            min_question_length=20,
+            max_question_length=120,
+        ),
+    )
+    monkeypatch.setattr(
+        summary_service,
+        "llm",
+        SimpleNamespace(
+            complete=lambda prompt, **options: (
+                prompts.append(prompt)
+                or response_formats.append(options["response_format"])
+                or '{"summary":"bad"}'
+            )
+        ),
+    )
+
+    with pytest.raises(RuntimeError, match="structured summary"):
+        summary_service._valid_artifacts("Title", "Transcript")
+
+    assert len(prompts) == 2
+    assert prompts[0] is prompts[1]
+    assert response_formats[0] is response_formats[1]
 
 
 def test_valid_artifacts_raise_after_invalid_final_retry(monkeypatch):

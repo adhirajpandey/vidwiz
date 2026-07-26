@@ -30,6 +30,7 @@ def test_loads_valid_fixture_and_protects_secrets() -> None:
         ("VIDWIZ_INTERNAL_API_BASE_URL", "not-a-url"),
         ("VIDWIZ_INTERNAL_API_ADMIN_TOKEN", ""),
         ("MAX_NOTE_LENGTH", "20"),
+        ("MAX_QUESTION_LENGTH", "501"),
     ],
 )
 def test_rejects_invalid_production_values(

@@ -188,6 +188,7 @@ export default function DashboardPage() {
               {loadError ? (
                 <ErrorState
                   compact
+                  headingLevel={4}
                   title="Unable to load videos"
                   message={loadError.message}
                   referenceId={loadError.requestId}

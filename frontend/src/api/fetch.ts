@@ -43,7 +43,7 @@ export async function apiFetch(
 
   if (
     response.status === 401 &&
-    shouldNotifySessionExpired(input)
+    shouldNotifySessionExpired(input, headers)
   ) {
     notifySessionExpired({
       requestId: response.headers.get('X-Request-ID') ?? undefined,

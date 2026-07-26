@@ -43,7 +43,7 @@ apiClient.interceptors.response.use(
   (error: AxiosError) => {
     if (
       error.response?.status === 401 &&
-      shouldNotifySessionExpired(error.config?.url)
+      shouldNotifySessionExpired(error.config?.url, error.config?.headers)
     ) {
       markSessionExpiredHandled(error);
       const requestId = error.response.headers?.['x-request-id'];

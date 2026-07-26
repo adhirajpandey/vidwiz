@@ -209,7 +209,7 @@ export default function SignupPage() {
             {email && !isEmailValid && (
               <p className="text-xs text-amber-400 ml-1 mt-1 animate-in slide-in-from-top-1">Please enter a valid email address</p>
             )}
-            {isEmailValid && (
+            {isEmailValid && !fieldErrors.email && (
               <p className="text-xs text-green-400 ml-1 mt-1 animate-in slide-in-from-top-1">✓ Email is valid</p>
             )}
           </div>
@@ -246,7 +246,7 @@ export default function SignupPage() {
             {name && !isNameValid && (
               <p className="text-xs text-amber-400 ml-1 mt-1 animate-in slide-in-from-top-1">Name must be at least 2 characters</p>
             )}
-            {isNameValid && (
+            {isNameValid && !fieldErrors.name && (
               <p className="text-xs text-green-400 ml-1 mt-1 animate-in slide-in-from-top-1">✓ Name is valid</p>
             )}
           </div>
@@ -283,7 +283,7 @@ export default function SignupPage() {
             {password && !isPasswordValid && (
               <p className="text-xs text-amber-400 ml-1 mt-1 animate-in slide-in-from-top-1">Password must be more than 6 characters</p>
             )}
-            {isPasswordValid && (
+            {isPasswordValid && !fieldErrors.password && (
               <p className="text-xs text-green-400 ml-1 mt-1 animate-in slide-in-from-top-1">✓ Password length is valid</p>
             )}
           </div>
