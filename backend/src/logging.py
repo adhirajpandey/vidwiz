@@ -71,7 +71,9 @@ class RequestIdFilter(logging.Filter):
 class JsonFormatter(logging.Formatter):
     def format(self, record: logging.LogRecord) -> str:
         payload: dict[str, Any] = {
-            "timestamp": datetime.fromtimestamp(record.created, tz=timezone.utc).isoformat(),
+            "timestamp": datetime.fromtimestamp(
+                record.created, tz=timezone.utc
+            ).isoformat(),
             "level": record.levelname,
             "logger": record.name,
             "message": record.getMessage(),
@@ -133,7 +135,9 @@ class PrettyFormatter(logging.Formatter):
         endpoint_file = getattr(record, "endpoint_file", None)
         endpoint_line = getattr(record, "endpoint_line", None)
         if endpoint and endpoint_file and endpoint_line:
-            prefix = f"{prefix} endpoint={endpoint} source={endpoint_file}:{endpoint_line}"
+            prefix = (
+                f"{prefix} endpoint={endpoint} source={endpoint_file}:{endpoint_line}"
+            )
         elif record.pathname and record.lineno:
             prefix = f"{prefix} source={record.pathname}:{record.lineno}"
 

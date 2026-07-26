@@ -57,7 +57,9 @@ export default function Navbar() {
     }
     try {
       localStorage.setItem('theme', theme);
-    } catch {}
+    } catch {
+      // Theme persistence is optional when storage is unavailable.
+    }
   }, [theme]);
 
   const toggleTheme = () => setTheme(prev => (prev === 'dark' ? 'light' : 'dark'));

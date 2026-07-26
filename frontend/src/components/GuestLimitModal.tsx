@@ -48,7 +48,7 @@ const GuestLimitModal: React.FC<GuestLimitModalProps> = ({ isOpen, onClose }) =>
         });
         setIsLoading(false);
       }
-    } catch (error) {
+    } catch {
       addToast({
         title: 'Connection Error',
         message: 'Could not connect to server',

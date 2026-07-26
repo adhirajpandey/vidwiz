@@ -39,7 +39,9 @@ def authenticate_user(db: Session, email: str, password: str) -> User | None:
     logger.debug("Authenticating user", extra={"email": email})
     user = db.query(User).filter(User.email == email).first()
     if not user or not user.password_hash:
-        logger.debug("Authentication failed (missing user/password)", extra={"email": email})
+        logger.debug(
+            "Authentication failed (missing user/password)", extra={"email": email}
+        )
         return None
     if not check_password_hash(user.password_hash, password):
         logger.debug("Authentication failed (invalid password)", extra={"email": email})
@@ -49,7 +51,9 @@ def authenticate_user(db: Session, email: str, password: str) -> User | None:
 
 
 def generate_jwt_token(user: User, secret_key: str, expiry_hours: int) -> str:
-    logger.debug("Generating JWT token", extra={"user_id": user.id, "expiry_hours": expiry_hours})
+    logger.debug(
+        "Generating JWT token", extra={"user_id": user.id, "expiry_hours": expiry_hours}
+    )
     return jwt.encode(
         {
             "user_id": user.id,
@@ -170,7 +174,9 @@ def upsert_google_user(
     name: str,
     picture: str | None,
 ) -> User:
-    logger.debug("Upserting Google user", extra={"google_id": google_id, "email": email})
+    logger.debug(
+        "Upserting Google user", extra={"google_id": google_id, "email": email}
+    )
     user = db.query(User).filter(User.google_id == google_id).first()
     created = False
 

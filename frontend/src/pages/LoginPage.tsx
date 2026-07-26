@@ -8,6 +8,7 @@ import GoogleSignInButton from '../components/GoogleSignInButton';
 import AuthLayout from '../components/auth/AuthLayout';
 import { setToken } from '../lib/authUtils';
 import { authApi } from '../api';
+import { normalizeApiError } from '../api/errors';
 import Seo from '../components/Seo';
 
 export default function LoginPage() {
@@ -28,11 +29,11 @@ export default function LoginPage() {
         type: 'success',
       });
       navigate('/dashboard');
-    } catch (error: any) {
-      const errorMessage = error.response?.data?.error?.message || error.response?.data?.message || 'Invalid credentials';
+    } catch (error) {
+      const { message } = normalizeApiError(error, 'Invalid credentials');
       addToast({
         title: 'Access Denied',
-        message: errorMessage,
+        message,
         type: 'error',
       });
     } finally {
@@ -51,11 +52,11 @@ export default function LoginPage() {
         type: 'success',
       });
       navigate('/dashboard');
-    } catch (error: any) {
-      const errorMessage = error.response?.data?.error?.message || error.response?.data?.message || 'Google sign-in failed';
+    } catch (error) {
+      const { message } = normalizeApiError(error, 'Google sign-in failed');
       addToast({
         title: 'Sign-in Failed',
-        message: errorMessage,
+        message,
         type: 'error',
       });
     } finally {

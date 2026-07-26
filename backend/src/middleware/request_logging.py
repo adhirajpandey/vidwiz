@@ -90,7 +90,11 @@ def _serialize_body(
     if _is_json_content_type(content_type) or _is_text_content_type(content_type):
         decoded = body.decode("utf-8", errors="replace")
         parsed = None
-        if _is_json_content_type(content_type) or decoded.strip().startswith("{") or decoded.strip().startswith("["):
+        if (
+            _is_json_content_type(content_type)
+            or decoded.strip().startswith("{")
+            or decoded.strip().startswith("[")
+        ):
             try:
                 parsed = json.loads(decoded)
             except json.JSONDecodeError:
@@ -129,7 +133,9 @@ def _get_endpoint_info(scope) -> tuple[str | None, str | None, int | None]:
     return endpoint_name, code.co_filename, code.co_firstlineno
 
 
-def _build_log_message(method: str | None, path: str | None, status: int, duration_ms: int) -> str:
+def _build_log_message(
+    method: str | None, path: str | None, status: int, duration_ms: int
+) -> str:
     return f"{method} {path} {status} {duration_ms}ms"
 
 
@@ -318,7 +324,9 @@ class RequestLoggingMiddleware:
             if message["type"] == "http.response.start":
                 status_code = message.get("status", 500)
                 headers_list = list(message.get("headers", []))
-                if not any(header[0].lower() == b"x-request-id" for header in headers_list):
+                if not any(
+                    header[0].lower() == b"x-request-id" for header in headers_list
+                ):
                     headers_list.append((b"x-request-id", request_id.encode("latin-1")))
                 message["headers"] = headers_list
                 response_headers = {
@@ -352,7 +360,9 @@ class RequestLoggingMiddleware:
                 endpoint_line=endpoint_line,
             )
             base_fields.update(user_fields)
-            self.logger.exception("Unhandled exception during request", extra=base_fields)
+            self.logger.exception(
+                "Unhandled exception during request", extra=base_fields
+            )
 
             request_content_type = headers.get("content-type")
             request_fields = _build_request_body_fields(
@@ -369,7 +379,9 @@ class RequestLoggingMiddleware:
             }
             self.logger.log(
                 logging.ERROR,
-                _build_log_message(scope.get("method"), scope.get("path"), 500, duration_ms),
+                _build_log_message(
+                    scope.get("method"), scope.get("path"), 500, duration_ms
+                ),
                 extra={**base_fields, **request_fields, **response_fields},
             )
 

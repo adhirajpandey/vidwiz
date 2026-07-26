@@ -30,7 +30,12 @@ def _ledger_exists(
 ) -> bool:
     logger.debug(
         "Checking ledger entry",
-        extra={"user_id": user_id, "reason": reason, "ref_type": ref_type, "ref_id": ref_id},
+        extra={
+            "user_id": user_id,
+            "reason": reason,
+            "ref_type": ref_type,
+            "ref_id": ref_id,
+        },
     )
     query = (
         select(CreditsLedger.id)
@@ -55,7 +60,12 @@ def _apply_ledger(
 ) -> None:
     logger.debug(
         "Applying ledger entry",
-        extra={"user_id": user.id, "delta": delta, "reason": reason, "ref_type": ref_type},
+        extra={
+            "user_id": user.id,
+            "delta": delta,
+            "reason": reason,
+            "ref_type": ref_type,
+        },
     )
     entry = CreditsLedger(
         user_id=user.id,
@@ -88,9 +98,7 @@ def grant_signup_credits(db: Session, user: User) -> None:
 
 
 def charge_wiz_chat_for_video(db: Session, user_id: int, video_id: str) -> bool:
-    logger.debug(
-        "Charging wiz chat", extra={"user_id": user_id, "video_id": video_id}
-    )
+    logger.debug("Charging wiz chat", extra={"user_id": user_id, "video_id": video_id})
     if _ledger_exists(db, user_id, REASON_WIZ_CHAT, "video", video_id):
         return False
 
@@ -104,9 +112,7 @@ def charge_wiz_chat_for_video(db: Session, user_id: int, video_id: str) -> bool:
             },
         )
 
-    _apply_ledger(
-        db, user, -settings.wiz_chat_cost, REASON_WIZ_CHAT, "video", video_id
-    )
+    _apply_ledger(db, user, -settings.wiz_chat_cost, REASON_WIZ_CHAT, "video", video_id)
     return True
 
 

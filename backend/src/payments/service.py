@@ -7,7 +7,12 @@ from standardwebhooks import Webhook, WebhookVerificationError
 from src.auth.models import User
 from src.config import settings
 from src.credits import service as credits_service
-from src.exceptions import BadRequestError, InternalServerError, NotFoundError, UnauthorizedError
+from src.exceptions import (
+    BadRequestError,
+    InternalServerError,
+    NotFoundError,
+    UnauthorizedError,
+)
 from src.payments.models import (
     CreditPurchase,
     PURCHASE_STATUS_CANCELLED,

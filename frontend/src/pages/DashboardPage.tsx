@@ -58,7 +58,7 @@ export default function DashboardPage() {
       if (isInitial) {
         setHasAnyVideos(data.total > 0);
       }
-    } catch (error: any) {
+    } catch (error) {
        // 401 handling is done by client interceptor but we can add specific logic if needed
        // client interceptor might redirect, so we might just log here
        console.error('Failed to fetch videos', error);

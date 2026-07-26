@@ -18,6 +18,7 @@ def get_client_ip(request: Request) -> str:
 
     return "unknown"
 
+
 limiter = Limiter(
     key_func=get_client_ip,
     default_limits=[settings.rate_limit_default],

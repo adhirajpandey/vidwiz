@@ -1,4 +1,4 @@
-import { useState, useRef, useEffect } from 'react';
+import { useCallback, useState, useRef, useEffect } from 'react';
 import { useParams, useNavigate, useLocation } from 'react-router-dom';
 import { Send, Sparkles, RotateCcw } from 'lucide-react';
 import { FaExternalLinkAlt } from 'react-icons/fa';
@@ -8,6 +8,7 @@ import RegisteredLimitModal from '../components/RegisteredLimitModal';
 import Seo from '../components/Seo';
 import { getAuthHeaders, getToken, removeToken } from '../lib/authUtils';
 import { videosApi, conversationsApi } from '../api';
+import { normalizeApiError } from '../api/errors';
 import config from '../config';
 
 interface Message {
@@ -35,6 +36,26 @@ interface VideoData {
     upload_date?: string;
   } | null;
   summary: string | null;
+}
+
+interface WizStreamPayload {
+  error?: string;
+  content?: string;
+}
+
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return typeof value === 'object' && value !== null && !Array.isArray(value);
+}
+
+function isWizStreamPayload(value: unknown): value is WizStreamPayload {
+  if (!isRecord(value)) {
+    return false;
+  }
+
+  return (
+    (value.error === undefined || typeof value.error === 'string') &&
+    (value.content === undefined || typeof value.content === 'string')
+  );
 }
 
 // ConversationResponse removed
@@ -183,6 +204,7 @@ function WizWorkspacePage() {
   const inputRef = useRef<HTMLInputElement>(null);
   const pollingStartTime = useRef<number>(Date.now());
   const videoDataRef = useRef<VideoData | null>(null);
+  const initializedConversationVideoIdRef = useRef<string | null>(null);
 
   // Handle URL normalization and redirects
   // Handle URL normalization and redirects
@@ -411,16 +433,17 @@ function WizWorkspacePage() {
     }
   }, []);
 
-  const createNewConversation = async () => {
+  const createNewConversation = useCallback(async () => {
     if (!videoId || isCreatingConversation) return null;
     setIsCreatingConversation(true);
     try {
       const data = await conversationsApi.createConversation({ video_id: videoId });
       setConversationId(data.id);
       return data.id;
-    } catch (error: any) {
+    } catch (error) {
+      const { status } = normalizeApiError(error, 'Failed to create conversation');
       console.error('Failed to create conversation:', error);
-      if (error.response?.status === 401) {
+      if (status === 401) {
         removeToken();
         navigate('/login');
       }
@@ -428,12 +451,18 @@ function WizWorkspacePage() {
     } finally {
       setIsCreatingConversation(false);
     }
-  };
+  }, [isCreatingConversation, navigate, videoId]);
 
   useEffect(() => {
-    if (!videoId) return;
-    createNewConversation();
-  }, [videoId]);
+    if (
+      !videoId ||
+      initializedConversationVideoIdRef.current === videoId
+    ) {
+      return;
+    }
+    initializedConversationVideoIdRef.current = videoId;
+    void createNewConversation();
+  }, [createNewConversation, videoId]);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -574,11 +603,14 @@ function WizWorkspacePage() {
                 streamDone = true;
                 break;
               }
-              let parsed: any;
+              let parsed: unknown;
               try {
                 parsed = JSON.parse(data);
               } catch {
                 // Incomplete JSON chunk, skip
+                continue;
+              }
+              if (!isWizStreamPayload(parsed)) {
                 continue;
               }
               if (parsed.error) {

@@ -8,6 +8,7 @@ import GoogleSignInButton from '../components/GoogleSignInButton';
 import AuthLayout from '../components/auth/AuthLayout';
 import { setToken } from '../lib/authUtils';
 import { authApi } from '../api';
+import { normalizeApiError } from '../api/errors';
 import Seo from '../components/Seo';
 
 export default function SignupPage() {
@@ -82,11 +83,11 @@ export default function SignupPage() {
         type: 'success',
       });
       navigate('/login');
-    } catch (error: any) {
-      const errorMessage = error.response?.data?.error?.message || error.response?.data?.message || 'Something went wrong';
+    } catch (error) {
+      const { message } = normalizeApiError(error, 'Something went wrong');
       addToast({
         title: 'Registration Failed',
-        message: errorMessage,
+        message,
         type: 'error',
       });
     } finally {
@@ -105,11 +106,11 @@ export default function SignupPage() {
         type: 'success',
       });
       navigate('/dashboard');
-    } catch (error: any) {
-      const errorMessage = error.response?.data?.error?.message || error.response?.data?.message || 'Google sign-up failed';
+    } catch (error) {
+      const { message } = normalizeApiError(error, 'Google sign-up failed');
       addToast({
         title: 'Sign-up Failed',
-        message: errorMessage,
+        message,
         type: 'error',
       });
     } finally {

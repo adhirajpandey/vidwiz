@@ -28,7 +28,7 @@ export function extractVideoId(input: string): string | null {
     let urlToParse = trimmed;
     
     // If it starts with http:/ or https:/ but not // (common browser/router artifact)
-    if (urlToParse.match(/^https?:\/[^\/]/)) {
+    if (urlToParse.match(/^https?:\/[^/]/)) {
       urlToParse = urlToParse.replace(/^(https?):\/+/, '$1://');
     }
     // If no protocol, add https://

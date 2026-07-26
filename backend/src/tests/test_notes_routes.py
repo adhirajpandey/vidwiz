@@ -199,7 +199,9 @@ async def test_create_note_by_title_rejects_blank_video_title(client):
 
 
 @pytest.mark.asyncio
-async def test_create_note_by_title_returns_not_found_when_unresolved(client, monkeypatch):
+async def test_create_note_by_title_returns_not_found_when_unresolved(
+    client, monkeypatch
+):
     from src.exceptions import NotFoundError
 
     token = await register_and_login(client, "unresolved-title@example.com")
