@@ -6,10 +6,17 @@ import { extractVideoId } from '../lib/videoUtils';
 import GuestLimitModal from '../components/GuestLimitModal';
 import RegisteredLimitModal from '../components/RegisteredLimitModal';
 import Seo from '../components/Seo';
-import { getAuthHeaders, getToken, removeToken } from '../lib/authUtils';
-import { videosApi, conversationsApi } from '../api';
-import { normalizeApiError } from '../api/errors';
-import config from '../config';
+import ErrorState from '../components/ui/ErrorState';
+import { getToken } from '../lib/authUtils';
+import {
+  apiFetch,
+  conversationsApi,
+  normalizeApiError,
+  normalizeFetchError,
+  readSseEvents,
+  videosApi,
+} from '../api';
+import type { NormalizedApiError } from '../api/errors';
 
 interface Message {
   id: string;
@@ -36,6 +43,7 @@ interface VideoData {
     upload_date?: string;
   } | null;
   summary: string | null;
+  suggested_questions: string[] | null;
 }
 
 interface WizStreamPayload {
@@ -56,6 +64,44 @@ function isWizStreamPayload(value: unknown): value is WizStreamPayload {
     (value.error === undefined || typeof value.error === 'string') &&
     (value.content === undefined || typeof value.content === 'string')
   );
+}
+
+function isVideoData(value: unknown): value is VideoData {
+  if (!isRecord(value)) return false;
+  const suggestedQuestions = value.suggested_questions;
+  return (
+    typeof value.video_id === 'string' &&
+    (value.title === null || typeof value.title === 'string') &&
+    typeof value.transcript_available === 'boolean' &&
+    (value.metadata === null || isRecord(value.metadata)) &&
+    (value.summary === null || typeof value.summary === 'string') &&
+    (
+      suggestedQuestions === null ||
+      suggestedQuestions === undefined ||
+      (
+        Array.isArray(suggestedQuestions) &&
+        suggestedQuestions.every((question) => typeof question === 'string')
+      )
+    )
+  );
+}
+
+function parseJsonPayload(data: string): unknown {
+  try {
+    return JSON.parse(data);
+  } catch {
+    throw new Error('The server returned an invalid stream response.');
+  }
+}
+
+class ChatDisplayError extends Error {
+  requestId?: string;
+
+  constructor(message: string, requestId?: string) {
+    super(message);
+    this.name = 'ChatDisplayError';
+    this.requestId = requestId;
+  }
 }
 
 // ConversationResponse removed
@@ -198,7 +244,10 @@ function WizWorkspacePage() {
   const [showRefreshModal, setShowRefreshModal] = useState(false);
   const [showGuestLimit, setShowGuestLimit] = useState(false);
   const [showRegisteredLimit, setShowRegisteredLimit] = useState(false);
-  const [resetSeconds, setResetSeconds] = useState(0);
+  const [resetSeconds, setResetSeconds] = useState<number | null>(null);
+  const [statusError, setStatusError] = useState<NormalizedApiError | null>(null);
+  const [conversationError, setConversationError] = useState<NormalizedApiError | null>(null);
+  const [statusAttempt, setStatusAttempt] = useState(0);
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const playerRef = useRef<HTMLIFrameElement>(null);
   const inputRef = useRef<HTMLInputElement>(null);
@@ -235,6 +284,8 @@ function WizWorkspacePage() {
     setIsPolling(true);
     setConversationId(null);
     setShowRefreshModal(false);
+    setStatusError(null);
+    setConversationError(null);
     // Reset refs
     pollingStartTime.current = Date.now();
   }, [videoId]);
@@ -262,11 +313,24 @@ function WizWorkspacePage() {
     let abortController: AbortController | null = null;
     let timeoutId: number | undefined;
     let intervalId: number | undefined;
+    let hasTimedOut = false;
+    let pollingStarted = false;
+    let hasSuccessfulStatusCheck = false;
+    let lastStatusError: NormalizedApiError | null = null;
+    let consecutivePollFailures = 0;
 
     const handleTimeout = () => {
+      hasTimedOut = true;
       setIsPolling(false);
       if (!videoDataRef.current?.transcript_available) {
-        setShowRefreshModal(true);
+        if (
+          lastStatusError &&
+          (!hasSuccessfulStatusCheck || consecutivePollFailures > 0)
+        ) {
+          setStatusError(lastStatusError);
+        } else {
+          setShowRefreshModal(true);
+        }
       }
       if (abortController) {
         abortController.abort();
@@ -279,31 +343,46 @@ function WizWorkspacePage() {
     const pollFallback = async () => {
       try {
         const data = await videosApi.getVideo(videoId);
+        hasSuccessfulStatusCheck = true;
+        lastStatusError = null;
+        consecutivePollFailures = 0;
+        setStatusError(null);
         setVideoData(data);
         if (data.transcript_available && data.metadata && data.summary) {
           setIsPolling(false);
           if (intervalId) {
             clearInterval(intervalId);
           }
+          if (timeoutId) {
+            clearTimeout(timeoutId);
+          }
         }
       } catch (error) {
+        lastStatusError = normalizeApiError(
+          error,
+          'Unable to check the video status. Please try again.'
+        );
+        consecutivePollFailures += 1;
         console.error('Failed to fetch video status:', error);
       }
     };
 
     const startPolling = () => {
-      pollFallback();
+      if (pollingStarted || hasTimedOut) return;
+      pollingStarted = true;
+      void pollFallback();
       intervalId = window.setInterval(() => {
         if (Date.now() - pollingStartTime.current >= STREAM_TIMEOUT_MS) {
           handleTimeout();
           return;
         }
-        pollFallback();
+        void pollFallback();
       }, POLL_INTERVAL_MS);
     };
 
     const startStream = async () => {
       setIsPolling(true);
+      setStatusError(null);
       timeoutId = window.setTimeout(handleTimeout, STREAM_TIMEOUT_MS);
 
       // Ensure guest session id exists for unauthenticated users
@@ -312,79 +391,70 @@ function WizWorkspacePage() {
         sessionStorage.setItem('guestSessionId', crypto.randomUUID());
       }
 
-      const streamUrl = `${config.API_URL}${videosApi.getStreamUrl(videoId)}`;
       abortController = new AbortController();
 
       try {
-        const response = await fetch(streamUrl, {
+        const response = await apiFetch(videosApi.getStreamUrl(videoId), {
           method: 'GET',
-          headers: {
-            ...getAuthHeaders(),
-            ...(sessionStorage.getItem('guestSessionId')
-              ? { 'X-Guest-Session-ID': sessionStorage.getItem('guestSessionId')! }
-              : {}),
-          },
           signal: abortController.signal,
         });
 
         if (response.status === 401) {
-          removeToken();
-          navigate('/login');
+          if (timeoutId) clearTimeout(timeoutId);
+          setIsPolling(false);
           return;
         }
 
-        if (!response.ok || !response.body) {
+        if (!response.ok) {
+          lastStatusError = await normalizeFetchError(
+            response,
+            'Unable to check the video status. Please try again.'
+          );
+          throw new Error('Video status stream unavailable');
+        }
+        if (!response.body) {
+          lastStatusError = {
+            message: 'Unable to read the video status. Please try again.',
+            kind: 'stream',
+            retryable: true,
+          };
           throw new Error('Video status stream unavailable');
         }
 
-        const reader = response.body.getReader();
-        const decoder = new TextDecoder();
-        let buffer = '';
-
-        while (!isCancelled) {
-          const { done, value } = await reader.read();
-          if (done) break;
-
-          buffer += decoder.decode(value, { stream: true });
-          const chunks = buffer.split('\n\n');
-          buffer = chunks.pop() || '';
-
-          for (const chunk of chunks) {
-            const lines = chunk.split('\n');
-            let eventName = '';
-            const dataLines: string[] = [];
-
-            for (const line of lines) {
-              if (line.startsWith('event:')) {
-                eventName = line.replace('event:', '').trim();
-              } else if (line.startsWith('data:')) {
-                dataLines.push(line.replace('data:', '').trim());
-              }
-            }
-
-            if (!dataLines.length) continue;
-            try {
-              const payload = JSON.parse(dataLines.join('\n'));
-              if (payload?.video) {
-                setVideoData(payload.video);
-              }
-              if (eventName === 'done') {
-                setIsPolling(false);
-                if (abortController) {
-                  abortController.abort();
-                }
-                if (timeoutId) {
-                  clearTimeout(timeoutId);
-                }
-                return;
-              }
-            } catch (error) {
-              console.error('Failed to parse video stream payload:', error);
-            }
+        for await (const event of readSseEvents(response.body)) {
+          if (isCancelled) return;
+          const payload = parseJsonPayload(event.data);
+          if (
+            !isRecord(payload) ||
+            !isVideoData(payload.video)
+          ) {
+            throw new Error('The server returned an invalid video status.');
+          }
+          hasSuccessfulStatusCheck = true;
+          setVideoData(payload.video);
+          if (event.event === 'done') {
+            setIsPolling(false);
+            if (timeoutId) clearTimeout(timeoutId);
+            return;
           }
         }
+        if (!isCancelled && !hasTimedOut) {
+          lastStatusError = {
+            message: 'The video status connection ended unexpectedly.',
+            kind: 'stream',
+            retryable: true,
+          };
+          startPolling();
+        }
       } catch (error) {
-        if (!isCancelled) {
+        if (!isCancelled && !hasTimedOut) {
+          if (!lastStatusError && !(error instanceof DOMException && error.name === 'AbortError')) {
+            lastStatusError = {
+              message: 'Unable to check the video status. Please try again.',
+              kind: 'stream',
+              retryable: true,
+            };
+          }
           console.error('Video status stream error:', error);
           startPolling();
         }
@@ -405,7 +475,7 @@ function WizWorkspacePage() {
         clearInterval(intervalId);
       }
     };
-  }, [videoId, navigate]);
+  }, [statusAttempt, videoId]);
 
   const seekToTimestamp = (seconds: number) => {
     // Scroll video into view (especially for mobile)
@@ -436,22 +506,24 @@ function WizWorkspacePage() {
   const createNewConversation = useCallback(async () => {
     if (!videoId || isCreatingConversation) return null;
     setIsCreatingConversation(true);
+    setConversationError(null);
     try {
       const data = await conversationsApi.createConversation({ video_id: videoId });
       setConversationId(data.id);
       return data.id;
     } catch (error) {
-      const { status } = normalizeApiError(error, 'Failed to create conversation');
+      const normalized = normalizeApiError(
+        error,
+        'Unable to start a conversation. Please try again.'
+      );
       console.error('Failed to create conversation:', error);
-      if (status === 401) {
-        removeToken();
-        navigate('/login');
-      }
+      if (normalized.handled) return null;
+      setConversationError(normalized);
       return null;
     } finally {
       setIsCreatingConversation(false);
     }
-  }, [isCreatingConversation, navigate, videoId]);
+  }, [isCreatingConversation, videoId]);
 
   useEffect(() => {
     if (!videoId) {
@@ -468,7 +540,22 @@ function WizWorkspacePage() {
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     const trimmed = inputValue.trim();
-    if (!trimmed || isLoading || transcriptStatus !== 'ready') return;
+    if (
+      !trimmed ||
+      isLoading ||
+      transcriptStatus !== 'ready' ||
+      conversationError
+    ) return;
+
+    setIsLoading(true);
+    let activeConversationId = conversationId;
+    if (!activeConversationId) {
+      activeConversationId = await createNewConversation();
+    }
+    if (!activeConversationId) {
+      setIsLoading(false);
+      return;
+    }
 
     const userMessage: Message = {
       id: Date.now().toString(),
@@ -479,7 +566,6 @@ function WizWorkspacePage() {
 
     setMessages((prev) => [...prev, userMessage]);
     setInputValue('');
-    setIsLoading(true);
 
     // Create assistant message placeholder for streaming
     const assistantMessageId = (Date.now() + 1).toString();
@@ -492,54 +578,46 @@ function WizWorkspacePage() {
     setMessages((prev) => [...prev, assistantMessage]);
 
     try {
-      let activeConversationId = conversationId;
-      if (!activeConversationId) {
-        activeConversationId = await createNewConversation();
-      }
-
-      if (!activeConversationId) {
-         throw new Error('Failed to start conversation');
-      }
-
-      // We use fetch directly here for streaming support, but point to the new endpoint
-      const response = await fetch(conversationsApi.getSendMessageUrl(activeConversationId), {
+      const response = await apiFetch(
+        conversationsApi.getSendMessageUrl(activeConversationId),
+        {
         method: 'POST',
-        headers: {
-          ...getAuthHeaders(), // Use auth utils helper
-          ...(sessionStorage.getItem('guestSessionId') ? { 'X-Guest-Session-ID': sessionStorage.getItem('guestSessionId')! } : {})
-        },
         body: JSON.stringify({
           message: trimmed
         }),
-      });
+        }
+      );
+      const requestId = response.headers.get('X-Request-ID') ?? undefined;
 
       if (response.status === 401) {
-        removeToken();
-        navigate('/login');
+        setMessages((prev) =>
+          prev.filter((message) => message.id !== assistantMessageId)
+        );
         return;
       }
 
       if (response.status === 429) {
-        const errorData = await response.json();
-        
+        const normalized = await normalizeFetchError(
+          response,
+          'You have reached the current chat limit.'
+        );
+        setMessages((prev) =>
+          prev.filter((message) => message.id !== assistantMessageId)
+        );
         if (getToken()) {
-          // Registered user limit
-          const seconds = errorData.error?.details?.reset_in_seconds || 86400; // Default to 24h if missing
-          setResetSeconds(seconds);
+          setResetSeconds(normalized.retryAfterSeconds ?? null);
           setShowRegisteredLimit(true);
-          throw new Error('Daily limit reached');
         } else {
-          // Guest limit
           setShowGuestLimit(true);
-          throw new Error('Guest daily limit exceeded');
         }
+        return;
       }
 
       if (response.status === 202) {
         let processingMessage = 'Transcript processing';
         try {
-          const data = await response.json();
-          if (data?.message) {
+          const data: unknown = await response.json();
+          if (isRecord(data) && typeof data.message === 'string') {
             processingMessage = data.message;
           }
         } catch {
@@ -558,85 +636,50 @@ function WizWorkspacePage() {
       }
 
       if (!response.ok) {
-        let errorMessage = 'Chat request failed';
-        try {
-          const errorData = await response.json();
-          if (errorData.error) {
-            // Handle both { error: "msg" } and { error: { message: "msg" } }
-            errorMessage = typeof errorData.error === 'string' 
-              ? errorData.error 
-              : (errorData.error.message || errorMessage);
-          } else if (errorData.message) {
-            errorMessage = errorData.message;
-          }
-        } catch {
-          // If JSON parsing fails, stick with default message or status text
-          errorMessage = response.statusText || errorMessage;
-        }
-        throw new Error(errorMessage);
+        const normalized = await normalizeFetchError(
+          response,
+          'Chat is temporarily unavailable. Please try again.'
+        );
+        throw new ChatDisplayError(normalized.message, normalized.requestId);
       }
 
-      // Handle SSE streaming
-      const reader = response.body?.getReader();
-      const decoder = new TextDecoder();
-
-      if (!reader) {
-        throw new Error('No response body');
+      if (!response.body) {
+        throw new ChatDisplayError(
+          'The chat response could not be read. Please try again.',
+          requestId
+        );
       }
 
       let fullContent = '';
-      let buffer = '';
       let streamDone = false;
-      while (!streamDone) {
-        const { done, value } = await reader.read();
-        if (done) break;
-
-        buffer += decoder.decode(value, { stream: true });
-        const parts = buffer.split('\n\n');
-        buffer = parts.pop() || '';
-
-        for (const part of parts) {
-          const lines = part.split('\n');
-          for (const line of lines) {
-            if (line.startsWith('data: ')) {
-              const data = line.slice(6);
-              if (data === '[DONE]') {
-                streamDone = true;
-                break;
-              }
-              let parsed: unknown;
-              try {
-                parsed = JSON.parse(data);
-              } catch {
-                // Incomplete JSON chunk, skip
-                continue;
-              }
-              if (!isWizStreamPayload(parsed)) {
-                continue;
-              }
-              if (parsed.error) {
-                throw new Error(parsed.error);
-              }
-              if (parsed.content) {
-                fullContent += parsed.content;
-                // Update message content in real-time
-                setMessages((prev) =>
-                  prev.map((msg) =>
-                    msg.id === assistantMessageId
-                      ? { ...msg, content: fullContent }
-                      : msg
-                  )
-                );
-                // Stop showing "Thinking..." as soon as we have content
-                setIsLoading(false);
-              }
-            }
-          }
-          if (streamDone) break;
+      for await (const event of readSseEvents(response.body)) {
+        if (event.data === '[DONE]') {
+          streamDone = true;
+          break;
+        }
+        const parsed = parseJsonPayload(event.data);
+        if (!isWizStreamPayload(parsed)) {
+          throw new ChatDisplayError(
+            'The server returned an invalid chat response.',
+            requestId
+          );
+        }
+        if (parsed.error) {
+          throw new ChatDisplayError(parsed.error, requestId);
+        }
+        if (parsed.content) {
+          fullContent += parsed.content;
+          setMessages((prev) =>
+            prev.map((msg) =>
+              msg.id === assistantMessageId
+                ? { ...msg, content: fullContent }
+                : msg
+            )
+          );
+          setIsLoading(false);
         }
       }
 
-      // If stream completed but no content was received, show an error
       if (!fullContent) {
         setMessages((prev) =>
           prev.map((msg) =>
@@ -645,14 +688,33 @@ function WizWorkspacePage() {
               : msg
           )
         );
+      } else if (!streamDone) {
+        setMessages((prev) =>
+          prev.map((msg) =>
+            msg.id === assistantMessageId
+              ? {
+                  ...msg,
+                  content: `${fullContent}\n\nError: The response was interrupted. Please try again.`,
+                }
+              : msg
+          )
+        );
       }
     } catch (error) {
       console.error('Chat error:', error);
-      // Update assistant message with error
+      const message =
+        error instanceof ChatDisplayError
+          ? error.message
+          : 'The chat connection failed. Please try again.';
+      const referenceId =
+        error instanceof ChatDisplayError ? error.requestId : undefined;
       setMessages((prev) =>
         prev.map((msg) =>
           msg.id === assistantMessageId
-            ? { ...msg, content: `Error: ${error instanceof Error ? error.message : 'Something went wrong'}` }
+            ? {
+                ...msg,
+                content: `Error: ${message}${referenceId ? `\n\nReference: ${referenceId}` : ''}`,
+              }
             : msg
         )
       );
@@ -665,8 +727,16 @@ function WizWorkspacePage() {
   const handleNewChat = () => {
     setMessages([]);
     setConversationId(null);
-    createNewConversation();
+    setConversationError(null);
+    void createNewConversation();
     inputRef.current?.focus();
+  };
+
+  const retryVideoStatus = () => {
+    setShowRefreshModal(false);
+    setStatusError(null);
+    pollingStartTime.current = Date.now();
+    setStatusAttempt((attempt) => attempt + 1);
   };
 
   const seoVideoTitleRaw = videoData?.title || videoData?.metadata?.title || 'this YouTube video';
@@ -696,15 +766,16 @@ function WizWorkspacePage() {
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" />
                 </svg>
               </div>
-              <h3 className="text-lg font-semibold text-foreground mb-2">Transcript Not Available</h3>
+              <h3 className="text-lg font-semibold text-foreground mb-2">Transcript still processing</h3>
               <p className="text-sm text-foreground/60 mb-6">
-                The transcript for this video is still processing. Please refresh the page to check again.
+                Wiz needs a little more time to prepare this video. Check again
+                without leaving the conversation.
               </p>
               <button
-                onClick={() => window.location.reload()}
+                onClick={retryVideoStatus}
                 className="w-full px-4 py-3 bg-gradient-to-r from-violet-600 to-violet-500 hover:from-violet-500 hover:to-violet-400 text-white font-semibold rounded-xl transition-all"
               >
-                Refresh Page
+                Check again
               </button>
             </div>
           </div>
@@ -750,7 +821,18 @@ function WizWorkspacePage() {
           </div>
 
           {/* Transcript Status Banner */}
-          {transcriptStatus === 'loading' && (
+          {statusError ? (
+            <div className="border-b border-border">
+              <ErrorState
+                compact
+                className="py-5"
+                title="Unable to check video status"
+                message={statusError.message}
+                referenceId={statusError.requestId}
+                onRetry={retryVideoStatus}
+              />
+            </div>
+          ) : transcriptStatus === 'loading' && (
             <div className="flex items-center justify-center gap-3 px-4 py-3 bg-gradient-to-r from-violet-500/10 to-fuchsia-500/10 border-b border-border">
               <div className="w-4 h-4 rounded-full border-2 border-violet-400/30 border-t-violet-400 animate-spin" />
               <span className="text-sm text-violet-300">Preparing transcript...</span>
@@ -761,7 +843,17 @@ function WizWorkspacePage() {
           {/* Messages Area */}
           <div className="flex-1 overflow-y-auto">
             <div className="p-4 space-y-4">
-              {messages.length === 0 && transcriptStatus === 'ready' && (
+              {conversationError && (
+                <ErrorState
+                  compact
+                  title="Unable to start chat"
+                  message={conversationError.message}
+                  referenceId={conversationError.requestId}
+                  onRetry={() => void createNewConversation()}
+                />
+              )}
+
+              {messages.length === 0 && transcriptStatus === 'ready' && !conversationError && (
                 <div className="flex flex-col items-center justify-center text-center py-12 px-4">
                   <div className="w-16 h-16 rounded-2xl bg-gradient-to-br from-violet-500/10 to-fuchsia-500/10 flex items-center justify-center mb-5 border border-violet-500/20">
                     <Sparkles className="w-8 h-8 text-violet-400" />
@@ -770,17 +862,19 @@ function WizWorkspacePage() {
                   <p className="text-foreground/50 text-sm max-w-xs leading-relaxed mb-6">
                     Ask me anything about this video. I'll provide answers with clickable timestamp citations.
                   </p>
-                  <div className="flex flex-wrap justify-center gap-2">
-                    {['Summarize key points', 'What happens at the start?', 'Explain the main topic'].map((suggestion) => (
-                      <button
-                        key={suggestion}
-                        onClick={() => setInputValue(suggestion)}
-                        className="px-3 py-2 text-xs rounded-lg bg-secondary/50 border border-border text-foreground/60 hover:text-foreground hover:bg-secondary hover:border-border/80 transition-all"
-                      >
-                        {suggestion}
-                      </button>
-                    ))}
-                  </div>
+                  {videoData?.suggested_questions?.length === 3 && (
+                    <div className="flex flex-wrap justify-center gap-2">
+                      {videoData.suggested_questions.map((suggestion) => (
+                        <button
+                          key={suggestion}
+                          onClick={() => setInputValue(suggestion)}
+                          className="px-3 py-2 text-xs rounded-lg bg-secondary/50 border border-border text-foreground/60 hover:text-foreground hover:bg-secondary hover:border-border/80 transition-all"
+                        >
+                          {suggestion}
+                        </button>
+                      ))}
+                    </div>
+                  )}
                 </div>
               )}
 
@@ -841,12 +935,23 @@ function WizWorkspacePage() {
                     ? 'Ask about this video...'
                     : 'Waiting for transcript...'
                 }
-                disabled={transcriptStatus !== 'ready' || isLoading}
+                disabled={
+                  transcriptStatus !== 'ready' ||
+                  isLoading ||
+                  isCreatingConversation ||
+                  Boolean(conversationError)
+                }
                 className="flex-1 px-4 py-3 bg-muted/50 border border-input rounded-xl text-foreground placeholder:text-muted-foreground focus:outline-none focus:border-violet-500/50 focus:ring-2 focus:ring-violet-500/20 transition-all disabled:opacity-50 disabled:cursor-not-allowed"
               />
               <button
                 type="submit"
-                disabled={transcriptStatus !== 'ready' || isLoading || !inputValue.trim()}
+                disabled={
+                  transcriptStatus !== 'ready' ||
+                  isLoading ||
+                  isCreatingConversation ||
+                  Boolean(conversationError) ||
+                  !inputValue.trim()
+                }
                 className="px-4 py-3 bg-gradient-to-r from-violet-600 to-violet-500 hover:from-violet-500 hover:to-violet-400 text-white rounded-xl transition-all disabled:opacity-50 disabled:cursor-not-allowed"
               >
                 <Send className="w-5 h-5" />
