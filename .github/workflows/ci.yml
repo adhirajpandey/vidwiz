@@ -1,4 +1,4 @@
-name: CI
+name: Validate Application and Infrastructure
 
 on:
   pull_request:
@@ -17,7 +17,7 @@ concurrency:
 
 jobs:
   backend:
-    name: Backend
+    name: Validate Backend
     runs-on: ubuntu-latest
     timeout-minutes: 15
 
@@ -46,17 +46,17 @@ jobs:
       - name: Install dependencies
         run: uv sync --locked
 
-      - name: Check formatting
+      - name: Check Backend Formatting
         run: uv run --locked ruff format --check src workers
 
-      - name: Lint
+      - name: Lint Backend
         run: uv run --locked ruff check src workers
 
-      - name: Test
+      - name: Run Backend Tests
         run: uv run --locked pytest
 
   frontend:
-    name: Frontend
+    name: Validate Frontend
     runs-on: ubuntu-latest
     timeout-minutes: 10
 
@@ -85,17 +85,17 @@ jobs:
       - name: Install dependencies
         run: pnpm install --frozen-lockfile
 
-      - name: Lint
+      - name: Lint Frontend
         run: pnpm lint
 
-      - name: Test
+      - name: Run Frontend Tests
         run: pnpm test
 
-      - name: Build
+      - name: Build Frontend
         run: pnpm build
 
   infrastructure:
-    name: Infrastructure
+    name: Validate AWS Infrastructure
     runs-on: ubuntu-latest
     timeout-minutes: 30
 
@@ -134,5 +134,5 @@ jobs:
       - name: Install Node.js dependencies
         run: npm ci --ignore-scripts
 
-      - name: Validate infrastructure
+      - name: Validate CDK Infrastructure
         run: uv run --locked python scripts/validate.py
