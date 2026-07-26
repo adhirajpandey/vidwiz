@@ -3,8 +3,9 @@ import { useNavigate } from 'react-router-dom';
 import { Lock, X, Mail } from 'lucide-react';
 import GoogleSignInButton from './GoogleSignInButton';
 import { useToast } from '../hooks/useToast';
-import config from '../config';
 import { setToken } from '../lib/authUtils';
+import { authApi } from '../api';
+import { normalizeApiError } from '../api/errors';
 
 interface GuestLimitModalProps {
   isOpen: boolean;
@@ -21,39 +22,24 @@ const GuestLimitModal: React.FC<GuestLimitModalProps> = ({ isOpen, onClose }) =>
   const handleGoogleSuccess = async (credential: string) => {
     setIsLoading(true);
     try {
-      const response = await fetch(`${config.API_URL}/auth/google`, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({ credential }),
-      });
-
-      const data = await response.json();
-
-      if (response.ok) {
-        setToken(data.token);
-        addToast({
-          title: 'Welcome!',
-          message: 'Signed in successfully',
-          type: 'success',
-        });
-        // Reload the page to refresh context with the new token
-        window.location.reload();
-      } else {
-        addToast({
-          title: 'Sign-in Failed',
-          message: data.error || 'Google sign-in failed',
-          type: 'error',
-        });
-        setIsLoading(false);
-      }
-    } catch {
+      const data = await authApi.googleLogin({ credential });
+      setToken(data.token);
       addToast({
-        title: 'Connection Error',
-        message: 'Could not connect to server',
-        type: 'error',
+        title: 'Welcome!',
+        message: 'Signed in successfully',
+        type: 'success',
       });
+      // Reload the page to refresh the guest conversation with the new token.
+      window.location.reload();
+    } catch (error) {
+      const normalized = normalizeApiError(error, 'Google sign-in failed');
+      addToast({
+        title: 'Sign-in Failed',
+        message: normalized.message,
+        type: 'error',
+        referenceId: normalized.requestId,
+      });
+    } finally {
       setIsLoading(false);
     }
   };
