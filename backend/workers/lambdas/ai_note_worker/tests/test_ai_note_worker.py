@@ -6,6 +6,8 @@ import sys
 from types import ModuleType, SimpleNamespace
 import uuid
 
+import pytest
+
 REQUIRED_BACKEND_ENVIRONMENT = {
     "ENVIRONMENT": "test",
     "SECRET_KEY": "test-secret",
@@ -130,6 +132,92 @@ def test_process_note_falls_back_to_video_metadata_and_persists(monkeypatch):
     )
 
     assert api.updated == (12, "Generated note")
+
+
+@pytest.mark.parametrize(
+    ("transcript", "context", "generated"),
+    [
+        (None, None, None),
+        ([{"offset": 60, "text": "Transcript context"}], None, None),
+        (
+            [{"offset": 60, "text": "Transcript context"}],
+            [{"offset": 60, "text": "Transcript context"}],
+            None,
+        ),
+    ],
+)
+def test_process_note_propagates_retryable_failures(
+    monkeypatch, transcript, context, generated
+):
+    note_service = _load_module("note_service.py", monkeypatch)
+
+    class Transcripts:
+        def get(self, _video_id):
+            return transcript
+
+    monkeypatch.setattr(note_service, "transcripts", Transcripts())
+    monkeypatch.setattr(note_service, "relevant_context", lambda *_args: context)
+    monkeypatch.setattr(note_service, "format_context", lambda value: str(value))
+    monkeypatch.setattr(note_service, "_valid_note", lambda *_args: generated)
+
+    with pytest.raises(RuntimeError):
+        note_service.process_note(
+            Note(id=12, video_id="video-id", timestamp="01:00", user_id=2)
+        )
+
+
+def test_process_note_raises_when_update_fails(monkeypatch):
+    note_service = _load_module("note_service.py", monkeypatch)
+
+    class Transcripts:
+        def get(self, _video_id):
+            return [{"offset": 60, "text": "Transcript context"}]
+
+    class Api:
+        def get_video(self, _video_id):
+            return {"title": "Fallback title"}
+
+        def update_note(self, _note_id, _text):
+            return False
+
+    monkeypatch.setattr(note_service, "transcripts", Transcripts())
+    monkeypatch.setattr(note_service, "api", Api())
+    monkeypatch.setattr(note_service, "_valid_note", lambda *_args: "Generated note")
+
+    with pytest.raises(RuntimeError):
+        note_service.process_note(
+            Note(id=12, video_id="video-id", timestamp="01:00", user_id=2)
+        )
+
+
+def test_valid_note_returns_none_after_invalid_final_retry(monkeypatch):
+    note_service = _load_module("note_service.py", monkeypatch)
+    monkeypatch.setattr(
+        note_service,
+        "settings",
+        SimpleNamespace(max_retries=2, min_note_length=5, max_note_length=10),
+    )
+    monkeypatch.setattr(
+        note_service,
+        "llm",
+        SimpleNamespace(complete=lambda _prompt: "too long for configured bounds"),
+    )
+
+    assert note_service._valid_note(None, "00:01", "Transcript") is None
+
+
+def test_process_batch_propagates_item_failure(monkeypatch):
+    note_service = _load_module("note_service.py", monkeypatch)
+    monkeypatch.setattr(
+        note_service,
+        "process_note",
+        lambda _note: (_ for _ in ()).throw(RuntimeError("retry")),
+    )
+
+    with pytest.raises(RuntimeError, match="retry"):
+        note_service.process_batch(
+            [Note(id=12, video_id="video-id", timestamp="01:00", user_id=2)]
+        )
 
 
 def test_handler_delegates_parsed_batch(monkeypatch):

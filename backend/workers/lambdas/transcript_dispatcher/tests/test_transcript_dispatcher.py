@@ -4,6 +4,8 @@ import sys
 from types import ModuleType
 import uuid
 
+import pytest
+
 WORKER_DIR = Path(__file__).resolve().parents[1]
 
 
@@ -76,6 +78,28 @@ def test_dispatch_service_skips_summary_without_summary_queue(monkeypatch):
     assert dispatch_service.push_summary_to_sqs("video-id") is False
 
 
+def test_fetch_all_notes_uses_configured_request_timeout(monkeypatch):
+    monkeypatch.setenv("REQUEST_TIMEOUT", "17")
+    dispatch_service = _load_module("dispatch_service.py", monkeypatch)
+    calls = []
+
+    class Response:
+        status_code = 200
+        text = '{"notes":[]}'
+
+        def json(self):
+            return {"notes": []}
+
+    monkeypatch.setattr(
+        dispatch_service.requests,
+        "get",
+        lambda *args, **kwargs: calls.append((args, kwargs)) or Response(),
+    )
+
+    assert dispatch_service.fetch_all_notes("video-id") == []
+    assert calls[0][1]["timeout"] == 17
+
+
 def test_handler_delegates_s3_and_manual_video_ids(monkeypatch):
     handler = _load_module("handler.py", monkeypatch)
     calls = []
@@ -92,3 +116,15 @@ def test_handler_delegates_s3_and_manual_video_ids(monkeypatch):
     handler.lambda_handler(event, object())
 
     assert calls == [(["s3-video", "manual-video"], True)]
+
+
+def test_handler_reraises_dispatch_failure(monkeypatch):
+    handler = _load_module("handler.py", monkeypatch)
+    monkeypatch.setattr(
+        handler.dispatch_service,
+        "dispatch_videos",
+        lambda *_args: (_ for _ in ()).throw(RuntimeError("dispatch failed")),
+    )
+
+    with pytest.raises(RuntimeError, match="dispatch failed"):
+        handler.lambda_handler({"video_ids": ["video-id"]}, object())

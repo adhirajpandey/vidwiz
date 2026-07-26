@@ -36,13 +36,7 @@ def process_batch(requests: list[SummaryRequest]) -> None:
                 "video_id": request.video_id,
             },
         )
-        try:
-            process_summary(request.video_id)
-        except Exception as error:
-            logger.error(
-                "Failed to process summary",
-                extra={"video_id": request.video_id, "error": str(error)},
-            )
+        process_summary(request.video_id)
     logger.info(
         "Completed summary processing batch",
         extra={"processed_count": len(requests)},
@@ -86,14 +80,12 @@ def _valid_summary(title: str | None, transcript: str) -> str | None:
             min_length=settings.min_summary_length,
             max_length=settings.max_summary_length,
             title_block=f"Title: {title}\n\n" if title else "",
-            transcript=transcript.replace("{", "{{").replace("}", "}}"),
+            transcript=transcript,
         )
         generated = llm.complete(prompt)
         if generated is None:
             return None
         generated = generated.strip().replace("\n", " ")
         if settings.min_summary_length <= len(generated) <= settings.max_summary_length:
-            return generated
-        if attempt == settings.max_retries:
             return generated
     return None

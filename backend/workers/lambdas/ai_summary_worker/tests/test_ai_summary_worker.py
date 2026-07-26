@@ -4,6 +4,8 @@ import sys
 from types import ModuleType, SimpleNamespace
 import uuid
 
+import pytest
+
 WORKER_DIR = Path(__file__).resolve().parents[1]
 SHARED_DIR = Path(__file__).resolve().parents[3] / "shared"
 sys.path.insert(0, str(SHARED_DIR))
@@ -76,6 +78,58 @@ def test_process_summary_skips_existing_summary(monkeypatch):
     monkeypatch.setattr(summary_service, "llm", Unused())
 
     summary_service.process_summary("video-id")
+
+
+def test_process_batch_propagates_item_failure(monkeypatch):
+    summary_service = _load_module("summary_service.py", monkeypatch)
+    monkeypatch.setattr(
+        summary_service,
+        "process_summary",
+        lambda _video_id: (_ for _ in ()).throw(RuntimeError("retry")),
+    )
+
+    with pytest.raises(RuntimeError, match="retry"):
+        summary_service.process_batch([SimpleNamespace(video_id="video-id")])
+
+
+def test_valid_summary_preserves_braces_in_transcript(monkeypatch):
+    summary_service = _load_module("summary_service.py", monkeypatch)
+    prompts = []
+    monkeypatch.setattr(
+        summary_service,
+        "settings",
+        SimpleNamespace(max_retries=1, min_summary_length=1, max_summary_length=100),
+    )
+    monkeypatch.setattr(
+        summary_service,
+        "llm",
+        SimpleNamespace(
+            complete=lambda prompt: prompts.append(prompt) or "Valid summary"
+        ),
+    )
+
+    assert (
+        summary_service._valid_summary(None, "Transcript with {literal} braces")
+        == "Valid summary"
+    )
+    assert "Transcript with {literal} braces" in prompts[0]
+    assert "{{literal}}" not in prompts[0]
+
+
+def test_valid_summary_returns_none_after_invalid_final_retry(monkeypatch):
+    summary_service = _load_module("summary_service.py", monkeypatch)
+    monkeypatch.setattr(
+        summary_service,
+        "settings",
+        SimpleNamespace(max_retries=2, min_summary_length=5, max_summary_length=10),
+    )
+    monkeypatch.setattr(
+        summary_service,
+        "llm",
+        SimpleNamespace(complete=lambda _prompt: "too long for configured bounds"),
+    )
+
+    assert summary_service._valid_summary(None, "Transcript") is None
 
 
 def test_handler_delegates_parsed_batch(monkeypatch):

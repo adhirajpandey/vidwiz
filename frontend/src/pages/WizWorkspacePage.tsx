@@ -454,10 +454,11 @@ function WizWorkspacePage() {
   }, [isCreatingConversation, navigate, videoId]);
 
   useEffect(() => {
-    if (
-      !videoId ||
-      initializedConversationVideoIdRef.current === videoId
-    ) {
+    if (!videoId) {
+      initializedConversationVideoIdRef.current = null;
+      return;
+    }
+    if (initializedConversationVideoIdRef.current === videoId) {
       return;
     }
     initializedConversationVideoIdRef.current = videoId;

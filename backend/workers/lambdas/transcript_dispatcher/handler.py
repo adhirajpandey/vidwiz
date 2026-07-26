@@ -45,4 +45,5 @@ def lambda_handler(event: Dict[str, Any], context: Any) -> None:
 
         dispatch_service.dispatch_videos(video_ids, is_s3_event)
     except Exception as error:
-        logger.error(f"Unhandled exception: {error}")
+        logger.error(f"Unhandled exception: {error}", exc_info=True)
+        raise

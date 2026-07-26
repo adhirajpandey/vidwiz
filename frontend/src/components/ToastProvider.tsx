@@ -1,4 +1,4 @@
-import { useCallback, useMemo, useState } from 'react';
+import { useCallback, useMemo, useRef, useState } from 'react';
 import type { ReactNode } from 'react';
 import {
   ToastContext,
@@ -11,11 +11,13 @@ type ToastInput = Omit<ToastProps, 'id' | 'onClose'>;
 
 export default function ToastProvider({ children }: { children: ReactNode }) {
   const [toasts, setToasts] = useState<ToastItem[]>([]);
+  const nextToastIdRef = useRef(0);
 
   const addToast = useCallback((toast: ToastInput) => {
+    const id = nextToastIdRef.current++;
     setToasts((currentToasts) => [
       ...currentToasts,
-      { ...toast, id: Date.now() },
+      { ...toast, id },
     ]);
   }, []);
 

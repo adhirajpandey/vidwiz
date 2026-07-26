@@ -10,6 +10,7 @@ VIDWIZ_INTERNAL_API_BASE_URL = os.getenv("VIDWIZ_INTERNAL_API_BASE_URL")
 VIDWIZ_INTERNAL_API_ADMIN_TOKEN = os.getenv("VIDWIZ_INTERNAL_API_ADMIN_TOKEN")
 SQS_AI_NOTE_QUEUE_URL = os.getenv("SQS_AI_NOTE_QUEUE_URL")
 SQS_AI_SUMMARY_QUEUE_URL = os.getenv("SQS_AI_SUMMARY_QUEUE_URL")
+REQUEST_TIMEOUT = int(os.getenv("REQUEST_TIMEOUT", "30"))
 
 assert VIDWIZ_INTERNAL_API_BASE_URL, "VIDWIZ_INTERNAL_API_BASE_URL is not set"
 assert VIDWIZ_INTERNAL_API_ADMIN_TOKEN, "VIDWIZ_INTERNAL_API_ADMIN_TOKEN is not set"
@@ -22,7 +23,7 @@ def fetch_all_notes(video_id: str) -> Optional[List[Dict[str, Any]]]:
     url = f"{VIDWIZ_INTERNAL_API_BASE_URL}/v2/internal/videos/{video_id}/ai-notes"
     headers = {"Authorization": f"Bearer {VIDWIZ_INTERNAL_API_ADMIN_TOKEN}"}
     try:
-        response = requests.get(url, headers=headers)
+        response = requests.get(url, headers=headers, timeout=REQUEST_TIMEOUT)
         logger.info(
             "VidWiz response received",
             extra={

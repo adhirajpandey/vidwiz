@@ -33,6 +33,7 @@ or systemd unit manages parallel helper processes.
   - Generates a one-line note with length constraints and retries on length mismatch
   - Uses OpenRouter via OpenAI-compatible API (`OPENROUTER_API_KEY`)
   - Updates note via `/v2/internal/notes/{id}` (sets `generated_by_ai=true`)
+  - Fails the invocation when transcript/context, generation, or persistence fails so SQS retries the record
   - Falls back to `/v2/internal/videos/{video_id}` to resolve title when not provided in payload
   - Configurable: `TRANSCRIPT_BUFFER_SECONDS`, `CONTEXT_SEGMENTS`, `MIN_NOTE_LENGTH`, `MAX_NOTE_LENGTH`, `MAX_RETRIES`
 
@@ -44,6 +45,7 @@ or systemd unit manages parallel helper processes.
   - Skips generation if summary already exists
   - Uses OpenRouter via OpenAI-compatible API (`OPENROUTER_API_KEY`)
   - Updates video via `/v2/internal/videos/{id}/summary`
+  - Propagates processing exceptions so the single-record SQS batch is retried
   - Configurable: `MIN_SUMMARY_LENGTH`, `MAX_SUMMARY_LENGTH`, `MAX_RETRIES`
 
 - **Task Dispatcher Lambda**:
@@ -54,6 +56,7 @@ or systemd unit manages parallel helper processes.
   - On S3 event: enqueues summary jobs to summary SQS
   - For all video IDs: fetches eligible AI-note tasks via `/v2/internal/videos/{video_id}/ai-notes` and batches them to the AI note SQS (batch size 10)
   - Notes fetch uses `VIDWIZ_INTERNAL_API_ADMIN_TOKEN`
+  - Propagates unhandled dispatch failures so Lambda retry/DLQ handling can run
 
 ### Lambda Infrastructure and Delivery
 - `infra/` defines all three production functions, queues, the transcript

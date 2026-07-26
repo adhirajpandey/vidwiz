@@ -41,13 +41,7 @@ def process_batch(notes: list[Note]) -> None:
                 "note_id": note.id,
             },
         )
-        try:
-            process_note(note)
-        except Exception as error:
-            logger.error(
-                "Failed to process note",
-                extra={"note_id": note.id, "error": str(error)},
-            )
+        process_note(note)
     logger.info(
         "Completed note processing batch", extra={"processed_count": len(notes)}
     )
@@ -60,7 +54,7 @@ def process_note(note: Note) -> None:
             "Cannot process note - transcript not available",
             extra={"video_id": note.video_id, "note_id": note.id},
         )
-        return
+        raise RuntimeError(f"Transcript not available for note {note.id}")
     context = relevant_context(transcript, note.timestamp, settings)
     if context is None:
         logger.error(
@@ -71,16 +65,17 @@ def process_note(note: Note) -> None:
                 "timestamp": note.timestamp,
             },
         )
-        return
+        raise RuntimeError(f"Relevant transcript not found for note {note.id}")
     title = note.video.title if note.video and note.video.title else None
     if title is None:
         metadata = api.get_video(note.video_id)
         title = metadata.get("title") if metadata else None
     note_text = _valid_note(title, note.timestamp, format_context(context))
-    if note_text:
-        api.update_note(note.id, note_text)
-    else:
+    if not note_text:
         logger.error("Failed to generate AI note", extra={"note_id": note.id})
+        raise RuntimeError(f"Failed to generate AI note {note.id}")
+    if not api.update_note(note.id, note_text):
+        raise RuntimeError(f"Failed to update AI note {note.id}")
 
 
 def _valid_note(title: str | None, timestamp: str, transcript: str) -> str | None:
@@ -97,7 +92,5 @@ def _valid_note(title: str | None, timestamp: str, transcript: str) -> str | Non
             return None
         generated = generated.strip().replace("\n", " ")
         if settings.min_note_length <= len(generated) <= settings.max_note_length:
-            return generated
-        if attempt == settings.max_retries:
             return generated
     return None
