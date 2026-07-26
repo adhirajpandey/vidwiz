@@ -4,4 +4,7 @@ export * from './videos';
 export * from './conversations';
 export * from './notes';
 export * from './types';
+export * from './errors';
+export * from './fetch';
+export * from './sse';
 export { default as apiClient } from './client';
