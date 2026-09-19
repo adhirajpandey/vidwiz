@@ -17,6 +17,10 @@ LambdaMemory = Annotated[int, Field(ge=128, le=10_240)]
 LambdaTimeout = Annotated[int, Field(ge=1, le=900)]
 PositiveInt = Annotated[int, Field(ge=1)]
 QuestionMaxLength = Annotated[int, Field(ge=1, le=500)]
+ModelName = Annotated[str, StringConstraints(strip_whitespace=True, min_length=1)]
+
+DEFAULT_SUMMARY_MODEL = "qwen/qwen3.5-35b-a3b"
+DEFAULT_AI_NOTE_MODEL = "z-ai/glm-5.3-flash"
 
 
 class ProductionDeploymentConfig(BaseSettings):
@@ -46,7 +50,12 @@ class ProductionDeploymentConfig(BaseSettings):
     )
     openrouter_api_key: SecretStr
     openrouter_base_url: str
-    openrouter_model: Annotated[str, StringConstraints(min_length=1)]
+    summary_model: ModelName = Field(
+        default=DEFAULT_SUMMARY_MODEL, alias="SUMMARY_MODEL"
+    )
+    ai_note_model: ModelName = Field(
+        default=DEFAULT_AI_NOTE_MODEL, alias="AI_NOTE_MODEL"
+    )
 
     transcript_buffer_seconds: PositiveInt
     context_segments: PositiveInt
@@ -96,4 +105,6 @@ class ProductionDeploymentConfig(BaseSettings):
             for name, value in dotenv_values(path).items()
             if value is not None
         }
+        values.setdefault("summary_model", DEFAULT_SUMMARY_MODEL)
+        values.setdefault("ai_note_model", DEFAULT_AI_NOTE_MODEL)
         return cls(_env_file=None, **values)

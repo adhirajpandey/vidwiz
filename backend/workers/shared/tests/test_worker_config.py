@@ -36,6 +36,37 @@ def test_settings_use_question_length_defaults(monkeypatch):
     assert settings.max_question_length == 120
 
 
+def test_settings_use_workload_model_defaults(monkeypatch):
+    _set_required_environment(monkeypatch)
+    monkeypatch.delenv("SUMMARY_MODEL", raising=False)
+    monkeypatch.delenv("AI_NOTE_MODEL", raising=False)
+
+    settings = WorkerSettings.from_env()
+
+    assert settings.summary_model == "qwen/qwen3.5-35b-a3b"
+    assert settings.ai_note_model == "z-ai/glm-5.3-flash"
+
+
+def test_settings_keep_workload_model_overrides_independent(monkeypatch):
+    _set_required_environment(monkeypatch)
+    monkeypatch.setenv("SUMMARY_MODEL", "summary-override")
+    monkeypatch.setenv("AI_NOTE_MODEL", "note-override")
+
+    settings = WorkerSettings.from_env()
+
+    assert settings.summary_model == "summary-override"
+    assert settings.ai_note_model == "note-override"
+
+
+@pytest.mark.parametrize("name", ["SUMMARY_MODEL", "AI_NOTE_MODEL"])
+def test_settings_reject_blank_workload_models(monkeypatch, name):
+    _set_required_environment(monkeypatch)
+    monkeypatch.setenv(name, "   ")
+
+    with pytest.raises(ValueError, match=f"{name} must not be blank"):
+        WorkerSettings.from_env()
+
+
 @pytest.mark.parametrize(
     ("minimum", "maximum"),
     [

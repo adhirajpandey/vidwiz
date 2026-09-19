@@ -305,7 +305,7 @@ def stream_wiz_response(
             api_key=api_key, base_url=conversations_settings.openrouter_base_url
         )
         response_stream = client.chat.completions.create(
-            model=conversations_settings.openrouter_model_name,
+            model=conversations_settings.wiz_model,
             messages=messages,
             max_tokens=conversations_settings.wiz_max_tokens,
             stream=True,

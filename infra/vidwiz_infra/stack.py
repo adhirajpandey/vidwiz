@@ -117,6 +117,7 @@ class VidwizStack(cdk.Stack):
                 "CONTEXT_SEGMENTS": str(settings.context_segments),
                 "MIN_NOTE_LENGTH": str(settings.min_note_length),
                 "MAX_NOTE_LENGTH": str(settings.max_note_length),
+                "AI_NOTE_MODEL": settings.ai_note_model,
             },
         )
         summary_worker = self._function(
@@ -133,6 +134,7 @@ class VidwizStack(cdk.Stack):
                 "MAX_SUMMARY_LENGTH": str(settings.max_summary_length),
                 "MIN_QUESTION_LENGTH": str(settings.min_question_length),
                 "MAX_QUESTION_LENGTH": str(settings.max_question_length),
+                "SUMMARY_MODEL": settings.summary_model,
             },
         )
 
@@ -232,7 +234,6 @@ class VidwizStack(cdk.Stack):
             "VIDWIZ_INTERNAL_API_ADMIN_TOKEN": internal_api_admin_token,
             "OPENROUTER_API_KEY": api_key,
             "OPENROUTER_BASE_URL": str(settings.openrouter_base_url),
-            "OPENROUTER_MODEL": settings.openrouter_model,
             "MAX_RETRIES": str(settings.max_retries),
             "REQUEST_TIMEOUT": str(settings.request_timeout),
             "TRANSCRIPT_FETCH_MAX_RETRIES": str(settings.transcript_fetch_max_retries),
