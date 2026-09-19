@@ -112,4 +112,6 @@ payloads.
 - Internal API access: `VIDWIZ_INTERNAL_API_BASE_URL`, `VIDWIZ_INTERNAL_API_ADMIN_TOKEN`
 - Helpers: `VIDWIZ_INTERNAL_API_BASE_URL` or `--api-url` (base), `VIDWIZ_INTERNAL_API_ADMIN_TOKEN`, `--timeout`
 - S3 access: `S3_TRANSCRIPT_BUCKET_NAME`, AWS credentials
-- LLM provider: OpenRouter (`OPENROUTER_API_KEY`, `OPENROUTER_MODEL`, `OPENROUTER_BASE_URL`)
+- LLM provider: OpenRouter (`OPENROUTER_API_KEY`, `OPENROUTER_BASE_URL`)
+- Summary model: `SUMMARY_MODEL` (default `qwen/qwen3.5-35b-a3b`)
+- AI note model: `AI_NOTE_MODEL` (default `z-ai/glm-5.3-flash`)
