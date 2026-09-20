@@ -20,6 +20,8 @@ class VideoRead(ApiModel):
 
 
 class VideoSearchItem(ApiModel):
+    note_count: int = 0
+    last_activity_at: datetime | None = None
     video_id: str
     title: str | None = None
     metadata: dict | None = None
@@ -74,3 +76,11 @@ class VideoIdPath(ApiModel):
     @classmethod
     def validate_video_id(cls, value: str) -> str:
         return normalize_youtube_video_id(value)
+
+
+class LibrarySummary(ApiModel):
+    videos: int
+    notes: int
+    ai_notes: int
+    wiz_chats: int
+    recent_videos: list[VideoSearchItem]
