@@ -1,11 +1,14 @@
 export type TextPart = { type: 'text'; text: string };
+export type Passage = { chunk_ids: string[]; start_seconds: number; end_seconds: number };
+export type BlockCitation = { list_item_index: number | null; passages: Passage[] };
+export type BlockPart = { type: 'block'; text: string; citations: BlockCitation[] };
 export type CitationPart = {
   type: 'citation';
   chunk_id: string;
   start_seconds: number;
   end_seconds: number;
 };
-export type MessagePart = TextPart | CitationPart;
+export type MessagePart = TextPart | CitationPart | BlockPart;
 export type WizStreamEvent = MessagePart
   | { type: 'done'; message_id: number }
   | { type: 'error'; message: string };
@@ -16,6 +19,11 @@ export function parseWizEvent(value: unknown): WizStreamEvent {
   }
   const data = value as Record<string, unknown>;
   switch (data.type) {
+    case 'block':
+      if (typeof data.text === 'string' && Array.isArray(data.citations) && data.citations.every(validCitation)) {
+        return { type: 'block', text: data.text, citations: data.citations };
+      }
+      break;
     case 'text':
       if (typeof data.text === 'string') return { type: 'text', text: data.text };
       break;
@@ -35,4 +43,14 @@ export function parseWizEvent(value: unknown): WizStreamEvent {
       if (typeof data.message === 'string' && data.message.length > 0) return { type: 'error', message: data.message };
   }
   throw new Error('Invalid stream event');
+}
+
+function validCitation(value: unknown): value is BlockCitation {
+  if (!value || typeof value !== 'object') return false;
+  const c = value as BlockCitation;
+  return (c.list_item_index === null || (Number.isSafeInteger(c.list_item_index) && c.list_item_index >= 0)) &&
+    Array.isArray(c.passages) && c.passages.length > 0 && c.passages.every(p =>
+      p && Array.isArray(p.chunk_ids) && p.chunk_ids.length > 0 && p.chunk_ids.every(id => typeof id === 'string' && id.length > 0) &&
+      typeof p.start_seconds === 'number' && Number.isFinite(p.start_seconds) && p.start_seconds >= 0 &&
+      typeof p.end_seconds === 'number' && Number.isFinite(p.end_seconds) && p.end_seconds >= p.start_seconds);
 }

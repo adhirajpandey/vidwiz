@@ -1,6 +1,6 @@
 import { createContext, useContext } from 'react';
 import type { DataMessagePartProps } from '@assistant-ui/react';
-import type { CitationPart } from '../../api/messageParts';
+import type { CitationPart, Passage } from '../../api/messageParts';
 
 const SeekContext = createContext<(seconds: number) => void>(() => undefined);
 export const WizSeekProvider = SeekContext.Provider;
@@ -11,6 +11,18 @@ function formatCitationTime(seconds: number): string {
   const minutes = Math.floor(whole / 60) % 60;
   const remainder = String(whole % 60).padStart(2, '0');
   return hours ? `${hours}:${String(minutes).padStart(2, '0')}:${remainder}` : `${minutes}:${remainder}`;
+}
+
+export function WatchPassage({ passage }: { passage: Passage }) {
+  const seek = useContext(SeekContext);
+  const start = formatCitationTime(passage.start_seconds);
+  const end = formatCitationTime(passage.end_seconds);
+  return <button type="button" className="wiz-watch wiz-accent-text"
+    aria-label={`Watch passage from ${start} to ${end}`}
+    title={`Watch passage ${start} to ${end}. Playback starts 2 seconds earlier.`}
+    onClick={() => seek(passage.start_seconds)}>
+    <span aria-hidden="true">▶</span> Watch · {start}
+  </button>;
 }
 
 export default function WizCitation({ data }: DataMessagePartProps<CitationPart>) {
