@@ -159,7 +159,7 @@ def fake_provider(monkeypatch, payload, *, finish="stop", fail=False):
     return captured, closed
 
 
-def run_stream(db_session, *, history=None):
+def run_stream(db_session, *, history=None, version=1):
     conversation = Conversation(video_id="abc123DEF45", guest_session_id="guest")
     db_session.add(conversation)
     db_session.commit()
@@ -173,6 +173,7 @@ def run_stream(db_session, *, history=None):
             conversation_id=conversation_id,
             db=db_session,
             api_key="test",
+            parts_version=version,
         )
     ]
     return events, service.list_messages(db_session, conversation_id)
@@ -315,3 +316,173 @@ async def test_route_stream_and_history_contract(client, db_session, monkeypatch
     assert messages[1]["id"] == events[-1]["message_id"]
     denied = await client.get(url, headers={"X-Guest-Session-ID": "different"})
     assert denied.status_code == 404
+
+
+def test_grouped_passages_and_independent_targets():
+    from src.conversations.parts import BlockReference, ModelBlock, resolve_block
+
+    _, refs = transcript_context(
+        [
+            {"text": "a", "offset": 0, "duration": 4},
+            {"text": "b", "offset": 3, "duration": 5},
+            {"text": "c", "offset": 13, "duration": 37},
+            {"text": "d", "offset": 55, "duration": 10},
+            {"text": "e", "offset": 100, "duration": 80},
+        ]
+    )
+    ids = list(refs)
+    result = resolve_block(
+        ModelBlock(
+            type="block",
+            text="3. First\n   - Nested\n4. Second",
+            references=[
+                BlockReference(list_item_index=0, chunk_ids=[*reversed(ids), ids[0]]),
+                BlockReference(list_item_index=0, chunk_ids=[ids[1]]),
+                BlockReference(list_item_index=1, chunk_ids=ids[:2]),
+                BlockReference(list_item_index=2, chunk_ids=[ids[0]]),
+                BlockReference(list_item_index=-1, chunk_ids=[ids[0]]),
+            ],
+        ),
+        refs,
+    )
+    assert len(result.citations) == 2
+    assert [(p.start_seconds, p.end_seconds) for p in result.citations[0].passages] == [
+        (0, 50),
+        (55, 65),
+        (100, 180),
+    ]
+    assert result.citations[0].passages[0].chunk_ids == ids[:3]
+    assert result.citations[1].passages[0].chunk_ids == ids[:2]
+
+
+@pytest.mark.parametrize(
+    "text,index,valid",
+    [
+        ("Paragraph", None, True),
+        ("Paragraph", 0, False),
+        ("Two\n\nParagraphs", None, False),
+        ("# Heading\n\nParagraph", None, False),
+        ("> Quote", None, True),
+        ("```text\n- Not a list\n```", 0, False),
+        ("```text\ncode\n```", None, True),
+        ("| a | b |\n|---|---|\n| c | d |", None, True),
+    ],
+)
+def test_reference_targets_preserve_text(text, index, valid):
+    from src.conversations.parts import BlockReference, ModelBlock, resolve_block
+
+    _, refs = transcript_context([{"text": "Source", "offset": 1, "duration": 2}])
+    block = ModelBlock(
+        type="block",
+        text=text,
+        references=[
+            BlockReference(
+                list_item_index=index, chunk_ids=[next(iter(refs)), "unknown"]
+            )
+        ],
+    )
+    result = resolve_block(block, refs)
+    assert result.text == text
+    assert bool(result.citations) == valid
+
+
+@pytest.mark.parametrize("fail", [False, True])
+def test_v2_stream_persistence_and_history(db_session, monkeypatch, fail):
+    from src.conversations.parts import history_parts, stored_parts
+
+    _, refs = transcript_context(
+        [{"text": "Source", "offset": 763.5, "duration": 26.5}]
+    )
+    key = next(iter(refs))
+    block = {
+        "type": "block",
+        "text": "Answer",
+        "references": [{"list_item_index": None, "chunk_ids": [key, "unknown"]}],
+    }
+    captured, closed = fake_provider(
+        monkeypatch, json.dumps({"parts": [block]}), fail=fail
+    )
+    events, messages = run_stream(db_session, version=2)
+    assert events[0]["type"] == "block"
+    assert events[0]["citations"][0]["passages"] == [
+        {"chunk_ids": [key], "start_seconds": 763.5, "end_seconds": 790.0}
+    ]
+    assert closed == [True]
+    if fail:
+        assert events[-1]["type"] == "error"
+        assert messages == []
+    else:
+        assert events[-1]["type"] == "done"
+        read = MessageRead.model_validate(messages[0])
+        assert read.content == "Answer"
+        assert read.metadata["parts_version"] == 2
+        assert [p.model_dump() for p in read.parts] == events[:-1]
+        assert "list_item_index" in captured["messages"][0]["content"]
+        parts = stored_parts(read.content, read.metadata)
+        assert history_parts(parts, refs, 2)[0]["references"][0]["chunk_ids"] == [key]
+        assert history_parts(parts, {}, 2)[0]["references"] == []
+        assert history_parts(parts, refs, 1) == [
+            {"type": "text", "text": "Answer"},
+            {"type": "citation", "chunk_id": key},
+        ]
+
+
+def test_v2_decoder_atomic_and_model_cannot_supply_times():
+    decoder = PartsDecoder(2)
+    block = {
+        "type": "block",
+        "text": "Answer",
+        "references": [{"list_item_index": None, "chunk_ids": ["a"]}],
+    }
+    prefix = '{"parts":[' + json.dumps(block)
+    assert list(decoder.feed(prefix[:-1])) == []
+    assert len(list(decoder.feed(prefix[-1:]))) == 1
+    list(decoder.feed("]}"))
+    decoder.finish()
+    block["references"][0]["start_seconds"] = 1
+    with pytest.raises(ValueError):
+        list(PartsDecoder(2).feed(json.dumps({"parts": [block]})))
+
+
+@pytest.mark.asyncio
+async def test_v2_route_negotiation(client, db_session, monkeypatch):
+    from src.videos.models import Video
+
+    video = Video(video_id="abc123DEF45", transcript_available=True, title="Video")
+    conversation = Conversation(video_id=video.video_id, guest_session_id="v2-guest")
+    db_session.add_all([video, conversation])
+    db_session.commit()
+    transcript = [{"text": "Source", "offset": 0, "duration": 3}]
+    key = next(iter(transcript_context(transcript)[1]))
+    fake_provider(
+        monkeypatch,
+        json.dumps(
+            {
+                "parts": [
+                    {
+                        "type": "block",
+                        "text": "Answer",
+                        "references": [{"list_item_index": None, "chunk_ids": [key]}],
+                    }
+                ]
+            }
+        ),
+    )
+    monkeypatch.setattr(service, "get_transcript_from_s3", lambda _: transcript)
+    url = f"/v2/conversations/{conversation.id}/messages"
+    headers = {"X-Guest-Session-ID": "v2-guest"}
+    response = await client.post(
+        url, headers=headers, json={"message": "Explain", "parts_version": 2}
+    )
+    assert response.status_code == 200
+    events = [
+        json.loads(b.removeprefix("data: "))
+        for b in response.text.strip().split("\n\n")
+    ]
+    assert [e["type"] for e in events] == ["block", "done"]
+    history = (await client.get(url, headers=headers)).json()
+    assert history[1]["parts"] == events[:-1]
+    invalid = await client.post(
+        url, headers=headers, json={"message": "Explain", "parts_version": 3}
+    )
+    assert invalid.status_code == 422

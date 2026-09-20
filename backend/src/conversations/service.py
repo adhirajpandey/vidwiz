@@ -15,12 +15,16 @@ from src.conversations.parts import (
     DoneEvent,
     ErrorEvent,
     ModelResponse,
+    ModelResponseV2,
+    ModelBlock,
     PartsDecoder,
-    TextPart,
     stored_parts,
     text_projection,
     transcript_context,
+    resolve_block,
+    history_parts,
 )
+from src.conversations.prompts import WIZ_SYSTEM_PROMPT_V2
 from src.exceptions import InternalServerError, RateLimitError, NotFoundError
 from src.internal.scheduling import schedule_video_tasks
 from src.videos.models import Video
@@ -258,9 +262,16 @@ def build_transcript_text(transcript: list, *, include_timestamps: bool = True) 
     return "\n".join(lines) if include_timestamps else " ".join(lines)
 
 
-def build_system_instruction(video_title: str | None, transcript: list) -> str:
+def build_system_instruction(
+    video_title: str | None, transcript: list, parts_version: int = 1
+) -> str:
     context, _ = transcript_context(transcript)
-    return conversations_settings.wiz_system_prompt_template.format(
+    template = (
+        WIZ_SYSTEM_PROMPT_V2
+        if parts_version == 2
+        else conversations_settings.wiz_system_prompt_template
+    )
+    return template.format(
         title=video_title or "this video",
         transcript=json.dumps(context, ensure_ascii=False),
     )
@@ -274,6 +285,7 @@ def stream_wiz_response(
     conversation_id: int,
     db: Session,
     api_key: str,
+    parts_version: int = 1,
 ):
     def event(part):
         return f"data: {part.model_dump_json()}\n\n"
@@ -284,20 +296,16 @@ def stream_wiz_response(
         messages = [
             {
                 "role": "system",
-                "content": build_system_instruction(video_title, transcript),
+                "content": build_system_instruction(
+                    video_title, transcript, parts_version
+                ),
             }
         ]
         for msg in history:
             content = msg["content"]
             if msg["role"] == DB_ROLE_ASSISTANT:
                 parts = stored_parts(content, msg.get("metadata"))
-                model_parts = [
-                    part.model_dump()
-                    if isinstance(part, TextPart)
-                    else {"type": "citation", "chunk_id": part.chunk_id}
-                    for part in parts
-                    if isinstance(part, TextPart) or part.chunk_id in references
-                ]
+                model_parts = history_parts(parts, references, parts_version)
                 content = json.dumps({"parts": model_parts})
             messages.append({"role": msg["role"], "content": content})
 
@@ -314,12 +322,14 @@ def stream_wiz_response(
                 "json_schema": {
                     "name": "wiz_response",
                     "strict": True,
-                    "schema": ModelResponse.model_json_schema(),
+                    "schema": (
+                        ModelResponseV2 if parts_version == 2 else ModelResponse
+                    ).model_json_schema(),
                 },
             },
             extra_body={"provider": {"require_parameters": True}},
         )
-        decoder = PartsDecoder()
+        decoder = PartsDecoder(parts_version)
         resolved = []
         finish_reason = None
         for chunk in response_stream:
@@ -333,6 +343,8 @@ def stream_wiz_response(
                 raise ValueError("Model refused structured response")
             if delta and delta.content:
                 for part in decoder.feed(delta.content):
+                    if isinstance(part, ModelBlock):
+                        part = resolve_block(part, references)
                     if isinstance(part, ChunkReference):
                         reference = references.get(part.chunk_id)
                         if reference is None:
@@ -367,7 +379,7 @@ def stream_wiz_response(
             DB_ROLE_ASSISTANT,
             content,
             metadata={
-                "parts_version": 1,
+                "parts_version": parts_version,
                 "parts": [part.model_dump() for part in resolved],
             },
         )
