@@ -33,3 +33,10 @@ def test_wiz_model_rejects_blank_value(monkeypatch):
 
     with pytest.raises(ValidationError):
         ConversationsSettings(_env_file=None)
+
+
+def test_wiz_token_budget_default_and_override(monkeypatch):
+    monkeypatch.delenv("WIZ_MAX_TOKENS", raising=False)
+    assert ConversationsSettings(_env_file=None).wiz_max_tokens == 8192
+    monkeypatch.setenv("WIZ_MAX_TOKENS", "2048")
+    assert ConversationsSettings(_env_file=None).wiz_max_tokens == 2048
