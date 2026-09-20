@@ -24,7 +24,7 @@ from src.conversations.parts import (
     resolve_block,
     history_parts,
 )
-from src.conversations.prompts import WIZ_SYSTEM_PROMPT_V2
+from src.conversations.prompts import build_v2_prompt
 from src.exceptions import InternalServerError, RateLimitError, NotFoundError
 from src.internal.scheduling import schedule_video_tasks
 from src.videos.models import Video
@@ -266,11 +266,9 @@ def build_system_instruction(
     video_title: str | None, transcript: list, parts_version: int = 1
 ) -> str:
     context, _ = transcript_context(transcript)
-    template = (
-        WIZ_SYSTEM_PROMPT_V2
-        if parts_version == 2
-        else conversations_settings.wiz_system_prompt_template
-    )
+    template = conversations_settings.wiz_system_prompt_template
+    if parts_version == 2:
+        template = build_v2_prompt(template)
     return template.format(
         title=video_title or "this video",
         transcript=json.dumps(context, ensure_ascii=False),

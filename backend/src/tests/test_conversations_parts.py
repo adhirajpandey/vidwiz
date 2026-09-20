@@ -486,3 +486,39 @@ async def test_v2_route_negotiation(client, db_session, monkeypatch):
         url, headers=headers, json={"message": "Explain", "parts_version": 3}
     )
     assert invalid.status_code == 422
+
+
+def test_v2_prompt_keeps_configured_template_and_replaces_only_structure(monkeypatch):
+    template = """Persona: pirate for "{title}".
+
+Response structure:
+- legacy rule one
+- legacy rule two
+
+Formatting:
+- custom formatting rule
+
+Transcript:
+{transcript}
+"""
+    monkeypatch.setattr(
+        service.conversations_settings, "wiz_system_prompt_template", template
+    )
+    transcript = [{"text": "Source", "offset": 0, "duration": 3}]
+    v1 = service.build_system_instruction("Video", transcript, 1)
+    v2 = service.build_system_instruction("Video", transcript, 2)
+    assert "legacy rule one" in v1 and "type=block" not in v1
+    assert "Persona: pirate" in v2 and "custom formatting rule" in v2
+    assert "legacy rule" not in v2 and "type=block" in v2
+    assert v2.count("Response structure:") == 1
+    assert "Source" in v2 and "{transcript}" not in v2
+
+
+def test_v2_prompt_appends_structure_when_template_has_none(monkeypatch):
+    monkeypatch.setattr(
+        service.conversations_settings,
+        "wiz_system_prompt_template",
+        "Only {title}. Transcript: {transcript}",
+    )
+    prompt = service.build_system_instruction("Video", [], 2)
+    assert prompt.startswith("Only Video.") and "list_item_index" in prompt
