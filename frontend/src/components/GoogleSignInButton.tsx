@@ -91,10 +91,10 @@ export default function GoogleSignInButton({ onSuccess, onError }: GoogleSignInB
   }
 
   return (
-    <div className="relative w-full group cursor-pointer">
+    <div className="relative w-full group cursor-pointer focus-within:ring-2 focus-within:ring-ring focus-within:ring-offset-2 focus-within:ring-offset-background rounded-xl">
       {/* Custom Visual Button */}
       <div 
-        className={`relative flex items-center justify-center gap-3 w-full rounded-xl bg-white/[0.05] border border-white/[0.1] px-4 py-3.5 transition-all duration-300 md:hover:bg-white/[0.08] md:hover:border-white/[0.2] md:hover:scale-[1.01] shadow-lg shadow-black/20 ${!isReady ? 'opacity-80 cursor-wait' : ''}`}
+        className={`relative flex items-center justify-center gap-3 w-full rounded-xl bg-muted/40 border border-border px-4 py-3.5 transition-all duration-300 md:hover:bg-accent md:hover:border-foreground/20 md:hover:scale-[1.01] shadow-sm shadow-black/5 ${!isReady ? 'opacity-80 cursor-wait' : ''}`}
       >
         {/* Glow Effect */}
         <div className="absolute inset-0 rounded-xl bg-gradient-to-r from-white/0 via-white/[0.05] to-white/0 opacity-0 group-hover:opacity-100 transition-opacity duration-500 blur-sm" />
@@ -102,12 +102,12 @@ export default function GoogleSignInButton({ onSuccess, onError }: GoogleSignInB
         {isReady ? (
           <>
             <FcGoogle className="w-5 h-5 relative z-10" />
-            <span className="text-sm font-medium text-white/90 relative z-10 tracking-wide">Continue with Google</span>
+            <span className="text-sm font-medium text-foreground relative z-10 tracking-wide">Continue with Google</span>
           </>
         ) : (
           <div className="flex items-center gap-2">
-            <div className="h-4 w-4 animate-spin rounded-full border-2 border-white/20 border-t-white"></div>
-            <span className="text-sm font-medium text-white/50">Loading...</span>
+            <div className="h-4 w-4 animate-spin rounded-full border-2 border-border border-t-foreground"></div>
+            <span className="text-sm font-medium text-muted-foreground">Loading...</span>
           </div>
         )}
       </div>

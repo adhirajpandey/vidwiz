@@ -80,3 +80,17 @@
     text-rendering: optimizeLegibility;
   }
 }
+
+.auth-layout {
+  --auth-error: #b91c1c;
+  --auth-warning: #92400e;
+  --auth-success: #15803d;
+  color-scheme: light;
+}
+
+.dark .auth-layout {
+  --auth-error: #f87171;
+  --auth-warning: #fbbf24;
+  --auth-success: #4ade80;
+  color-scheme: dark;
+}
