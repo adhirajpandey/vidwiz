@@ -46,6 +46,11 @@ multiline GitHub secret `PRODUCTION_DEPLOYMENT_ENV`, based on
 `infra/.env.example`. Its `AWS_ACCOUNT_ID` and `AWS_REGION` values are the
 canonical deployment target.
 
+The AI worker models are independently configurable. `SUMMARY_MODEL` defaults
+to `qwen/qwen3.5-35b-a3b`, and `AI_NOTE_MODEL` defaults to
+`z-ai/glm-5.3-flash`. The application configures Wiz chat separately through
+`WIZ_MODEL`, which defaults to `minimax/minimax-m2.5`.
+
 Capture the existing functions' memory, timeout, runtime, architecture,
 environment, event mappings, queue batch configuration, layers, and ZIPs
 before filling that file.

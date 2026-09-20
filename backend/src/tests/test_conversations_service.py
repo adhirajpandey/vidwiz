@@ -188,11 +188,14 @@ def test_stream_wiz_response_yields_error_on_empty_content(db_session, monkeypat
     class _Chunk:
         choices = [_Choice()]
 
+    completion_arguments = []
+
     class _FakeClient:
         class chat:
             class completions:
                 @staticmethod
                 def create(**kwargs):
+                    completion_arguments.append(kwargs)
                     return [_Chunk(), _Chunk()]
 
     monkeypatch.setattr(conversations_service, "OpenAI", lambda **kwargs: _FakeClient())
@@ -212,3 +215,6 @@ def test_stream_wiz_response_yields_error_on_empty_content(db_session, monkeypat
     assert len(error_events) == 1
     assert json.loads(events[-1].removeprefix("data: "))["type"] == "error"
     assert len(events) == 1
+    assert completion_arguments[0]["model"] == "minimax/minimax-m2.5"
+    assert completion_arguments[0]["stream"] is True
+    assert completion_arguments[0]["response_format"]["type"] == "json_schema"

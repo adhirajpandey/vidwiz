@@ -11,7 +11,7 @@ The platform is built with:
 - **Frontend**: React (Vite) with TypeScript and Tailwind CSS
 - **Backend**: FastAPI (Python) REST API
 - **Database**: PostgreSQL for data persistence
-- **AI/LLM**: OpenRouter for intelligent note generation and Wiz chat, with the model selected through `OPENROUTER_MODEL`
+- **AI/LLM**: OpenRouter for summaries, intelligent note generation, and Wiz chat, with a separate model setting for each workload
 - **Cloud**: AWS (SQS for async processing, S3 for storage)
 
 [Check Screenshots](#screenshots)
@@ -38,7 +38,7 @@ The platform is built with:
 
 ### Privacy & Control
    - **Self-Hosted Deployments**: Run VidWiz on your infrastructure and control where data lives.
-   - **Pluggable AI**: Use OpenRouter as the provider layer and choose the underlying Gemini, OpenAI, or other supported model through `OPENROUTER_MODEL`.
+   - **Pluggable AI**: Use OpenRouter as the provider layer and configure summary, AI note, and Wiz models independently.
    - **Token-Based Access**: Extension login syncs from the web app; long-term tokens support mobile automations.
 
 ## Architecture

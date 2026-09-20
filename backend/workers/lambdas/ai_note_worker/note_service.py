@@ -27,7 +27,7 @@ logger = Logger()
 settings = WorkerSettings.from_env()
 transcripts = S3TranscriptRepository(settings, logger)
 api = InternalApiClient(settings, logger)
-llm = OpenRouterClient(settings, logger)
+llm = OpenRouterClient(settings, logger, model=settings.ai_note_model)
 
 
 def process_batch(notes: list[Note]) -> None:

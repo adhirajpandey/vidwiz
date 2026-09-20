@@ -104,10 +104,16 @@ class InternalApiClient:
 
 class OpenRouterClient:
     def __init__(
-        self, settings: WorkerSettings, logger: Any, *, session: Any = requests
+        self,
+        settings: WorkerSettings,
+        logger: Any,
+        *,
+        model: str,
+        session: Any = requests,
     ):
         self._settings = settings
         self._logger = logger
+        self._model = model
         self._session = session
 
     def complete(
@@ -118,7 +124,7 @@ class OpenRouterClient:
         require_parameters: bool = False,
     ) -> str | None:
         request_payload: dict[str, Any] = {
-            "model": self._settings.openrouter_model,
+            "model": self._model,
             "messages": [{"role": "user", "content": prompt}],
         }
         if response_format is not None:

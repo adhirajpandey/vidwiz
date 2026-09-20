@@ -8,6 +8,15 @@ def _required(name: str) -> str:
     return value
 
 
+def _model(name: str, default: str) -> str:
+    value = os.getenv(name)
+    if value is None:
+        return default
+    if not value.strip():
+        raise ValueError(f"{name} must not be blank")
+    return value.strip()
+
+
 @dataclass(frozen=True)
 class WorkerSettings:
     transcript_bucket_name: str
@@ -15,7 +24,8 @@ class WorkerSettings:
     internal_api_admin_token: str
     openrouter_api_key: str
     openrouter_base_url: str
-    openrouter_model: str
+    summary_model: str
+    ai_note_model: str
     transcript_buffer_seconds: int
     context_segments: int
     max_note_length: int
@@ -50,9 +60,8 @@ class WorkerSettings:
             openrouter_base_url=os.getenv(
                 "OPENROUTER_BASE_URL", "https://openrouter.ai/api/v1"
             ),
-            openrouter_model=os.getenv(
-                "OPENROUTER_MODEL", "google/gemini-3-flash-preview"
-            ),
+            summary_model=_model("SUMMARY_MODEL", "qwen/qwen3.5-35b-a3b"),
+            ai_note_model=_model("AI_NOTE_MODEL", "z-ai/glm-5.3-flash"),
             transcript_buffer_seconds=int(os.getenv("TRANSCRIPT_BUFFER_SECONDS", "15")),
             context_segments=int(os.getenv("CONTEXT_SEGMENTS", "15")),
             max_note_length=int(os.getenv("MAX_NOTE_LENGTH", "120")),

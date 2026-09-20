@@ -45,12 +45,14 @@ def test_openrouter_client_uses_configured_model_and_auth(settings):
             calls.append((args, kwargs))
             return Response()
 
-    client = OpenRouterClient(settings, FakeLogger(), session=Session())
+    client = OpenRouterClient(
+        settings, FakeLogger(), model="summary-model", session=Session()
+    )
 
     assert client.complete("prompt") == "result"
     assert calls[0][0] == ("https://openrouter.ai/api/v1/chat/completions",)
     assert calls[0][1]["headers"]["Authorization"] == "Bearer openrouter-token"
-    assert calls[0][1]["json"]["model"] == "google/gemini-3-flash-preview"
+    assert calls[0][1]["json"]["model"] == "summary-model"
 
 
 def test_openrouter_client_sends_structured_output_options(settings):
@@ -68,7 +70,9 @@ def test_openrouter_client_sends_structured_output_options(settings):
             calls.append((args, kwargs))
             return Response()
 
-    client = OpenRouterClient(settings, FakeLogger(), session=Session())
+    client = OpenRouterClient(
+        settings, FakeLogger(), model="summary-model", session=Session()
+    )
     response_format = {
         "type": "json_schema",
         "json_schema": {"name": "video_summary"},
@@ -151,7 +155,7 @@ def test_openrouter_client_logs_safe_provider_error(settings):
             return Response()
 
     logger = FakeLogger()
-    client = OpenRouterClient(settings, logger, session=Session())
+    client = OpenRouterClient(settings, logger, model="note-model", session=Session())
 
     assert client.complete("private prompt") is None
     assert logger.records == [

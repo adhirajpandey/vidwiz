@@ -214,10 +214,24 @@ def test_lambda_environments_use_domain_specific_contracts(
     template.has_resource_properties(
         "AWS::Lambda::Function",
         {
+            "FunctionName": "vidwiz-prod-ai-note-worker",
+            "Environment": {
+                "Variables": Match.object_like(
+                    {
+                        "AI_NOTE_MODEL": "fixture-note-model",
+                    }
+                )
+            },
+        },
+    )
+    template.has_resource_properties(
+        "AWS::Lambda::Function",
+        {
             "FunctionName": "vidwiz-prod-ai-summary-worker",
             "Environment": {
                 "Variables": Match.object_like(
                     {
+                        "SUMMARY_MODEL": "fixture-summary-model",
                         "MIN_QUESTION_LENGTH": "20",
                         "MAX_QUESTION_LENGTH": "120",
                     }
@@ -233,6 +247,16 @@ def test_lambda_environments_use_domain_specific_contracts(
         "VIDWIZ_TOKEN",
     }
     functions = template.find_resources("AWS::Lambda::Function")
+    environments_by_name = {
+        function["Properties"]["FunctionName"]: function["Properties"]["Environment"][
+            "Variables"
+        ]
+        for function in functions.values()
+    }
+    note_environment = environments_by_name["vidwiz-prod-ai-note-worker"]
+    summary_environment = environments_by_name["vidwiz-prod-ai-summary-worker"]
+    assert "SUMMARY_MODEL" not in note_environment
+    assert "AI_NOTE_MODEL" not in summary_environment
     for function in functions.values():
         variables = function["Properties"]["Environment"]["Variables"]
         assert retired_names.isdisjoint(variables)

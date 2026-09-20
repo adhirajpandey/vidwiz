@@ -19,10 +19,11 @@ Provide a system-level view of how VidWiz components interact. Subsystem details
 - **Conversation start**: Starting Wiz chat also upserts the video and schedules transcript/metadata tasks.
 - **Transcript/metadata**: Helpers poll `/v2/internal/tasks`, fetch data, and submit results. Transcript JSON is stored in S3 when configured; the DB `transcript_available` flag is set either way.
 - **AI notes**: Empty-text notes from users with AI notes enabled are queued to SQS once a transcript is already available; the AI note Lambda writes back via internal API. New signups default to AI notes enabled.
-- **Wiz chat**: Transcript-only grounding through OpenRouter; the underlying model is selected with `OPENROUTER_MODEL`. If the transcript is not ready, chat returns `202 Accepted` and waits for processing.
+- **Wiz chat**: Transcript-only grounding through OpenRouter. `WIZ_MODEL` selects the model and defaults to `minimax/minimax-m2.5`. If the transcript is not ready, chat returns `202 Accepted` and waits for processing.
 - **AI summaries + Wiz questions**: Task dispatcher Lambda fires on transcript
   upload (S3) and enqueues one structured generation that returns the video
-  summary and three transcript-grounded starter questions.
+  summary and three transcript-grounded starter questions. `SUMMARY_MODEL`
+  selects the model and defaults to `qwen/qwen3.5-35b-a3b`.
 
 ## Auth Boundaries
 - **JWT**: Required for most `/v2` endpoints.
@@ -39,6 +40,7 @@ Provide a system-level view of how VidWiz components interact. Subsystem details
 - `DB_URL` defaults to SQLite if not provided.
 - Transcript storage and Wiz chat require S3 credentials and bucket configuration.
 - Wiz chat also requires `OPENROUTER_API_KEY`; without it, chat requests error.
+- AI notes use `AI_NOTE_MODEL`, which defaults to `z-ai/glm-5.3-flash`.
 - If S3 is not configured, transcripts are not persisted even though `transcript_available` may be true, and Wiz chat will fail to load transcript data.
 - Production AWS changes are deployed only by a manual workflow dispatch from
   `main`. GitHub uses
