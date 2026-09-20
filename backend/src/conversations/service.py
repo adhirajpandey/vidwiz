@@ -1,5 +1,6 @@
 import json
 import logging
+from collections import Counter
 from datetime import datetime, timedelta
 
 import boto3
@@ -11,8 +12,10 @@ from src.auth.schemas import ViewerContext
 from src.conversations.config import conversations_settings
 from src.conversations.models import Conversation, Message
 from src.conversations.parts import (
+    BlockPart,
     ChunkReference,
     DoneEvent,
+    DropReason,
     ErrorEvent,
     ModelResponse,
     ModelResponseV2,
@@ -22,6 +25,7 @@ from src.conversations.parts import (
     text_projection,
     transcript_context,
     resolve_block,
+    split_block,
     history_parts,
 )
 from src.conversations.prompts import build_v2_prompt
@@ -275,6 +279,42 @@ def build_system_instruction(
     )
 
 
+def log_wiz_structure(
+    *,
+    blocks_in: int,
+    blocks_split: int,
+    referenced: set[str],
+    resolved: list,
+    dropped: Counter,
+) -> None:
+    """Log how well the model followed the one-element-per-block rule.
+
+    Values go in the message because the production log format omits `extra`.
+    """
+    blocks = [part for part in resolved if isinstance(part, BlockPart)]
+    kept = {
+        key
+        for block in blocks
+        for citation in block.citations
+        for passage in citation.passages
+        for key in passage.chunk_ids
+    }
+    drops = " ".join(
+        f"dropped_{reason.value}={dropped[reason]}" for reason in DropReason
+    )
+    logger.info(
+        "Wiz structure: model=%s blocks_in=%d blocks_out=%d blocks_split=%d "
+        "referenced=%d kept=%d %s",
+        conversations_settings.wiz_model,
+        blocks_in,
+        len(blocks),
+        blocks_split,
+        len(referenced),
+        len(kept),
+        drops,
+    )
+
+
 def stream_wiz_response(
     *,
     video_title: str | None,
@@ -329,6 +369,9 @@ def stream_wiz_response(
         )
         decoder = PartsDecoder(parts_version)
         resolved = []
+        blocks_in = blocks_split = 0
+        referenced: set[str] = set()
+        dropped: Counter = Counter()
         finish_reason = None
         for chunk in response_stream:
             if not chunk.choices:
@@ -342,8 +385,16 @@ def stream_wiz_response(
             if delta and delta.content:
                 for part in decoder.feed(delta.content):
                     if isinstance(part, ModelBlock):
-                        part = resolve_block(part, references)
-                    if isinstance(part, ChunkReference):
+                        split = split_block(part)
+                        blocks_in += 1
+                        blocks_split += len(split.blocks) > 1
+                        referenced.update(
+                            key for ref in part.references for key in ref.chunk_ids
+                        )
+                        for drop in split.dropped:
+                            dropped[drop.reason] += 1
+                        emitted = [resolve_block(b, references) for b in split.blocks]
+                    elif isinstance(part, ChunkReference):
                         reference = references.get(part.chunk_id)
                         if reference is None:
                             logger.warning(
@@ -354,15 +405,26 @@ def stream_wiz_response(
                                 },
                             )
                             continue
-                        part = reference
-                    resolved.append(part)
-                    yield event(part)
+                        emitted = [reference]
+                    else:
+                        emitted = [part]
+                    for item in emitted:
+                        resolved.append(item)
+                        yield event(item)
         if not decoder.buffer:
             yield event(
                 ErrorEvent(message="No response from AI model. Please try again.")
             )
             return
         decoder.finish()
+        if parts_version == 2:
+            log_wiz_structure(
+                blocks_in=blocks_in,
+                blocks_split=blocks_split,
+                referenced=referenced,
+                resolved=resolved,
+                dropped=dropped,
+            )
         if finish_reason != "stop":
             raise ValueError("Incomplete model response")
         content = text_projection(resolved)

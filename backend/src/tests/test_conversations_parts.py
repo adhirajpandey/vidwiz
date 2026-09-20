@@ -522,3 +522,213 @@ def test_v2_prompt_appends_structure_when_template_has_none(monkeypatch):
     )
     prompt = service.build_system_instruction("Video", [], 2)
     assert prompt.startswith("Only Video.") and "list_item_index" in prompt
+
+
+def _block(text, *references):
+    from src.conversations.parts import BlockReference, ModelBlock
+
+    return ModelBlock(
+        type="block",
+        text=text,
+        references=[
+            BlockReference(list_item_index=index, chunk_ids=ids)
+            for index, ids in references
+        ],
+    )
+
+
+@pytest.mark.parametrize(
+    "text,expected",
+    [
+        ("Paragraph", ["Paragraph"]),
+        ("# Title\n\nBody", ["# Title", "Body"]),
+        (
+            "Lead\n\n- a\n- b\n\nClosing\n\n> Quote",
+            ["Lead", "- a\n- b", "Closing", "> Quote"],
+        ),
+        (
+            "Lead\n\n```py\na\n\nb\n```\n\nClosing",
+            ["Lead", "```py\na\n\nb\n```", "Closing"],
+        ),
+        (
+            "Lead\n\n| a | b |\n|---|---|\n| c | d |\n\nClosing",
+            ["Lead", "| a | b |\n|---|---|\n| c | d |", "Closing"],
+        ),
+        (
+            "Lead\n\n1. One\n   - nested\n\n   - more\n2. Two\n\nClosing",
+            ["Lead", "1. One\n   - nested\n\n   - more\n2. Two", "Closing"],
+        ),
+        ("One\r\n\r\nTwo", ["One", "Two"]),
+    ],
+)
+def test_split_block_keeps_each_element_whole(text, expected):
+    from src.conversations.parts import split_block
+
+    result = split_block(_block(text))
+    assert [b.text for b in result.blocks] == expected
+    assert result.dropped == []
+    if len(expected) == 1:
+        assert result.blocks[0].text == text
+    else:
+        assert "\n\n".join(expected) == text.replace("\r\n", "\n")
+
+
+def test_split_block_maps_list_item_references_onto_the_lone_list():
+    from src.conversations.parts import split_block
+
+    result = split_block(_block("Lead\n\n- a\n- b\n\nClosing", (1, ["x"]), (0, ["y"])))
+    assert [
+        [(r.list_item_index, r.chunk_ids) for r in b.references] for b in result.blocks
+    ] == [
+        [],
+        [(1, ["x"]), (0, ["y"])],
+        [],
+    ]
+    assert result.dropped == []
+
+
+@pytest.mark.parametrize(
+    "text,index,reason",
+    [
+        ("Lead\n\n- a\n- b", 2, "index_out_of_range"),
+        ("Lead\n\n- a\n- b", -1, "index_out_of_range"),
+        ("Lead\n\nClosing", 0, "index_out_of_range"),
+        ("- a\n\nMid\n\n1. b", 0, "ambiguous_list"),
+        ("# Title\n\n## Subtitle", None, "no_content_part"),
+    ],
+)
+def test_split_block_reports_why_a_reference_was_dropped(text, index, reason):
+    from src.conversations.parts import DropReason, split_block
+
+    result = split_block(_block(text, (index, ["x", "y"])))
+    assert [(d.reason, d.chunk_ids) for d in result.dropped] == [
+        (DropReason(reason), ["x", "y"])
+    ]
+    assert all(b.references == [] for b in result.blocks)
+
+
+def test_split_block_attaches_whole_block_reference_to_last_content_part():
+    from src.conversations.parts import split_block
+
+    result = split_block(_block("Lead\n\nBody\n\n# Trailing heading", (None, ["x"])))
+    assert [bool(b.references) for b in result.blocks] == [False, True, False]
+    assert result.blocks[1].references[0].list_item_index is None
+    assert result.dropped == []
+
+
+def test_split_block_leaves_link_reference_definitions_together():
+    from src.conversations.parts import split_block
+
+    block = _block(
+        "See [docs].\n\nMore text.\n\n[docs]: https://example.com", (0, ["x"])
+    )
+    result = split_block(block)
+    assert result.blocks == [block]
+    assert result.dropped == []
+
+
+def test_split_then_resolve_keeps_citations_for_single_block_answer():
+    from src.conversations.parts import resolve_block, split_block
+
+    _, refs = transcript_context(
+        [
+            {"text": "a", "offset": 0, "duration": 4},
+            {"text": "b", "offset": 60, "duration": 4},
+            {"text": "c", "offset": 120, "duration": 4},
+        ]
+    )
+    first, second, third = refs
+    text = (
+        "**Jev builds three things.**\n\n"
+        "1. A router\n2. A cache\n3. A queue\n\n"
+        '> "Ship it"\n\nThat is the summary.'
+    )
+    result = split_block(
+        _block(
+            text,
+            (0, [first]),
+            (2, [third]),
+            (None, [second]),
+        )
+    )
+    parts = [resolve_block(b, refs) for b in result.blocks]
+    assert [p.text for p in parts] == [
+        "**Jev builds three things.**",
+        "1. A router\n2. A cache\n3. A queue",
+        '> "Ship it"',
+        "That is the summary.",
+    ]
+    assert [[c.list_item_index for c in p.citations] for p in parts] == [
+        [],
+        [0, 2],
+        [],
+        [None],
+    ]
+
+
+def test_v2_stream_splits_a_multi_element_block(db_session, monkeypatch, caplog):
+    import logging
+
+    from src.conversations.parts import history_parts, stored_parts
+
+    _, refs = transcript_context(
+        [{"text": "Source", "offset": 763.5, "duration": 26.5}]
+    )
+    key = next(iter(refs))
+    block = {
+        "type": "block",
+        "text": "Lead\n\n- One\n- Two\n\nClosing",
+        "references": [
+            {"list_item_index": 0, "chunk_ids": [key]},
+            {"list_item_index": 1, "chunk_ids": [key, "unknown"]},
+            {"list_item_index": 5, "chunk_ids": [key]},
+            {"list_item_index": None, "chunk_ids": [key]},
+        ],
+    }
+    fake_provider(monkeypatch, json.dumps({"parts": [block]}))
+    with caplog.at_level(logging.INFO, logger=service.logger.name):
+        events, messages = run_stream(db_session, version=2)
+    assert [e["type"] for e in events] == ["block"] * 3 + ["done"]
+    assert [e["text"] for e in events[:3]] == ["Lead", "- One\n- Two", "Closing"]
+    passage = {"chunk_ids": [key], "start_seconds": 763.5, "end_seconds": 790.0}
+    assert [e["citations"] for e in events[:3]] == [
+        [],
+        [
+            {"list_item_index": 0, "passages": [passage]},
+            {"list_item_index": 1, "passages": [passage]},
+        ],
+        [{"list_item_index": None, "passages": [passage]}],
+    ]
+    read = MessageRead.model_validate(messages[0])
+    assert read.content == "Lead\n\n- One\n- Two\n\nClosing"
+    assert [p.model_dump() for p in read.parts] == events[:-1]
+    replay = history_parts(stored_parts(read.content, read.metadata), refs, 2)
+    assert [
+        [(r["list_item_index"], r["chunk_ids"]) for r in part["references"]]
+        for part in replay
+    ] == [[], [(0, [key]), (1, [key])], [(None, [key])]]
+    assert [
+        r.getMessage()
+        for r in caplog.records
+        if r.getMessage().startswith("Wiz structure:")
+    ] == [
+        "Wiz structure: model=%s blocks_in=1 blocks_out=3 blocks_split=1 "
+        "referenced=2 kept=1 dropped_ambiguous_list=0 "
+        "dropped_index_out_of_range=1 dropped_no_content_part=0"
+        % service.conversations_settings.wiz_model
+    ]
+
+
+def test_v2_prompt_includes_worked_example_and_survives_formatting(monkeypatch):
+    for template in [
+        "Persona: {title}.\n\nResponse structure:\n- legacy\n\nTranscript:\n{transcript}",
+        "Only {title}. Transcript: {transcript}",
+    ]:
+        monkeypatch.setattr(
+            service.conversations_settings, "wiz_system_prompt_template", template
+        )
+        prompt = service.build_system_instruction("Video", [], 2)
+        assert '{"parts": [' in prompt
+        assert '"list_item_index": 0' in prompt and '"list_item_index": 1' in prompt
+        assert '"list_item_index": null' in prompt
+        assert prompt.count("Response structure:") <= 1
