@@ -108,40 +108,41 @@ export default function Navbar() {
       {/* Ambient top glow */}
       <div className="absolute inset-x-0 -top-20 h-20 bg-gradient-to-b from-red-500/5 to-transparent pointer-events-none"></div>
       
-      <div className="relative max-w-screen-2xl mx-auto px-4 md:px-6 py-3 md:py-4 flex items-center justify-between">
+      <div className="relative max-w-[1348px] mx-auto px-4 md:px-6 py-3 md:py-4 flex items-center justify-between">
         {/* Logo */}
-        <Link to="/" className="group flex items-center gap-2.5">
+        <Link to="/" className="group flex shrink-0 items-center gap-2.5">
           <div className="relative">
             <div className="absolute inset-0 bg-red-500/20 rounded-lg blur-md opacity-0 group-hover:opacity-100 transition-opacity duration-300"></div>
             <img src={vidwizLogo} alt="VidWiz" className="relative w-8 h-8 md:w-9 md:h-9 transition-transform duration-300 group-hover:scale-105" />
           </div>
+          <span className="hidden sm:inline text-xl font-semibold tracking-tight">Vid<span className="text-red-500">Wiz</span></span>
         </Link>
 
         {/* Navigation Links - Center */}
-        <div className="hidden md:flex items-center gap-1">
+        <div className="flex items-center gap-1">
           {isLoggedIn ? (
             <>
               <Link 
                 to="/dashboard" 
-                className={`group inline-flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-medium transition-all duration-200 ${
+                className={`group inline-flex items-center gap-2 px-2 sm:px-4 py-2 rounded-lg text-xs sm:text-sm font-medium transition-all duration-200 ${
                   isActive('/dashboard') 
                     ? 'bg-accent text-accent-foreground' 
                     : 'text-foreground/60 hover:text-accent-foreground hover:bg-accent/50'
                 }`}
               >
                 <LayoutDashboard className={`w-4 h-4 transition-colors ${isActive('/dashboard') ? 'text-red-400' : 'group-hover:text-red-400'}`} />
-                Dashboard
+                <span className="sr-only sm:not-sr-only">Dashboard</span>
               </Link>
               <Link 
                 to="/wiz" 
-                className={`group inline-flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-medium transition-all duration-200 ${
+                className={`group inline-flex items-center gap-2 px-2 sm:px-4 py-2 rounded-lg text-xs sm:text-sm font-medium transition-all duration-200 ${
                   location.pathname.startsWith('/wiz')
                     ? 'bg-accent text-accent-foreground' 
                     : 'text-foreground/60 hover:text-accent-foreground hover:bg-accent/50'
                 }`}
               >
                 <Sparkles className={`w-4 h-4 transition-colors ${location.pathname.startsWith('/wiz') ? 'text-violet-400' : 'group-hover:text-violet-400'}`} />
-                Wiz
+                <span className="sr-only sm:not-sr-only">Wiz</span>
               </Link>
             </>
           ) : (

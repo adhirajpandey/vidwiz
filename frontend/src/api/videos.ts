@@ -3,9 +3,11 @@ import type {
   VideoListParams,
   VideoListResponse,
   VideoRead,
+  LibrarySummary,
 } from './types';
 
 export const videosApi = {
+  librarySummary: async () => (await apiClient.get<LibrarySummary>('/videos/library-summary')).data,
   getVideo: async (videoId: string) => {
     const response = await apiClient.get<VideoRead>(`/videos/${videoId}`);
     return response.data;

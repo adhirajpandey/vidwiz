@@ -94,3 +94,6 @@
   --auth-success: #4ade80;
   color-scheme: dark;
 }
+
+.note-anchor { scroll-margin-top: 90px; }
+.note-anchor:target { outline: 2px solid #f43f5e; outline-offset: 3px; }

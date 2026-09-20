@@ -76,7 +76,7 @@ export default function NoteCard({
   const youtubeUrl = `https://www.youtube.com/watch?v=${note.video_id}&t=${timestampToSeconds(note.timestamp)}s`;
 
   return (
-    <div className="group bg-card hover:bg-muted/30 rounded-lg md:rounded-xl p-3 md:p-4 transition-all duration-200 border border-border hover:border-border/80 select-none">
+    <div id={`note-${note.id}`} tabIndex={-1} className="note-anchor group bg-card hover:bg-muted/30 rounded-lg md:rounded-xl p-3 md:p-4 transition-all duration-200 border border-border hover:border-border/80 select-none">
       <div className="flex items-center gap-3">
         {/* Left side: Timestamp + Source indicator */}
         <div className="flex items-center gap-2 flex-shrink-0">

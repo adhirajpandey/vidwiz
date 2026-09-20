@@ -1,75 +1,105 @@
-import { Link } from 'react-router-dom';
-import { FaPlay, FaExternalLinkAlt, FaStickyNote } from 'react-icons/fa';
-import type { VideoSearchItem } from '../api/types';
+import { useState } from "react";
+import { Link } from "react-router-dom";
+import { Clock3, FileText, Sparkles, Video } from "lucide-react";
+import type { VideoSearchItem } from "../api/types";
+import Highlight from "./Highlight";
 
-interface VideoCardProps {
-  video: VideoSearchItem;
+function activityAge(value: string) {
+  const days = Math.max(
+    0,
+    Math.floor((Date.now() - Date.parse(value)) / 86400000),
+  );
+  if (!Number.isFinite(days)) return "";
+  if (days === 0) return "Today";
+  if (days < 7) return `${days} ${days === 1 ? "day" : "days"} ago`;
+  if (days < 30)
+    return `${Math.floor(days / 7)} ${days < 14 ? "week" : "weeks"} ago`;
+  return new Date(value).toLocaleDateString();
 }
 
-export default function VideoCard({ video }: VideoCardProps) {
-  const thumbnailUrl = video.metadata?.thumbnail || 
+export default function VideoCard({
+  video,
+  featured = false,
+  query = "",
+}: {
+  video: VideoSearchItem;
+  featured?: boolean;
+  query?: string;
+}) {
+  const [failed, setFailed] = useState(false);
+  const title = video.title || video.metadata?.title || "Untitled video";
+  const thumbnail =
+    video.metadata?.thumbnail ||
     `https://img.youtube.com/vi/${video.video_id}/mqdefault.jpg`;
-
   return (
-    <div className="group relative bg-card hover:bg-muted/50 rounded-xl border border-border hover:border-border/80 transition-all duration-300 overflow-hidden select-none">
-      <div className="flex items-center gap-3 md:gap-4 p-3 md:p-4">
-        {/* Thumbnail */}
-        <a
-          href={`https://www.youtube.com/watch?v=${video.video_id}`}
-          target="_blank"
-          rel="noopener noreferrer"
-          className="relative flex-shrink-0 w-24 md:w-32 aspect-video rounded-lg overflow-hidden group/thumb bg-muted"
-        >
-          <img 
-            src={thumbnailUrl} 
-            alt={video.title || video.metadata?.title || 'Video Thumbnail'}
-            className="w-full h-full object-cover transition-transform duration-500 group-hover/thumb:scale-110"
+    <article
+      className={`library-video ${featured ? "library-video-featured" : ""}`}
+    >
+      <a
+        className="library-thumbnail"
+        href={`https://www.youtube.com/watch?v=${video.video_id}`}
+        target="_blank"
+        rel="noopener noreferrer"
+        aria-label={`Watch ${title} on YouTube`}
+      >
+        {failed ? (
+          <Video className="m-auto text-muted-foreground" />
+        ) : (
+          <img
+            src={thumbnail}
+            alt=""
+            loading="lazy"
+            onError={() => setFailed(true)}
           />
-          {/* Overlay on hover */}
-          <div className="absolute inset-0 bg-black/40 opacity-0 group-hover/thumb:opacity-100 transition-opacity duration-300 flex items-center justify-center">
-            <div className="w-8 h-8 rounded-full bg-red-600/90 flex items-center justify-center shadow-lg">
-              <FaPlay className="w-3 h-3 text-white ml-0.5" />
-            </div>
-          </div>
-          {/* Duration badge */}
-          {video.metadata?.duration_string && (
-            <div className="absolute bottom-1 right-1 px-1.5 py-0.5 bg-black/80 rounded text-[10px] text-white font-medium select-none">
-              {video.metadata.duration_string}
-            </div>
-          )}
-        </a>
-
-        {/* Content */}
-        <div className="flex-grow min-w-0 py-0.5">
-          {/* Title */}
-          <a
-            href={`https://www.youtube.com/watch?v=${video.video_id}`}
-            target="_blank"
-            rel="noopener noreferrer"
-            className="block text-sm md:text-base font-medium text-foreground hover:text-red-400 transition-colors duration-200 line-clamp-2 leading-snug"
+        )}
+        {video.metadata?.duration_string && (
+          <span>{video.metadata.duration_string}</span>
+        )}
+      </a>
+      <div className="library-video-title">
+        <Link to={`/dashboard/${video.video_id}`}>
+          <Highlight text={title} query={query} />
+        </Link>
+        <p>
+          {video.metadata?.channel ||
+            video.metadata?.uploader ||
+            "Unknown channel"}
+        </p>
+      </div>
+      <div className="library-video-meta">
+        <span>
+          <FileText size={15} />
+          {video.note_count ?? 0} notes
+        </span>
+        {video.last_activity_at && (
+          <span
+            title={`Latest note or chat activity: ${new Date(video.last_activity_at).toLocaleString()}`}
           >
-            {video.title || video.metadata?.title || 'Untitled Video'}
-            <FaExternalLinkAlt className="inline-block w-2.5 h-2.5 ml-1.5 opacity-0 group-hover:opacity-50 transition-opacity" />
-          </a>
-          
-          {/* Channel badge */}
-          {video.metadata?.channel && (
-            <span className="inline-flex items-center mt-2 px-2 py-0.5 rounded-md text-[11px] font-medium bg-red-500/10 text-red-400/80 border border-red-500/10">
-              {video.metadata.channel}
-            </span>
-          )}
-        </div>
-
-        {/* View Notes button */}
+            <Clock3 size={15} />
+            {activityAge(video.last_activity_at)}
+          </span>
+        )}
+      </div>
+      <div className="library-video-actions">
         <Link
+          className={
+            featured
+              ? "library-button library-button-muted"
+              : "library-button library-button-primary"
+          }
           to={`/dashboard/${video.video_id}`}
-          className="flex-shrink-0 inline-flex items-center gap-2 px-3 py-2 md:px-4 md:py-2.5 text-xs md:text-sm font-semibold text-white bg-gradient-to-r from-red-600 via-red-500 to-red-600 bg-[length:200%_100%] rounded-lg hover:bg-right transition-all duration-500 shadow-md shadow-red-500/20 hover:shadow-lg hover:shadow-red-500/30 cursor-pointer"
         >
-          <FaStickyNote className="w-3 h-3 md:w-3.5 md:h-3.5" />
-          <span className="hidden sm:inline">View Notes</span>
-          <span className="sm:hidden">Notes</span>
+          <FileText size={15} />
+          {featured ? "Notes" : "View notes"}
+        </Link>
+        <Link
+          className="library-button library-button-wiz"
+          to={`/wiz/${video.video_id}`}
+        >
+          <Sparkles size={16} />
+          Ask Wiz
         </Link>
       </div>
-    </div>
+    </article>
   );
 }
