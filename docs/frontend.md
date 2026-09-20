@@ -78,6 +78,7 @@ Summarize the web app structure, routing, and API integration.
 - **Dashboard search**: Uses `q` + pagination with `per_page=10`; shows results only after first search.
 - **Profile**: Supports name updates, AI notes toggle, and long-term token create/revoke/copy for automation use cases.
 - **Credits UI**: Profile shows available credits and a credit pack selector; checkout uses backend product list.
+- **Navbar credits**: Opening the authenticated avatar menu fetches the latest balance from `/users/me`. The Credits row links to the profile credit section and refreshes when the menu reopens or its browser window regains focus.
 - **Theme**: Navbar toggle adds/removes `dark` on `documentElement` and stores the choice in `localStorage`; toggle is hidden on landing/login/signup.
 
 ## Config

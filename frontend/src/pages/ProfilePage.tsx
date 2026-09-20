@@ -13,6 +13,7 @@ import { getToken } from '../lib/authUtils';
 import type { CreditProduct } from '../api/types';
 import Seo from '../components/Seo';
 import ErrorState from '../components/ui/ErrorState';
+import { useHashSectionNavigation } from '../hooks/useHashSectionNavigation';
 
 interface UserProfile {
   email: string;
@@ -86,6 +87,8 @@ export default function ProfilePage() {
   useEffect(() => {
     void fetchProfile();
   }, [fetchProfile]);
+
+  useHashSectionNavigation('credits', Boolean(user));
 
   const loadProducts = useCallback(async () => {
     setIsProductsLoading(true);
@@ -388,7 +391,7 @@ export default function ProfilePage() {
             <div className="grid gap-8">
               
               {/* Settings Group: Credits */}
-              <div className="space-y-2">
+              <section id="credits" tabIndex={-1} className="space-y-2 scroll-mt-24 focus:outline-none">
                 <div className="flex items-center gap-2 px-1 select-none">
                   <Coins className="w-4 h-4 text-foreground/40" />
                   <h2 className="text-sm font-semibold text-foreground/40 uppercase tracking-wider">Credits</h2>
@@ -507,7 +510,7 @@ export default function ProfilePage() {
                     </div>
                   </div>
                 </div>
-              </div>
+              </section>
 
               {/* Settings Group: User Details */}
               <div className="space-y-4">
