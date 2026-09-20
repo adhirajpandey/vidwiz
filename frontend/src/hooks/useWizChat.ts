@@ -133,7 +133,7 @@ export function useWizChat(videoId: string | null, isReady: boolean) {
     let displayError: WizMessage['error'];
     try {
       const response = await apiFetch(conversationsApi.getSendMessageUrl(id), {
-        method: 'POST', body: JSON.stringify({ message }), signal: controller.signal,
+        method: 'POST', body: JSON.stringify({ message, parts_version: 2 }), signal: controller.signal,
       });
       if (!isCurrent()) return;
       requestId = response.headers.get('X-Request-ID') ?? undefined;
@@ -188,7 +188,7 @@ export function useWizChat(videoId: string | null, isReady: boolean) {
         parts.push(data);
         update({ parts: [...parts] });
       }
-      const hasText = parts.some(part => part.type === 'text' && part.text.trim());
+      const hasText = parts.some(part => part.type !== 'citation' && part.text.trim());
       if (!hasText || !done) {
         update({ status: 'error', error: {
           message: parts.length ? 'The response was interrupted. Please try again.' : 'No response received. Please try again.',

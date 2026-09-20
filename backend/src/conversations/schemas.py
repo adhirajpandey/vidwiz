@@ -1,4 +1,5 @@
 from datetime import datetime
+from typing import Literal
 
 from pydantic import ConfigDict, Field, field_validator, model_validator
 
@@ -31,6 +32,7 @@ class ConversationIdPath(ApiModel):
 
 class MessageCreate(ApiModel):
     message: str
+    parts_version: Literal[1, 2] = 1
 
     model_config = ConfigDict(extra="forbid")
 

@@ -17,6 +17,8 @@ import {
 import type { NormalizedApiError } from '../api/errors';
 import { useWizChat } from '../hooks/useWizChat';
 import WizChat from '../components/wiz/WizChat';
+import YouTubePlayer from '../components/wiz/YouTubePlayer';
+import type { YouTubePlayerHandle } from '../components/wiz/YouTubePlayer';
 
 interface VideoData {
   video_id: string;
@@ -85,7 +87,7 @@ function WizWorkspacePage() {
   const [showRefreshModal, setShowRefreshModal] = useState(false);
   const [statusError, setStatusError] = useState<NormalizedApiError | null>(null);
   const [statusAttempt, setStatusAttempt] = useState(0);
-  const playerRef = useRef<HTMLIFrameElement>(null);
+  const playerRef = useRef<YouTubePlayerHandle>(null);
   const pollingStartTime = useRef<number>(Date.now());
   const videoDataRef = useRef<VideoData | null>(null);
 
@@ -299,19 +301,7 @@ function WizWorkspacePage() {
   }, [statusAttempt, videoId]);
 
   const seekToTimestamp = (seconds: number) => {
-    // Scroll video into view (especially for mobile)
-    playerRef.current?.scrollIntoView({ behavior: 'smooth', block: 'center' });
-
-    if (playerRef.current?.contentWindow) {
-      playerRef.current.contentWindow.postMessage(
-        JSON.stringify({
-          event: 'command',
-          func: 'seekTo',
-          args: [seconds, true],
-        }),
-        '*'
-      );
-    }
+    playerRef.current?.watch(seconds);
   };
 
   const retryVideoStatus = () => {
@@ -403,17 +393,8 @@ function WizWorkspacePage() {
         {/* Right Pane - Video + Details */}
         <div className="w-full lg:w-[55%] flex flex-col rounded-2xl bg-card border border-border overflow-hidden">
           {/* Video Player */}
-          <div className="relative w-full bg-black flex-shrink-0">
-            <div className="aspect-video">
-              <iframe
-                ref={playerRef}
-                src={`https://www.youtube.com/embed/${videoId}?enablejsapi=1&rel=0&modestbranding=1`}
-                title="YouTube video player"
-                allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
-                allowFullScreen
-                className="absolute inset-0 w-full h-full"
-              />
-            </div>
+          <div className="w-full flex-shrink-0">
+            <YouTubePlayer key={videoId} ref={playerRef} videoId={videoId!} />
           </div>
 
           {/* Scrollable Content Area */}

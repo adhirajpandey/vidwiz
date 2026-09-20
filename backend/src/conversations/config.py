@@ -18,7 +18,7 @@ class ConversationsSettings(BaseSettings):
     wiz_system_prompt_template: str = Field(default=WIZ_SYSTEM_PROMPT_TEMPLATE)
     wiz_user_daily_quota: int = Field(default=20, alias="WIZ_USER_DAILY_QUOTA")
     wiz_guest_daily_quota: int = Field(default=5, alias="WIZ_GUEST_DAILY_QUOTA")
-    wiz_max_tokens: int = Field(default=4096, alias="WIZ_MAX_TOKENS")
+    wiz_max_tokens: int = Field(default=8192, alias="WIZ_MAX_TOKENS")
     s3_transcript_bucket_name: str | None = Field(
         default=None,
         alias="S3_TRANSCRIPT_BUCKET_NAME",

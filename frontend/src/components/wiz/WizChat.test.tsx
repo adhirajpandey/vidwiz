@@ -4,6 +4,7 @@ import userEvent from '@testing-library/user-event';
 import { afterEach, beforeAll, describe, expect, it, vi } from 'vitest';
 import WizChat from './WizChat';
 import type { WizChatController, WizMessage } from '../../hooks/useWizChat';
+import type { BlockPart } from '../../api/messageParts';
 
 beforeAll(() => {
   vi.stubGlobal('ResizeObserver', class { observe() {} unobserve() {} disconnect() {} });
@@ -28,6 +29,45 @@ function view(chat: WizChatController, onSeek = vi.fn(), questions?: string[]) {
 }
 
 describe('WizChat', () => {
+  it('attaches watch controls to the paragraph and correct top-level list items and copies only text', async () => {
+    const user = userEvent.setup();
+    const seek = vi.fn();
+    const copy = vi.spyOn(navigator.clipboard, 'writeText').mockResolvedValue();
+    const paragraph: BlockPart = { type: 'block', text: '**First claim.**', citations: [
+      { list_item_index: null, passages: [{ chunk_ids: ['a', 'b'], start_seconds: 4532, end_seconds: 4550 }] },
+    ] };
+    const list: BlockPart = { type: 'block', text: '3. Scope creep\n   - Nested detail\n4. Forgetting instructions', citations: [
+      { list_item_index: 0, passages: [{ chunk_ids: ['c'], start_seconds: 83, end_seconds: 90 }] },
+      { list_item_index: 1, passages: [{ chunk_ids: ['d'], start_seconds: 200, end_seconds: 220 }] },
+    ] };
+    const message: WizMessage = { ...answer(''), parts: [paragraph, list] };
+    const rendered = render(view(controller({ messages: [message] }), seek));
+    const first = screen.getByRole('button', { name: 'Watch passage from 1:15:32 to 1:15:50' });
+    expect(first.closest('p')?.textContent).toContain('First claim.');
+    const bullet = screen.getByRole('button', { name: 'Watch passage from 1:23 to 1:30' });
+    expect(bullet.closest('li')?.textContent).toContain('Scope creep');
+    expect(bullet.closest('li')?.parentElement?.tagName).toBe('OL');
+    expect(rendered.container.querySelector('ol')?.start).toBe(3);
+    expect(screen.getByRole('button', { name: 'Watch passage from 3:20 to 3:40' }).closest('li')?.textContent).toContain('Forgetting');
+    expect(screen.getByText('Nested detail').querySelector('button')).toBeNull();
+    await user.click(first);
+    bullet.focus();
+    await user.keyboard('{Enter}');
+    expect(seek.mock.calls).toEqual([[4532], [83]]);
+    await user.click(screen.getByRole('button', { name: 'Copy answer' }));
+    await waitFor(() => expect(copy).toHaveBeenCalledWith(`${paragraph.text}\n\n${list.text}`));
+  });
+
+  it('keeps block references below intact tables, quotes, and code', () => {
+    const parts: BlockPart[] = ['| A | B |\n|---|---|\n| C | D |', '> Quote', '```js\nconst x = 1;\n```'].map((text, index) => ({
+      type: 'block', text, citations: [{ list_item_index: null, passages: [{ chunk_ids: [String(index)], start_seconds: index * 10, end_seconds: index * 10 + 5 }] }],
+    }));
+    const rendered = render(view(controller({ messages: [{ ...answer(''), parts }] })));
+    expect(screen.getAllByRole('button', { name: /Watch passage/ })).toHaveLength(3);
+    expect(rendered.container.querySelector('table button, blockquote button, pre button')).toBeNull();
+    expect(rendered.container.querySelector('pre')?.textContent).toContain('const x = 1;');
+  });
+
   it('fills suggestions without sending and supports multiline submission', async () => {
     const user = userEvent.setup();
     const chat = controller();

@@ -47,16 +47,26 @@ Summarize the web app structure, routing, and API integration.
   including late errors and cleanup. Local abort does not promise cancellation
   of backend generation. FastAPI remains responsible for message persistence
   and history; the UI does not restore conversations after reload.
-- **Wiz answers**: `useWizChat` stores ordered text and citation parts and validates
-  typed SSE events. Complete text parts render through assistant-ui Markdown
-  with GFM and raw HTML disabled. Citation data parts render as VidWiz timestamp
-  buttons between Markdown blocks and seek using backend-provided seconds.
+- **Wiz answers**: `useWizChat` requests parts version 2 and stores ordered blocks
+  with attached citations, while retaining support for legacy text/citation events.
+  Complete blocks render through assistant-ui Markdown with GFM and raw HTML
+  disabled. Watch buttons attach to paragraphs or the cited top-level list item,
+  including evidence for its nested content. Table, quote, and code references
+  appear below the intact block. References use backend-grouped passage ranges;
+  each button shows the source start time and exposes the full range accessibly.
   Timestamp-looking Markdown is ordinary text and is never parsed for seeking.
   Copy joins only text parts with blank lines. Partial answers survive stream
   failures; errors and support references render separately and are excluded
   from copying. A typed `done` event confirms persistence; EOF without a terminal
   event is an interruption. Edit, regenerate, branching, Stop, and history
   controls are not enabled.
+- **Wiz playback**: The YouTube IFrame Player API seeks two seconds before the
+  source, clamped to zero, and requests playback. It queues only the latest click
+  before readiness and cancels pending work on video changes/unmount. An off-screen
+  player scrolls into view, respecting reduced motion. Playback continues past the
+  passage end. Player errors or a 10-second playback timeout show a timestamped
+  YouTube fallback link; autoplay blocking also prompts the user to press Play.
+  Transcript previews and text-level phrase anchors are not part of this version.
 - **Wiz starter questions**: The empty chat renders three video-specific
   questions from `VideoRead.suggested_questions`. Clicking one fills the input;
   videos without generated questions show no generic fallback chips.

@@ -15,7 +15,7 @@ import './wiz-chat.css';
 function convertMessage(message: WizMessage): ThreadMessageLike {
   return {
     id: message.id, role: message.role, createdAt: message.createdAt,
-    content: message.parts.map(part => part.type === 'text' ? part
+    content: message.parts.map(part => part.type === 'block' ? { type: 'text' as const, text: part.text, citations: part.citations } : part.type === 'text' ? part
       : { type: 'data' as const, name: 'citation', data: part }),
     ...(message.role === 'assistant' ? {
       status: message.status === 'running' ? { type: 'running' as const }

@@ -52,7 +52,7 @@ describe('useWizChat', () => {
     let sending!: Promise<void>;
     act(() => { sending = hook.result.current.send('  Hello  '); void hook.result.current.send('duplicate'); });
     await waitFor(() => expect(apiFetch).toHaveBeenCalledTimes(1));
-    expect(JSON.parse(vi.mocked(apiFetch).mock.calls[0][1]!.body as string)).toEqual({ message: 'Hello' });
+    expect(JSON.parse(vi.mocked(apiFetch).mock.calls[0][1]!.body as string)).toEqual({ message: 'Hello', parts_version: 2 });
     await act(async () => response.write('{"type":"text","text":"First"}'));
     expect(hook.result.current.messages[1].parts).toEqual([{ type: 'text', text: 'First' }]);
     expect(hook.result.current.isRunning).toBe(true);
@@ -79,6 +79,21 @@ describe('useWizChat', () => {
       await sending;
     });
     expect(hook.result.current.messages[1]).toMatchObject({ parts, status: 'complete', serverMessageId: 123 });
+  });
+
+  it.each([false, true])('retains complete v2 blocks when interrupted=%s', async interrupted => {
+    const hook = await ready();
+    const response = stream();
+    vi.mocked(apiFetch).mockResolvedValue(response.response);
+    const block = { type: 'block', text: 'Supported answer', citations: [{ list_item_index: null, passages: [{ chunk_ids: ['a'], start_seconds: 1, end_seconds: 4 }] }] };
+    await act(async () => {
+      const sending = hook.result.current.send('Question');
+      response.write(JSON.stringify(block));
+      if (!interrupted) response.write('{"type":"done","message_id":123}');
+      response.close();
+      await sending;
+    });
+    expect(hook.result.current.messages[1]).toMatchObject({ parts: [block], status: interrupted ? 'error' : 'complete' });
   });
 
   it.each([
