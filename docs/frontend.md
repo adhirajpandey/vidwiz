@@ -75,7 +75,17 @@ Summarize the web app structure, routing, and API integration.
 - **AI note pending state**: Video notes show a pending AI chip (`⏳`) and "Generating AI note..." placeholder when a note is empty, not yet AI-generated, and the user has AI notes enabled.
 - **Notes polling**: The video page polls `/v2/videos/:id/notes` every 4 seconds only while pending AI notes exist, and stops polling automatically once all pending notes are resolved.
 - **AI note edits**: Editing a note sends `generated_by_ai=false` with the note text update so edited AI notes are treated as user-authored.
-- **Dashboard search**: Uses `q` + pagination with `per_page=10`; shows results only after first search.
+- **Dashboard**: A responsive library with summary totals, three recently active videos,
+  compact rows, and activity/title sorting. Library membership remains notes-based.
+- **Dashboard search**: Searches titles and note text in separate sections, each
+  paginated by ten. URL parameters `q`, `videosPage`, and `notesPage` restore
+  searches on reload/Back. Queries need at least two characters. Clearing returns
+  to the library. Obsolete requests cannot overwrite newer results.
+- **Note links**: Search results open `/dashboard/:videoId#note-:noteId`, scroll to
+  and highlight the note after loading, or show a missing-note message.
+- **Library activity**: Latest owned note creation/update or saved chat message,
+  not a view or playback position. Chat totals exclude empty conversations and
+  videos without the user's notes. AI totals count current AI flags.
 - **Profile**: Supports name updates, AI notes toggle, and long-term token create/revoke/copy for automation use cases.
 - **Credits UI**: Profile shows available credits and a credit pack selector; checkout uses backend product list.
 - **Navbar credits**: Opening the authenticated avatar menu fetches the latest balance from `/users/me`. The Credits row links to the profile credit section and refreshes when the menu reopens or its browser window regains focus.

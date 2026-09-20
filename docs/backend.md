@@ -29,7 +29,7 @@ Describe the FastAPI backend: structure, auth rules, and the request/worker life
 ## Key Behavior
 - **Video lookup**: `GET /v2/videos/{video_id}` is JWT-only but is not scoped to the user; it returns the video if it exists.
 - **Video list**: `GET /v2/videos` returns only videos that have notes for the authenticated user (join on notes).
-- **Video search**: `q` is trimmed; queries shorter than 2 chars are treated as empty. Sort keys: `created_at_desc|created_at_asc|title_asc|title_desc`. `per_page` defaults to 10, max 50.
+- **Video search**: `q` is trimmed; queries shorter than 2 chars are treated as empty. Sort keys: `created_at_desc|created_at_asc|title_asc|title_desc|activity_desc`. `per_page` defaults to 10, max 50.
 - **Video stream**: `GET /v2/videos/{video_id}/stream` requires JWT or guest session. The video is not user-scoped for either viewers or guests.
 - **Notes**: List/edit/delete require JWT; create accepts JWT or long-term token.
 - **Create note by title**: `POST /v2/notes/by-title` resolves the provided title against YouTube Data API v3, picks the top video result, then reuses normal note creation.
@@ -201,3 +201,21 @@ The server fails on startup if any of the following env vars are missing:
 - `DODO_PAYMENTS_ENVIRONMENT`
 - `DODO_PAYMENTS_RETURN_URL`
 - `DODO_CREDIT_PRODUCTS`
+
+## Dashboard read APIs
+
+- `GET /v2/videos` adds `note_count` and `last_activity_at` per video.
+  `activity_desc` sorts by the user's latest note or chat message, with an ID
+  tie-breaker. Title search treats wildcard characters literally.
+- `GET /v2/videos/library-summary` returns `videos`, `notes`, `ai_notes`,
+  `wiz_chats`, and three `recent_videos`. All data belongs to the authenticated
+  user. Videos still require an owned note; pending notes count in totals.
+  Chats require at least one user message and a video in that library.
+- `GET /v2/notes/search?q=...&page=1&per_page=10` returns `notes`, `total`,
+  `page`, `per_page`, and `total_pages`. Items contain note ID, video ID/title/
+  metadata, timestamp, AI flag, and an excerpt around the case-insensitive match.
+  Queries are trimmed, require 2–500 characters, and treat `%` and `_` literally.
+  Results sort by updated time descending and note ID descending.
+- Aggregation uses grouped queries, without one request per displayed video.
+  No schema migration or worker change is required. Release these additive API
+  changes before the dashboard frontend.
