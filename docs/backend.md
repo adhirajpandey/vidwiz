@@ -49,7 +49,7 @@ Describe the FastAPI backend: structure, auth rules, and the request/worker life
 
 ## Streaming (SSE)
 - **Video readiness**: `/v2/videos/{id}/stream` emits `snapshot`, `update`, and `done` when metadata, transcript, and summary are all ready (timeout 60s).
-- **Wiz responses**: `/v2/conversations/{id}/messages` emits JSON SSE data with a
+- **Wiz version 1 responses**: `/v2/conversations/{id}/messages` emits JSON SSE data with a
   `type` discriminator: `text`, `citation`, `done`, or `error`. Each text event
   contains a complete Markdown part. Citations contain `chunk_id`,
   `start_seconds`, and `end_seconds` resolved by FastAPI. `done` includes the
@@ -74,16 +74,31 @@ for the same transcript snapshot. Start times use `offset`; end times use
 start time if none exists. Invalid timing leaves text in context without a
 citable ID. Fractional seconds are preserved. S3 objects and workers are unchanged.
 
-Completed assistant parts are stored in message metadata as `parts_version=1`
-and `parts`. The existing `content` column contains text parts joined by blank
+Message requests accept `parts_version: 1 | 2`, defaulting to 1 for existing
+clients. Version 2 uses atomic `block` events containing `text` and `citations`.
+The model supplies `references` with `chunk_ids` and a nullable
+`list_item_index`: null targets the whole Markdown block; an integer targets a
+zero-based top-level list item, including its nested content. A Markdown parser
+validates targets. Invalid targets and unknown source IDs are omitted and logged
+without discarding the answer text. Each model part must contain one complete block.
+
+Resolved citations contain `list_item_index` and `passages`, each with
+`chunk_ids`, `start_seconds`, and `end_seconds`. Within each target, sources are
+deduplicated and sorted; ranges merge with gaps up to 5 seconds and a combined
+length up to 60 seconds. Individual longer captions are preserved. Separate
+claims and distant passages remain separate. The model cannot supply timestamps.
+
+Completed assistant parts are stored in message metadata with the requested
+`parts_version` and `parts`. The existing `content` column contains text joined by blank
 lines. Message reads expose typed `parts`; older messages become one text part
 without inferred citations. Follow-up model context retains structured parts,
 but discards IDs absent from the current transcript. Stored citation timestamps
-remain unchanged when a transcript is replaced.
+remain unchanged when a transcript is replaced. Version 1 citations are not
+assigned inferred targets when replayed as version 2 history.
 
-Backend and frontend releases must be coordinated because this replaces the
-previous string-only SSE contract. No database migration or transcript backfill
-is needed. Smoke-test the configured OpenRouter model with this schema before
+Deploy the backend first, then the frontend which requests version 2. Existing
+clients continue to receive version 1 streams. No database migration or transcript
+backfill is needed. Smoke-test the configured OpenRouter model with this schema before
 release; unsupported endpoints fail rather than falling back to plain text.
 
 ## Wiz Starter Questions
