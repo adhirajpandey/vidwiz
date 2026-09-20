@@ -149,11 +149,11 @@ export default function SignupPage() {
         title="Create your account"
         subtitle="Start your journey to better video learning"
         footer={
-          <p className="text-sm text-white/40">
+          <p className="text-sm text-muted-foreground">
             Already have an account?{' '}
             <Link
               to="/login"
-              className="font-medium text-red-400 hover:text-red-300 transition-colors"
+              className="font-medium text-[var(--auth-error)] hover:text-[var(--auth-error)] transition-colors"
             >
               Sign in
             </Link>
@@ -169,20 +169,20 @@ export default function SignupPage() {
             />
 
             <div className="relative flex items-center">
-              <div className="flex-grow border-t border-white/[0.08]"></div>
-              <span className="mx-4 text-xs text-white/30 select-none">or sign up with</span>
-              <div className="flex-grow border-t border-white/[0.08]"></div>
+              <div className="flex-grow border-t border-border"></div>
+              <span className="mx-4 text-xs text-muted-foreground select-none">or sign up with</span>
+              <div className="flex-grow border-t border-border"></div>
             </div>
           </>
         )}
 
         <div className="space-y-4">
           <div className="space-y-2">
-            <label htmlFor="email" className="text-xs font-medium uppercase tracking-wider text-white/40 ml-1 select-none">
+            <label htmlFor="email" className="text-xs font-medium uppercase tracking-wider text-muted-foreground ml-1 select-none">
               Email
             </label>
             <div className="relative group">
-              <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none text-white/30 group-focus-within:text-red-400 transition-colors">
+              <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none text-muted-foreground group-focus-within:text-[var(--auth-error)] transition-colors">
                 <Mail className="h-5 w-5" />
               </div>
               <input
@@ -197,29 +197,29 @@ export default function SignupPage() {
                 }}
                 aria-invalid={Boolean(fieldErrors.email)}
                 aria-describedby={fieldErrors.email ? 'signup-email-error' : undefined}
-                className="block w-full rounded-xl border border-white/[0.08] bg-white/[0.03] pl-10 pr-3 py-3 text-white placeholder-white/20 focus:border-red-500/50 focus:bg-white/[0.05] focus:outline-none focus:ring-1 focus:ring-red-500/50 transition-all sm:text-sm"
+                className="block w-full rounded-xl border border-border bg-background pl-10 pr-3 py-3 text-foreground placeholder:text-muted-foreground focus:border-red-500/50 focus:bg-muted/40 focus:outline-none focus:ring-1 focus:ring-red-500/50 transition-all sm:text-sm"
                 placeholder="Enter your email"
               />
             </div>
             {fieldErrors.email && (
-              <p id="signup-email-error" className="ml-1 text-xs text-red-400">
+              <p id="signup-email-error" className="ml-1 text-xs text-[var(--auth-error)]">
                 {fieldErrors.email}
               </p>
             )}
             {email && !isEmailValid && (
-              <p className="text-xs text-amber-400 ml-1 mt-1 animate-in slide-in-from-top-1">Please enter a valid email address</p>
+              <p className="text-xs text-[var(--auth-warning)] ml-1 mt-1 animate-in slide-in-from-top-1">Please enter a valid email address</p>
             )}
             {isEmailValid && !fieldErrors.email && (
-              <p className="text-xs text-green-400 ml-1 mt-1 animate-in slide-in-from-top-1">✓ Email is valid</p>
+              <p className="text-xs text-[var(--auth-success)] ml-1 mt-1 animate-in slide-in-from-top-1">✓ Email is valid</p>
             )}
           </div>
 
           <div className="space-y-2">
-            <label htmlFor="name" className="text-xs font-medium uppercase tracking-wider text-white/40 ml-1 select-none">
+            <label htmlFor="name" className="text-xs font-medium uppercase tracking-wider text-muted-foreground ml-1 select-none">
               Name
             </label>
             <div className="relative group">
-              <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none text-white/30 group-focus-within:text-red-400 transition-colors">
+              <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none text-muted-foreground group-focus-within:text-[var(--auth-error)] transition-colors">
                 <User className="h-5 w-5" />
               </div>
               <input
@@ -234,29 +234,29 @@ export default function SignupPage() {
                 }}
                 aria-invalid={Boolean(fieldErrors.name)}
                 aria-describedby={fieldErrors.name ? 'signup-name-error' : undefined}
-                className="block w-full rounded-xl border border-white/[0.08] bg-white/[0.03] pl-10 pr-3 py-3 text-white placeholder-white/20 focus:border-red-500/50 focus:bg-white/[0.05] focus:outline-none focus:ring-1 focus:ring-red-500/50 transition-all sm:text-sm"
+                className="block w-full rounded-xl border border-border bg-background pl-10 pr-3 py-3 text-foreground placeholder:text-muted-foreground focus:border-red-500/50 focus:bg-muted/40 focus:outline-none focus:ring-1 focus:ring-red-500/50 transition-all sm:text-sm"
                 placeholder="Enter your name"
               />
             </div>
             {fieldErrors.name && (
-              <p id="signup-name-error" className="ml-1 text-xs text-red-400">
+              <p id="signup-name-error" className="ml-1 text-xs text-[var(--auth-error)]">
                 {fieldErrors.name}
               </p>
             )}
             {name && !isNameValid && (
-              <p className="text-xs text-amber-400 ml-1 mt-1 animate-in slide-in-from-top-1">Name must be at least 2 characters</p>
+              <p className="text-xs text-[var(--auth-warning)] ml-1 mt-1 animate-in slide-in-from-top-1">Name must be at least 2 characters</p>
             )}
             {isNameValid && !fieldErrors.name && (
-              <p className="text-xs text-green-400 ml-1 mt-1 animate-in slide-in-from-top-1">✓ Name is valid</p>
+              <p className="text-xs text-[var(--auth-success)] ml-1 mt-1 animate-in slide-in-from-top-1">✓ Name is valid</p>
             )}
           </div>
 
           <div className="space-y-2">
-            <label htmlFor="password" className="text-xs font-medium uppercase tracking-wider text-white/40 ml-1 select-none">
+            <label htmlFor="password" className="text-xs font-medium uppercase tracking-wider text-muted-foreground ml-1 select-none">
               Password
             </label>
             <div className="relative group">
-              <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none text-white/30 group-focus-within:text-red-400 transition-colors">
+              <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none text-muted-foreground group-focus-within:text-[var(--auth-error)] transition-colors">
                 <Lock className="h-5 w-5" />
               </div>
               <input
@@ -271,29 +271,29 @@ export default function SignupPage() {
                 }}
                 aria-invalid={Boolean(fieldErrors.password)}
                 aria-describedby={fieldErrors.password ? 'signup-password-error' : undefined}
-                className="block w-full rounded-xl border border-white/[0.08] bg-white/[0.03] pl-10 pr-3 py-3 text-white placeholder-white/20 focus:border-red-500/50 focus:bg-white/[0.05] focus:outline-none focus:ring-1 focus:ring-red-500/50 transition-all sm:text-sm"
+                className="block w-full rounded-xl border border-border bg-background pl-10 pr-3 py-3 text-foreground placeholder:text-muted-foreground focus:border-red-500/50 focus:bg-muted/40 focus:outline-none focus:ring-1 focus:ring-red-500/50 transition-all sm:text-sm"
                 placeholder="Create a password"
               />
             </div>
             {fieldErrors.password && (
-              <p id="signup-password-error" className="ml-1 text-xs text-red-400">
+              <p id="signup-password-error" className="ml-1 text-xs text-[var(--auth-error)]">
                 {fieldErrors.password}
               </p>
             )}
             {password && !isPasswordValid && (
-              <p className="text-xs text-amber-400 ml-1 mt-1 animate-in slide-in-from-top-1">Password must be more than 6 characters</p>
+              <p className="text-xs text-[var(--auth-warning)] ml-1 mt-1 animate-in slide-in-from-top-1">Password must be more than 6 characters</p>
             )}
             {isPasswordValid && !fieldErrors.password && (
-              <p className="text-xs text-green-400 ml-1 mt-1 animate-in slide-in-from-top-1">✓ Password length is valid</p>
+              <p className="text-xs text-[var(--auth-success)] ml-1 mt-1 animate-in slide-in-from-top-1">✓ Password length is valid</p>
             )}
           </div>
 
           <div className="space-y-2">
-            <label htmlFor="confirm-password" className="text-xs font-medium uppercase tracking-wider text-white/40 ml-1 select-none">
+            <label htmlFor="confirm-password" className="text-xs font-medium uppercase tracking-wider text-muted-foreground ml-1 select-none">
               Confirm Password
             </label>
             <div className="relative group">
-              <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none text-white/30 group-focus-within:text-red-400 transition-colors">
+              <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none text-muted-foreground group-focus-within:text-[var(--auth-error)] transition-colors">
                 <div className={`transition-colors ${passwordError ? 'text-red-500' : (isPasswordValid && passwordsMatch && confirmPassword ? 'text-green-500' : '')}`}>
                   {isPasswordValid && passwordsMatch && confirmPassword ? <Check className="h-5 w-5" /> : <Lock className="h-5 w-5" />}
                 </div>
@@ -305,12 +305,12 @@ export default function SignupPage() {
                 required
                 value={confirmPassword}
                 onChange={(e) => setConfirmPassword(e.target.value)}
-                className={`block w-full rounded-xl border ${passwordError ? 'border-red-500/50' : 'border-white/[0.08]'} bg-white/[0.03] pl-10 pr-3 py-3 text-white placeholder-white/20 focus:border-red-500/50 focus:bg-white/[0.05] focus:outline-none focus:ring-1 focus:ring-red-500/50 transition-all sm:text-sm`}
+                className={`block w-full rounded-xl border ${passwordError ? 'border-red-500/50' : 'border-border'} bg-background pl-10 pr-3 py-3 text-foreground placeholder:text-muted-foreground focus:border-red-500/50 focus:bg-muted/40 focus:outline-none focus:ring-1 focus:ring-red-500/50 transition-all sm:text-sm`}
                 placeholder="Repeat password"
               />
             </div>
             {passwordError && (
-              <p className="text-xs text-red-400 ml-1 animate-in slide-in-from-top-1">Passwords do not match</p>
+              <p className="text-xs text-[var(--auth-error)] ml-1 animate-in slide-in-from-top-1">Passwords do not match</p>
             )}
           </div>
         </div>

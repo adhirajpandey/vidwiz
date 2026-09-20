@@ -95,11 +95,11 @@ export default function LoginPage() {
         title="Welcome back"
         subtitle="Sign in to continue to your dashboard"
         footer={
-          <p className="text-sm text-white/40">
+          <p className="text-sm text-muted-foreground">
             Don't have an account?{' '}
             <Link
               to="/signup"
-              className="font-medium text-red-400 hover:text-red-300 transition-colors"
+              className="font-medium text-[var(--auth-error)] hover:text-[var(--auth-error)] transition-colors"
             >
               Sign up for free
             </Link>
@@ -115,20 +115,20 @@ export default function LoginPage() {
             />
 
             <div className="relative flex items-center">
-              <div className="flex-grow border-t border-white/[0.08]"></div>
-              <span className="mx-4 text-xs text-white/30 select-none">or continue with</span>
-              <div className="flex-grow border-t border-white/[0.08]"></div>
+              <div className="flex-grow border-t border-border"></div>
+              <span className="mx-4 text-xs text-muted-foreground select-none">or continue with</span>
+              <div className="flex-grow border-t border-border"></div>
             </div>
           </>
         )}
 
         <div className="space-y-4">
           <div className="space-y-2">
-            <label htmlFor="email" className="text-xs font-medium uppercase tracking-wider text-white/40 ml-1 select-none">
+            <label htmlFor="email" className="text-xs font-medium uppercase tracking-wider text-muted-foreground ml-1 select-none">
               Email
             </label>
             <div className="relative group">
-              <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none text-white/30 group-focus-within:text-red-400 transition-colors">
+              <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none text-muted-foreground group-focus-within:text-[var(--auth-error)] transition-colors">
                 <Mail className="h-5 w-5" />
               </div>
               <input
@@ -143,12 +143,12 @@ export default function LoginPage() {
                 }}
                 aria-invalid={Boolean(fieldErrors.email)}
                 aria-describedby={fieldErrors.email ? 'login-email-error' : undefined}
-                className="block w-full rounded-xl border border-white/[0.08] bg-white/[0.03] pl-10 pr-3 py-3 text-white placeholder-white/20 focus:border-red-500/50 focus:bg-white/[0.05] focus:outline-none focus:ring-1 focus:ring-red-500/50 transition-all sm:text-sm"
+                className="block w-full rounded-xl border border-border bg-background pl-10 pr-3 py-3 text-foreground placeholder:text-muted-foreground focus:border-red-500/50 focus:bg-muted/40 focus:outline-none focus:ring-1 focus:ring-red-500/50 transition-all sm:text-sm"
                 placeholder="Enter your email"
               />
             </div>
             {fieldErrors.email && (
-              <p id="login-email-error" className="ml-1 text-xs text-red-400">
+              <p id="login-email-error" className="ml-1 text-xs text-[var(--auth-error)]">
                 {fieldErrors.email}
               </p>
             )}
@@ -156,12 +156,12 @@ export default function LoginPage() {
 
           <div className="space-y-2">
             <div className="flex justify-between items-center ml-1">
-              <label htmlFor="password" className="text-xs font-medium uppercase tracking-wider text-white/40 select-none">
+              <label htmlFor="password" className="text-xs font-medium uppercase tracking-wider text-muted-foreground select-none">
                 Password
               </label>
             </div>
             <div className="relative group">
-              <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none text-white/30 group-focus-within:text-red-400 transition-colors">
+              <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none text-muted-foreground group-focus-within:text-[var(--auth-error)] transition-colors">
                 <Lock className="h-5 w-5" />
               </div>
               <input
@@ -176,12 +176,12 @@ export default function LoginPage() {
                 }}
                 aria-invalid={Boolean(fieldErrors.password)}
                 aria-describedby={fieldErrors.password ? 'login-password-error' : undefined}
-                className="block w-full rounded-xl border border-white/[0.08] bg-white/[0.03] pl-10 pr-3 py-3 text-white placeholder-white/20 focus:border-red-500/50 focus:bg-white/[0.05] focus:outline-none focus:ring-1 focus:ring-red-500/50 transition-all sm:text-sm"
+                className="block w-full rounded-xl border border-border bg-background pl-10 pr-3 py-3 text-foreground placeholder:text-muted-foreground focus:border-red-500/50 focus:bg-muted/40 focus:outline-none focus:ring-1 focus:ring-red-500/50 transition-all sm:text-sm"
                 placeholder="••••••••"
               />
             </div>
             {fieldErrors.password && (
-              <p id="login-password-error" className="ml-1 text-xs text-red-400">
+              <p id="login-password-error" className="ml-1 text-xs text-[var(--auth-error)]">
                 {fieldErrors.password}
               </p>
             )}

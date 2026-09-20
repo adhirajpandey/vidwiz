@@ -1,8 +1,9 @@
 import { useEffect, useState, useRef } from 'react';
 import { Link, useLocation, useNavigate } from 'react-router-dom';
-import { Moon, Sun, LogOut, LayoutDashboard, User, ChevronDown, Sparkles } from 'lucide-react';
+import { Moon, Sun, LogOut, LayoutDashboard, User, ChevronDown, Sparkles, Coins, RefreshCw } from 'lucide-react';
 import vidwizLogo from '../../public/vidwiz.png';
 import { getUserFromToken, removeToken } from '../../lib/authUtils';
+import { useCreditBalance } from '../../hooks/useCreditBalance';
 
 export default function Navbar() {
   const [theme, setTheme] = useState<'light' | 'dark'>(() => {
@@ -22,6 +23,9 @@ export default function Navbar() {
   const [profileImageUrl, setProfileImageUrl] = useState<string | null>(null);
   const [isDropdownOpen, setIsDropdownOpen] = useState(false);
   const dropdownRef = useRef<HTMLDivElement>(null);
+  const menuButtonRef = useRef<HTMLButtonElement>(null);
+  const accountKey = isLoggedIn ? (displayName ?? 'authenticated') : null;
+  const creditBalance = useCreditBalance(isDropdownOpen && isLoggedIn, accountKey);
 
   useEffect(() => {
     const userInfo = getUserFromToken();
@@ -47,6 +51,19 @@ export default function Navbar() {
     document.addEventListener('mousedown', handleClickOutside);
     return () => document.removeEventListener('mousedown', handleClickOutside);
   }, []);
+
+  useEffect(() => {
+    if (!isDropdownOpen) return;
+
+    const handleEscape = (event: KeyboardEvent) => {
+      if (event.key === 'Escape') {
+        setIsDropdownOpen(false);
+        menuButtonRef.current?.focus();
+      }
+    };
+    document.addEventListener('keydown', handleEscape);
+    return () => document.removeEventListener('keydown', handleEscape);
+  }, [isDropdownOpen]);
 
   useEffect(() => {
     const root = document.documentElement;
@@ -168,9 +185,12 @@ export default function Navbar() {
             /* User Avatar Dropdown */
             <div className="relative" ref={dropdownRef}>
               <button
+                ref={menuButtonRef}
                 onClick={() => setIsDropdownOpen(!isDropdownOpen)}
-                className="group flex items-center gap-2 px-2 py-1.5 rounded-lg hover:bg-accent transition-all duration-200 cursor-pointer"
+                className="group flex items-center gap-2 px-2 py-1.5 rounded-lg hover:bg-accent transition-all duration-200 cursor-pointer focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-background"
                 aria-label="User menu"
+                aria-expanded={isDropdownOpen}
+                aria-controls="user-menu"
               >
                 {/* Avatar */}
                 <div className="relative">
@@ -197,7 +217,7 @@ export default function Navbar() {
 
               {/* Dropdown Menu */}
               {isDropdownOpen && (
-                <div className="absolute right-0 mt-2 w-56 rounded-xl bg-popover/95 backdrop-blur-xl border border-border shadow-2xl shadow-black/20 overflow-hidden animate-in fade-in slide-in-from-top-2 duration-200">
+                <div id="user-menu" className="absolute right-0 mt-2 w-64 rounded-xl bg-popover/95 backdrop-blur-xl border border-border shadow-2xl shadow-black/20 overflow-hidden animate-in fade-in slide-in-from-top-2 duration-200">
                   {/* User Info Header */}
                   <div className="px-4 py-3 border-b border-border bg-muted/30">
                     <div className="flex items-center gap-3">
@@ -224,6 +244,33 @@ export default function Navbar() {
 
                   {/* Menu Items */}
                   <div className="py-1.5">
+                    <div className="flex items-center">
+                      <Link
+                        to="/profile#credits"
+                        onClick={() => setIsDropdownOpen(false)}
+                        className="flex min-w-0 flex-1 items-center gap-3 px-4 py-2.5 text-sm text-foreground/70 transition-all duration-150 hover:bg-accent/50 hover:text-accent-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-ring"
+                      >
+                        <Coins className="w-4 h-4 text-amber-400" />
+                        <span>Credits</span>
+                        <span className="ml-auto font-medium tabular-nums text-foreground" aria-live="polite">
+                          {creditBalance.status === 'loading' && (
+                            <span aria-label="Loading credit balance" className="block h-4 w-10 animate-pulse rounded bg-muted" />
+                          )}
+                          {creditBalance.status === 'success' && creditBalance.balance.toLocaleString()}
+                          {creditBalance.status === 'error' && 'Unavailable'}
+                        </span>
+                      </Link>
+                      {creditBalance.status === 'error' && (
+                        <button
+                          type="button"
+                          onClick={() => void creditBalance.retry()}
+                          aria-label="Retry loading credit balance"
+                          className="mr-2 rounded-md p-2 text-foreground/50 transition-colors hover:bg-accent hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+                        >
+                          <RefreshCw className="h-4 w-4" />
+                        </button>
+                      )}
+                    </div>
                     <Link
                       to="/profile"
                       onClick={() => setIsDropdownOpen(false)}
