@@ -91,3 +91,21 @@ class MessageResponse(ApiModel):
 
 class NoteIdPath(ApiModel):
     note_id: int = Field(ge=1)
+
+
+class NoteSearchItem(ApiModel):
+    id: int
+    video_id: str
+    title: str | None
+    metadata: dict | None
+    timestamp: str
+    generated_by_ai: bool
+    excerpt: str
+
+
+class NoteSearchResponse(ApiModel):
+    notes: list[NoteSearchItem]
+    total: int
+    page: int
+    per_page: int
+    total_pages: int

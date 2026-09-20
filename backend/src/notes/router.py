@@ -1,4 +1,4 @@
-from fastapi import APIRouter, Depends, Request, Response, status
+from fastapi import APIRouter, Depends, Request, Response, Query, status
 from sqlalchemy.orm import Session
 
 from src.auth.dependencies import (
@@ -14,12 +14,27 @@ from src.notes.schemas import (
     NoteCreate,
     NoteCreateByTitle,
     NoteRead,
+    NoteSearchResponse,
     NoteUpdate,
 )
 from src.videos.schemas import VideoIdPath
 
 
 router = APIRouter(prefix="/v2", tags=["Notes"])
+
+
+@router.get("/notes/search", response_model=NoteSearchResponse)
+def search_notes(
+    q: str = Query(min_length=2, max_length=500),
+    page: int = Query(default=1, ge=1),
+    per_page: int = Query(default=10, ge=1, le=50),
+    db: Session = Depends(get_db),
+    user_id: int = Depends(get_current_user_id),
+) -> NoteSearchResponse:
+    q = q.strip()
+    if len(q) < 2:
+        raise BadRequestError("Enter at least two characters")
+    return notes_service.search_notes(db, user_id, q, page, per_page)
 
 
 @router.get(

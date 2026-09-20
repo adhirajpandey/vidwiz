@@ -80,6 +80,7 @@ export interface VideoMetadata {
   uploader?: string;
   uploader_url?: string;
   duration_string?: string;
+  duration?: number;
   thumbnail?: string;
   view_count?: number;
   like_count?: number;
@@ -90,10 +91,12 @@ export interface VideoListParams {
   page?: number;
   per_page?: number;
   q?: string;
-  sort?: 'created_at_desc' | 'created_at_asc' | 'title_asc' | 'title_desc';
+  sort?: 'activity_desc' | 'created_at_desc' | 'created_at_asc' | 'title_asc' | 'title_desc';
 }
 
 export interface VideoSearchItem {
+  note_count: number;
+  last_activity_at: string | null;
   video_id: string;
   title: string | null;
   metadata?: VideoMetadata | null;
@@ -154,4 +157,28 @@ export interface MessageRead {
 
 export interface MessageCreate {
   message: string;
+}
+
+export interface LibrarySummary {
+  videos: number;
+  notes: number;
+  ai_notes: number;
+  wiz_chats: number;
+  recent_videos: VideoSearchItem[];
+}
+export interface NoteSearchItem {
+  id: number;
+  video_id: string;
+  title: string | null;
+  metadata: VideoMetadata | null;
+  timestamp: string;
+  generated_by_ai: boolean;
+  excerpt: string;
+}
+export interface NoteSearchResponse {
+  notes: NoteSearchItem[];
+  total: number;
+  page: number;
+  per_page: number;
+  total_pages: number;
 }

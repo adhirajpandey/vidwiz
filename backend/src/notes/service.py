@@ -3,7 +3,7 @@ import json
 import logging
 import boto3
 
-from sqlalchemy import select
+from sqlalchemy import select, func
 from sqlalchemy.orm import Session
 
 from src.auth.models import User
@@ -11,6 +11,7 @@ from src.config import settings
 from src.exceptions import InternalServerError, NotFoundError
 from src.internal.scheduling import schedule_video_tasks
 from src.notes.models import Note
+from src.notes.schemas import NoteSearchItem, NoteSearchResponse
 from src.videos.models import Video
 from src.videos import service as videos_service
 from src.credits import service as credits_service
@@ -244,3 +245,47 @@ def delete_note(db: Session, note: Note) -> None:
     logger.debug("Deleting note", extra={"note_id": note.id})
     db.delete(note)
     db.commit()
+
+
+def search_notes(
+    db: Session, user_id: int, q: str, page: int, per_page: int
+) -> NoteSearchResponse:
+
+    query = (
+        select(Note, Video)
+        .join(Video, Video.video_id == Note.video_id)
+        .where(Note.user_id == user_id, Note.text.icontains(q, autoescape=True))
+    )
+    total = db.scalar(select(func.count()).select_from(query.subquery())) or 0
+    rows = db.execute(
+        query.order_by(Note.updated_at.desc(), Note.id.desc())
+        .offset((page - 1) * per_page)
+        .limit(per_page)
+    ).all()
+    items = []
+    for note, video in rows:
+        text = note.text or ""
+        match = text.lower().find(q.lower())
+        start = max(0, match - 80)
+        end = min(len(text), max(start + 240, match + len(q)))
+        excerpt = (
+            ("…" if start else "") + text[start:end] + ("…" if end < len(text) else "")
+        )
+        items.append(
+            NoteSearchItem(
+                id=note.id,
+                video_id=note.video_id,
+                title=video.title,
+                metadata=video.video_metadata,
+                timestamp=note.timestamp,
+                generated_by_ai=note.generated_by_ai,
+                excerpt=excerpt,
+            )
+        )
+    return NoteSearchResponse(
+        notes=items,
+        total=total,
+        page=page,
+        per_page=per_page,
+        total_pages=(total + per_page - 1) // per_page,
+    )

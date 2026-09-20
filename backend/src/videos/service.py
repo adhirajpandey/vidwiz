@@ -2,16 +2,18 @@ import asyncio
 import json
 import math
 import logging
-from typing import AsyncGenerator, Iterable
+from typing import AsyncGenerator
 
 from fastapi.concurrency import run_in_threadpool
-from sqlalchemy import asc, desc, func, select
+from sqlalchemy import asc, desc, func, select, case
 from sqlalchemy.orm import Session
 
 from src.database import SessionLocal
 from src.notes.models import Note
+from src.conversations.models import Conversation, Message
 from src.videos.models import Video
 from src.videos.schemas import (
+    LibrarySummary,
     VideoListParams,
     VideoListResponse,
     VideoRead,
@@ -47,46 +49,67 @@ def get_video_for_user(db: Session, user_id: int, video_id: str) -> Video | None
     return db.execute(query).scalar_one_or_none()
 
 
+def _library_query(user_id: int):
+    notes = (
+        select(
+            Note.video_id,
+            func.count(Note.id).label("note_count"),
+            func.max(
+                case(
+                    (Note.updated_at > Note.created_at, Note.updated_at),
+                    else_=Note.created_at,
+                )
+            ).label("note_activity"),
+        )
+        .where(Note.user_id == user_id)
+        .group_by(Note.video_id)
+        .subquery()
+    )
+    chats = (
+        select(
+            Conversation.video_id,
+            func.max(Message.created_at).label("chat_activity"),
+        )
+        .join(Message)
+        .where(Conversation.user_id == user_id)
+        .group_by(Conversation.video_id)
+        .subquery()
+    )
+    activity = case(
+        (chats.c.chat_activity > notes.c.note_activity, chats.c.chat_activity),
+        else_=notes.c.note_activity,
+    ).label("last_activity_at")
+    return select(Video, notes.c.note_count, activity).join(
+        notes, Video.video_id == notes.c.video_id
+    ).outerjoin(chats, Video.video_id == chats.c.video_id), activity
+
+
 def list_videos_for_user(
     db: Session, user_id: int, params: VideoListParams
 ) -> VideoListResponse:
-    logger.debug(
-        "Listing videos",
-        extra={
-            "user_id": user_id,
-            "query": params.q,
-            "page": params.page,
-            "per_page": params.per_page,
-            "sort": params.sort,
-        },
-    )
-    base_query = (
-        select(Video.id)
-        .join(Note, Video.video_id == Note.video_id)
-        .where(Note.user_id == user_id)
-    )
-
+    query, activity = _library_query(user_id)
     if params.q:
-        base_query = base_query.where(Video.title.ilike(f"%{params.q}%"))
-
-    distinct_ids = base_query.distinct().subquery()
-    total = db.execute(select(func.count()).select_from(distinct_ids)).scalar_one()
-
-    order_by = SORT_MAPPING[params.sort]
-    videos = (
-        db.execute(
-            select(Video)
-            .join(distinct_ids, Video.id == distinct_ids.c.id)
-            .order_by(order_by)
-            .offset((params.page - 1) * params.per_page)
-            .limit(params.per_page)
-        )
-        .scalars()
-        .all()
+        query = query.where(Video.title.icontains(params.q, autoescape=True))
+    total = db.scalar(select(func.count()).select_from(query.subquery())) or 0
+    order = (
+        activity.desc() if params.sort == "activity_desc" else SORT_MAPPING[params.sort]
     )
-
+    rows = db.execute(
+        query.order_by(order, Video.id.asc())
+        .offset((params.page - 1) * params.per_page)
+        .limit(params.per_page)
+    ).all()
     return VideoListResponse(
-        videos=_serialize_videos(videos),
+        videos=[
+            VideoSearchItem(
+                video_id=v.video_id,
+                title=v.title,
+                metadata=v.video_metadata,
+                note_count=count,
+                last_activity_at=active,
+            )
+            for v, count, active in rows
+        ],
         total=total,
         page=params.page,
         per_page=params.per_page,
@@ -94,15 +117,36 @@ def list_videos_for_user(
     )
 
 
-def _serialize_videos(videos: Iterable[Video]) -> list[VideoSearchItem]:
-    return [
-        VideoSearchItem(
-            video_id=video.video_id,
-            title=video.title,
-            metadata=video.video_metadata,
+def get_library_summary(db: Session, user_id: int) -> LibrarySummary:
+    library_ids = select(Note.video_id).where(Note.user_id == user_id).distinct()
+    notes, ai_notes = db.execute(
+        select(
+            func.count(Note.id),
+            func.coalesce(
+                func.sum(case((Note.generated_by_ai.is_(True), 1), else_=0)), 0
+            ),
+        ).where(Note.user_id == user_id)
+    ).one()
+    chats = (
+        db.scalar(
+            select(func.count(Conversation.id)).where(
+                Conversation.user_id == user_id,
+                Conversation.video_id.in_(library_ids),
+                Conversation.messages.any(Message.role == "user"),
+            )
         )
-        for video in videos
-    ]
+        or 0
+    )
+    recent = list_videos_for_user(
+        db, user_id, VideoListParams(per_page=3, sort="activity_desc")
+    )
+    return LibrarySummary(
+        videos=recent.total,
+        notes=notes,
+        ai_notes=ai_notes,
+        wiz_chats=chats,
+        recent_videos=recent.videos,
+    )
 
 
 def _compute_total_pages(total: int, per_page: int) -> int:

@@ -40,6 +40,9 @@ server/.env
 *.sln
 *.sw?
 
+# local verification artifacts
+/output/
+
 # wrangler files
 .wrangler
 .dev.vars*

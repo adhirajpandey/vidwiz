@@ -1,5 +1,5 @@
-import { useCallback, useEffect, useState } from 'react';
-import { useParams, useNavigate } from 'react-router-dom';
+import { useCallback, useEffect, useRef, useState } from 'react';
+import { useParams, useNavigate, useLocation } from 'react-router-dom';
 import { Sparkles, ChevronDown, ChevronUp } from 'lucide-react';
 import { authApi, videosApi, notesApi } from '../api';
 import { normalizeApiError } from '../api/errors';
@@ -17,6 +17,7 @@ import ErrorState from '../components/ui/ErrorState';
 
 export default function VideoPage() {
   const { videoId } = useParams();
+  const { hash } = useLocation();
   const [video, setVideo] = useState<VideoRead | null>(null);
   const [notes, setNotes] = useState<NoteRead[]>([]);
   const [userAiNotesEnabled, setUserAiNotesEnabled] = useState(false);
@@ -29,6 +30,23 @@ export default function VideoPage() {
   const [notesError, setNotesError] = useState<NormalizedApiError | null>(null);
   const navigate = useNavigate();
   const { addToast } = useToast();
+
+  const focusedNote = useRef('');
+  const [missingLinkedNote, setMissingLinkedNote] = useState(false);
+  useEffect(() => {
+    if (isNotesLoading || notesError || !/^#note-\d+$/.test(hash)) {
+      setMissingLinkedNote(false);
+      focusedNote.current = '';
+      return;
+    }
+    const target = document.getElementById(hash.slice(1));
+    setMissingLinkedNote(!target);
+    if (target && focusedNote.current !== `${videoId}${hash}`) {
+      focusedNote.current = `${videoId}${hash}`;
+      target.scrollIntoView({ block: 'center' });
+      target.focus({ preventScroll: true });
+    }
+  }, [videoId, hash, isNotesLoading, notesError, notes]);
 
   const fetchNotes = useCallback(async (background = false) => {
     const token = getToken();
@@ -365,6 +383,7 @@ export default function VideoPage() {
             </span>
           </div>
           
+          {missingLinkedNote && <p role="status" className="px-5 py-3 text-sm text-muted-foreground">This note is no longer available. Your other notes are shown below.</p>}
           {/* Notes list */}
           <div className="p-3 md:p-5">
             {isNotesLoading ? (

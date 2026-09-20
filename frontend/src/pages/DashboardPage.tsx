@@ -1,287 +1,446 @@
-import { useEffect, useState } from 'react';
-import { useNavigate, Link } from 'react-router-dom';
-import { ArrowRight } from 'lucide-react';
-import VideoCard from '../components/VideoCard';
-import { FaSearch, FaYoutube, FaVideo, FaChevronLeft, FaChevronRight } from 'react-icons/fa';
-import { HiSparkles } from 'react-icons/hi2';
-import { getUserFromToken, removeToken } from '../lib/authUtils';
-import { videosApi } from '../api';
-import { normalizeApiError } from '../api/errors';
-import type { NormalizedApiError } from '../api/errors';
-import type { VideoSearchItem } from '../api/types';
-import config from '../config';
-import Seo from '../components/Seo';
-import ErrorState from '../components/ui/ErrorState';
+import { useEffect, useState } from "react";
+import { Link, useSearchParams } from "react-router-dom";
+import {
+  ArrowRight,
+  FileText,
+  MessageSquare,
+  Search,
+  Sparkles,
+  Youtube,
+} from "lucide-react";
+import { videosApi, notesApi } from "../api";
+import { normalizeApiError } from "../api/errors";
+import type { NormalizedApiError } from "../api/errors";
+import type { VideoListParams } from "../api/types";
+import VideoCard from "../components/VideoCard";
+import LibraryDropdown from "../components/LibraryDropdown";
+import LibrarySort from "../components/LibrarySort";
+import Highlight from "../components/Highlight";
+import ErrorState from "../components/ui/ErrorState";
+import Seo from "../components/Seo";
+import config from "../config";
+import "./dashboard.css";
+
+const searchScopes = [
+  { value: "all", label: "All" },
+  { value: "videos", label: "Videos" },
+  { value: "notes", label: "Notes" },
+] as const;
+
+function useResource<T>(key: string, fetcher: () => Promise<T>) {
+  const [attempt, retry] = useState(0);
+  const [result, setResult] = useState<{
+    key: string;
+    attempt: number;
+    data?: T;
+    error?: NormalizedApiError;
+  }>();
+  useEffect(() => {
+    let active = true;
+    fetcher()
+      .then((data) => {
+        if (active) setResult({ key, attempt, data });
+      })
+      .catch((error) => {
+        if (active)
+          setResult({
+            key,
+            attempt,
+            error: normalizeApiError(
+              error,
+              "Unable to load this section. Please try again.",
+            ),
+          });
+      });
+    return () => {
+      active = false;
+    };
+    // The key describes every request parameter; fetcher is intentionally not a dependency.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [key, attempt]);
+  return {
+    data:
+      result?.key === key && result.attempt === attempt
+        ? result.data
+        : undefined,
+    error:
+      result?.key === key && result.attempt === attempt
+        ? result.error
+        : undefined,
+    retry: () => retry((value) => value + 1),
+  };
+}
+
+function Pagination({
+  page,
+  pages,
+  onChange,
+  label,
+}: {
+  page: number;
+  pages: number;
+  onChange: (page: number) => void;
+  label: string;
+}) {
+  if (pages <= 1 && page <= 1) return null;
+  return (
+    <nav aria-label={`${label} pagination`} className="library-pagination">
+      <button
+        className="library-button library-button-muted"
+        disabled={page <= 1}
+        onClick={() => onChange(page - 1)}
+      >
+        Previous
+      </button>
+      <span>
+        Page {page} of {Math.max(1, pages)}
+      </span>
+      <button
+        className="library-button library-button-muted"
+        disabled={page >= pages}
+        onClick={() => onChange(page + 1)}
+      >
+        Next
+      </button>
+    </nav>
+  );
+}
+
+function Loading() {
+  return (
+    <div role="status" aria-label="Loading" className="library-loading">
+      <div />
+      <div />
+      <div />
+    </div>
+  );
+}
+function Failure({
+  error,
+  retry,
+}: {
+  error: NormalizedApiError;
+  retry: () => void;
+}) {
+  return (
+    <ErrorState
+      compact
+      title="Unable to load this section"
+      message={error.message}
+      referenceId={error.requestId}
+      onRetry={retry}
+    />
+  );
+}
+function pageNumber(value: string | null) {
+  const number = Number(value);
+  return Number.isSafeInteger(number) && number > 0 ? number : 1;
+}
 
 export default function DashboardPage() {
-  const [user, setUser] = useState<{ email: string; name?: string } | null>(null);
-  const [videos, setVideos] = useState<VideoSearchItem[]>([]);
-  const [searchQuery, setSearchQuery] = useState('');
-  const [isSearching, setIsSearching] = useState(false);
-  const [hasSearched, setHasSearched] = useState(false);
-  const [hasAnyVideos, setHasAnyVideos] = useState(true); // assume true until initial fetch
-  const [currentPage, setCurrentPage] = useState(1);
-  const [totalPages, setTotalPages] = useState(0);
-  const [totalVideos, setTotalVideos] = useState(0);
-  const [loadError, setLoadError] = useState<NormalizedApiError | null>(null);
-  const navigate = useNavigate();
-
+  const [params, setParams] = useSearchParams();
+  const query = (params.get("q") || "").trim();
+  const searching = query.length >= 2;
+  const scopeParam = params.get("scope");
+  const scope = scopeParam === "videos" || scopeParam === "notes" ? scopeParam : "all";
+  const showVideos = !searching || scope !== "notes";
+  const showNotes = searching && scope !== "videos";
+  const videoPage = pageNumber(params.get("videosPage"));
+  const notePage = pageNumber(params.get("notesPage"));
+  const selectedSort = params.get("sort");
+  const sort: VideoListParams["sort"] =
+    !searching &&
+    (selectedSort === "title_asc" || selectedSort === "title_desc")
+      ? selectedSort
+      : "activity_desc";
+  const [draft, setDraft] = useState(query);
+  const [validation, setValidation] = useState("");
   useEffect(() => {
-    const userInfo = getUserFromToken();
-    if (userInfo?.email) {
-      setUser({ email: userInfo.email, name: userInfo.name });
-    } else {
-      // Invalid or expired token, redirect to login
-      removeToken();
-      navigate('/login');
-    }
-  }, [navigate]);
-
-  // Fetch initial videos on page load
-  useEffect(() => {
-    if (user) {
-      fetchPage(1, true);
-    }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [user]);
-
-  const fetchPage = async (page: number, isInitial = false) => {
-    setIsSearching(true);
-    setLoadError(null);
-    try {
-      // API client automatically handles auth token
-      const data = await videosApi.listVideos({
-        q: searchQuery,
-        page,
-        per_page: 10,
-      });
-
-      setVideos(data.videos);
-      setCurrentPage(data.page);
-      setTotalPages(data.total_pages);
-      setTotalVideos(data.total);
-      if (isInitial) {
-        setHasAnyVideos(data.total > 0);
-      }
-    } catch (error) {
-       const normalized = normalizeApiError(
-         error,
-         'Unable to load your videos. Check your connection and try again.'
-       );
-       console.error('Failed to fetch videos', error);
-       if (normalized.handled) return;
-       setLoadError(normalized);
-    } finally {
-      setIsSearching(false);
-      setHasSearched(true);
-    }
-  };
-
-  const handleSearch = async (e: React.FormEvent) => {
-    e.preventDefault();
-    setCurrentPage(1);
-    await fetchPage(1);
-  };
-
+    setDraft(query);
+  }, [query]);
+  const summary = useResource("summary", videosApi.librarySummary);
+  const videos = useResource(`videos:${query}:${videoPage}:${sort}:${showVideos}`, () =>
+    showVideos ? videosApi.listVideos({
+      q: searching ? query : "",
+      page: videoPage,
+      per_page: 10,
+      sort,
+    }) : Promise.resolve(null),
+  );
+  const notes = useResource(`notes:${query}:${notePage}:${showNotes}`, () =>
+    showNotes ? notesApi.search(query, notePage) : Promise.resolve(null),
+  );
+  function changePage(key: string, page: number) {
+    const next = new URLSearchParams(params);
+    next.set(key, String(page));
+    setParams(next);
+  }
+  function clear() {
+    setDraft("");
+    setValidation("");
+    setParams(scope === "all" ? {} : { scope });
+  }
+  const counts = [
+    { label: "videos", value: summary.data?.videos, Icon: Youtube },
+    { label: "notes", value: summary.data?.notes, Icon: FileText },
+    { label: "AI notes", value: summary.data?.ai_notes, Icon: Sparkles },
+    { label: "Wiz chats", value: summary.data?.wiz_chats, Icon: MessageSquare },
+  ];
   return (
     <>
       <Seo
-        title="Dashboard: Your Smart Notes Library | VidWiz"
-        description="Search, manage, and revisit your Smart Notes across saved YouTube videos in your VidWiz dashboard."
+        title="Your library | VidWiz"
+        description="Your saved YouTube videos, notes and AI insights."
         path="/dashboard"
         noIndex
       />
-      <div className="min-h-screen bg-background text-foreground">
-        <div className="max-w-4xl mx-auto px-4 md:px-6 py-8 md:py-12">
-        {/* Hero Section */}
-        <div className="relative mb-8 md:mb-12">
-          {/* Ambient background glow */}
-          <div className="absolute -inset-4 bg-gradient-to-r from-red-500/10 via-purple-500/5 to-red-500/10 rounded-3xl blur-2xl opacity-60"></div>
-          
-          <div className="relative">
-            {/* Welcome badge */}
-            {user && (
-              <div className="inline-flex items-center gap-2 px-3 py-1.5 mb-4 rounded-full bg-gradient-to-r from-white/[0.08] to-white/[0.04] border border-white/[0.08] select-none">
-                <HiSparkles className="w-3.5 h-3.5 text-violet-400" />
-                <span className="text-sm font-medium text-foreground/80">Welcome back, <span className="text-foreground">{user.name || user.email}</span></span>
-              </div>
-            )}
-            
-            {/* Title */}
-            <h1 className="text-3xl md:text-4xl font-bold tracking-tight select-none">
-              <span className="bg-gradient-to-r from-foreground via-foreground to-foreground/70 bg-clip-text text-transparent">
-                Search Your
-              </span>
-              <span className="bg-gradient-to-r from-red-500 to-red-600 bg-clip-text text-transparent"> Video Notes</span>
-            </h1>
-            <p className="mt-2 text-foreground/50 text-sm md:text-base select-none">
-              Find and manage notes from your saved YouTube videos
+      <div className="library-dashboard">
+        <header className="library-header">
+          <div>
+            <h1>Your library</h1>
+            <p>
+              All your saved YouTube videos, notes and AI insights in one place.
             </p>
           </div>
-        </div>
-
-        {/* Search Section */}
-        <div className="relative mb-8 md:mb-10">
-          <div className="relative bg-gradient-to-br from-card via-card to-card/90 rounded-xl md:rounded-2xl shadow-xl overflow-hidden border border-white/[0.08] select-none">
-            {/* Subtle inner glow */}
-            <div className="absolute inset-0 bg-gradient-to-r from-red-500/5 via-transparent to-red-500/5 pointer-events-none"></div>
-            
-            <div className="relative p-4 md:p-6">
-              <form onSubmit={handleSearch} className="w-full">
-                <div className="relative group">
-                  {/* Search icon */}
-                  <div className="absolute inset-y-0 left-0 flex items-center pl-4 pointer-events-none">
-                    <FaSearch className="w-4 h-4 text-foreground/30 group-focus-within:text-red-400 transition-colors duration-300" />
-                  </div>
-                  
-                  {/* Input field */}
-                  <input
-                    type="search"
-                    value={searchQuery}
-                    onChange={(e) => setSearchQuery(e.target.value)}
-                    className="block w-full p-4 pl-11 pr-36 text-sm md:text-base text-foreground bg-white/[0.04] border border-white/[0.08] rounded-xl focus:ring-2 focus:ring-red-500/30 focus:border-red-500/50 focus:bg-white/[0.06] placeholder:text-foreground/30 transition-all duration-300"
-                    placeholder="Search by video title"
-                  />
-                  
-                  {/* Search button */}
-                  <button
-                    type="submit"
-                    disabled={isSearching}
-                    className="absolute right-2 top-1/2 -translate-y-1/2 inline-flex items-center gap-2 px-5 py-2.5 text-sm font-semibold text-white bg-gradient-to-r from-red-600 via-red-500 to-red-600 bg-[length:200%_100%] rounded-lg hover:bg-right transition-all duration-500 shadow-lg shadow-red-500/25 hover:shadow-red-500/40 disabled:opacity-50 disabled:cursor-not-allowed cursor-pointer"
-                  >
-                    {isSearching ? (
-                      <>
-                        <div className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin"></div>
-                        <span>Searching</span>
-                      </>
-                    ) : (
-                      <>
-                        <FaSearch className="w-3.5 h-3.5" />
-                        <span>Search</span>
-                      </>
-                    )}
-                  </button>
+          <div className="library-stats" aria-label="Library totals">
+            {counts.map(({ label, value, Icon }) => (
+              <div className="library-stat" key={label}>
+                <Icon size={23} />
+                <div>
+                  <strong>
+                    {value === undefined ? "—" : value.toLocaleString()}
+                  </strong>
+                  <span>{label}</span>
                 </div>
-              </form>
-            </div>
-          </div>
-        </div>
-
-        {/* Results Section */}
-        {hasSearched && (
-          <div className="relative bg-gradient-to-br from-card via-card to-card/90 rounded-xl md:rounded-2xl shadow-xl overflow-hidden border border-white/[0.08] select-none">
-            {/* Header */}
-            <div className="px-4 py-3 md:px-6 md:py-4 border-b border-white/[0.06] bg-white/[0.02] flex items-center justify-between select-none">
-              <div className="flex items-center gap-2.5 md:gap-3">
-                <div className="w-7 h-7 md:w-8 md:h-8 rounded-lg bg-gradient-to-br from-red-500/20 to-red-600/20 flex items-center justify-center flex-shrink-0">
-                  <FaYoutube className="w-3.5 h-3.5 md:w-4 md:h-4 text-red-400" />
-                </div>
-                <h3 className="text-base md:text-lg font-semibold text-foreground tracking-tight">Your Videos</h3>
               </div>
-              <span className="inline-flex items-center px-2 py-0.5 md:px-2.5 md:py-1 rounded-md text-[11px] md:text-xs font-medium bg-white/[0.06] text-foreground/60 border border-white/[0.08]">
-                {totalVideos} {totalVideos === 1 ? 'video' : 'videos'}
-              </span>
+            ))}
+          </div>
+        </header>
+        {summary.error && (
+          <Failure error={summary.error} retry={summary.retry} />
+        )}
+        <form
+          className="library-search"
+          onSubmit={(event) => {
+            event.preventDefault();
+            const q = draft.trim();
+            if (!q) {
+              clear();
+              return;
+            }
+            if (q.length < 2) {
+              setValidation("Enter at least two characters to search.");
+              return;
+            }
+            setValidation("");
+            setParams(scope === "all" ? { q } : { q, scope });
+          }}
+        >
+          <div className="library-search-scope">
+            <LibraryDropdown label="Search scope" options={searchScopes} value={scope} onChange={(value) => {
+              const next = new URLSearchParams(params);
+              if (value === "all") next.delete("scope");
+              else next.set("scope", value);
+              next.delete("videosPage");
+              next.delete("notesPage");
+              setParams(next);
+            }} />
+          </div>
+          <div className="library-search-field">
+          <Search size={18} aria-hidden="true" />
+          <input
+            aria-label="Search videos and notes"
+            aria-describedby={validation ? "search-guidance" : undefined}
+            value={draft}
+            maxLength={500}
+            onChange={(event) => setDraft(event.target.value)}
+            placeholder={scope === "videos" ? "Search video titles…" : scope === "notes" ? "Search notes…" : "Search videos and notes…"}
+          />
+          {(query || draft) && (
+            <button type="button" className="library-clear" onClick={clear}>
+              Clear
+            </button>
+          )}
+          </div>
+          <button
+            className="library-button library-button-primary"
+            type="submit"
+          >
+            <Search size={16} />
+            Search
+          </button>
+        </form>
+        {validation && (
+          <p
+            id="search-guidance"
+            role="alert"
+            className="text-red-500 text-sm mb-5"
+          >
+            {validation}
+          </p>
+        )}
+        {!searching && !!summary.data?.recent_videos.length && (
+          <section className="library-recent" aria-labelledby="recent-heading">
+            <div className="library-section-heading">
+              <div>
+                <h2 id="recent-heading">Recent activity</h2>
+                <p>Revisit your latest notes and chats.</p>
+              </div>
             </div>
-            
-            {/* Results list */}
-            <div className="p-3 md:p-5">
-              {loadError ? (
-                <ErrorState
-                  compact
-                  headingLevel={4}
-                  title="Unable to load videos"
-                  message={loadError.message}
-                  referenceId={loadError.requestId}
-                  onRetry={() =>
-                    void fetchPage(currentPage || 1, searchQuery.trim() === '')
-                  }
-                />
-              ) : videos.length === 0 ? (
-                !hasAnyVideos ? (
-                  /* Onboarding: user has no saved videos yet */
-                  <div className="text-center py-10 md:py-14 px-4 select-none">
-                    <div className="relative inline-block mb-5">
-                      {/* Animated glow ring */}
-                      <div className="absolute inset-0 bg-gradient-to-r from-blue-500/30 to-blue-600/30 rounded-2xl blur-xl animate-pulse"></div>
-                      <div className="relative w-16 h-16 md:w-20 md:h-20 mx-auto rounded-2xl bg-gradient-to-br from-blue-500/20 to-blue-600/10 border border-blue-500/20 flex items-center justify-center">
-                        {/* Chrome Web Store icon */}
-                        <svg className="w-8 h-8 md:w-10 md:h-10 flex-shrink-0" viewBox="0 0 192 192" xmlns="http://www.w3.org/2000/svg">
-                          <path d="M58 24c-8 0-14 6-14 14v4H28c-3 0-5 2-5 5l-7 90c0 3 1 5 3 7s5 3 7 3h140c3 0 5-1 7-3s3-4 3-7l-7-90c0-3-2-5-5-5h-16v-4c0-8-6-14-14-14H58z" fill="#4285F4"/>
-                          <path d="M96 88a36 36 0 100 72 36 36 0 000-72z" fill="white"/>
-                          <path d="M96 96a28 28 0 00-24 14l14 8a14 14 0 0124 0l14-8a28 28 0 00-28-14z" fill="#EA4335"/>
-                          <path d="M72 110a28 28 0 000 28l14-8a14 14 0 010-12l-14-8z" fill="#4285F4"/>
-                          <path d="M96 152a28 28 0 0024-14l-14-8a14 14 0 01-24 0l-14 8a28 28 0 0028 14z" fill="#34A853"/>
-                          <path d="M120 138a28 28 0 000-28l-14 8a14 14 0 010 12l14 8z" fill="#FBBC05"/>
-                          <circle cx="96" cy="124" r="8" fill="#4285F4"/>
-                        </svg>
-                      </div>
-                    </div>
-                    <h3 className="text-lg md:text-xl font-semibold text-foreground mb-2">Get Started with VidWiz</h3>
-                    <p className="text-foreground/40 text-sm max-w-md mx-auto mb-6">
-                      Install the Chrome extension, open any YouTube video, and start taking notes - they'll show up right here.
-                    </p>
-                    <a
-                      href={config.CHROME_WEBSTORE_URL}
-                      target="_blank"
-                      rel="noopener noreferrer"
-                      className="group inline-flex items-center gap-2.5 px-6 py-3 text-sm font-semibold text-white bg-gradient-to-r from-red-600 via-red-500 to-red-600 bg-[length:200%_100%] rounded-xl hover:bg-right transition-all duration-500 shadow-lg shadow-red-500/25 hover:shadow-red-500/40"
-                    >
-                      Install Chrome Extension
-                      <ArrowRight className="w-4 h-4 group-hover:translate-x-1 transition-transform" />
-                    </a>
-                    <div className="mt-4">
-                      <Link to="/help" className="inline-flex items-center gap-1 text-sm text-purple-400 hover:text-purple-300 transition-colors">
-                        See how it works <ArrowRight className="w-3.5 h-3.5" />
-                      </Link>
-                    </div>
-                  </div>
-                ) : (
-                  /* Empty search results */
-                  <div className="text-center py-10 md:py-14 select-none">
-                    <div className="w-14 h-14 md:w-16 md:h-16 mx-auto mb-3 md:mb-4 rounded-xl bg-white/[0.04] flex items-center justify-center">
-                      <FaVideo className="w-7 h-7 md:w-8 md:h-8 text-foreground/20" />
-                    </div>
-                    <p className="text-foreground/50 text-sm font-medium">No videos found</p>
-                    <p className="text-foreground/30 text-xs mt-1">Try a different search term</p>
-                  </div>
-                )
-              ) : (
-                <div className="space-y-2 md:space-y-3">
-                  {videos.map((video) => (
-                    <VideoCard key={video.video_id} video={video} />
+            <div className="library-featured-grid">
+              {summary.data.recent_videos.map((video) => (
+                <VideoCard key={video.video_id} video={video} featured />
+              ))}
+            </div>
+          </section>
+        )}
+        {!searching && !summary.data && !summary.error && <Loading />}
+        {showVideos && <section
+          id="library"
+          aria-labelledby="library-heading"
+          className="library-section"
+        >
+          <div className="library-section-heading">
+            <div className={searching ? undefined : "sr-only"}>
+              <h2 id="library-heading">
+                {searching ? "Videos" : "Saved videos"}
+                {searching && videos.data ? ` (${videos.data.total})` : ""}
+              </h2>
+              <p>
+                {searching
+                  ? `Title matches for “${query}”`
+                  : "A list of all your saved videos."}
+              </p>
+            </div>
+            {!searching && (
+              <LibrarySort value={sort} onChange={(value) => {
+                const next = new URLSearchParams(params);
+                next.set("sort", value);
+                next.delete("videosPage");
+                setParams(next);
+              }} />
+            )}
+          </div>
+          {videos.error ? (
+            <Failure error={videos.error} retry={videos.retry} />
+          ) : !videos.data ? (
+            <Loading />
+          ) : (
+            <>
+              {videos.data.videos.length ? (
+                <div className="library-rows">
+                  {videos.data.videos.map((video) => (
+                    <VideoCard
+                      key={video.video_id}
+                      video={video}
+                      query={searching ? query : ""}
+                    />
                   ))}
-
-                  {/* Pagination Controls */}
-                  {totalPages > 1 && (
-                    <div className="flex items-center justify-center gap-4 pt-4 mt-4 border-t border-white/[0.06]">
-                      <button
-                        onClick={() => fetchPage(currentPage - 1)}
-                        disabled={currentPage <= 1 || isSearching}
-                        className="inline-flex items-center gap-2 px-4 py-2 text-sm font-medium text-foreground/70 bg-white/[0.04] border border-white/[0.08] rounded-lg hover:bg-white/[0.08] hover:text-foreground disabled:opacity-40 disabled:cursor-not-allowed transition-all duration-200 cursor-pointer"
+                </div>
+              ) : (
+                <div className="library-empty">
+                  <h3>
+                    {searching
+                      ? "No matching videos"
+                      : videoPage > 1
+                        ? "No videos on this page"
+                        : "Start your library"}
+                  </h3>
+                  <p>
+                    {searching
+                      ? scope === "videos" ? "Try another video title." : "Try another title, or check the note matches below."
+                      : videoPage > 1
+                        ? "Return to a previous page."
+                        : "Install the Chrome extension, open a YouTube video, and save your first note."}
+                  </p>
+                  {!searching && videoPage === 1 && (
+                    <>
+                      <a
+                        className="library-button library-button-primary"
+                        href={config.CHROME_WEBSTORE_URL}
+                        target="_blank"
+                        rel="noopener noreferrer"
                       >
-                        <FaChevronLeft className="w-3 h-3" />
-                        <span>Previous</span>
-                      </button>
-                      <span className="text-sm text-foreground/60 font-medium">
-                        Page {currentPage} of {totalPages}
-                      </span>
-                      <button
-                        onClick={() => fetchPage(currentPage + 1)}
-                        disabled={currentPage >= totalPages || isSearching}
-                        className="inline-flex items-center gap-2 px-4 py-2 text-sm font-medium text-foreground/70 bg-white/[0.04] border border-white/[0.08] rounded-lg hover:bg-white/[0.08] hover:text-foreground disabled:opacity-40 disabled:cursor-not-allowed transition-all duration-200 cursor-pointer"
-                      >
-                        <span>Next</span>
-                        <FaChevronRight className="w-3 h-3" />
-                      </button>
-                    </div>
+                        Install Chrome Extension <ArrowRight size={16} />
+                      </a>
+                      <Link to="/help">See how it works</Link>
+                    </>
                   )}
                 </div>
               )}
+              <Pagination
+                label="Videos"
+                page={videoPage}
+                pages={videos.data.total_pages}
+                onChange={(page) => changePage("videosPage", page)}
+              />
+            </>
+          )}
+        </section>}
+        {showNotes && (
+          <section className="library-section" aria-labelledby="notes-heading">
+            <div className="library-section-heading">
+              <div>
+                <h2 id="notes-heading">
+                  Notes{notes.data ? ` (${notes.data.total})` : ""}
+                </h2>
+                <p>Matches in your saved notes</p>
+              </div>
             </div>
-          </div>
+            {notes.error ? (
+              <Failure error={notes.error} retry={notes.retry} />
+            ) : !notes.data ? (
+              <Loading />
+            ) : (
+              <>
+                {notes.data.notes.length ? (
+                  <div className="library-rows">
+                    {notes.data.notes.map((note) => (
+                      <article key={note.id} className="library-note-result">
+                        <div>
+                          <h3>
+                            {note.title ||
+                              note.metadata?.title ||
+                              "Untitled video"}
+                          </h3>
+                          <div className="library-note-meta">
+                            <span>{note.timestamp}</span>
+                            {note.generated_by_ai && (
+                              <span>
+                                <Sparkles size={13} />
+                                AI note
+                              </span>
+                            )}
+                          </div>
+                          <p>
+                            <Highlight text={note.excerpt} query={query} />
+                          </p>
+                        </div>
+                        <Link
+                          className="library-button library-button-notes"
+                          to={`/dashboard/${note.video_id}#note-${note.id}`}
+                        >
+                          <FileText size={15} /> Open note
+                        </Link>
+                      </article>
+                    ))}
+                  </div>
+                ) : (
+                  <div className="library-empty">
+                    <h3>No matching notes</h3>
+                    <p>Try another word or phrase.</p>
+                  </div>
+                )}
+                <Pagination
+                  label="Notes"
+                  page={notePage}
+                  pages={notes.data.total_pages}
+                  onChange={(page) => changePage("notesPage", page)}
+                />
+              </>
+            )}
+          </section>
         )}
-
-        </div>
       </div>
     </>
   );
