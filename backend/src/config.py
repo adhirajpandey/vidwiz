@@ -16,7 +16,7 @@ class Settings(BaseSettings):
     db_url: str = Field(default="sqlite:///./vidwiz.db", alias="DB_URL")
     secret_key: str = Field(alias="SECRET_KEY")
     internal_api_admin_token: str = Field(alias="VIDWIZ_INTERNAL_API_ADMIN_TOKEN")
-    jwt_expiry_hours: int = Field(default=24, alias="JWT_EXPIRY_HOURS")
+    jwt_expiry_hours: int = Field(default=168, alias="JWT_EXPIRY_HOURS")
     google_client_id: str = Field(alias="GOOGLE_CLIENT_ID")
     youtube_data_api_key: str | None = Field(default=None, alias="YOUTUBE_DATA_API_KEY")
     sqs_ai_note_queue_url: str = Field(alias="SQS_AI_NOTE_QUEUE_URL")
