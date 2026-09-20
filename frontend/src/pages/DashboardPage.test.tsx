@@ -73,16 +73,39 @@ beforeEach(() => {
   });
 });
 afterEach(cleanup);
+it("limits requests and results to the URL search scope", async () => {
+  const user = setup("/dashboard?q=matching&scope=notes");
+  await screen.findByRole("heading", { name: "Notes (11)" });
+  expect(videosApi.listVideos).not.toHaveBeenCalled();
+  expect(screen.queryByRole("heading", { name: "Videos (12)" })).toBeNull();
+  await user.click(screen.getByRole("button", { name: "Search scope: Notes" }));
+  await user.click(screen.getByRole("menuitemradio", { name: "Videos" }));
+  await screen.findByRole("heading", { name: "Videos (12)" });
+  expect(screen.queryByRole("heading", { name: "Notes (11)" })).toBeNull();
+  expect(screen.getByTestId("url").textContent).toContain("scope=videos");
+  expect(notesApi.search).toHaveBeenCalledTimes(1);
+});
+it("preserves scope on submit and supports keyboard selection", async () => {
+  const user = setup();
+  await screen.findByText("Recent activity");
+  await user.click(screen.getByRole("button", { name: "Search scope: All" }));
+  await user.keyboard("{End}{Enter}");
+  await user.type(screen.getByRole("textbox", { name: "Search videos and notes" }), "matching");
+  await user.click(screen.getByRole("button", { name: "Search" }));
+  await screen.findByRole("heading", { name: "Notes (11)" });
+  expect(screen.getByTestId("url").textContent).toContain("scope=notes");
+  expect(screen.queryByRole("heading", { name: "Videos (12)" })).toBeNull();
+});
 it("separates search results, escapes excerpts, and paginates independently", async () => {
   const user = setup();
-  await screen.findByText("Continue exploring");
+  await screen.findByText("Recent activity");
   await user.type(
     screen.getByRole("textbox", { name: "Search videos and notes" }),
     "matching",
   );
   await user.click(screen.getByRole("button", { name: "Search" }));
   await screen.findByRole("heading", { name: "Videos (12)" });
-  expect(screen.queryByText("Continue exploring")).toBeNull();
+  expect(screen.queryByText("Recent activity")).toBeNull();
   expect(screen.getByRole("heading", { name: "Notes (11)" })).toBeTruthy();
   expect(
     screen.getByRole("link", { name: "Open note" }).getAttribute("href"),
@@ -100,7 +123,7 @@ it("separates search results, escapes excerpts, and paginates independently", as
   await user.click(screen.getByText("Back"));
   expect(notesApi.search).toHaveBeenLastCalledWith("matching", 1);
   await user.click(screen.getByRole("button", { name: "Clear" }));
-  await screen.findByText("Continue exploring");
+  await screen.findByText("Recent activity");
 });
 it("validates short queries and restores search from the URL", async () => {
   const user = setup("/dashboard?q=matching&videosPage=2");

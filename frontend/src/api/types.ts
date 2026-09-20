@@ -80,6 +80,7 @@ export interface VideoMetadata {
   uploader?: string;
   uploader_url?: string;
   duration_string?: string;
+  duration?: number;
   thumbnail?: string;
   view_count?: number;
   like_count?: number;

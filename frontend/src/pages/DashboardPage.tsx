@@ -13,11 +13,19 @@ import { normalizeApiError } from "../api/errors";
 import type { NormalizedApiError } from "../api/errors";
 import type { VideoListParams } from "../api/types";
 import VideoCard from "../components/VideoCard";
+import LibraryDropdown from "../components/LibraryDropdown";
+import LibrarySort from "../components/LibrarySort";
 import Highlight from "../components/Highlight";
 import ErrorState from "../components/ui/ErrorState";
 import Seo from "../components/Seo";
 import config from "../config";
 import "./dashboard.css";
+
+const searchScopes = [
+  { value: "all", label: "All" },
+  { value: "videos", label: "Videos" },
+  { value: "notes", label: "Notes" },
+] as const;
 
 function useResource<T>(key: string, fetcher: () => Promise<T>) {
   const [attempt, retry] = useState(0);
@@ -133,6 +141,10 @@ export default function DashboardPage() {
   const [params, setParams] = useSearchParams();
   const query = (params.get("q") || "").trim();
   const searching = query.length >= 2;
+  const scopeParam = params.get("scope");
+  const scope = scopeParam === "videos" || scopeParam === "notes" ? scopeParam : "all";
+  const showVideos = !searching || scope !== "notes";
+  const showNotes = searching && scope !== "videos";
   const videoPage = pageNumber(params.get("videosPage"));
   const notePage = pageNumber(params.get("notesPage"));
   const selectedSort = params.get("sort");
@@ -147,16 +159,16 @@ export default function DashboardPage() {
     setDraft(query);
   }, [query]);
   const summary = useResource("summary", videosApi.librarySummary);
-  const videos = useResource(`videos:${query}:${videoPage}:${sort}`, () =>
-    videosApi.listVideos({
+  const videos = useResource(`videos:${query}:${videoPage}:${sort}:${showVideos}`, () =>
+    showVideos ? videosApi.listVideos({
       q: searching ? query : "",
       page: videoPage,
       per_page: 10,
       sort,
-    }),
+    }) : Promise.resolve(null),
   );
-  const notes = useResource(`notes:${query}:${notePage}`, () =>
-    searching ? notesApi.search(query, notePage) : Promise.resolve(null),
+  const notes = useResource(`notes:${query}:${notePage}:${showNotes}`, () =>
+    showNotes ? notesApi.search(query, notePage) : Promise.resolve(null),
   );
   function changePage(key: string, page: number) {
     const next = new URLSearchParams(params);
@@ -166,7 +178,7 @@ export default function DashboardPage() {
   function clear() {
     setDraft("");
     setValidation("");
-    setParams({});
+    setParams(scope === "all" ? {} : { scope });
   }
   const counts = [
     { label: "videos", value: summary.data?.videos, Icon: Youtube },
@@ -221,23 +233,35 @@ export default function DashboardPage() {
               return;
             }
             setValidation("");
-            setParams({ q });
+            setParams(scope === "all" ? { q } : { q, scope });
           }}
         >
-          <Search size={21} aria-hidden="true" />
+          <div className="library-search-scope">
+            <LibraryDropdown label="Search scope" options={searchScopes} value={scope} onChange={(value) => {
+              const next = new URLSearchParams(params);
+              if (value === "all") next.delete("scope");
+              else next.set("scope", value);
+              next.delete("videosPage");
+              next.delete("notesPage");
+              setParams(next);
+            }} />
+          </div>
+          <div className="library-search-field">
+          <Search size={18} aria-hidden="true" />
           <input
             aria-label="Search videos and notes"
             aria-describedby={validation ? "search-guidance" : undefined}
             value={draft}
             maxLength={500}
             onChange={(event) => setDraft(event.target.value)}
-            placeholder="Search videos and notes…"
+            placeholder={scope === "videos" ? "Search video titles…" : scope === "notes" ? "Search notes…" : "Search videos and notes…"}
           />
           {(query || draft) && (
             <button type="button" className="library-clear" onClick={clear}>
               Clear
             </button>
           )}
+          </div>
           <button
             className="library-button library-button-primary"
             type="submit"
@@ -259,12 +283,9 @@ export default function DashboardPage() {
           <section className="library-recent" aria-labelledby="recent-heading">
             <div className="library-section-heading">
               <div>
-                <h2 id="recent-heading">Continue exploring</h2>
+                <h2 id="recent-heading">Recent activity</h2>
                 <p>Revisit your latest notes and chats.</p>
               </div>
-              <a href="#library" className="library-view-all">
-                View all <ArrowRight size={15} />
-              </a>
             </div>
             <div className="library-featured-grid">
               {summary.data.recent_videos.map((video) => (
@@ -274,15 +295,15 @@ export default function DashboardPage() {
           </section>
         )}
         {!searching && !summary.data && !summary.error && <Loading />}
-        <section
+        {showVideos && <section
           id="library"
           aria-labelledby="library-heading"
           className="library-section"
         >
           <div className="library-section-heading">
-            <div>
+            <div className={searching ? undefined : "sr-only"}>
               <h2 id="library-heading">
-                {searching ? "Videos" : "Your library"}
+                {searching ? "Videos" : "Saved videos"}
                 {searching && videos.data ? ` (${videos.data.total})` : ""}
               </h2>
               <p>
@@ -292,20 +313,12 @@ export default function DashboardPage() {
               </p>
             </div>
             {!searching && (
-              <select
-                aria-label="Sort videos"
-                value={sort}
-                onChange={(event) => {
-                  const next = new URLSearchParams(params);
-                  next.set("sort", event.target.value);
-                  next.delete("videosPage");
-                  setParams(next);
-                }}
-              >
-                <option value="activity_desc">Recently active</option>
-                <option value="title_asc">Title A–Z</option>
-                <option value="title_desc">Title Z–A</option>
-              </select>
+              <LibrarySort value={sort} onChange={(value) => {
+                const next = new URLSearchParams(params);
+                next.set("sort", value);
+                next.delete("videosPage");
+                setParams(next);
+              }} />
             )}
           </div>
           {videos.error ? (
@@ -335,7 +348,7 @@ export default function DashboardPage() {
                   </h3>
                   <p>
                     {searching
-                      ? "Try another title, or check the note matches below."
+                      ? scope === "videos" ? "Try another video title." : "Try another title, or check the note matches below."
                       : videoPage > 1
                         ? "Return to a previous page."
                         : "Install the Chrome extension, open a YouTube video, and save your first note."}
@@ -363,8 +376,8 @@ export default function DashboardPage() {
               />
             </>
           )}
-        </section>
-        {searching && (
+        </section>}
+        {showNotes && (
           <section className="library-section" aria-labelledby="notes-heading">
             <div className="library-section-heading">
               <div>
@@ -404,10 +417,10 @@ export default function DashboardPage() {
                           </p>
                         </div>
                         <Link
-                          className="library-button library-button-primary"
+                          className="library-button library-button-notes"
                           to={`/dashboard/${note.video_id}#note-${note.id}`}
                         >
-                          Open note <ArrowRight size={15} />
+                          <FileText size={15} /> Open note
                         </Link>
                       </article>
                     ))}

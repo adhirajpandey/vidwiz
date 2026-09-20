@@ -76,8 +76,15 @@ Summarize the web app structure, routing, and API integration.
 - **Notes polling**: The video page polls `/v2/videos/:id/notes` every 4 seconds only while pending AI notes exist, and stops polling automatically once all pending notes are resolved.
 - **AI note edits**: Editing a note sends `generated_by_ai=false` with the note text update so edited AI notes are treated as user-authored.
 - **Dashboard**: A responsive library with summary totals, three recently active videos,
-  compact rows, and activity/title sorting. Library membership remains notes-based.
+  roomier rows, and activity/title sorting. Cards and rows show views and upload
+  dates when available, softly violet-tinted Ask Wiz actions, and red-tinted Notes actions.
+  Recent activity cards stack a full-width thumbnail, title/channel, video metadata,
+  and two actions. Note counts and activity remain in the library rows.
+  Library membership remains notes-based.
 - **Dashboard search**: Searches titles and note text in separate sections, each
+  controlled by an All/Videos/Notes scope dropdown. Scope defaults to All and is
+  preserved in the `scope` URL parameter; changing scope resets result pages.
+  Only the selected result types are fetched. Results are
   paginated by ten. URL parameters `q`, `videosPage`, and `notesPage` restore
   searches on reload/Back. Queries need at least two characters. Clearing returns
   to the library. Obsolete requests cannot overwrite newer results.
