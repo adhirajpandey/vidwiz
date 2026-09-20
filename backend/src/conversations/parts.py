@@ -4,9 +4,12 @@ import hashlib
 import json
 import math
 import logging
-from typing import Annotated, Literal
+import re
+from enum import Enum
+from typing import Annotated, Literal, NamedTuple
 
 from markdown_it import MarkdownIt
+from markdown_it.token import Token
 from pydantic import BaseModel, ConfigDict, Field, TypeAdapter, model_validator
 
 
@@ -89,18 +92,116 @@ class ModelResponseV2(StrictModel):
     parts: list[ModelBlock]
 
 
+class DropReason(str, Enum):
+    AMBIGUOUS_LIST = "ambiguous_list"
+    INDEX_OUT_OF_RANGE = "index_out_of_range"
+    NO_CONTENT_PART = "no_content_part"
+    LINK_DEFINITIONS = "link_definitions"
+
+
+class DroppedReference(StrictModel):
+    reason: DropReason
+    chunk_ids: list[str]
+
+
+class SplitResult(StrictModel):
+    # Every block holds exactly one top-level Markdown element, unless the source
+    # was returned unchanged. Every reference that was not carried over is in dropped.
+    blocks: list[ModelBlock]
+    dropped: list[DroppedReference]
+
+
+_markdown = MarkdownIt("commonmark").enable("table")
+_LIST_OPEN = {"bullet_list_open", "ordered_list_open"}
+
+
+class _ParsedMarkdown(NamedTuple):
+    roots: list[Token]
+    list_items: int
+    has_link_definitions: bool
+
+
+def _parse_markdown(text: str) -> _ParsedMarkdown:
+    env: dict = {}
+    tokens = _markdown.parse(text, env)
+    return _ParsedMarkdown(
+        roots=[
+            t for t in tokens if t.level == 0 and t.nesting != -1 and t.type != "inline"
+        ],
+        list_items=sum(t.type == "list_item_open" and t.level == 1 for t in tokens),
+        has_link_definitions=bool(env.get("references")),
+    )
+
+
+def _reference_target(
+    index: int | None, roots: list[Token], list_items: int
+) -> int | DropReason:
+    """Return the root index that receives a reference, or why it cannot."""
+    if index is None:
+        return next(
+            (i for i in reversed(range(len(roots))) if roots[i].type != "heading_open"),
+            DropReason.NO_CONTENT_PART,
+        )
+    lists = [i for i, root in enumerate(roots) if root.type in _LIST_OPEN]
+    if len(lists) > 1:
+        return DropReason.AMBIGUOUS_LIST
+    if not lists or not 0 <= index < list_items:
+        return DropReason.INDEX_OUT_OF_RANGE
+    return lists[0]
+
+
+def split_block(block: ModelBlock) -> SplitResult:
+    """Split a multi-element block into one block per top-level element.
+
+    Models sometimes return a whole answer as one block. Each element keeps its
+    exact source lines and references are re-targeted onto the element they
+    describe, so evidence still lands beside the claim it supports.
+    """
+    parsed = _parse_markdown(block.text)
+    roots = parsed.roots
+    if len(roots) <= 1:
+        return SplitResult(blocks=[block], dropped=[])
+    # Markdown-it drops link reference definitions from the tokens, so splitting
+    # could separate a definition from the elements that use it. The block stays
+    # whole and multi-element, which resolve_block and the frontend cannot attach
+    # references to, so report them as dropped.
+    if parsed.has_link_definitions:
+        return SplitResult(
+            blocks=[block],
+            dropped=[
+                DroppedReference(
+                    reason=DropReason.LINK_DEFINITIONS, chunk_ids=source.chunk_ids
+                )
+                for source in block.references
+            ],
+        )
+    lines = re.split(r"\r\n|\r|\n", block.text)
+    references: list[list[BlockReference]] = [[] for _ in roots]
+    dropped: list[DroppedReference] = []
+    for source in block.references:
+        target = _reference_target(source.list_item_index, roots, parsed.list_items)
+        if isinstance(target, DropReason):
+            dropped.append(DroppedReference(reason=target, chunk_ids=source.chunk_ids))
+        else:
+            references[target].append(source)
+    return SplitResult(
+        blocks=[
+            ModelBlock(
+                type="block",
+                text="\n".join(lines[root.map[0] : root.map[1]]).rstrip("\n"),
+                references=references[i],
+            )
+            for i, root in enumerate(roots)
+        ],
+        dropped=dropped,
+    )
+
+
 def resolve_block(block: ModelBlock, references: dict[str, CitationPart]) -> BlockPart:
     """Validate structural targets, then group evidence only within each target."""
     logger = logging.getLogger(__name__)
-    tokens = MarkdownIt("commonmark").enable("table").parse(block.text)
-    roots = [
-        t for t in tokens if t.level == 0 and t.nesting != -1 and t.type != "inline"
-    ]
-    list_items = sum(t.type == "list_item_open" and t.level == 1 for t in tokens)
-    is_list = len(roots) == 1 and roots[0].type in {
-        "bullet_list_open",
-        "ordered_list_open",
-    }
+    roots, list_items, _ = _parse_markdown(block.text)
+    is_list = len(roots) == 1 and roots[0].type in _LIST_OPEN
     targets: dict[int | None, set[str]] = {}
     for source in block.references:
         index = source.list_item_index

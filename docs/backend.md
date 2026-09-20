@@ -80,7 +80,24 @@ The model supplies `references` with `chunk_ids` and a nullable
 `list_item_index`: null targets the whole Markdown block; an integer targets a
 zero-based top-level list item, including its nested content. A Markdown parser
 validates targets. Invalid targets and unknown source IDs are omitted and logged
-without discarding the answer text. Each model part must contain one complete block.
+without discarding the answer text. The prompt asks for one complete Markdown
+element per block, but models often return a whole answer as one block. FastAPI
+therefore splits each block into one block per top-level element, slicing the
+original source lines so text is preserved exactly. References are re-targeted:
+an integer `list_item_index` applies to the block's only list, and `null` applies
+to the last non-heading element. References that cannot be placed (several lists,
+index out of range, only headings) are dropped and counted by reason. Blocks with
+several elements and link reference definitions are left whole, because splitting
+would separate a definition from its uses; their references are dropped and
+counted as `link_definitions`. Each split block is streamed, stored
+and replayed as its own block.
+
+After every version 2 response FastAPI logs one INFO line starting with
+`Wiz structure:` with the model, `blocks_in`, `blocks_out`, `blocks_split`
+(input blocks that needed splitting), distinct chunk IDs `referenced` by the
+model and `kept` in the final citations, and `dropped_<reason>` counts. Grep it
+with `docker logs vidwiz-app | grep "Wiz structure"`; `blocks_split` shows how
+often the model ignores the structure rule.
 
 Resolved citations contain `list_item_index` and `passages`, each with
 `chunk_ids`, `start_seconds`, and `end_seconds`. Within each target, sources are
