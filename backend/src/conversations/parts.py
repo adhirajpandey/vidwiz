@@ -96,6 +96,7 @@ class DropReason(str, Enum):
     AMBIGUOUS_LIST = "ambiguous_list"
     INDEX_OUT_OF_RANGE = "index_out_of_range"
     NO_CONTENT_PART = "no_content_part"
+    LINK_DEFINITIONS = "link_definitions"
 
 
 class DroppedReference(StrictModel):
@@ -158,10 +159,22 @@ def split_block(block: ModelBlock) -> SplitResult:
     """
     parsed = _parse_markdown(block.text)
     roots = parsed.roots
-    # Markdown-it drops link reference definitions from the tokens, so splitting
-    # could separate a definition from the elements that use it.
-    if len(roots) <= 1 or parsed.has_link_definitions:
+    if len(roots) <= 1:
         return SplitResult(blocks=[block], dropped=[])
+    # Markdown-it drops link reference definitions from the tokens, so splitting
+    # could separate a definition from the elements that use it. The block stays
+    # whole and multi-element, which resolve_block and the frontend cannot attach
+    # references to, so report them as dropped.
+    if parsed.has_link_definitions:
+        return SplitResult(
+            blocks=[block],
+            dropped=[
+                DroppedReference(
+                    reason=DropReason.LINK_DEFINITIONS, chunk_ids=source.chunk_ids
+                )
+                for source in block.references
+            ],
+        )
     lines = re.split(r"\r\n|\r|\n", block.text)
     references: list[list[BlockReference]] = [[] for _ in roots]
     dropped: list[DroppedReference] = []

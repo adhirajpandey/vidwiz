@@ -87,7 +87,9 @@ original source lines so text is preserved exactly. References are re-targeted:
 an integer `list_item_index` applies to the block's only list, and `null` applies
 to the last non-heading element. References that cannot be placed (several lists,
 index out of range, only headings) are dropped and counted by reason. Blocks with
-link reference definitions are left whole. Each split block is streamed, stored
+several elements and link reference definitions are left whole, because splitting
+would separate a definition from its uses; their references are dropped and
+counted as `link_definitions`. Each split block is streamed, stored
 and replayed as its own block.
 
 After every version 2 response FastAPI logs one INFO line starting with

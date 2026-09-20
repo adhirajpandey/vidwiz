@@ -617,14 +617,23 @@ def test_split_block_attaches_whole_block_reference_to_last_content_part():
 
 
 def test_split_block_leaves_link_reference_definitions_together():
-    from src.conversations.parts import split_block
+    from src.conversations.parts import DropReason, split_block
 
     block = _block(
-        "See [docs].\n\nMore text.\n\n[docs]: https://example.com", (0, ["x"])
+        "See [docs].\n\n- a\n- b\n\n[docs]: https://example.com",
+        (0, ["x"]),
+        (None, ["y"]),
     )
     result = split_block(block)
     assert result.blocks == [block]
-    assert result.dropped == []
+    assert [(d.reason, d.chunk_ids) for d in result.dropped] == [
+        (DropReason.LINK_DEFINITIONS, ["x"]),
+        (DropReason.LINK_DEFINITIONS, ["y"]),
+    ]
+    # A definition next to a single element does not need splitting.
+    single = _block("See [docs].\n\n[docs]: https://example.com", (None, ["x"]))
+    assert split_block(single).blocks == [single]
+    assert split_block(single).dropped == []
 
 
 def test_split_then_resolve_keeps_citations_for_single_block_answer():
@@ -714,8 +723,8 @@ def test_v2_stream_splits_a_multi_element_block(db_session, monkeypatch, caplog)
     ] == [
         "Wiz structure: model=%s blocks_in=1 blocks_out=3 blocks_split=1 "
         "referenced=2 kept=1 dropped_ambiguous_list=0 "
-        "dropped_index_out_of_range=1 dropped_no_content_part=0"
-        % service.conversations_settings.wiz_model
+        "dropped_index_out_of_range=1 dropped_no_content_part=0 "
+        "dropped_link_definitions=0" % service.conversations_settings.wiz_model
     ]
 
 
