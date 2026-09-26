@@ -101,7 +101,8 @@ The extension note UI appears on supported YouTube watch pages after sync.
 - AWS infrastructure: `cd infra && uv sync --locked && npm ci --ignore-scripts && uv run --locked python scripts/validate.py`
 
 GitHub Actions runs these three checks in parallel for every pull request to
-`main` and every push to `main`.
+`main` and every push to `main`. On `main`, the backend container image is
+published only after the backend checks pass.
 
 Production AWS serverless resources are defined in `infra/` as
 `vidwiz-stack`. See `docs/aws-infrastructure.md` before any bootstrap,
