@@ -14,6 +14,7 @@ logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger("vidwiz.task_helper")
 INTERNAL_API_URL_ENV_VAR = "VIDWIZ_INTERNAL_API_BASE_URL"
 INTERNAL_API_TOKEN_ENV_VAR = "VIDWIZ_INTERNAL_API_ADMIN_TOKEN"
+POLL_ERROR_BACKOFF_SECONDS = 5
 METADATA_FIELDS = (
     "id",
     "title",
@@ -101,6 +102,7 @@ class TaskHelper:
             return response.json()
         except requests.RequestException as e:
             logger.error(f"Error polling for task: {e}")
+            time.sleep(POLL_ERROR_BACKOFF_SECONDS)
             return None
 
     def send_task_result(

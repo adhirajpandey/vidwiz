@@ -106,3 +106,18 @@ def test_transcript_fetch_renames_start_to_offset(monkeypatch):
     assert module.fetch_transcript("abc123DEF45") == [
         {"text": "hi", "duration": 2, "offset": 1.5}
     ]
+
+
+def test_helper_backs_off_when_polling_fails(monkeypatch):
+    module = _load_helper()
+    helper = module.TaskHelper("metadata", "token", 30, "http://api.example")
+    sleeps = []
+
+    def fail_get(*_args, **_kwargs):
+        raise module.requests.ConnectionError("refused")
+
+    monkeypatch.setattr(module.requests, "get", fail_get)
+    monkeypatch.setattr(module.time, "sleep", sleeps.append)
+
+    assert helper.get_task() is None
+    assert sleeps == [module.POLL_ERROR_BACKOFF_SECONDS]
