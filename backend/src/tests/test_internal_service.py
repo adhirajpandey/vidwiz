@@ -31,6 +31,25 @@ def test_poll_for_task_claims_pending(db_session):
     assert claimed.retry_count == 1
 
 
+def test_poll_for_task_ends_transaction_before_waiting(db_session, monkeypatch):
+    in_transaction_while_waiting = []
+
+    def fake_sleep(_seconds):
+        in_transaction_while_waiting.append(db_session.in_transaction())
+
+    monkeypatch.setattr(internal_service.time, "sleep", fake_sleep)
+    claimed = internal_service.poll_for_task(
+        db_session,
+        internal_constants.FETCH_METADATA_TASK_TYPE,
+        timeout=0.05,
+        poll_interval=0.01,
+    )
+
+    assert claimed is None
+    assert in_transaction_while_waiting
+    assert not any(in_transaction_while_waiting)
+
+
 def test_submit_task_result_validates_inputs(db_session):
     task = Task(
         task_type=internal_constants.FETCH_TRANSCRIPT_TASK_TYPE,

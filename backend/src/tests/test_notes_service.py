@@ -171,64 +171,60 @@ def test_create_note_for_video_title_preserves_ai_enqueue_behavior(
     assert scheduled["count"] == 1
 
 
+class FakeSearchResponse:
+    def __init__(self, payload=None, error=None):
+        self.payload = payload
+        self.error = error
+
+    def raise_for_status(self):
+        if self.error:
+            raise self.error
+
+    def json(self):
+        return self.payload
+
+
+def _fake_search(monkeypatch, response, captured=None):
+    def fake_get(url, **kwargs):
+        if captured is not None:
+            captured.update(url=url, **kwargs)
+        return response
+
+    monkeypatch.setattr(notes_service.requests, "get", fake_get)
+
+
+def _search_result(title):
+    return {
+        "items": [{"id": {"videoId": "resolved12345"}, "snippet": {"title": title}}]
+    }
+
+
 def test_resolve_video_by_title_returns_top_result(monkeypatch):
     captured = {}
-
-    class FakeRequest:
-        def execute(self):
-            return {
-                "items": [
-                    {
-                        "id": {"videoId": "resolved12345"},
-                        "snippet": {"title": "Resolved Title"},
-                    }
-                ]
-            }
-
-    class FakeSearch:
-        def list(self, **kwargs):
-            captured["kwargs"] = kwargs
-            return FakeRequest()
-
-    class FakeYoutube:
-        def search(self):
-            return FakeSearch()
-
-    monkeypatch.setattr(notes_service, "_build_youtube_client", lambda: FakeYoutube())
+    _fake_search(
+        monkeypatch, FakeSearchResponse(_search_result("Resolved Title")), captured
+    )
 
     video_id, title = notes_service.resolve_video_by_title("Search Title")
 
     assert video_id == "resolved12345"
     assert title == "Resolved Title"
-    assert captured["kwargs"] == {
+    assert captured["url"] == "https://www.googleapis.com/youtube/v3/search"
+    assert captured["params"] == {
         "q": "Search Title",
         "part": "snippet",
         "type": "video",
         "maxResults": 1,
     }
+    assert captured["headers"] == {"X-Goog-Api-Key": "test-youtube-data-api-key"}
+    assert captured["timeout"] == 10
 
 
 def test_resolve_video_by_title_decodes_html_entities(monkeypatch):
-    class FakeRequest:
-        def execute(self):
-            return {
-                "items": [
-                    {
-                        "id": {"videoId": "resolved12345"},
-                        "snippet": {"title": "The Privacy Iceberg (I&#39;m deep)"},
-                    }
-                ]
-            }
-
-    class FakeSearch:
-        def list(self, **kwargs):
-            return FakeRequest()
-
-    class FakeYoutube:
-        def search(self):
-            return FakeSearch()
-
-    monkeypatch.setattr(notes_service, "_build_youtube_client", lambda: FakeYoutube())
+    _fake_search(
+        monkeypatch,
+        FakeSearchResponse(_search_result("The Privacy Iceberg (I&#39;m deep)")),
+    )
 
     video_id, title = notes_service.resolve_video_by_title("Privacy Iceberg")
 
@@ -237,41 +233,27 @@ def test_resolve_video_by_title_decodes_html_entities(monkeypatch):
 
 
 def test_resolve_video_by_title_raises_not_found_for_empty_results(monkeypatch):
-    class FakeRequest:
-        def execute(self):
-            return {"items": []}
-
-    class FakeSearch:
-        def list(self, **kwargs):
-            return FakeRequest()
-
-    class FakeYoutube:
-        def search(self):
-            return FakeSearch()
-
-    monkeypatch.setattr(notes_service, "_build_youtube_client", lambda: FakeYoutube())
+    _fake_search(monkeypatch, FakeSearchResponse({"items": []}))
 
     with pytest.raises(NotFoundError):
         notes_service.resolve_video_by_title("Missing Video")
 
 
 def test_resolve_video_by_title_raises_internal_error_for_search_failures(monkeypatch):
-    class FakeRequest:
-        def execute(self):
-            raise RuntimeError("boom")
-
-    class FakeSearch:
-        def list(self, **kwargs):
-            return FakeRequest()
-
-    class FakeYoutube:
-        def search(self):
-            return FakeSearch()
-
-    monkeypatch.setattr(notes_service, "_build_youtube_client", lambda: FakeYoutube())
+    _fake_search(
+        monkeypatch,
+        FakeSearchResponse(error=notes_service.requests.HTTPError("403 Forbidden")),
+    )
 
     with pytest.raises(InternalServerError):
         notes_service.resolve_video_by_title("Exploding Search")
+
+
+def test_resolve_video_by_title_requires_api_key(monkeypatch):
+    monkeypatch.setattr(notes_service.settings, "youtube_data_api_key", None)
+
+    with pytest.raises(InternalServerError):
+        notes_service.resolve_video_by_title("Any Title")
 
 
 def test_update_note_does_not_trigger_ai_on_update(db_session, monkeypatch):

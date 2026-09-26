@@ -2,6 +2,7 @@ import html
 import json
 import logging
 import boto3
+import requests
 
 from sqlalchemy import select, func
 from sqlalchemy.orm import Session
@@ -28,37 +29,29 @@ def _build_ai_note_queue_payload(note: Note) -> dict[str, int | str]:
     }
 
 
-def _build_youtube_client():
-    if not settings.youtube_data_api_key:
-        raise InternalServerError("YOUTUBE_DATA_API_KEY is not configured")
-
-    try:
-        from googleapiclient.discovery import build
-
-        return build("youtube", "v3", developerKey=settings.youtube_data_api_key)
-    except ImportError as exc:
-        logger.exception("google-api-python-client is not installed")
-        raise InternalServerError("YouTube search client is not available") from exc
-    except Exception as exc:
-        logger.exception("Failed to initialize YouTube client")
-        raise InternalServerError("Failed to initialize YouTube client") from exc
+YOUTUBE_SEARCH_URL = "https://www.googleapis.com/youtube/v3/search"
 
 
 def resolve_video_by_title(video_title: str) -> tuple[str, str | None]:
     logger.debug("Resolving video by title", extra={"video_title": video_title})
-    youtube = _build_youtube_client()
+    if not settings.youtube_data_api_key:
+        raise InternalServerError("YOUTUBE_DATA_API_KEY is not configured")
 
     try:
-        response = (
-            youtube.search()
-            .list(
-                q=video_title,
-                part="snippet",
-                type="video",
-                maxResults=1,
-            )
-            .execute()
+        search = requests.get(
+            YOUTUBE_SEARCH_URL,
+            params={
+                "q": video_title,
+                "part": "snippet",
+                "type": "video",
+                "maxResults": 1,
+            },
+            # A header keeps the key out of URLs quoted in error messages.
+            headers={"X-Goog-Api-Key": settings.youtube_data_api_key},
+            timeout=10,
         )
+        search.raise_for_status()
+        response = search.json()
     except Exception as exc:
         logger.exception("Failed to search YouTube", extra={"video_title": video_title})
         raise InternalServerError("Failed to search YouTube") from exc
