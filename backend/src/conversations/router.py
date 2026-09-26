@@ -107,7 +107,6 @@ def create_message(
             conversation_id=conversation.id,
             db=db,
             api_key=api_key,
-            parts_version=payload.parts_version,
         ),
         media_type="text/event-stream",
         headers={"Cache-Control": "no-cache"},

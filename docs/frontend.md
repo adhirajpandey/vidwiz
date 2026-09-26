@@ -47,8 +47,9 @@ Summarize the web app structure, routing, and API integration.
   including late errors and cleanup. Local abort does not promise cancellation
   of backend generation. FastAPI remains responsible for message persistence
   and history; the UI does not restore conversations after reload.
-- **Wiz answers**: `useWizChat` requests parts version 2 and stores ordered blocks
-  with attached citations, while retaining support for legacy text/citation events.
+- **Wiz answers**: `useWizChat` streams ordered blocks with attached citations.
+  Conversations saved before block answers still render their stored
+  text/citation parts.
   Complete blocks render through assistant-ui Markdown with GFM and raw HTML
   disabled. Watch buttons attach to paragraphs or the cited top-level list item,
   including evidence for its nested content. Table, quote, and code references

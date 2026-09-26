@@ -4,8 +4,6 @@ from typing import Annotated
 from pydantic import BaseModel, Field, StringConstraints, field_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
-from src.conversations.prompts import WIZ_SYSTEM_PROMPT_TEMPLATE
-
 NonEmptyStr = Annotated[str, StringConstraints(min_length=1)]
 
 
@@ -47,9 +45,6 @@ class Settings(BaseSettings):
     wiz_model: Annotated[
         str, StringConstraints(strip_whitespace=True, min_length=1)
     ] = Field(default="minimax/minimax-m2.5", alias="WIZ_MODEL")
-    wiz_system_prompt_template: str = Field(
-        default=WIZ_SYSTEM_PROMPT_TEMPLATE, alias="WIZ_SYSTEM_PROMPT_TEMPLATE"
-    )
     wiz_user_daily_quota: int = Field(default=20, alias="WIZ_USER_DAILY_QUOTA")
     wiz_guest_daily_quota: int = Field(default=5, alias="WIZ_GUEST_DAILY_QUOTA")
     wiz_max_tokens: int = Field(default=8192, alias="WIZ_MAX_TOKENS")

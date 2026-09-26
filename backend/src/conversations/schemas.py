@@ -32,7 +32,8 @@ class ConversationIdPath(ApiModel):
 
 class MessageCreate(ApiModel):
     message: str
-    parts_version: Literal[1, 2] = 1
+    # Only block responses are generated; the field stays for existing clients.
+    parts_version: Literal[2] = 2
 
     model_config = ConfigDict(extra="forbid")
 
