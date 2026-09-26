@@ -252,3 +252,19 @@ async def test_fetch_video_uses_sessionlocal(monkeypatch):
     result = await videos_service._fetch_video("abc123DEF45")
     assert result == "video"
     assert captured["closed"] is True
+
+
+def test_get_or_create_video_creates_and_fills_missing_title(db_session):
+    video = videos_service.get_or_create_video(db_session, "vid12345678", "Title")
+    assert video.title == "Title"
+
+    again = videos_service.get_or_create_video(db_session, "vid12345678", "New")
+    assert again.id == video.id
+    assert again.title == "Title"
+
+    blank = videos_service.get_or_create_video(db_session, "vid00000000")
+    assert blank.title is None
+
+    filled = videos_service.get_or_create_video(db_session, "vid00000000", "Filled")
+    assert filled.id == blank.id
+    assert filled.title == "Filled"

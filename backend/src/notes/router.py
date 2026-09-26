@@ -7,6 +7,7 @@ from src.auth.dependencies import (
 )
 from src.database import get_db
 from src.exceptions import BadRequestError
+from src.internal.scheduling import prepare_video
 from src.notes import service as notes_service
 from src.notes.dependencies import get_note_or_404
 from src.notes.schemas import (
@@ -64,7 +65,7 @@ def create_note(
     db: Session = Depends(get_db),
     user_id: int = Depends(get_current_user_id_or_long_term),
 ) -> NoteRead:
-    notes_service.get_or_create_video(db, path.video_id, payload.video_title)
+    prepare_video(db, path.video_id, payload.video_title)
     note = notes_service.create_note_for_user(
         db,
         path.video_id,

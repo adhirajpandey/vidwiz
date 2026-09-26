@@ -3,6 +3,7 @@ from sqlalchemy.orm import Session
 
 from src.internal import constants as internal_constants
 from src.internal.models import Task, TaskStatus
+from src.videos import service as videos_service
 from src.videos.models import Video
 
 
@@ -45,3 +46,10 @@ def schedule_video_tasks(db: Session, video: Video) -> None:
         create_task_idempotent(
             db, internal_constants.FETCH_TRANSCRIPT_TASK_TYPE, video.video_id
         )
+
+
+def prepare_video(db: Session, video_id: str, title: str | None = None) -> Video:
+    """Upsert a video and schedule any missing transcript or metadata tasks."""
+    video = videos_service.get_or_create_video(db, video_id, title)
+    schedule_video_tasks(db, video)
+    return video

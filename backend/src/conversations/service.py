@@ -30,7 +30,6 @@ from src.conversations.parts import (
 )
 from src.conversations.prompts import build_v2_prompt
 from src.exceptions import InternalServerError, RateLimitError, NotFoundError
-from src.internal.scheduling import schedule_video_tasks
 from src.videos.models import Video
 from src.videos import service as videos_service
 
@@ -38,25 +37,6 @@ DB_ROLE_USER = "user"
 DB_ROLE_ASSISTANT = "assistant"
 
 logger = logging.getLogger(__name__)
-
-
-def get_or_create_video(db: Session, video_id: str) -> tuple[Video, bool]:
-    logger.debug("Get or create video", extra={"video_id": video_id})
-    video = videos_service.get_video_by_id(db, video_id)
-    if video:
-        logger.debug("Video exists", extra={"video_id": video_id})
-        schedule_video_tasks(db, video)
-        return video, False
-
-    video = Video(video_id=video_id)
-    db.add(video)
-    db.commit()
-    db.refresh(video)
-
-    schedule_video_tasks(db, video)
-    logger.debug("Created video", extra={"video_id": video_id})
-
-    return video, True
 
 
 def create_conversation(

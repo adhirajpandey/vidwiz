@@ -38,6 +38,26 @@ def get_video_by_id(db: Session, video_id: str) -> Video | None:
     ).scalar_one_or_none()
 
 
+def get_or_create_video(db: Session, video_id: str, title: str | None = None) -> Video:
+    logger.debug(
+        "Get or create video",
+        extra={"video_id": video_id, "title_provided": title is not None},
+    )
+    video = get_video_by_id(db, video_id)
+    if video is None:
+        video = Video(video_id=video_id, title=title)
+        db.add(video)
+        logger.debug("Creating video", extra={"video_id": video_id})
+    elif title and not video.title:
+        video.title = title
+        logger.debug("Updating video title", extra={"video_id": video_id})
+    else:
+        return video
+    db.commit()
+    db.refresh(video)
+    return video
+
+
 def _library_query(user_id: int):
     notes = (
         select(

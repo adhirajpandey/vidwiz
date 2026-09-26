@@ -9,22 +9,6 @@ from src.exceptions import RateLimitError, NotFoundError, InternalServerError
 from src.videos.models import Video
 
 
-def test_get_or_create_video_creates_and_schedules_tasks(db_session, monkeypatch):
-    scheduled_calls = []
-
-    def fake_schedule(db, video):
-        scheduled_calls.append(video.video_id)
-
-    monkeypatch.setattr(conversations_service, "schedule_video_tasks", fake_schedule)
-
-    video, created = conversations_service.get_or_create_video(
-        db_session, "abc123DEF45"
-    )
-    assert created is True
-    assert video.video_id == "abc123DEF45"
-    assert scheduled_calls == ["abc123DEF45"]
-
-
 def test_get_valid_transcript_or_raise_missing_video(db_session):
     with pytest.raises(NotFoundError):
         conversations_service.get_valid_transcript_or_raise(db_session, "abc123DEF45")

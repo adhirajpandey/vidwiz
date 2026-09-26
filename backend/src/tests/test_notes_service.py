@@ -1,71 +1,11 @@
 import pytest
 
 from src.auth.models import User
+from src.internal import scheduling as internal_scheduling
 from src.exceptions import ForbiddenError, InternalServerError, NotFoundError
 from src.notes import service as notes_service
 from src.notes.models import Note
 from src.videos.models import Video
-
-
-def test_get_or_create_video_creates_and_updates_title(db_session):
-    video, created = notes_service.get_or_create_video(
-        db_session, "vid12345678", "Title"
-    )
-    assert created is True
-    assert video.title == "Title"
-
-    video_again, created = notes_service.get_or_create_video(
-        db_session, "vid12345678", "New Title"
-    )
-    assert created is False
-    assert video_again.id == video.id
-    assert video_again.title == "Title"
-
-    video_blank, created = notes_service.get_or_create_video(
-        db_session, "vid00000000", None
-    )
-    assert created is True
-    assert video_blank.title is None
-
-    video_updated, created = notes_service.get_or_create_video(
-        db_session, "vid00000000", "Filled"
-    )
-    assert created is False
-    assert video_updated.title == "Filled"
-
-
-def test_get_or_create_video_schedules_tasks_on_create(db_session, monkeypatch):
-    scheduled = []
-
-    def fake_schedule(db, video):
-        scheduled.append(video.video_id)
-
-    monkeypatch.setattr(notes_service, "schedule_video_tasks", fake_schedule)
-
-    video, created = notes_service.get_or_create_video(db_session, "vidschedule1", None)
-    assert created is True
-    assert video.video_id == "vidschedule1"
-    assert scheduled == ["vidschedule1"]
-
-
-def test_get_or_create_video_schedules_tasks_on_existing(db_session, monkeypatch):
-    video = Video(video_id="vidschedule2", title=None, transcript_available=False)
-    db_session.add(video)
-    db_session.commit()
-
-    scheduled = []
-
-    def fake_schedule(db, scheduled_video):
-        scheduled.append(scheduled_video.video_id)
-
-    monkeypatch.setattr(notes_service, "schedule_video_tasks", fake_schedule)
-
-    video_out, created = notes_service.get_or_create_video(
-        db_session, "vidschedule2", None
-    )
-    assert created is False
-    assert video_out.id == video.id
-    assert scheduled == ["vidschedule2"]
 
 
 def test_create_note_triggers_ai_when_enabled_and_ready(db_session, monkeypatch):
@@ -216,7 +156,7 @@ def test_create_note_for_video_title_preserves_ai_enqueue_behavior(
     def fake_push(note):
         scheduled["count"] += 1
 
-    monkeypatch.setattr(notes_service, "schedule_video_tasks", fake_schedule)
+    monkeypatch.setattr(internal_scheduling, "schedule_video_tasks", fake_schedule)
     monkeypatch.setattr(notes_service, "push_note_to_sqs", fake_push)
 
     note = notes_service.create_note_for_video_title(

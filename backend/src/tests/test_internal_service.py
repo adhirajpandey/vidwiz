@@ -246,3 +246,24 @@ def test_create_task_idempotent(db_session):
         db_session, internal_constants.FETCH_TRANSCRIPT_TASK_TYPE, "abc123DEF45"
     )
     assert first.id == second.id
+
+
+def test_prepare_video_schedules_missing_tasks(db_session):
+    existing = Video(video_id="vidschedule2", transcript_available=True)
+    db_session.add(existing)
+    db_session.commit()
+
+    created = internal_scheduling.prepare_video(db_session, "vidschedule1")
+    prepared = internal_scheduling.prepare_video(db_session, "vidschedule2")
+
+    assert created.video_id == "vidschedule1"
+    assert prepared.id == existing.id
+    tasks = {
+        (task.task_type, task.task_details["video_id"])
+        for task in db_session.query(Task).all()
+    }
+    assert tasks == {
+        (internal_constants.FETCH_METADATA_TASK_TYPE, "vidschedule1"),
+        (internal_constants.FETCH_TRANSCRIPT_TASK_TYPE, "vidschedule1"),
+        (internal_constants.FETCH_METADATA_TASK_TYPE, "vidschedule2"),
+    }

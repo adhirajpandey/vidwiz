@@ -9,7 +9,7 @@ from sqlalchemy.orm import Session
 from src.auth.models import User
 from src.config import settings
 from src.exceptions import InternalServerError, NotFoundError
-from src.internal.scheduling import schedule_video_tasks
+from src.internal.scheduling import prepare_video
 from src.notes.models import Note
 from src.notes.schemas import NoteSearchItem, NoteSearchResponse
 from src.videos.models import Video
@@ -80,33 +80,6 @@ def resolve_video_by_title(video_title: str) -> tuple[str, str | None]:
         extra={"video_title": video_title, "resolved_video_id": video_id},
     )
     return video_id, resolved_title
-
-
-def get_or_create_video(
-    db: Session, video_id: str, video_title: str | None
-) -> tuple[Video, bool]:
-    logger.debug(
-        "Get or create video",
-        extra={"video_id": video_id, "title_provided": video_title is not None},
-    )
-    video = videos_service.get_video_by_id(db, video_id)
-    if video:
-        logger.debug("Video exists", extra={"video_id": video_id})
-        if video_title and not video.title:
-            video.title = video_title
-            db.commit()
-            db.refresh(video)
-            logger.debug("Updated video title", extra={"video_id": video_id})
-        schedule_video_tasks(db, video)
-        return video, False
-
-    video = Video(video_id=video_id, title=video_title)
-    db.add(video)
-    db.commit()
-    db.refresh(video)
-    schedule_video_tasks(db, video)
-    logger.debug("Created video", extra={"video_id": video_id})
-    return video, True
 
 
 def push_note_to_sqs(note: Note) -> None:
@@ -188,7 +161,7 @@ def create_note_for_video_title(
     user_id: int,
 ) -> Note:
     resolved_video_id, resolved_title = resolve_video_by_title(video_title)
-    get_or_create_video(db, resolved_video_id, resolved_title)
+    prepare_video(db, resolved_video_id, resolved_title)
     return create_note_for_user(db, resolved_video_id, timestamp, text, user_id)
 
 

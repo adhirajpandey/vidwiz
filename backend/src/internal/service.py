@@ -250,23 +250,9 @@ def store_transcript_in_s3(video_id: str, transcript: list[dict]) -> None:
     logger.debug("Stored transcript in S3", extra={"video_id": video_id})
 
 
-def upsert_video(db: Session, video_id: str) -> Video:
-    logger.debug("Upserting video", extra={"video_id": video_id})
-    video = videos_service.get_video_by_id(db, video_id)
-    if video:
-        return video
-
-    video = Video(video_id=video_id)
-    db.add(video)
-    db.commit()
-    db.refresh(video)
-    logger.debug("Created video", extra={"video_id": video_id})
-    return video
-
-
 def store_transcript(db: Session, video_id: str, transcript: list[dict]) -> Video:
     logger.debug("Storing transcript", extra={"video_id": video_id})
-    video = upsert_video(db, video_id)
+    video = videos_service.get_or_create_video(db, video_id)
     store_transcript_in_s3(video_id, transcript)
     video.transcript_available = True
     db.commit()
@@ -276,7 +262,7 @@ def store_transcript(db: Session, video_id: str, transcript: list[dict]) -> Vide
 
 def store_metadata(db: Session, video_id: str, metadata: dict) -> Video:
     logger.debug("Storing metadata", extra={"video_id": video_id})
-    video = upsert_video(db, video_id)
+    video = videos_service.get_or_create_video(db, video_id)
     video.video_metadata = metadata
     db.commit()
     db.refresh(video)
@@ -293,7 +279,7 @@ def store_summary(
         "Storing summary",
         extra={"video_id": video_id, "has_summary": summary is not None},
     )
-    video = upsert_video(db, video_id)
+    video = videos_service.get_or_create_video(db, video_id)
     if summary is not None:
         video.summary = summary
     if miscellaneous_data:
