@@ -11,6 +11,7 @@ import { authApi } from '../api';
 import {
   getValidationFieldErrors,
   normalizeApiError,
+  toastApiError,
 } from '../api/errors';
 import Seo from '../components/Seo';
 
@@ -89,18 +90,12 @@ export default function SignupPage() {
       });
       navigate('/login');
     } catch (error) {
-      const normalized = normalizeApiError(error, 'Something went wrong');
-      const nextFieldErrors = getValidationFieldErrors(normalized);
+      const nextFieldErrors = getValidationFieldErrors(normalizeApiError(error, 'Something went wrong'));
       if (Object.keys(nextFieldErrors).length > 0) {
         setFieldErrors(nextFieldErrors);
         return;
       }
-      addToast({
-        title: 'Registration Failed',
-        message: normalized.message,
-        type: 'error',
-        referenceId: normalized.requestId,
-      });
+      toastApiError(addToast, error, 'Registration Failed', 'Something went wrong');
     } finally {
       setIsLoading(false);
     }
@@ -118,13 +113,7 @@ export default function SignupPage() {
       });
       navigate('/dashboard');
     } catch (error) {
-      const normalized = normalizeApiError(error, 'Google sign-up failed');
-      addToast({
-        title: 'Sign-up Failed',
-        message: normalized.message,
-        type: 'error',
-        referenceId: normalized.requestId,
-      });
+      toastApiError(addToast, error, 'Sign-up Failed', 'Google sign-up failed');
     } finally {
       setIsLoading(false);
     }

@@ -5,7 +5,7 @@ import GoogleSignInButton from './GoogleSignInButton';
 import { useToast } from '../hooks/useToast';
 import { setToken } from '../lib/authUtils';
 import { authApi } from '../api';
-import { normalizeApiError } from '../api/errors';
+import { toastApiError } from '../api/errors';
 
 interface GuestLimitModalProps {
   isOpen: boolean;
@@ -32,13 +32,7 @@ const GuestLimitModal: React.FC<GuestLimitModalProps> = ({ isOpen, onClose }) =>
       // Reload the page to refresh the guest conversation with the new token.
       window.location.reload();
     } catch (error) {
-      const normalized = normalizeApiError(error, 'Google sign-in failed');
-      addToast({
-        title: 'Sign-in Failed',
-        message: normalized.message,
-        type: 'error',
-        referenceId: normalized.requestId,
-      });
+      toastApiError(addToast, error, 'Sign-in Failed', 'Google sign-in failed');
     } finally {
       setIsLoading(false);
     }

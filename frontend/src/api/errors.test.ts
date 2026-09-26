@@ -9,6 +9,7 @@ import {
   getValidationFieldErrors,
   normalizeApiError,
   normalizeFetchError,
+  toastApiError,
 } from './errors';
 import { markSessionExpiredHandled } from './session';
 
@@ -305,5 +306,34 @@ describe('normalizeApiError', () => {
       kind: 'authentication',
       handled: true,
     });
+  });
+});
+
+describe('toastApiError', () => {
+  it('shows the normalized message with its request ID', () => {
+    vi.spyOn(console, 'error').mockImplementation(() => {});
+    const addToast = vi.fn();
+    const cause = createAxiosError({ error: { message: 'Name is taken' } }, 409);
+    cause.response!.headers = { 'x-request-id': 'request-409' };
+
+    expect(toastApiError(addToast, cause, 'Unable to save', 'Save failed')).toMatchObject({
+      kind: 'conflict',
+    });
+    expect(addToast).toHaveBeenCalledWith({
+      title: 'Unable to save',
+      message: 'Name is taken',
+      type: 'error',
+      referenceId: 'request-409',
+    });
+  });
+
+  it('stays silent for centrally handled session errors', () => {
+    vi.spyOn(console, 'error').mockImplementation(() => {});
+    const addToast = vi.fn();
+    const cause = createAxiosError({ error: { message: 'Expired' } }, 401);
+    markSessionExpiredHandled(cause);
+
+    expect(toastApiError(addToast, cause, 'Unable to save', 'Save failed').handled).toBe(true);
+    expect(addToast).not.toHaveBeenCalled();
   });
 });
