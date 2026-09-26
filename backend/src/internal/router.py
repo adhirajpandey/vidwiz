@@ -1,4 +1,4 @@
-from fastapi import APIRouter, Depends, Request, Response, status
+from fastapi import APIRouter, Depends, Response, status
 from sqlalchemy.orm import Session
 
 from src.database import get_db
@@ -31,8 +31,6 @@ router = APIRouter(prefix="/v2/internal", tags=["Internal"])
 )
 @limiter.exempt
 def get_task(
-    request: Request,
-    response: Response,
     params: TaskPollParams = Depends(get_task_poll_params),
     db: Session = Depends(get_db),
     _: None = Depends(require_admin_token),
@@ -66,8 +64,6 @@ def get_task(
 )
 @limiter.exempt
 def submit_task_result(
-    request: Request,
-    response: Response,
     payload: TaskResultRequest,
     task_id: int,
     db: Session = Depends(get_db),
@@ -99,8 +95,6 @@ def submit_task_result(
 )
 @limiter.exempt
 def list_ai_notes(
-    request: Request,
-    response: Response,
     path: VideoIdPath = Depends(),
     db: Session = Depends(get_db),
     _: None = Depends(require_admin_token),
@@ -126,8 +120,6 @@ def list_ai_notes(
 )
 @limiter.exempt
 def store_transcript(
-    request: Request,
-    response: Response,
     payload: TranscriptWrite,
     path: VideoIdPath = Depends(),
     db: Session = Depends(get_db),
@@ -145,8 +137,6 @@ def store_transcript(
 )
 @limiter.exempt
 def store_metadata(
-    request: Request,
-    response: Response,
     payload: MetadataWrite,
     path: VideoIdPath = Depends(),
     db: Session = Depends(get_db),
@@ -164,8 +154,6 @@ def store_metadata(
 )
 @limiter.exempt
 def store_summary(
-    request: Request,
-    response: Response,
     payload: SummaryWrite,
     path: VideoIdPath = Depends(),
     db: Session = Depends(get_db),
@@ -192,8 +180,6 @@ def store_summary(
 )
 @limiter.exempt
 def get_video(
-    request: Request,
-    response: Response,
     path: VideoIdPath = Depends(),
     db: Session = Depends(get_db),
     _: None = Depends(require_admin_token),
@@ -212,8 +198,6 @@ def get_video(
 )
 @limiter.exempt
 def update_note(
-    request: Request,
-    response: Response,
     note_id: int,
     payload: NoteUpdate,
     db: Session = Depends(get_db),

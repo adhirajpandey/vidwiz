@@ -29,8 +29,6 @@ router = APIRouter(prefix="/v2/conversations", tags=["Conversations"])
     description="Start a conversation for a video; implicitly creates the video.",
 )
 def create_conversation(
-    request: Request,
-    response: Response,
     payload: ConversationCreate,
     db: Session = Depends(get_db),
     viewer: ViewerContext = Depends(get_viewer_context),
@@ -54,8 +52,6 @@ def create_conversation(
     description="Fetch conversation metadata.",
 )
 def get_conversation(
-    request: Request,
-    response: Response,
     conversation=Depends(get_conversation_or_404),
 ) -> ConversationRead:
     return ConversationRead.model_validate(conversation)
@@ -68,8 +64,6 @@ def get_conversation(
     description="List messages for a conversation.",
 )
 def list_messages(
-    request: Request,
-    response: Response,
     conversation=Depends(get_conversation_or_404),
     db: Session = Depends(get_db),
 ) -> list[MessageRead]:

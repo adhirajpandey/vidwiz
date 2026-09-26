@@ -119,8 +119,6 @@ def google_login(
     description="Create long-term token.",
 )
 def create_long_term_token(
-    request: Request,
-    response: Response,
     db: Session = Depends(get_db),
     user_id: int = Depends(get_current_user_id),
 ) -> TokenResponse:
@@ -147,8 +145,6 @@ def create_long_term_token(
     description="Revoke long-term token.",
 )
 def revoke_long_term_token(
-    request: Request,
-    response: Response,
     db: Session = Depends(get_db),
     user_id: int = Depends(get_current_user_id),
 ) -> TokenRevokeResponse:
@@ -171,8 +167,6 @@ def revoke_long_term_token(
     tags=["Users"],
 )
 def get_profile(
-    request: Request,
-    response: Response,
     db: Session = Depends(get_db),
     user_id: int = Depends(get_current_user_id),
 ) -> UserProfileRead:
@@ -192,8 +186,6 @@ def get_profile(
     tags=["Users"],
 )
 def update_profile(
-    request: Request,
-    response: Response,
     payload: UserProfileUpdate,
     db: Session = Depends(get_db),
     user_id: int = Depends(get_current_user_id),
