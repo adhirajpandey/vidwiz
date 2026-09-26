@@ -22,12 +22,11 @@ class TextPart(StrictModel):
     text: str
 
 
-class ChunkReference(StrictModel):
+class CitationPart(StrictModel):
+    """A transcript segment reference; stored standalone only by v1 messages."""
+
     type: Literal["citation"]
     chunk_id: str = Field(min_length=1)
-
-
-class CitationPart(ChunkReference):
     start_seconds: float = Field(ge=0, allow_inf_nan=False)
     end_seconds: float = Field(ge=0, allow_inf_nan=False)
 
@@ -36,9 +35,6 @@ class CitationPart(ChunkReference):
         if self.end_seconds < self.start_seconds:
             raise ValueError("Citation ends before it starts")
         return self
-
-
-ModelPart = Annotated[TextPart | ChunkReference, Field(discriminator="type")]
 
 
 class BlockReference(StrictModel):
@@ -79,16 +75,10 @@ class BlockPart(StrictModel):
 MessagePart = Annotated[
     TextPart | CitationPart | BlockPart, Field(discriminator="type")
 ]
-model_part_adapter = TypeAdapter(ModelPart)
 message_parts_adapter = TypeAdapter(list[MessagePart])
 
 
 class ModelResponse(StrictModel):
-    # Plain union generates portable anyOf JSON Schema without an OpenAPI discriminator.
-    parts: list[TextPart | ChunkReference]
-
-
-class ModelResponseV2(StrictModel):
     parts: list[ModelBlock]
 
 
@@ -249,7 +239,7 @@ def resolve_block(block: ModelBlock, references: dict[str, CitationPart]) -> Blo
 
 
 def history_parts(
-    parts: list[MessagePart], references: dict[str, CitationPart], version: int
+    parts: list[MessagePart], references: dict[str, CitationPart]
 ) -> list[dict]:
     """Replay evidence IDs without trusting stored times after transcript replacement."""
     result = []
@@ -267,30 +257,18 @@ def history_parts(
                 )
                 for c in part.citations
             ]
-            if version == 2:
-                result.append(
-                    ModelBlock(
-                        type="block",
-                        text=part.text,
-                        references=[s for s in sources if s.chunk_ids],
-                    ).model_dump()
-                )
-            else:
-                result.append(TextPart(type="text", text=part.text).model_dump())
-                result.extend(
-                    {"type": "citation", "chunk_id": key}
-                    for s in sources
-                    for key in s.chunk_ids
-                )
+            result.append(
+                ModelBlock(
+                    type="block",
+                    text=part.text,
+                    references=[s for s in sources if s.chunk_ids],
+                ).model_dump()
+            )
         elif isinstance(part, TextPart):
             result.append(
                 ModelBlock(type="block", text=part.text, references=[]).model_dump()
-                if version == 2
-                else part.model_dump()
             )
-        elif version == 1 and part.chunk_id in references:
-            result.append({"type": "citation", "chunk_id": part.chunk_id})
-        # Legacy citations have no explicit block association. Do not invent one in v2.
+        # Legacy citations have no explicit block association. Do not invent one.
     return result
 
 
@@ -389,11 +367,9 @@ class PartsDecoder:
     The scan cursor makes framing linear in the size of the provider response.
     """
 
-    def __init__(self, version: int = 1):
-        self.response_model = ModelResponseV2 if version == 2 else ModelResponse
-        self.part_adapter = (
-            TypeAdapter(ModelBlock) if version == 2 else model_part_adapter
-        )
+    part_adapter = TypeAdapter(ModelBlock)
+
+    def __init__(self):
         self.buffer = ""
         self.stack = []
         self.in_string = False
@@ -448,8 +424,8 @@ class PartsDecoder:
                     self.part_start = None
                     yield part
 
-    def finish(self) -> ModelResponse | ModelResponseV2:
-        response = self.response_model.model_validate(
+    def finish(self) -> ModelResponse:
+        response = ModelResponse.model_validate(
             json.loads(
                 self.buffer,
                 object_pairs_hook=_unique_object,

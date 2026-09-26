@@ -48,23 +48,23 @@ Describe the FastAPI backend: structure, auth rules, and the request/worker life
 
 ## Streaming (SSE)
 - **Video readiness**: `/v2/videos/{id}/stream` emits `snapshot`, `update`, and `done` when metadata, transcript, and summary are all ready (timeout 60s).
-- **Wiz version 1 responses**: `/v2/conversations/{id}/messages` emits JSON SSE data with a
-  `type` discriminator: `text`, `citation`, `done`, or `error`. Each text event
-  contains a complete Markdown part. Citations contain `chunk_id`,
-  `start_seconds`, and `end_seconds` resolved by FastAPI. `done` includes the
-  persisted `message_id`; failures end with `error` and a safe `message`.
-  There is no `[DONE]` sentinel. EOF without a terminal event is interruption.
+- **Wiz responses**: `/v2/conversations/{id}/messages` emits JSON SSE data with a
+  `type` discriminator: `block`, `done`, or `error`. Each `block` event contains
+  one complete Markdown block in `text` and its resolved `citations`. `done`
+  includes the persisted `message_id`; failures end with `error` and a safe
+  `message`. There is no `[DONE]` sentinel. EOF without a terminal event is
+  interruption.
 
 ### Wiz structured responses
 
-OpenRouter receives a strict JSON schema for an ordered `parts` array. Text
-parts contain complete Markdown blocks; citation parts from the model contain
-only a chunk ID. Requests require a provider supporting structured outputs.
-FastAPI incrementally frames complete JSON objects, validates them, resolves
-references, and streams each part. It validates the full envelope and checks
-successful model completion before saving. Invalid references are omitted and
-logged; malformed or truncated output ends with an error. Already emitted parts
-remain visible in the client but failed partial assistant responses are not saved.
+OpenRouter receives a strict JSON schema for an ordered `parts` array of blocks.
+Requests require a provider supporting structured outputs. FastAPI
+incrementally frames complete JSON objects, validates them, resolves
+references, and streams each block. It validates the full envelope and checks
+successful model completion before saving. Malformed or truncated output ends
+with an error. Already emitted blocks remain visible in the client but failed
+partial assistant responses are not saved. The system prompt is fixed in
+`backend/src/conversations/prompts.py`.
 
 Wiz normalizes existing transcript segments at read time. IDs combine a SHA-256
 transcript revision prefix with the original segment index. They remain stable
@@ -73,9 +73,8 @@ for the same transcript snapshot. Start times use `offset`; end times use
 start time if none exists. Invalid timing leaves text in context without a
 citable ID. Fractional seconds are preserved. S3 objects and workers are unchanged.
 
-Message requests accept `parts_version: 1 | 2`, defaulting to 1 for existing
-clients. Version 2 uses atomic `block` events containing `text` and `citations`.
-The model supplies `references` with `chunk_ids` and a nullable
+Message requests accept an optional `parts_version`, which must be `2`. The
+model supplies `references` with `chunk_ids` and a nullable
 `list_item_index`: null targets the whole Markdown block; an integer targets a
 zero-based top-level list item, including its nested content. A Markdown parser
 validates targets. Invalid targets and unknown source IDs are omitted and logged
@@ -91,7 +90,7 @@ would separate a definition from its uses; their references are dropped and
 counted as `link_definitions`. Each split block is streamed, stored
 and replayed as its own block.
 
-After every version 2 response FastAPI logs one INFO line starting with
+After every response FastAPI logs one INFO line starting with
 `Wiz structure:` with the model, `blocks_in`, `blocks_out`, `blocks_split`
 (input blocks that needed splitting), distinct chunk IDs `referenced` by the
 model and `kept` in the final citations, and `dropped_<reason>` counts. Grep it
@@ -104,18 +103,15 @@ deduplicated and sorted; ranges merge with gaps up to 5 seconds and a combined
 length up to 60 seconds. Individual longer captions are preserved. Separate
 claims and distant passages remain separate. The model cannot supply timestamps.
 
-Completed assistant parts are stored in message metadata with the requested
-`parts_version` and `parts`. The existing `content` column contains text joined by blank
-lines. Message reads expose typed `parts`; older messages become one text part
-without inferred citations. Follow-up model context retains structured parts,
-but discards IDs absent from the current transcript. Stored citation timestamps
-remain unchanged when a transcript is replaced. Version 1 citations are not
-assigned inferred targets when replayed as version 2 history.
-
-Deploy the backend first, then the frontend which requests version 2. Existing
-clients continue to receive version 1 streams. No database migration or transcript
-backfill is needed. Smoke-test the configured OpenRouter model with this schema before
-release; unsupported endpoints fail rather than falling back to plain text.
+Completed assistant parts are stored in message metadata with `parts_version: 2`
+and `parts`. The `content` column contains text joined by blank lines. Message
+reads expose typed `parts`. Messages saved before this format keep their stored
+`text` and `citation` parts (`parts_version: 1`), and plain older messages
+become one text part. Follow-up model context replays history as blocks and
+discards IDs absent from the current transcript. Older text parts replay as
+blocks without references; their standalone citations are not replayed, because
+they have no block association. Stored citation timestamps remain unchanged when
+a transcript is replaced.
 
 ## Wiz Starter Questions
 - `VideoRead.suggested_questions` exposes only the validated question list; the

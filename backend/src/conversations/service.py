@@ -13,13 +13,10 @@ from src.config import settings
 from src.conversations.models import Conversation, Message
 from src.conversations.parts import (
     BlockPart,
-    ChunkReference,
     DoneEvent,
     DropReason,
     ErrorEvent,
     ModelResponse,
-    ModelResponseV2,
-    ModelBlock,
     PartsDecoder,
     stored_parts,
     text_projection,
@@ -28,7 +25,7 @@ from src.conversations.parts import (
     split_block,
     history_parts,
 )
-from src.conversations.prompts import build_v2_prompt
+from src.conversations.prompts import WIZ_SYSTEM_PROMPT_TEMPLATE
 from src.exceptions import InternalServerError, RateLimitError, NotFoundError
 from src.videos.models import Video
 from src.videos import service as videos_service
@@ -221,14 +218,9 @@ def get_valid_transcript_or_raise(
     return video, transcript
 
 
-def build_system_instruction(
-    video_title: str | None, transcript: list, parts_version: int = 1
-) -> str:
+def build_system_instruction(video_title: str | None, transcript: list) -> str:
     context, _ = transcript_context(transcript)
-    template = settings.wiz_system_prompt_template
-    if parts_version == 2:
-        template = build_v2_prompt(template)
-    return template.format(
+    return WIZ_SYSTEM_PROMPT_TEMPLATE.format(
         title=video_title or "this video",
         transcript=json.dumps(context, ensure_ascii=False),
     )
@@ -278,7 +270,6 @@ def stream_wiz_response(
     conversation_id: int,
     db: Session,
     api_key: str,
-    parts_version: int = 1,
 ):
     def event(part):
         return f"data: {part.model_dump_json()}\n\n"
@@ -289,16 +280,14 @@ def stream_wiz_response(
         messages = [
             {
                 "role": "system",
-                "content": build_system_instruction(
-                    video_title, transcript, parts_version
-                ),
+                "content": build_system_instruction(video_title, transcript),
             }
         ]
         for msg in history:
             content = msg["content"]
             if msg["role"] == DB_ROLE_ASSISTANT:
                 parts = stored_parts(content, msg.get("metadata"))
-                model_parts = history_parts(parts, references, parts_version)
+                model_parts = history_parts(parts, references)
                 content = json.dumps({"parts": model_parts})
             messages.append({"role": msg["role"], "content": content})
 
@@ -313,14 +302,12 @@ def stream_wiz_response(
                 "json_schema": {
                     "name": "wiz_response",
                     "strict": True,
-                    "schema": (
-                        ModelResponseV2 if parts_version == 2 else ModelResponse
-                    ).model_json_schema(),
+                    "schema": ModelResponse.model_json_schema(),
                 },
             },
             extra_body={"provider": {"require_parameters": True}},
         )
-        decoder = PartsDecoder(parts_version)
+        decoder = PartsDecoder()
         resolved = []
         blocks_in = blocks_split = 0
         referenced: set[str] = set()
@@ -336,48 +323,32 @@ def stream_wiz_response(
             if getattr(delta, "refusal", None):
                 raise ValueError("Model refused structured response")
             if delta and delta.content:
-                for part in decoder.feed(delta.content):
-                    if isinstance(part, ModelBlock):
-                        split = split_block(part)
-                        blocks_in += 1
-                        blocks_split += len(split.blocks) > 1
-                        referenced.update(
-                            key for ref in part.references for key in ref.chunk_ids
-                        )
-                        for drop in split.dropped:
-                            dropped[drop.reason] += 1
-                        emitted = [resolve_block(b, references) for b in split.blocks]
-                    elif isinstance(part, ChunkReference):
-                        reference = references.get(part.chunk_id)
-                        if reference is None:
-                            logger.warning(
-                                "Omitting invalid Wiz reference",
-                                extra={
-                                    "chunk_id": part.chunk_id,
-                                    "conversation_id": conversation_id,
-                                },
-                            )
-                            continue
-                        emitted = [reference]
-                    else:
-                        emitted = [part]
-                    for item in emitted:
-                        resolved.append(item)
-                        yield event(item)
+                for block in decoder.feed(delta.content):
+                    split = split_block(block)
+                    blocks_in += 1
+                    blocks_split += len(split.blocks) > 1
+                    referenced.update(
+                        key for ref in block.references for key in ref.chunk_ids
+                    )
+                    for drop in split.dropped:
+                        dropped[drop.reason] += 1
+                    for item in split.blocks:
+                        part = resolve_block(item, references)
+                        resolved.append(part)
+                        yield event(part)
         if not decoder.buffer:
             yield event(
                 ErrorEvent(message="No response from AI model. Please try again.")
             )
             return
         decoder.finish()
-        if parts_version == 2:
-            log_wiz_structure(
-                blocks_in=blocks_in,
-                blocks_split=blocks_split,
-                referenced=referenced,
-                resolved=resolved,
-                dropped=dropped,
-            )
+        log_wiz_structure(
+            blocks_in=blocks_in,
+            blocks_split=blocks_split,
+            referenced=referenced,
+            resolved=resolved,
+            dropped=dropped,
+        )
         if finish_reason != "stop":
             raise ValueError("Incomplete model response")
         content = text_projection(resolved)
@@ -392,7 +363,7 @@ def stream_wiz_response(
             DB_ROLE_ASSISTANT,
             content,
             metadata={
-                "parts_version": parts_version,
+                "parts_version": 2,
                 "parts": [part.model_dump() for part in resolved],
             },
         )
