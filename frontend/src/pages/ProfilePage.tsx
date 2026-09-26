@@ -8,8 +8,7 @@ import {
 } from '../api/errors';
 import type { NormalizedApiError } from '../api/errors';
 import { useToast } from '../hooks/useToast';
-import { FaExclamationTriangle, FaEye, FaEyeSlash, FaCopy, FaSpinner, FaKey, FaShieldAlt, FaSave, FaPen, FaTimes } from 'react-icons/fa';
-import { Settings, Zap, User as UserIcon, Calendar, Mail, Coins, Sparkles } from 'lucide-react';
+import { Settings, Zap, User as UserIcon, Calendar, Mail, Coins, Sparkles, TriangleAlert, Eye, EyeOff, Copy, LoaderCircle, KeyRound, Shield, Save, Pen, X } from 'lucide-react';
 import { getToken } from '../lib/authUtils';
 import type { CreditProduct } from '../api/types';
 import Seo from '../components/Seo';
@@ -256,7 +255,7 @@ export default function ProfilePage() {
             
             <div className="relative text-center">
               <div className="w-14 h-14 mx-auto mb-4 rounded-xl bg-gradient-to-br from-red-500/20 to-red-600/10 border border-red-500/20 flex items-center justify-center">
-                <FaExclamationTriangle className="w-6 h-6 text-red-400" />
+                <TriangleAlert className="w-6 h-6 text-red-400" />
               </div>
               <h3 className="text-lg font-semibold text-foreground mb-2">Revoke API Token</h3>
               <p className="text-sm text-foreground/50 mb-6">Are you sure? This action cannot be undone. Any applications using this token will stop working.</p>
@@ -271,7 +270,7 @@ export default function ProfilePage() {
                   onClick={handleRevokeToken} 
                   className="inline-flex items-center gap-2 px-4 py-2 text-sm font-semibold text-white bg-gradient-to-r from-red-600 via-red-500 to-red-600 bg-[length:200%_100%] rounded-lg hover:bg-right transition-all duration-500 shadow-lg shadow-red-500/25 cursor-pointer"
                 >
-                  {isRevokingToken ? <FaSpinner className="animate-spin w-4 h-4" /> : null}
+                  {isRevokingToken ? <LoaderCircle className="animate-spin w-4 h-4" /> : null}
                   Revoke Token
                 </button>
               </div>
@@ -483,7 +482,7 @@ export default function ProfilePage() {
                       onClick={() => setIsEditingDetails(true)}
                       className="inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium text-foreground/60 bg-white/[0.04] border border-white/[0.08] rounded-lg hover:bg-white/[0.08] hover:text-foreground transition-all cursor-pointer"
                     >
-                      <FaPen className="w-3 h-3" />
+                      <Pen className="w-3 h-3" />
                       Edit
                     </button>
                   )}
@@ -543,7 +542,7 @@ export default function ProfilePage() {
                           disabled={isSavingDetails}
                           className="inline-flex items-center gap-2 px-5 py-2 text-sm font-semibold text-white bg-gradient-to-r from-violet-600 via-violet-500 to-violet-600 bg-[length:200%_100%] rounded-lg hover:bg-right transition-all duration-500 shadow-lg shadow-violet-500/20 disabled:opacity-50 disabled:cursor-not-allowed cursor-pointer"
                         >
-                          {isSavingDetails ? <FaSpinner className="animate-spin w-4 h-4" /> : <FaSave className="w-4 h-4" />}
+                          {isSavingDetails ? <LoaderCircle className="animate-spin w-4 h-4" /> : <Save className="w-4 h-4" />}
                           Save
                         </button>
                         <button
@@ -555,7 +554,7 @@ export default function ProfilePage() {
                           disabled={isSavingDetails}
                           className="inline-flex items-center gap-2 px-4 py-2 text-sm font-medium text-foreground/70 bg-white/[0.04] border border-white/[0.08] rounded-lg hover:bg-white/[0.08] hover:text-foreground transition-all disabled:opacity-50 cursor-pointer"
                         >
-                          <FaTimes className="w-4 h-4" />
+                          <X className="w-4 h-4" />
                           Cancel
                         </button>
                       </div>
@@ -612,7 +611,7 @@ export default function ProfilePage() {
               <div className="space-y-4">
                 <div className="flex items-center justify-between px-1 select-none">
                   <div className="flex items-center gap-2">
-                    <FaKey className="w-4 h-4 text-foreground/40" />
+                    <KeyRound className="w-4 h-4 text-foreground/40" />
                     <h2 className="text-sm font-semibold text-foreground/40 uppercase tracking-wider">Developer Access</h2>
                   </div>
                   {!isEditingToken && (
@@ -620,7 +619,7 @@ export default function ProfilePage() {
                       onClick={() => setIsEditingToken(true)}
                       className="inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium text-foreground/60 bg-white/[0.04] border border-white/[0.08] rounded-lg hover:bg-white/[0.08] hover:text-foreground transition-all cursor-pointer"
                     >
-                      <FaPen className="w-3 h-3" />
+                      <Pen className="w-3 h-3" />
                       Edit
                     </button>
                   )}
@@ -659,7 +658,7 @@ export default function ProfilePage() {
                                 value={apiToken === 'hidden_token' ? '••••••••••••••••••••••••••••••••' : apiToken}
                               />
                               <div className="absolute left-3 top-1/2 -translate-y-1/2 text-foreground/30">
-                                <FaKey className="w-3.5 h-3.5" />
+                                <KeyRound className="w-3.5 h-3.5" />
                               </div>
                             </div>
                             <div className="flex gap-2">
@@ -667,14 +666,14 @@ export default function ProfilePage() {
                                 onClick={handleToggleShowToken}
                                 className="flex-1 sm:flex-none inline-flex items-center justify-center gap-2 px-4 py-2.5 text-xs font-medium bg-white/[0.04] hover:bg-white/[0.08] border border-white/[0.08] rounded-lg text-foreground/70 hover:text-foreground transition-all cursor-pointer"
                               >
-                                {showToken ? <FaEyeSlash className="w-3.5 h-3.5" /> : <FaEye className="w-3.5 h-3.5" />}
+                                {showToken ? <EyeOff className="w-3.5 h-3.5" /> : <Eye className="w-3.5 h-3.5" />}
                                 {showToken ? 'Hide' : 'Show'}
                               </button>
                               <button
                                 onClick={handleCopyToken}
                                 className="flex-1 sm:flex-none inline-flex items-center justify-center gap-2 px-4 py-2.5 text-xs font-semibold text-white bg-white/[0.1] hover:bg-white/[0.15] border border-white/[0.1] rounded-lg transition-all cursor-pointer"
                               >
-                                <FaCopy className="w-3.5 h-3.5" />
+                                <Copy className="w-3.5 h-3.5" />
                                 Copy
                               </button>
                             </div>
@@ -689,7 +688,7 @@ export default function ProfilePage() {
                       {/* Actions Footer */}
                       <div className="flex flex-wrap items-center justify-between gap-4 pt-2">
                         <div className="flex items-center gap-2 text-xs text-amber-500/80 bg-amber-500/5 px-3 py-1.5 rounded-lg border border-amber-500/10">
-                          <FaShieldAlt className="w-3 h-3" />
+                          <Shield className="w-3 h-3" />
                           <span>Never share this token</span>
                         </div>
                         
@@ -700,7 +699,7 @@ export default function ProfilePage() {
                               disabled={user.token_exists || isGeneratingToken}
                               className="inline-flex items-center gap-2 px-5 py-2 text-sm font-semibold text-white bg-gradient-to-r from-violet-600 via-violet-500 to-violet-600 bg-[length:200%_100%] rounded-lg hover:bg-right transition-all duration-500 shadow-lg shadow-violet-500/20 disabled:opacity-50 disabled:cursor-not-allowed cursor-pointer"
                             >
-                              {isGeneratingToken ? <FaSpinner className="animate-spin w-4 h-4" /> : null}
+                              {isGeneratingToken ? <LoaderCircle className="animate-spin w-4 h-4" /> : null}
                               Generate New
                             </button>
                             
@@ -718,7 +717,7 @@ export default function ProfilePage() {
                               onClick={() => setIsEditingToken(false)}
                               className="inline-flex items-center gap-2 px-4 py-2 text-sm font-medium text-foreground/70 bg-white/[0.04] border border-white/[0.08] rounded-lg hover:bg-white/[0.08] hover:text-foreground transition-all cursor-pointer"
                             >
-                              <FaTimes className="w-4 h-4" />
+                              <X className="w-4 h-4" />
                               Cancel
                             </button>
                           </div>

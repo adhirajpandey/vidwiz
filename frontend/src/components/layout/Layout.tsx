@@ -1,9 +1,9 @@
 
 import type { ReactNode } from 'react';
+import { Github } from 'lucide-react';
 import { Link, useLocation } from 'react-router-dom';
 import Navbar from './Navbar';
 import vidwizLogo from '../../public/vidwiz.png';
-import { FaGithub } from 'react-icons/fa';
 
 
 export default function Layout({ children }: { children: ReactNode }) {
@@ -31,7 +31,7 @@ export default function Layout({ children }: { children: ReactNode }) {
                 <Link to="/privacy" className="text-foreground/40 hover:text-foreground/80 transition-colors">Privacy</Link>
               </div>
               <a href="https://github.com/adhirajpandey/vidwiz" target="_blank" rel="noopener noreferrer" className="text-foreground/40 hover:text-foreground transition-colors">
-                <FaGithub className="w-4 h-4" />
+                <Github className="w-4 h-4" />
               </a>
             </div>
 
@@ -48,7 +48,7 @@ export default function Layout({ children }: { children: ReactNode }) {
                 </Link>
                 <p className="absolute left-1/2 -translate-x-1/2 text-foreground/30 text-xs">© {new Date().getFullYear()} VidWiz. All rights reserved.</p>
                 <a href="https://github.com/adhirajpandey/vidwiz" target="_blank" rel="noopener noreferrer" className="flex items-center gap-1.5 text-sm text-foreground/40 hover:text-foreground transition-colors">
-                  <FaGithub className="w-4 h-4" />
+                  <Github className="w-4 h-4" />
                   <span>GitHub</span>
                 </a>
               </div>
