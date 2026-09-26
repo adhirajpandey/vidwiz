@@ -14,7 +14,6 @@
     "@assistant-ui/react": "0.15.18",
     "@assistant-ui/react-markdown": "0.14.14",
     "@tailwindcss/vite": "^4.1.13",
-    "axios": "^1.13.4",
     "clsx": "^2.1.1",
     "lucide-react": "^0.544.0",
     "react": "^19.1.1",

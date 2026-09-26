@@ -1,4 +1,4 @@
-import axios from 'axios';
+import { ApiError } from './fetch';
 import { wasSessionExpiredHandled } from './session';
 
 export type ApiErrorKind =
@@ -198,15 +198,8 @@ export function normalizeApiError(
   cause: unknown,
   fallbackMessage: string
 ): NormalizedApiError {
-  if (!axios.isAxiosError(cause)) {
-    return {
-      message: fallbackMessage,
-      kind: 'unknown',
-      retryable: false,
-    };
-  }
-
-  if (!cause.response) {
+  // fetch rejects with a TypeError when the request never reaches the server.
+  if (cause instanceof TypeError) {
     return {
       message: fallbackMessage,
       kind: 'network',
@@ -214,13 +207,21 @@ export function normalizeApiError(
     };
   }
 
+  if (!(cause instanceof ApiError)) {
+    return {
+      message: fallbackMessage,
+      kind: 'unknown',
+      retryable: false,
+    };
+  }
+
   const normalized = normalizeResponse(
-    cause.response.data,
+    cause.data,
     finiteStatus(cause.response.status),
     fallbackMessage,
     cause.response.headers
   );
-  if (wasSessionExpiredHandled(cause)) {
+  if (wasSessionExpiredHandled(cause.response)) {
     normalized.handled = true;
   }
   return normalized;

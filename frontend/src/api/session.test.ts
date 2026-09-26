@@ -1,5 +1,6 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
-import { apiFetch } from './fetch';
+import { normalizeApiError } from './errors';
+import { ApiError, apiFetch, apiRequest } from './fetch';
 import {
   SESSION_EXPIRED_EVENT,
   shouldNotifySessionExpired,
@@ -119,3 +120,49 @@ describe('shouldNotifySessionExpired', () => {
     ).rejects.toThrow('API requests must target the configured VidWiz API');
   });
 });
+
+describe('apiRequest', () => {
+  it('sends JSON, drops undefined query values, and parses the response', async () => {
+    const fetchMock = vi.fn(async () => new Response(JSON.stringify({ ok: true }), { status: 200 }));
+    vi.stubGlobal('fetch', fetchMock);
+
+    await expect(
+      apiRequest('POST', '/videos', { body: { a: 1 }, params: { q: '', page: 2, sort: undefined } })
+    ).resolves.toStrictEqual({ ok: true });
+
+    const [url, init] = fetchMock.mock.calls[0] as unknown as [string, RequestInit];
+    expect(url).toMatch(/\/videos\?q=&page=2$/);
+    expect(init.method).toBe('POST');
+    expect(init.body).toBe('{"a":1}');
+    expect(new Headers(init.headers).get('Content-Type')).toBe('application/json');
+  });
+
+  it('returns undefined for an empty success body', async () => {
+    vi.stubGlobal('fetch', vi.fn(async () => new Response(null, { status: 204 })));
+
+    await expect(apiRequest('DELETE', '/notes/1')).resolves.toBeUndefined();
+  });
+
+  it('throws an ApiError with the parsed error body', async () => {
+    vi.stubGlobal(
+      'fetch',
+      vi.fn(async () => new Response(JSON.stringify({ error: { message: 'Nope' } }), { status: 409 }))
+    );
+
+    const error = await apiRequest('GET', '/users/me').catch((cause: unknown) => cause);
+    expect(error).toBeInstanceOf(ApiError);
+    expect(normalizeApiError(error, 'Failed')).toMatchObject({ status: 409, message: 'Nope', kind: 'conflict' });
+  });
+
+  it('marks unauthorized application requests as centrally handled', async () => {
+    const payload = btoa(JSON.stringify({ exp: Math.floor(Date.now() / 1000) + 60 }));
+    storage.getItem.mockImplementation((key) =>
+      key === 'token' ? `header.${payload}.signature` : null
+    );
+    vi.stubGlobal('fetch', vi.fn(async () => new Response(null, { status: 401 })));
+
+    const error = await apiRequest('GET', '/users/me').catch((cause: unknown) => cause);
+    expect(normalizeApiError(error, 'Failed').handled).toBe(true);
+  });
+});
+

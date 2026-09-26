@@ -1,9 +1,3 @@
-import {
-  AxiosError,
-  AxiosHeaders,
-  type AxiosResponse,
-  type InternalAxiosRequestConfig,
-} from 'axios';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import {
   getValidationFieldErrors,
@@ -11,36 +5,24 @@ import {
   normalizeFetchError,
   toastApiError,
 } from './errors';
+import { ApiError } from './fetch';
 import { markSessionExpiredHandled } from './session';
 
 afterEach(() => {
   vi.useRealTimers();
 });
 
-function createAxiosError(data: unknown, status = 400): AxiosError {
-  const config: InternalAxiosRequestConfig = {
-    headers: new AxiosHeaders(),
-  };
-  const response: AxiosResponse = {
-    data,
-    status,
-    statusText: 'Request failed',
-    headers: {},
-    config,
-  };
-
-  return new AxiosError(
-    'Request failed',
-    AxiosError.ERR_BAD_RESPONSE,
-    config,
-    undefined,
-    response
-  );
+function createApiError(
+  data: unknown,
+  status = 400,
+  headers: Record<string, string> = {}
+): ApiError {
+  return new ApiError(new Response(null, { status, headers }), data);
 }
 
 describe('normalizeApiError', () => {
   it('extracts the canonical backend error envelope', () => {
-    const cause = createAxiosError(
+    const cause = createApiError(
       {
         error: {
           code: 'invalid_credentials',
@@ -62,7 +44,7 @@ describe('normalizeApiError', () => {
   });
 
   it('supports a legacy string error response', () => {
-    const cause = createAxiosError({ error: 'Account already exists' }, 409);
+    const cause = createApiError({ error: 'Account already exists' }, 409);
 
     expect(normalizeApiError(cause, 'Registration failed')).toStrictEqual({
       status: 409,
@@ -73,7 +55,7 @@ describe('normalizeApiError', () => {
   });
 
   it('uses a top-level response message when present', () => {
-    const cause = createAxiosError({ message: 'Request could not be completed' });
+    const cause = createApiError({ message: 'Request could not be completed' });
 
     expect(normalizeApiError(cause, 'Request failed')).toStrictEqual({
       status: 400,
@@ -84,7 +66,7 @@ describe('normalizeApiError', () => {
   });
 
   it('falls back for malformed response data', () => {
-    const cause = createAxiosError({ error: { message: 42 }, message: false }, 500);
+    const cause = createApiError({ error: { message: 42 }, message: false }, 500);
 
     expect(normalizeApiError(cause, 'Unexpected server response')).toStrictEqual({
       status: 500,
@@ -94,24 +76,8 @@ describe('normalizeApiError', () => {
     });
   });
 
-  it('ignores a malformed HTTP status at runtime', () => {
-    const cause = {
-      isAxiosError: true,
-      response: {
-        status: '401',
-        data: { error: 'Authentication failed' },
-      },
-    };
-
-    expect(normalizeApiError(cause, 'Request failed')).toStrictEqual({
-      message: 'Authentication failed',
-      kind: 'unknown',
-      retryable: false,
-    });
-  });
-
-  it('falls back for an Axios network error without a response', () => {
-    const cause = new AxiosError('Network Error', AxiosError.ERR_NETWORK);
+  it('treats a rejected fetch as a network error', () => {
+    const cause = new TypeError('Failed to fetch');
 
     expect(normalizeApiError(cause, 'Could not connect')).toStrictEqual({
       message: 'Could not connect',
@@ -120,7 +86,7 @@ describe('normalizeApiError', () => {
     });
   });
 
-  it('falls back for a non-Axios thrown value', () => {
+  it('falls back for any other thrown value', () => {
     const cause = new Error('Unexpected failure');
 
     expect(normalizeApiError(cause, 'Something went wrong')).toStrictEqual({
@@ -131,16 +97,16 @@ describe('normalizeApiError', () => {
   });
 
   it('hides server-provided messages for 5xx responses and keeps the request ID', () => {
-    const cause = createAxiosError(
+    const cause = createApiError(
       {
         error: {
           code: 'INTERNAL_ERROR',
           message: 'OpenRouter API key not configured',
         },
       },
-      500
+      500,
+      { 'x-request-id': 'request-123' }
     );
-    cause.response!.headers = { 'x-request-id': 'request-123' };
 
     expect(normalizeApiError(cause, 'Chat is temporarily unavailable')).toStrictEqual({
       status: 500,
@@ -153,7 +119,7 @@ describe('normalizeApiError', () => {
   });
 
   it('preserves validated field-level validation details', () => {
-    const cause = createAxiosError(
+    const cause = createApiError(
       {
         error: {
           code: 'VALIDATION_ERROR',
@@ -184,7 +150,7 @@ describe('normalizeApiError', () => {
 
   it('maps backend validation paths to form field names', () => {
     const error = normalizeApiError(
-      createAxiosError(
+      createApiError(
         {
           error: {
             code: 'VALIDATION_ERROR',
@@ -291,7 +257,7 @@ describe('normalizeApiError', () => {
   });
 
   it('marks centrally handled session errors so pages stay silent', () => {
-    const cause = createAxiosError(
+    const cause = createApiError(
       {
         error: {
           code: 'UNAUTHORIZED',
@@ -300,7 +266,7 @@ describe('normalizeApiError', () => {
       },
       401
     );
-    markSessionExpiredHandled(cause);
+    markSessionExpiredHandled(cause.response);
 
     expect(normalizeApiError(cause, 'Please sign in again')).toMatchObject({
       kind: 'authentication',
@@ -313,8 +279,9 @@ describe('toastApiError', () => {
   it('shows the normalized message with its request ID', () => {
     vi.spyOn(console, 'error').mockImplementation(() => {});
     const addToast = vi.fn();
-    const cause = createAxiosError({ error: { message: 'Name is taken' } }, 409);
-    cause.response!.headers = { 'x-request-id': 'request-409' };
+    const cause = createApiError({ error: { message: 'Name is taken' } }, 409, {
+      'x-request-id': 'request-409',
+    });
 
     expect(toastApiError(addToast, cause, 'Unable to save', 'Save failed')).toMatchObject({
       kind: 'conflict',
@@ -330,8 +297,8 @@ describe('toastApiError', () => {
   it('stays silent for centrally handled session errors', () => {
     vi.spyOn(console, 'error').mockImplementation(() => {});
     const addToast = vi.fn();
-    const cause = createAxiosError({ error: { message: 'Expired' } }, 401);
-    markSessionExpiredHandled(cause);
+    const cause = createApiError({ error: { message: 'Expired' } }, 401);
+    markSessionExpiredHandled(cause.response);
 
     expect(toastApiError(addToast, cause, 'Unable to save', 'Save failed').handled).toBe(true);
     expect(addToast).not.toHaveBeenCalled();

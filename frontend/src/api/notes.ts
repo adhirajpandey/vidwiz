@@ -1,4 +1,4 @@
-import apiClient from './client';
+import { apiRequest } from './fetch';
 import type {
   MessageResponse,
   NoteRead,
@@ -7,22 +7,14 @@ import type {
 } from './types';
 
 export const notesApi = {
-  search: async (q: string, page: number) => (await apiClient.get<NoteSearchResponse>('/notes/search', { params: { q, page, per_page: 10 } })).data,
-  listNotes: async (videoId: string) => {
-    const response = await apiClient.get<NoteRead[]>(`/videos/${videoId}/notes`);
-    return response.data;
-  },
-
-  updateNote: async (noteId: number, payload: NoteUpdate) => {
-    const response = await apiClient.patch<NoteRead>(
-      `/notes/${noteId}`,
-      payload
-    );
-    return response.data;
-  },
-
-  deleteNote: async (noteId: number) => {
-    const response = await apiClient.delete<MessageResponse>(`/notes/${noteId}`);
-    return response.data;
-  },
+  search: (q: string, page: number) =>
+    apiRequest<NoteSearchResponse>('GET', '/notes/search', {
+      params: { q, page, per_page: 10 },
+    }),
+  listNotes: (videoId: string) =>
+    apiRequest<NoteRead[]>('GET', `/videos/${videoId}/notes`),
+  updateNote: (noteId: number, body: NoteUpdate) =>
+    apiRequest<NoteRead>('PATCH', `/notes/${noteId}`, { body }),
+  deleteNote: (noteId: number) =>
+    apiRequest<MessageResponse>('DELETE', `/notes/${noteId}`),
 };
