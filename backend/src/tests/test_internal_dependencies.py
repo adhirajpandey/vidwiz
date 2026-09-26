@@ -47,7 +47,7 @@ def test_get_task_poll_params_validation():
         task_type="transcript", timeout=999
     )
     assert params.task_type == internal_constants.FETCH_TRANSCRIPT_TASK_TYPE
-    assert params.timeout == internal_constants.TRANSCRIPT_TASK_REQUEST_MAX_TIMEOUT
+    assert params.timeout == internal_constants.TASK_REQUEST_MAX_TIMEOUT
 
     params = internal_dependencies.get_task_poll_params(task_type="metadata", timeout=1)
     assert params.task_type == internal_constants.FETCH_METADATA_TASK_TYPE

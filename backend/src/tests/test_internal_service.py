@@ -24,14 +24,10 @@ def test_poll_for_task_claims_pending(db_session):
         internal_constants.FETCH_METADATA_TASK_TYPE,
         timeout=1,
         poll_interval=0,
-        max_retries=2,
-        in_progress_timeout=10,
-        worker_user_id=7,
     )
     assert claimed is not None
     assert claimed.status == TaskStatus.IN_PROGRESS
     assert claimed.retry_count == 1
-    assert claimed.worker_details["worker_user_id"] == 7
 
 
 def test_submit_task_result_validates_inputs(db_session):
@@ -40,7 +36,6 @@ def test_submit_task_result_validates_inputs(db_session):
         status=TaskStatus.IN_PROGRESS,
         task_details={"video_id": "abc123DEF45"},
         retry_count=0,
-        worker_details={"worker_user_id": 1},
     )
     db_session.add(task)
     db_session.commit()
@@ -54,7 +49,6 @@ def test_submit_task_result_validates_inputs(db_session):
             transcript=[{"text": "hi"}],
             metadata=None,
             error_message=None,
-            worker_user_id=1,
         )
 
     with pytest.raises(Exception):
@@ -66,19 +60,6 @@ def test_submit_task_result_validates_inputs(db_session):
             transcript=None,
             metadata={"title": "bad"},
             error_message=None,
-            worker_user_id=1,
-        )
-
-    with pytest.raises(Exception):
-        internal_service.submit_task_result(
-            db_session,
-            task.id,
-            "abc123DEF45",
-            True,
-            transcript=[{"text": "hi"}],
-            metadata=None,
-            error_message=None,
-            worker_user_id=999,
         )
 
 
@@ -87,8 +68,7 @@ def test_submit_transcript_result_failure_paths(db_session):
         task_type=internal_constants.FETCH_TRANSCRIPT_TASK_TYPE,
         status=TaskStatus.IN_PROGRESS,
         task_details={"video_id": "abc123DEF45"},
-        retry_count=internal_constants.FETCH_TRANSCRIPT_MAX_RETRIES,
-        worker_details={"worker_user_id": 1},
+        retry_count=internal_constants.TASK_MAX_RETRIES,
     )
     db_session.add(task)
     db_session.commit()
@@ -101,7 +81,6 @@ def test_submit_transcript_result_failure_paths(db_session):
         transcript=None,
         metadata=None,
         error_message="boom",
-        worker_user_id=1,
     )
     assert result.status == TaskStatus.FAILED
     assert result.worker_details["error_message"] == "boom"
@@ -114,7 +93,6 @@ def test_submit_metadata_result_success(db_session):
         status=TaskStatus.IN_PROGRESS,
         task_details={"video_id": "abc123DEF45"},
         retry_count=0,
-        worker_details={"worker_user_id": 1},
     )
     db_session.add_all([video, task])
     db_session.commit()
@@ -127,7 +105,6 @@ def test_submit_metadata_result_success(db_session):
         transcript=None,
         metadata={"title": "Video"},
         error_message=None,
-        worker_user_id=1,
     )
     assert result.status == TaskStatus.COMPLETED
     updated = db_session.get(Video, video.id)

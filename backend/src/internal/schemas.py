@@ -23,9 +23,6 @@ class TaskSubmitResponse(ApiModel):
 class TaskPollParams(ApiModel):
     task_type: str
     timeout: int
-    poll_interval: int
-    max_retries: int
-    in_progress_timeout: int
 
 
 class TaskResultRequest(ApiModel):

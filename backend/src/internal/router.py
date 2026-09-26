@@ -39,10 +39,6 @@ def get_task(
         db,
         params.task_type,
         params.timeout,
-        params.poll_interval,
-        params.max_retries,
-        params.in_progress_timeout,
-        worker_user_id=None,
     )
     if not task:
         return Response(status_code=status.HTTP_204_NO_CONTENT)
@@ -77,7 +73,6 @@ def submit_task_result(
         payload.transcript,
         payload.metadata,
         payload.error_message,
-        worker_user_id=None,
     )
 
     return TaskSubmitResponse(
