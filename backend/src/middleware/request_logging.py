@@ -141,15 +141,15 @@ def _build_log_message(
 
 def _extract_user_info(
     headers: dict[str, str],
-) -> tuple[dict[str, Any], dict[str, Any] | None, str | None]:
+) -> dict[str, Any]:
     authorization = headers.get("authorization")
     if not authorization or not authorization.startswith("Bearer "):
-        return {}, None, None
+        return {}
     token = authorization.split(" ", 1)[1]
     try:
         payload = jwt.decode(token, settings.secret_key, algorithms=["HS256"])
     except Exception:
-        return {}, None, None
+        return {}
 
     user_fields: dict[str, Any] = {}
     user_id = payload.get("user_id")
@@ -161,18 +161,7 @@ def _extract_user_info(
     user_email = payload.get("email")
     if user_email:
         user_fields["user_email"] = user_email
-    return user_fields, payload, token
-
-
-def _set_scope_state(scope, key: str, value: Any) -> None:
-    state = scope.get("state")
-    if state is None:
-        scope["state"] = {key: value}
-        return
-    if isinstance(state, dict):
-        state[key] = value
-        return
-    setattr(state, key, value)
+    return user_fields
 
 
 def _extract_client_ip(scope, headers: dict[str, str]) -> str | None:
@@ -281,10 +270,7 @@ class RequestLoggingMiddleware:
             key.decode("latin-1").lower(): value.decode("latin-1")
             for key, value in scope.get("headers", [])
         }
-        user_fields, auth_payload, auth_token = _extract_user_info(headers)
-        if auth_payload is not None and auth_token is not None:
-            _set_scope_state(scope, "auth_payload", auth_payload)
-            _set_scope_state(scope, "auth_token", auth_token)
+        user_fields = _extract_user_info(headers)
         request_id = headers.get("x-request-id") or uuid4().hex
         token = request_id_var.set(request_id)
 
