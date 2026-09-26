@@ -8,7 +8,6 @@ from src.auth.schemas import (
     AuthRegisterRequest,
     GoogleLoginRequest,
     LoginResponse,
-    MessageResponse,
     TokenResponse,
     TokenRevokeResponse,
     UserProfileRead,
@@ -16,10 +15,10 @@ from src.auth.schemas import (
 )
 from src.config import settings
 from src.database import get_db
+from src.models import MessageResponse
 from src.exceptions import (
     BadRequestError,
     ConflictError,
-    InternalServerError,
     NotFoundError,
     UnauthorizedError,
 )
@@ -66,9 +65,6 @@ def login(
     if not user:
         raise UnauthorizedError("Invalid email or password")
 
-    if not settings.secret_key:
-        raise InternalServerError("SECRET_KEY is not configured")
-
     token = auth_service.generate_jwt_token(
         user,
         settings.secret_key,
@@ -90,9 +86,6 @@ def google_login(
     payload: GoogleLoginRequest,
     db: Session = Depends(get_db),
 ) -> LoginResponse:
-    if not settings.google_client_id:
-        raise InternalServerError("Google OAuth not configured")
-
     try:
         idinfo = auth_service.verify_google_token(
             payload.credential,
@@ -108,9 +101,6 @@ def google_login(
         picture = idinfo.get("picture")
 
         user = auth_service.upsert_google_user(db, google_id, email, name, picture)
-
-        if not settings.secret_key:
-            raise InternalServerError("SECRET_KEY is not configured")
 
         token = auth_service.generate_jwt_token(
             user,
@@ -129,8 +119,6 @@ def google_login(
     description="Create long-term token.",
 )
 def create_long_term_token(
-    request: Request,
-    response: Response,
     db: Session = Depends(get_db),
     user_id: int = Depends(get_current_user_id),
 ) -> TokenResponse:
@@ -142,9 +130,6 @@ def create_long_term_token(
         raise BadRequestError(
             "A long-term token already exists. Please revoke the existing token before generating a new one."
         )
-
-    if not settings.secret_key:
-        raise InternalServerError("SECRET_KEY is not configured")
 
     long_term_token = auth_service.create_long_term_token(db, user, settings.secret_key)
     return TokenResponse(
@@ -160,8 +145,6 @@ def create_long_term_token(
     description="Revoke long-term token.",
 )
 def revoke_long_term_token(
-    request: Request,
-    response: Response,
     db: Session = Depends(get_db),
     user_id: int = Depends(get_current_user_id),
 ) -> TokenRevokeResponse:
@@ -184,8 +167,6 @@ def revoke_long_term_token(
     tags=["Users"],
 )
 def get_profile(
-    request: Request,
-    response: Response,
     db: Session = Depends(get_db),
     user_id: int = Depends(get_current_user_id),
 ) -> UserProfileRead:
@@ -205,8 +186,6 @@ def get_profile(
     tags=["Users"],
 )
 def update_profile(
-    request: Request,
-    response: Response,
     payload: UserProfileUpdate,
     db: Session = Depends(get_db),
     user_id: int = Depends(get_current_user_id),

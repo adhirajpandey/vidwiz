@@ -11,6 +11,7 @@ import { authApi } from '../api';
 import {
   getValidationFieldErrors,
   normalizeApiError,
+  toastApiError,
 } from '../api/errors';
 import Seo from '../components/Seo';
 
@@ -35,18 +36,12 @@ export default function LoginPage() {
       });
       navigate('/dashboard');
     } catch (error) {
-      const normalized = normalizeApiError(error, 'Invalid credentials');
-      const nextFieldErrors = getValidationFieldErrors(normalized);
+      const nextFieldErrors = getValidationFieldErrors(normalizeApiError(error, 'Invalid credentials'));
       if (Object.keys(nextFieldErrors).length > 0) {
         setFieldErrors(nextFieldErrors);
         return;
       }
-      addToast({
-        title: 'Access Denied',
-        message: normalized.message,
-        type: 'error',
-        referenceId: normalized.requestId,
-      });
+      toastApiError(addToast, error, 'Access Denied', 'Invalid credentials');
     } finally {
       setIsLoading(false);
     }
@@ -64,13 +59,7 @@ export default function LoginPage() {
       });
       navigate('/dashboard');
     } catch (error) {
-      const normalized = normalizeApiError(error, 'Google sign-in failed');
-      addToast({
-        title: 'Sign-in Failed',
-        message: normalized.message,
-        type: 'error',
-        referenceId: normalized.requestId,
-      });
+      toastApiError(addToast, error, 'Sign-in Failed', 'Google sign-in failed');
     } finally {
       setIsLoading(false);
     }

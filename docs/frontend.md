@@ -120,11 +120,11 @@ Summarize the web app structure, routing, and API integration.
 ## UI Screenshot Workflow
 `scripts/screenshot_pages.py` uses Playwright to capture named routes as overlapping desktop and mobile viewport images. The workflow forces dark mode, uses anonymous contexts for public pages, and logs into the local API for protected pages. It does not start the frontend or backend.
 
-Install the development dependencies and Playwright Chromium once:
+The script declares its own dependencies inline. Install the matching Playwright
+Chromium once, and again whenever the pinned Playwright version changes:
 
 ```powershell
-uv -C backend sync --locked
-uv -C backend run --locked playwright install chromium
+uvx --from "playwright==1.61.0" playwright install chromium
 ```
 
 Copy `scripts/.env.example` to `scripts/.env`, then provide an existing local account and a video ID whose metadata and transcript are ready. Process environment variables take precedence over values in that file. Credentials are used only for `POST /v2/auth/login` and are not printed.
@@ -132,9 +132,9 @@ Copy `scripts/.env.example` to `scripts/.env`, then provide an existing local ac
 Common commands from the repository root:
 
 ```powershell
-uv -C backend run --locked python ../scripts/screenshot_pages.py --list
-uv -C backend run --locked python ../scripts/screenshot_pages.py --pages landing dashboard --sizes mobile desktop
-uv -C backend run --locked python ../scripts/screenshot_pages.py --all --sizes mobile desktop --browser-mode headless
+uv run scripts/screenshot_pages.py --list
+uv run scripts/screenshot_pages.py --pages landing dashboard --sizes mobile desktop
+uv run scripts/screenshot_pages.py --all --sizes mobile desktop --browser-mode headless
 ```
 
 Generated PNGs default to `scripts/outputs/ui-images/` and are ignored by Git. Before each page capture, older numbered images for the same page and size are removed. Opening the Wiz workspace follows the real application behavior and creates an empty local conversation, but the script never sends a chat message.

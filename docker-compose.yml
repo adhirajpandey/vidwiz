@@ -23,7 +23,7 @@ services:
       - .env
     environment:
       VIDWIZ_INTERNAL_API_BASE_URL: http://application:5000
-    command: ["python", "workers/scripts/metadata-helper.py"]
+    command: ["python", "workers/scripts/task-helper.py", "metadata"]
     restart: unless-stopped
     depends_on:
       application:
@@ -36,7 +36,7 @@ services:
       - .env
     environment:
       VIDWIZ_INTERNAL_API_BASE_URL: http://application:5000
-    command: ["python", "workers/scripts/transcript-helper.py"]
+    command: ["python", "workers/scripts/task-helper.py", "transcript"]
     restart: unless-stopped
     depends_on:
       application:
@@ -51,7 +51,6 @@ services:
     env_file:
       - .env
     volumes:
-      - ./init:/docker-entrypoint-initdb.d
       - pgdata:/var/lib/postgresql/data
 
 volumes:

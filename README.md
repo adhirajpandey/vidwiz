@@ -59,7 +59,7 @@ PostgreSQL ←→ Workers + AWS Services
 ```
 
 Quick start
-Prereqs: Python 3.10–3.13, uv 0.8.22, Node.js, running PostgreSQL
+Prereqs: Python 3.13, uv 0.8.22, Node.js, running PostgreSQL
 
 ### Backend
 1. `cd backend`
@@ -101,7 +101,8 @@ The extension note UI appears on supported YouTube watch pages after sync.
 - AWS infrastructure: `cd infra && uv sync --locked && npm ci --ignore-scripts && uv run --locked python scripts/validate.py`
 
 GitHub Actions runs these three checks in parallel for every pull request to
-`main` and every push to `main`.
+`main` and every push to `main`. On `main`, the backend container image is
+published only after the backend checks pass.
 
 Production AWS serverless resources are defined in `infra/` as
 `vidwiz-stack`. See `docs/aws-infrastructure.md` before any bootstrap,
@@ -112,8 +113,7 @@ deployment, transcript migration, or cutover operation.
 vidwiz/
 ├── backend/              # FastAPI backend
 │   ├── src/              # App modules (routers, services, schemas, models)
-│   ├── workers/          # Background helpers and Lambdas
-│   └── wsgi.py           # ASGI entrypoint
+│   └── workers/          # Background helpers and Lambdas
 ├── frontend/            # React + Vite web app
 │   └── src/
 │       ├── pages/       # Route-level views

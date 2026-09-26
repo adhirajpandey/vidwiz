@@ -9,7 +9,7 @@ from sqlalchemy import func, select
 from sqlalchemy.orm import Session
 
 from src.auth.schemas import ViewerContext
-from src.conversations.config import conversations_settings
+from src.config import settings
 from src.conversations.models import Conversation, Message
 from src.conversations.parts import (
     BlockPart,
@@ -30,7 +30,6 @@ from src.conversations.parts import (
 )
 from src.conversations.prompts import build_v2_prompt
 from src.exceptions import InternalServerError, RateLimitError, NotFoundError
-from src.internal.scheduling import schedule_video_tasks
 from src.videos.models import Video
 from src.videos import service as videos_service
 
@@ -38,25 +37,6 @@ DB_ROLE_USER = "user"
 DB_ROLE_ASSISTANT = "assistant"
 
 logger = logging.getLogger(__name__)
-
-
-def get_or_create_video(db: Session, video_id: str) -> tuple[Video, bool]:
-    logger.debug("Get or create video", extra={"video_id": video_id})
-    video = videos_service.get_video_by_id(db, video_id)
-    if video:
-        logger.debug("Video exists", extra={"video_id": video_id})
-        schedule_video_tasks(db, video)
-        return video, False
-
-    video = Video(video_id=video_id)
-    db.add(video)
-    db.commit()
-    db.refresh(video)
-
-    schedule_video_tasks(db, video)
-    logger.debug("Created video", extra={"video_id": video_id})
-
-    return video, True
 
 
 def create_conversation(
@@ -176,11 +156,11 @@ def check_daily_quota(
 
     if user_id:
         query = query.where(Conversation.user_id == user_id)
-        limit = conversations_settings.wiz_user_daily_quota
+        limit = settings.wiz_user_daily_quota
         limit_msg_suffix = "messages/day"
     elif guest_session_id:
         query = query.where(Conversation.guest_session_id == guest_session_id)
-        limit = conversations_settings.wiz_guest_daily_quota
+        limit = settings.wiz_guest_daily_quota
         limit_msg_suffix = "guest messages/day"
     else:
         return
@@ -199,25 +179,19 @@ def check_daily_quota(
 
 def get_transcript_from_s3(video_id: str) -> list | None:
     logger.debug("Fetching transcript from S3", extra={"video_id": video_id})
-    if not conversations_settings.s3_transcript_bucket_name:
-        return None
-    if not (
-        conversations_settings.aws_access_key_id
-        and conversations_settings.aws_secret_access_key
-        and conversations_settings.aws_region
-    ):
+    if not settings.s3_transcript_bucket_name:
         return None
 
     transcript_key = f"transcripts/{video_id}.json"
     try:
         s3_client = boto3.client(
             "s3",
-            aws_access_key_id=conversations_settings.aws_access_key_id,
-            aws_secret_access_key=conversations_settings.aws_secret_access_key,
-            region_name=conversations_settings.aws_region,
+            aws_access_key_id=settings.aws_access_key_id,
+            aws_secret_access_key=settings.aws_secret_access_key,
+            region_name=settings.aws_region,
         )
         response = s3_client.get_object(
-            Bucket=conversations_settings.s3_transcript_bucket_name,
+            Bucket=settings.s3_transcript_bucket_name,
             Key=transcript_key,
         )
         transcript_data = json.loads(response["Body"].read().decode("utf-8"))
@@ -247,30 +221,11 @@ def get_valid_transcript_or_raise(
     return video, transcript
 
 
-def _format_mm_ss(seconds: float) -> str:
-    minutes = int(seconds // 60)
-    secs = int(seconds % 60)
-    return f"{minutes}:{secs:02d}"
-
-
-def build_transcript_text(transcript: list, *, include_timestamps: bool = True) -> str:
-    lines = []
-    for segment in transcript:
-        if "text" not in segment:
-            continue
-        text = segment["text"]
-        if include_timestamps and "offset" in segment:
-            lines.append(f"{_format_mm_ss(float(segment['offset']))} {text}")
-        else:
-            lines.append(text)
-    return "\n".join(lines) if include_timestamps else " ".join(lines)
-
-
 def build_system_instruction(
     video_title: str | None, transcript: list, parts_version: int = 1
 ) -> str:
     context, _ = transcript_context(transcript)
-    template = conversations_settings.wiz_system_prompt_template
+    template = settings.wiz_system_prompt_template
     if parts_version == 2:
         template = build_v2_prompt(template)
     return template.format(
@@ -305,7 +260,7 @@ def log_wiz_structure(
     logger.info(
         "Wiz structure: model=%s blocks_in=%d blocks_out=%d blocks_split=%d "
         "referenced=%d kept=%d %s",
-        conversations_settings.wiz_model,
+        settings.wiz_model,
         blocks_in,
         len(blocks),
         blocks_split,
@@ -347,13 +302,11 @@ def stream_wiz_response(
                 content = json.dumps({"parts": model_parts})
             messages.append({"role": msg["role"], "content": content})
 
-        client = OpenAI(
-            api_key=api_key, base_url=conversations_settings.openrouter_base_url
-        )
+        client = OpenAI(api_key=api_key, base_url=settings.openrouter_base_url)
         response_stream = client.chat.completions.create(
-            model=conversations_settings.wiz_model,
+            model=settings.wiz_model,
             messages=messages,
-            max_tokens=conversations_settings.wiz_max_tokens,
+            max_tokens=settings.wiz_max_tokens,
             stream=True,
             response_format={
                 "type": "json_schema",
@@ -457,9 +410,9 @@ def stream_wiz_response(
 
 def ensure_openrouter_api_key() -> str:
     logger.debug("Ensuring OpenRouter API key configured")
-    if not conversations_settings.openrouter_api_key:
+    if not settings.openrouter_api_key:
         raise InternalServerError("OpenRouter API key not configured")
-    return conversations_settings.openrouter_api_key
+    return settings.openrouter_api_key
 
 
 def prepare_chat(

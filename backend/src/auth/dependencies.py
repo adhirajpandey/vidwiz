@@ -1,4 +1,4 @@
-from fastapi import Depends, Request, Security
+from fastapi import Depends, Security
 from fastapi.security import APIKeyHeader, HTTPAuthorizationCredentials, HTTPBearer
 import jwt
 from sqlalchemy.orm import Session
@@ -7,7 +7,7 @@ from src.auth import service as auth_service
 from src.auth.schemas import ViewerContext
 from src.database import get_db
 from src.config import settings
-from src.exceptions import UnauthorizedError, InternalServerError
+from src.exceptions import UnauthorizedError
 
 
 bearer_auth = HTTPBearer(
@@ -26,43 +26,18 @@ guest_session_auth = APIKeyHeader(
 )
 
 
-def _require_secret_key() -> str:
-    if not settings.secret_key:
-        raise InternalServerError("SECRET_KEY is not configured")
-    return settings.secret_key
-
-
-def _get_cached_payload(
-    request: Request | None,
-    token: str,
-) -> dict | None:
-    if request is None:
-        return None
-    state = getattr(request, "state", None)
-    if state is None:
-        return None
-    cached_token = getattr(state, "auth_token", None)
-    if cached_token != token:
-        return None
-    return getattr(state, "auth_payload", None)
+def _decode(token: str) -> dict:
+    return jwt.decode(token, settings.secret_key, algorithms=["HS256"])
 
 
 def get_current_user_id(
     authorization: HTTPAuthorizationCredentials | None = Security(bearer_auth),
-    request: Request = None,
 ) -> int:
     if not authorization:
         raise UnauthorizedError("Missing or invalid Authorization header")
 
-    token = authorization.credentials
-    secret_key = _require_secret_key()
-
     try:
-        payload = _get_cached_payload(request, token) or jwt.decode(
-            token,
-            secret_key,
-            algorithms=["HS256"],
-        )
+        payload = _decode(authorization.credentials)
     except Exception:
         raise UnauthorizedError("Invalid or expired token")
 
@@ -78,50 +53,32 @@ def get_current_user_id(
 
 def get_viewer_context(
     authorization: HTTPAuthorizationCredentials | None = Security(bearer_auth),
-    request: Request = None,
     guest_session_id: str | None = Security(guest_session_auth),
 ) -> ViewerContext:
-    context = ViewerContext()
-
     if authorization:
-        token = authorization.credentials
-        secret_key = _require_secret_key()
         try:
-            payload = _get_cached_payload(request, token) or jwt.decode(
-                token,
-                secret_key,
-                algorithms=["HS256"],
-            )
+            payload = _decode(authorization.credentials)
             if payload.get("type") != "long_term":
-                context.user_id = int(payload.get("user_id"))
-                return context
+                return ViewerContext(user_id=int(payload.get("user_id")))
         except Exception:
             pass
 
     if guest_session_id:
-        context.guest_session_id = guest_session_id
-        return context
+        return ViewerContext(guest_session_id=guest_session_id)
 
     raise UnauthorizedError("Missing Auth or Guest ID")
 
 
 def get_current_user_id_or_long_term(
     authorization: HTTPAuthorizationCredentials | None = Security(bearer_auth),
-    request: Request = None,
     db: Session = Depends(get_db),
 ) -> int:
     if not authorization:
         raise UnauthorizedError("Missing or invalid Authorization header")
 
     token = authorization.credentials
-    secret_key = _require_secret_key()
-
     try:
-        payload = _get_cached_payload(request, token) or jwt.decode(
-            token,
-            secret_key,
-            algorithms=["HS256"],
-        )
+        payload = _decode(token)
         user_id = payload.get("user_id")
         if not user_id:
             raise UnauthorizedError("Invalid token payload")

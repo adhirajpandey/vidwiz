@@ -2,7 +2,7 @@ import { useCallback, useEffect, useRef, useState } from 'react';
 import { useParams, useNavigate, useLocation } from 'react-router-dom';
 import { Sparkles, ChevronDown, ChevronUp } from 'lucide-react';
 import { authApi, videosApi, notesApi } from '../api';
-import { normalizeApiError } from '../api/errors';
+import { normalizeApiError, toastApiError } from '../api/errors';
 import type { NormalizedApiError } from '../api/errors';
 import type { VideoRead, NoteRead } from '../api/types';
 import NoteCard from '../components/NoteCard';
@@ -12,6 +12,7 @@ import { getToken } from '../lib/authUtils';
 import config from '../config';
 import Seo from '../components/Seo';
 import ErrorState from '../components/ui/ErrorState';
+import { timestampToSeconds } from '../lib/videoUtils';
 
 // Video and Note interfaces removed in favor of VideoRead and NoteRead
 
@@ -109,19 +110,8 @@ export default function VideoPage() {
       const user = await authApi.getMe();
       setUserAiNotesEnabled(Boolean(user.ai_notes_enabled));
     } catch (error) {
-      const normalized = normalizeApiError(
-        error,
-        'Some note preferences could not be loaded.'
-      );
-      console.error('Failed to fetch user preferences', error);
-      if (normalized.handled) return;
-      setUserAiNotesEnabled(false);
-      addToast({
-        title: 'Preferences unavailable',
-        message: normalized.message,
-        type: 'error',
-        referenceId: normalized.requestId,
-      });
+      const normalized = toastApiError(addToast, error, 'Preferences unavailable', 'Some note preferences could not be loaded.');
+      if (!normalized.handled) setUserAiNotesEnabled(false);
     }
   }, [addToast]);
 
@@ -155,15 +145,7 @@ export default function VideoPage() {
       setNotes(prevNotes => prevNotes.map(n => (n.id === noteId ? updatedNote : n)));
       addToast({ title: 'Success', message: 'Note updated successfully', type: 'success' });
     } catch (error) {
-      const normalized = normalizeApiError(error, 'Failed to update note');
-      console.error('Error updating note:', error);
-      if (normalized.handled) return;
-      addToast({
-        title: 'Unable to update note',
-        message: normalized.message,
-        type: 'error',
-        referenceId: normalized.requestId,
-      });
+      toastApiError(addToast, error, 'Unable to update note', 'Failed to update note');
     }
   };
 
@@ -175,15 +157,7 @@ export default function VideoPage() {
       setNotes(prevNotes => prevNotes.filter(n => n.id !== noteToDelete));
       addToast({ title: 'Success', message: 'Note deleted successfully', type: 'success' });
     } catch (error) {
-      const normalized = normalizeApiError(error, 'Failed to delete note');
-      console.error('Error deleting note:', error);
-      if (normalized.handled) return;
-      addToast({
-        title: 'Unable to delete note',
-        message: normalized.message,
-        type: 'error',
-        referenceId: normalized.requestId,
-      });
+      toastApiError(addToast, error, 'Unable to delete note', 'Failed to delete note');
     }
     setShowDeleteModal(false);
     setNoteToDelete(null);
@@ -193,12 +167,6 @@ export default function VideoPage() {
     setNoteToDelete(noteId);
     setShowDeleteModal(true);
   };
-
-  function timestampToSeconds(timestamp: string | number) {
-    if (typeof timestamp === 'number') return timestamp;
-    const parts = timestamp.split(':').map(Number);
-    return parts.reduce((seconds, value, index) => seconds + value * Math.pow(60, parts.length - 1 - index), 0);
-  }
 
   return (
     <>

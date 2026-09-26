@@ -4,6 +4,7 @@ import { authApi, paymentsApi } from '../api';
 import {
   getValidationFieldErrors,
   normalizeApiError,
+  toastApiError,
 } from '../api/errors';
 import type { NormalizedApiError } from '../api/errors';
 import { useToast } from '../hooks/useToast';
@@ -131,17 +132,10 @@ export default function ProfilePage() {
     } catch (error) {
       const normalized = normalizeApiError(error, 'Failed to update profile');
       const fieldErrors = getValidationFieldErrors(normalized);
-      console.error('Failed to save details', error);
-      if (normalized.handled) return false;
-      if (fieldErrors.name) {
+      if (fieldErrors.name && !normalized.handled) {
         setNameError(fieldErrors.name);
       } else {
-        addToast({
-          title: 'Unable to update profile',
-          message: normalized.message,
-          type: 'error',
-          referenceId: normalized.requestId,
-        });
+        toastApiError(addToast, error, 'Unable to update profile', 'Failed to update profile');
       }
       return false;
     } finally {
@@ -156,18 +150,7 @@ export default function ProfilePage() {
       setUser(prev => prev ? { ...prev, ai_notes_enabled: data.ai_notes_enabled } : null);
       addToast({ title: 'Success', message: 'Profile updated successfully', type: 'success' });
     } catch (error) {
-      const normalized = normalizeApiError(
-        error,
-        'Failed to update AI notes setting'
-      );
-      console.error('Failed to update profile', error);
-      if (normalized.handled) return;
-      addToast({
-        title: 'Unable to update preference',
-        message: normalized.message,
-        type: 'error',
-        referenceId: normalized.requestId,
-      });
+      toastApiError(addToast, error, 'Unable to update preference', 'Failed to update AI notes setting');
     }
   };
 
@@ -179,15 +162,7 @@ export default function ProfilePage() {
       setUser(prev => prev ? { ...prev, token_exists: true } : null);
       addToast({ title: 'Success', message: data.message || 'API token generated successfully', type: 'success' });
     } catch (error) {
-      const normalized = normalizeApiError(error, 'Failed to generate token');
-      console.error('Error generating token:', error);
-      if (normalized.handled) return;
-      addToast({
-        title: 'Unable to generate token',
-        message: normalized.message,
-        type: 'error',
-        referenceId: normalized.requestId,
-      });
+      toastApiError(addToast, error, 'Unable to generate token', 'Failed to generate token');
     } finally {
       setIsGeneratingToken(false);
     }
@@ -201,15 +176,7 @@ export default function ProfilePage() {
       setUser(prev => prev ? { ...prev, token_exists: false } : null);
       addToast({ title: 'Success', message: data.message || 'API token revoked successfully', type: 'success' });
     } catch (error) {
-      const normalized = normalizeApiError(error, 'Failed to revoke token');
-      console.error('Error revoking token:', error);
-      if (normalized.handled) return;
-      addToast({
-        title: 'Unable to revoke token',
-        message: normalized.message,
-        type: 'error',
-        referenceId: normalized.requestId,
-      });
+      toastApiError(addToast, error, 'Unable to revoke token', 'Failed to revoke token');
     } finally {
       setIsRevokingToken(false);
       setShowRevokeModal(false);
@@ -265,15 +232,7 @@ export default function ProfilePage() {
       });
       window.location.href = data.checkout_url;
     } catch (error) {
-      const normalized = normalizeApiError(error, 'Unable to start checkout');
-      console.error('Failed to start checkout', error);
-      if (normalized.handled) return;
-      addToast({
-        title: 'Unable to start checkout',
-        message: normalized.message,
-        type: 'error',
-        referenceId: normalized.requestId,
-      });
+      toastApiError(addToast, error, 'Unable to start checkout', 'Unable to start checkout');
     } finally {
       setIsBuyingCredits(false);
     }

@@ -1,4 +1,4 @@
-from fastapi import APIRouter, Depends, Request, Response, Query, status
+from fastapi import APIRouter, Depends, Query, status
 from sqlalchemy.orm import Session
 
 from src.auth.dependencies import (
@@ -6,11 +6,12 @@ from src.auth.dependencies import (
     get_current_user_id_or_long_term,
 )
 from src.database import get_db
+from src.models import MessageResponse
 from src.exceptions import BadRequestError
+from src.internal.scheduling import prepare_video
 from src.notes import service as notes_service
 from src.notes.dependencies import get_note_or_404
 from src.notes.schemas import (
-    MessageResponse,
     NoteCreate,
     NoteCreateByTitle,
     NoteRead,
@@ -44,8 +45,6 @@ def search_notes(
     description="List notes for a video.",
 )
 def list_notes(
-    request: Request,
-    response: Response,
     path: VideoIdPath = Depends(),
     db: Session = Depends(get_db),
     user_id: int = Depends(get_current_user_id),
@@ -61,14 +60,12 @@ def list_notes(
     description="Create a note; implicitly creates the video if missing.",
 )
 def create_note(
-    request: Request,
-    response: Response,
     payload: NoteCreate,
     path: VideoIdPath = Depends(),
     db: Session = Depends(get_db),
     user_id: int = Depends(get_current_user_id_or_long_term),
 ) -> NoteRead:
-    notes_service.get_or_create_video(db, path.video_id, payload.video_title)
+    prepare_video(db, path.video_id, payload.video_title)
     note = notes_service.create_note_for_user(
         db,
         path.video_id,
@@ -86,8 +83,6 @@ def create_note(
     description="Create a note by resolving the provided video title on YouTube.",
 )
 def create_note_by_title(
-    request: Request,
-    response: Response,
     payload: NoteCreateByTitle,
     db: Session = Depends(get_db),
     user_id: int = Depends(get_current_user_id_or_long_term),
@@ -109,8 +104,6 @@ def create_note_by_title(
     description="Update note text/flags.",
 )
 def update_note(
-    request: Request,
-    response: Response,
     payload: NoteUpdate,
     db: Session = Depends(get_db),
     note=Depends(get_note_or_404),
@@ -134,8 +127,6 @@ def update_note(
     description="Delete a note.",
 )
 def delete_note(
-    request: Request,
-    response: Response,
     db: Session = Depends(get_db),
     note=Depends(get_note_or_404),
 ) -> MessageResponse:

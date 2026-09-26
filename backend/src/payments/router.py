@@ -1,6 +1,6 @@
 import json
 
-from fastapi import APIRouter, Depends, Header, Request, Response, status
+from fastapi import APIRouter, Depends, Header, Request, status
 from sqlalchemy.orm import Session
 
 from src.auth.dependencies import get_current_user_id
@@ -24,10 +24,7 @@ router = APIRouter(prefix="/v2/payments", tags=["Payments"])
     status_code=status.HTTP_200_OK,
     description="List available credit products.",
 )
-def list_products(
-    request: Request,
-    response: Response,
-) -> CreditProductListResponse:
+def list_products() -> CreditProductListResponse:
     products = payments_service.list_credit_products()
     return CreditProductListResponse(products=products)
 
@@ -39,8 +36,6 @@ def list_products(
     description="Create a Dodo Payments checkout session for credits.",
 )
 async def create_checkout(
-    request: Request,
-    response: Response,
     payload: CheckoutSessionRequest,
     db: Session = Depends(get_db),
     user_id: int = Depends(get_current_user_id),
@@ -59,7 +54,6 @@ async def create_checkout(
 )
 async def dodo_webhook(
     request: Request,
-    response: Response,
     db: Session = Depends(get_db),
     signature: str | None = Header(default=None, alias="webhook-signature"),
     webhook_id: str | None = Header(default=None, alias="webhook-id"),

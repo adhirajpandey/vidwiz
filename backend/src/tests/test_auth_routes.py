@@ -104,17 +104,6 @@ async def test_login_rejects_invalid_credentials(client):
 
 
 @pytest.mark.asyncio
-async def test_login_requires_secret_key(client, monkeypatch):
-    await register_user(client, "secret@example.com")
-    monkeypatch.setattr(settings, "secret_key", None, raising=False)
-    response = await login_user(client, "secret@example.com")
-    assert response.status_code == 500
-    payload = response.json()
-    assert payload["error"]["code"] == "INTERNAL_ERROR"
-    assert payload["error"]["message"] == "SECRET_KEY is not configured"
-
-
-@pytest.mark.asyncio
 async def test_login_rejects_missing_password(client):
     response = await client.post(
         "/v2/auth/login",
@@ -147,42 +136,6 @@ async def test_google_login_success(client, monkeypatch):
     payload = decode_token(token)
     assert payload["email"] == "google@example.com"
     assert payload["name"] == "Google User"
-
-
-@pytest.mark.asyncio
-async def test_google_login_requires_config(client, monkeypatch):
-    monkeypatch.setattr(settings, "google_client_id", None, raising=False)
-    response = await client.post(
-        "/v2/auth/google",
-        json={"credential": "valid-token"},
-    )
-    assert response.status_code == 500
-    payload = response.json()
-    assert payload["error"]["code"] == "INTERNAL_ERROR"
-    assert payload["error"]["message"] == "Google OAuth not configured"
-
-
-@pytest.mark.asyncio
-async def test_google_login_requires_secret_key(client, monkeypatch):
-    from src.auth import service as auth_service
-
-    def mock_verify_google_token(_credential: str, _client_id: str):
-        return {
-            "sub": "google-789",
-            "email": "google-secret@example.com",
-            "name": "Google Secret",
-        }
-
-    monkeypatch.setattr(auth_service, "verify_google_token", mock_verify_google_token)
-    monkeypatch.setattr(settings, "secret_key", None, raising=False)
-    response = await client.post(
-        "/v2/auth/google",
-        json={"credential": "valid-token"},
-    )
-    assert response.status_code == 500
-    payload = response.json()
-    assert payload["error"]["code"] == "INTERNAL_ERROR"
-    assert payload["error"]["message"] == "SECRET_KEY is not configured"
 
 
 @pytest.mark.asyncio

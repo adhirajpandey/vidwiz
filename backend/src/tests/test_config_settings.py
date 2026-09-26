@@ -37,3 +37,21 @@ def test_settings_requires_env_vars(monkeypatch, missing_key):
 
     with pytest.raises(ValidationError):
         Settings(_env_file=None)
+
+
+@pytest.mark.parametrize(
+    "key",
+    [
+        "ENVIRONMENT",
+        "SECRET_KEY",
+        "VIDWIZ_INTERNAL_API_ADMIN_TOKEN",
+        "GOOGLE_CLIENT_ID",
+    ],
+)
+def test_settings_rejects_empty_secrets(monkeypatch, key):
+    _set_required_env(monkeypatch)
+    monkeypatch.setenv(key, "")
+    from src.config import Settings
+
+    with pytest.raises(ValidationError):
+        Settings(_env_file=None)

@@ -260,3 +260,30 @@ export function getValidationFieldErrors(
   }
   return fieldErrors;
 }
+
+type ErrorToast = (toast: {
+  title: string;
+  message: string;
+  type: 'error';
+  referenceId?: string;
+}) => void;
+
+/** Normalizes an API error and shows it as a toast unless it was already handled. */
+export function toastApiError(
+  addToast: ErrorToast,
+  cause: unknown,
+  title: string,
+  fallbackMessage: string
+): NormalizedApiError {
+  const normalized = normalizeApiError(cause, fallbackMessage);
+  console.error(fallbackMessage, cause);
+  if (!normalized.handled) {
+    addToast({
+      title,
+      message: normalized.message,
+      type: 'error',
+      referenceId: normalized.requestId,
+    });
+  }
+  return normalized;
+}

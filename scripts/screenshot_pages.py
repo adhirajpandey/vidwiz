@@ -1,9 +1,13 @@
+# /// script
+# requires-python = ">=3.13"
+# dependencies = ["playwright==1.61.0", "python-dotenv>=1.1.1,<2.0.0"]
+# ///
 """Capture deterministic VidWiz UI screenshots with Playwright.
 
 Examples (run from the repository root):
-  uv -C backend run --locked python ../scripts/screenshot_pages.py --list
-  uv -C backend run --locked python ../scripts/screenshot_pages.py --pages landing dashboard --sizes mobile desktop
-  uv -C backend run --locked python ../scripts/screenshot_pages.py --all --sizes mobile desktop --browser-mode headless
+  uv run scripts/screenshot_pages.py --list
+  uv run scripts/screenshot_pages.py --pages landing dashboard --sizes mobile desktop
+  uv run scripts/screenshot_pages.py --all --sizes mobile desktop --browser-mode headless
 """
 
 from __future__ import annotations

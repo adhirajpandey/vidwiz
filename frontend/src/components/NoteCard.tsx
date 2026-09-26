@@ -2,11 +2,12 @@ import { useEffect, useState } from 'react';
 import { FaEdit, FaTrashAlt, FaExternalLinkAlt, FaSave, FaTimes, FaPlay } from 'react-icons/fa';
 import { HiSparkles } from 'react-icons/hi';
 import { BiUser } from 'react-icons/bi';
+import { timestampToSeconds } from '../lib/videoUtils';
 
 interface Note {
   id: number;
   text: string | null;
-  timestamp: string | number;
+  timestamp: string;
   video_id: string;
   generated_by_ai: boolean;
 }
@@ -16,12 +17,6 @@ interface NoteCardProps {
   userAiNotesEnabled: boolean;
   onUpdate: (noteId: number, newText: string) => void;
   onDelete: (noteId: number) => void;
-}
-
-function timestampToSeconds(timestamp: string | number) {
-  if (typeof timestamp === 'number') return timestamp;
-  const parts = timestamp.split(':').map(Number);
-  return parts.reduce((seconds, value, index) => seconds + value * Math.pow(60, parts.length - 1 - index), 0);
 }
 
 function formatTimestamp(seconds: number): string {

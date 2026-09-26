@@ -1,7 +1,6 @@
 import apiClient from './client';
 import type {
   MessageResponse,
-  NoteCreate,
   NoteRead,
   NoteSearchResponse,
   NoteUpdate,
@@ -11,14 +10,6 @@ export const notesApi = {
   search: async (q: string, page: number) => (await apiClient.get<NoteSearchResponse>('/notes/search', { params: { q, page, per_page: 10 } })).data,
   listNotes: async (videoId: string) => {
     const response = await apiClient.get<NoteRead[]>(`/videos/${videoId}/notes`);
-    return response.data;
-  },
-
-  createNote: async (videoId: string, payload: NoteCreate) => {
-    const response = await apiClient.post<NoteRead>(
-      `/videos/${videoId}/notes`,
-      payload
-    );
     return response.data;
   },
 

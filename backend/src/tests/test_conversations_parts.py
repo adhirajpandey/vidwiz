@@ -4,6 +4,7 @@ from types import SimpleNamespace
 import pytest
 from pydantic import ValidationError
 
+from src.config import settings
 from src.conversations import service
 from src.conversations.models import Conversation
 from src.conversations.parts import (
@@ -501,9 +502,7 @@ Formatting:
 Transcript:
 {transcript}
 """
-    monkeypatch.setattr(
-        service.conversations_settings, "wiz_system_prompt_template", template
-    )
+    monkeypatch.setattr(settings, "wiz_system_prompt_template", template)
     transcript = [{"text": "Source", "offset": 0, "duration": 3}]
     v1 = service.build_system_instruction("Video", transcript, 1)
     v2 = service.build_system_instruction("Video", transcript, 2)
@@ -516,7 +515,7 @@ Transcript:
 
 def test_v2_prompt_appends_structure_when_template_has_none(monkeypatch):
     monkeypatch.setattr(
-        service.conversations_settings,
+        settings,
         "wiz_system_prompt_template",
         "Only {title}. Transcript: {transcript}",
     )
@@ -724,7 +723,7 @@ def test_v2_stream_splits_a_multi_element_block(db_session, monkeypatch, caplog)
         "Wiz structure: model=%s blocks_in=1 blocks_out=3 blocks_split=1 "
         "referenced=2 kept=1 dropped_ambiguous_list=0 "
         "dropped_index_out_of_range=1 dropped_no_content_part=0 "
-        "dropped_link_definitions=0" % service.conversations_settings.wiz_model
+        "dropped_link_definitions=0" % settings.wiz_model
     ]
 
 
@@ -733,9 +732,7 @@ def test_v2_prompt_includes_worked_example_and_survives_formatting(monkeypatch):
         "Persona: {title}.\n\nResponse structure:\n- legacy\n\nTranscript:\n{transcript}",
         "Only {title}. Transcript: {transcript}",
     ]:
-        monkeypatch.setattr(
-            service.conversations_settings, "wiz_system_prompt_template", template
-        )
+        monkeypatch.setattr(settings, "wiz_system_prompt_template", template)
         prompt = service.build_system_instruction("Video", [], 2)
         assert '{"parts": [' in prompt
         assert '"list_item_index": 0' in prompt and '"list_item_index": 1' in prompt

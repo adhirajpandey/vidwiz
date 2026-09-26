@@ -15,6 +15,7 @@ from src.conversations.schemas import (
     MessageRead,
 )
 from src.credits import service as credits_service
+from src.internal.scheduling import prepare_video
 from src.database import get_db
 from src.shared.ratelimit import limiter
 
@@ -29,15 +30,13 @@ router = APIRouter(prefix="/v2/conversations", tags=["Conversations"])
     description="Start a conversation for a video; implicitly creates the video.",
 )
 def create_conversation(
-    request: Request,
-    response: Response,
     payload: ConversationCreate,
     db: Session = Depends(get_db),
     viewer: ViewerContext = Depends(get_viewer_context),
 ) -> ConversationRead:
     if viewer.user_id:
         credits_service.charge_wiz_chat_for_video(db, viewer.user_id, payload.video_id)
-    _video, _ = conversations_service.get_or_create_video(db, payload.video_id)
+    prepare_video(db, payload.video_id)
     conversation = conversations_service.create_conversation(
         db,
         payload.video_id,
@@ -54,8 +53,6 @@ def create_conversation(
     description="Fetch conversation metadata.",
 )
 def get_conversation(
-    request: Request,
-    response: Response,
     conversation=Depends(get_conversation_or_404),
 ) -> ConversationRead:
     return ConversationRead.model_validate(conversation)
@@ -68,8 +65,6 @@ def get_conversation(
     description="List messages for a conversation.",
 )
 def list_messages(
-    request: Request,
-    response: Response,
     conversation=Depends(get_conversation_or_404),
     db: Session = Depends(get_db),
 ) -> list[MessageRead]:

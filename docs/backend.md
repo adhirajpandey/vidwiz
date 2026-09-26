@@ -5,9 +5,8 @@ Describe the FastAPI backend: structure, auth rules, and the request/worker life
 
 ## Structure
 - **App factory**: `backend/src/main.py` configures the FastAPI app and routers.
-- **Settings**: `backend/src/config.py` (DB, JWT, OAuth, AWS, queues). Conversation settings live in `backend/src/conversations/config.py` (OpenRouter, quotas, S3).
+- **Settings**: `backend/src/config.py` (DB, JWT, OAuth, AWS, queues, S3, OpenRouter, Wiz quotas).
 - **Domains**: `auth`, `videos`, `notes`, `conversations`, `internal` follow `models/schemas/service/router/dependencies`.
-- **ASGI entrypoint**: `backend/wsgi.py`.
 
 ## Auth & Access
 - **JWT**: Required for most `/v2` endpoints.
@@ -15,7 +14,7 @@ Describe the FastAPI backend: structure, auth rules, and the request/worker life
 - **Guest sessions**: `X-Guest-Session-ID` enables Wiz chat without a JWT.
 - **Admin token**: Required for `/v2/internal/*` endpoints.
 - **Signup defaults**: New users created via `POST /v2/auth/register` and first-time `POST /v2/auth/google` start with `profile_data.ai_notes_enabled = true`.
-- **Secrets**: `SECRET_KEY` is required for JWT issuance and verification; missing it causes auth endpoints to return errors.
+- **Secrets**: `SECRET_KEY` is required for JWT issuance and verification; the server does not start when it is missing or empty.
 - **JWT expiry**: `JWT_EXPIRY_HOURS` controls JWT lifetime (default 168 hours, or 7 days).
 - **Token payloads**: JWTs include `user_id`, `email`, `name`, `profile_image_url`, `exp`. Long-term tokens include `user_id`, `email`, `type=long_term`, and `iat` (no expiry).
 
@@ -220,7 +219,8 @@ release; unsupported endpoints fail rather than falling back to plain text.
   - Optional: `LOG_LEVEL`, `LOG_SERVICE_NAME`
 
 ## Startup Requirements
-The server fails on startup if any of the following env vars are missing:
+The server fails on startup if any of the following env vars are missing. `ENVIRONMENT`,
+`SECRET_KEY`, `VIDWIZ_INTERNAL_API_ADMIN_TOKEN`, and `GOOGLE_CLIENT_ID` must also be non-empty:
 - `ENVIRONMENT`
 - `SECRET_KEY`
 - `VIDWIZ_INTERNAL_API_ADMIN_TOKEN`

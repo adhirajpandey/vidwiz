@@ -1,5 +1,6 @@
 import pytest
 
+from src.config import settings
 from src.internal import service as internal_service
 from src.internal import scheduling as internal_scheduling
 from src.internal import constants as internal_constants
@@ -24,14 +25,10 @@ def test_poll_for_task_claims_pending(db_session):
         internal_constants.FETCH_METADATA_TASK_TYPE,
         timeout=1,
         poll_interval=0,
-        max_retries=2,
-        in_progress_timeout=10,
-        worker_user_id=7,
     )
     assert claimed is not None
     assert claimed.status == TaskStatus.IN_PROGRESS
     assert claimed.retry_count == 1
-    assert claimed.worker_details["worker_user_id"] == 7
 
 
 def test_submit_task_result_validates_inputs(db_session):
@@ -40,7 +37,6 @@ def test_submit_task_result_validates_inputs(db_session):
         status=TaskStatus.IN_PROGRESS,
         task_details={"video_id": "abc123DEF45"},
         retry_count=0,
-        worker_details={"worker_user_id": 1},
     )
     db_session.add(task)
     db_session.commit()
@@ -54,7 +50,6 @@ def test_submit_task_result_validates_inputs(db_session):
             transcript=[{"text": "hi"}],
             metadata=None,
             error_message=None,
-            worker_user_id=1,
         )
 
     with pytest.raises(Exception):
@@ -66,19 +61,6 @@ def test_submit_task_result_validates_inputs(db_session):
             transcript=None,
             metadata={"title": "bad"},
             error_message=None,
-            worker_user_id=1,
-        )
-
-    with pytest.raises(Exception):
-        internal_service.submit_task_result(
-            db_session,
-            task.id,
-            "abc123DEF45",
-            True,
-            transcript=[{"text": "hi"}],
-            metadata=None,
-            error_message=None,
-            worker_user_id=999,
         )
 
 
@@ -87,8 +69,7 @@ def test_submit_transcript_result_failure_paths(db_session):
         task_type=internal_constants.FETCH_TRANSCRIPT_TASK_TYPE,
         status=TaskStatus.IN_PROGRESS,
         task_details={"video_id": "abc123DEF45"},
-        retry_count=internal_constants.FETCH_TRANSCRIPT_MAX_RETRIES,
-        worker_details={"worker_user_id": 1},
+        retry_count=internal_constants.TASK_MAX_RETRIES,
     )
     db_session.add(task)
     db_session.commit()
@@ -101,7 +82,6 @@ def test_submit_transcript_result_failure_paths(db_session):
         transcript=None,
         metadata=None,
         error_message="boom",
-        worker_user_id=1,
     )
     assert result.status == TaskStatus.FAILED
     assert result.worker_details["error_message"] == "boom"
@@ -114,7 +94,6 @@ def test_submit_metadata_result_success(db_session):
         status=TaskStatus.IN_PROGRESS,
         task_details={"video_id": "abc123DEF45"},
         retry_count=0,
-        worker_details={"worker_user_id": 1},
     )
     db_session.add_all([video, task])
     db_session.commit()
@@ -127,7 +106,6 @@ def test_submit_metadata_result_success(db_session):
         transcript=None,
         metadata={"title": "Video"},
         error_message=None,
-        worker_user_id=1,
     )
     assert result.status == TaskStatus.COMPLETED
     updated = db_session.get(Video, video.id)
@@ -136,7 +114,7 @@ def test_submit_metadata_result_success(db_session):
 
 def test_store_transcript_in_s3_no_config(monkeypatch):
     monkeypatch.setattr(
-        internal_service.conversations_settings,
+        settings,
         "s3_transcript_bucket_name",
         None,
         raising=False,
@@ -146,25 +124,25 @@ def test_store_transcript_in_s3_no_config(monkeypatch):
 
 def test_store_transcript_in_s3_success(monkeypatch):
     monkeypatch.setattr(
-        internal_service.conversations_settings,
+        settings,
         "s3_transcript_bucket_name",
         "bucket",
         raising=False,
     )
     monkeypatch.setattr(
-        internal_service.conversations_settings,
+        settings,
         "aws_access_key_id",
         "key",
         raising=False,
     )
     monkeypatch.setattr(
-        internal_service.conversations_settings,
+        settings,
         "aws_secret_access_key",
         "secret",
         raising=False,
     )
     monkeypatch.setattr(
-        internal_service.conversations_settings,
+        settings,
         "aws_region",
         "us-east-1",
         raising=False,
@@ -221,21 +199,49 @@ def test_store_summary_merges_miscellaneous_data(db_session):
     }
 
 
-def test_fetch_ai_note_task_notes_sqlite_branch(db_session):
+def test_fetch_ai_note_task_notes_filters_preference_in_sql(db_session):
     video = Video(video_id="abc123DEF45", title="Video")
-    user = User(email="ai@example.com", profile_data={"ai_notes_enabled": True})
-    db_session.add_all([video, user])
+    profiles = [
+        {"ai_notes_enabled": True},
+        {"ai_notes_enabled": False},
+        {},
+        None,
+    ]
+    users = [
+        User(email=f"ai{index}@example.com", profile_data=profile)
+        for index, profile in enumerate(profiles)
+    ]
+    db_session.add_all([video, *users])
     db_session.commit()
 
-    note = Note(video_id=video.video_id, timestamp="00:01", text=None, user_id=user.id)
-    db_session.add(note)
+    enabled = users[0]
+    db_session.add_all(
+        [
+            *(
+                Note(video_id=video.video_id, timestamp="00:01", user_id=user.id)
+                for user in users
+            ),
+            Note(
+                video_id=video.video_id, timestamp="00:02", text="", user_id=enabled.id
+            ),
+            Note(
+                video_id=video.video_id,
+                timestamp="00:03",
+                text="written",
+                user_id=enabled.id,
+            ),
+        ]
+    )
     db_session.commit()
 
     video_out, notes = internal_service.fetch_ai_note_task_notes(
         db_session, video.video_id
     )
     assert video_out.video_id == video.video_id
-    assert len(notes) == 1
+    assert [(note.user_id, note.timestamp) for note in notes] == [
+        (enabled.id, "00:01"),
+        (enabled.id, "00:02"),
+    ]
 
 
 def test_create_task_idempotent(db_session):
@@ -246,3 +252,24 @@ def test_create_task_idempotent(db_session):
         db_session, internal_constants.FETCH_TRANSCRIPT_TASK_TYPE, "abc123DEF45"
     )
     assert first.id == second.id
+
+
+def test_prepare_video_schedules_missing_tasks(db_session):
+    existing = Video(video_id="vidschedule2", transcript_available=True)
+    db_session.add(existing)
+    db_session.commit()
+
+    created = internal_scheduling.prepare_video(db_session, "vidschedule1")
+    prepared = internal_scheduling.prepare_video(db_session, "vidschedule2")
+
+    assert created.video_id == "vidschedule1"
+    assert prepared.id == existing.id
+    tasks = {
+        (task.task_type, task.task_details["video_id"])
+        for task in db_session.query(Task).all()
+    }
+    assert tasks == {
+        (internal_constants.FETCH_METADATA_TASK_TYPE, "vidschedule1"),
+        (internal_constants.FETCH_TRANSCRIPT_TASK_TYPE, "vidschedule1"),
+        (internal_constants.FETCH_METADATA_TASK_TYPE, "vidschedule2"),
+    }

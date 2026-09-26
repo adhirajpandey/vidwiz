@@ -1,6 +1,6 @@
 from typing import Iterable
 
-from fastapi import HTTPException, status
+from fastapi import status
 
 from src.models import ErrorDetail, ErrorPayload, ErrorResponse
 
@@ -49,16 +49,6 @@ class BadRequestError(APIError):
     def __init__(self, message: str = "Bad request", details=None) -> None:
         super().__init__(
             message, ErrorCode.BAD_REQUEST, status.HTTP_400_BAD_REQUEST, details
-        )
-
-
-class ValidationError(APIError):
-    def __init__(self, message: str = "Validation failed", details=None) -> None:
-        super().__init__(
-            message,
-            ErrorCode.VALIDATION_ERROR,
-            status.HTTP_422_UNPROCESSABLE_ENTITY,
-            details,
         )
 
 
@@ -118,10 +108,3 @@ HTTP_STATUS_CODE_MAP = {
     status.HTTP_429_TOO_MANY_REQUESTS: ErrorCode.RATE_LIMIT_EXCEEDED,
     status.HTTP_500_INTERNAL_SERVER_ERROR: ErrorCode.INTERNAL_ERROR,
 }
-
-
-def http_exception(message: str, status_code: int) -> HTTPException:
-    code = HTTP_STATUS_CODE_MAP.get(status_code, ErrorCode.INTERNAL_ERROR)
-    return HTTPException(
-        status_code=status_code, detail=message, headers={"X-Error-Code": code}
-    )

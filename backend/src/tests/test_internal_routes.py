@@ -61,7 +61,6 @@ async def test_internal_task_submit_transcript_success(client, db_session, monke
         status=TaskStatus.IN_PROGRESS,
         task_details={"video_id": "transcript_video"},
         retry_count=1,
-        worker_details={"worker_user_id": None},
     )
     db_session.add_all([video, task])
     db_session.commit()

@@ -50,14 +50,25 @@ def _ledger_exists(
     return db.execute(query).scalar_one_or_none() is not None
 
 
-def _apply_ledger(
+def _apply_once(
     db: Session,
-    user: User,
+    user_id: int,
     delta: int,
     reason: str,
     ref_type: str,
     ref_id: str,
-) -> None:
+) -> bool:
+    """Apply one ledger entry per reference; charges require enough balance."""
+    if _ledger_exists(db, user_id, reason, ref_type, ref_id):
+        return False
+
+    user = _get_user_or_raise(db, user_id)
+    if delta < 0 and user.credits_balance < -delta:
+        raise ForbiddenError(
+            "Insufficient credits",
+            details={"required": -delta, "available": user.credits_balance},
+        )
+
     logger.debug(
         "Applying ledger entry",
         extra={
@@ -81,15 +92,14 @@ def _apply_ledger(
     except IntegrityError:
         db.rollback()
         db.refresh(user)
+    return True
 
 
 def grant_signup_credits(db: Session, user: User) -> None:
     logger.debug("Granting signup credits", extra={"user_id": user.id})
-    if _ledger_exists(db, user.id, REASON_SIGNUP_GRANT, "user", str(user.id)):
-        return
-    _apply_ledger(
+    _apply_once(
         db,
-        user,
+        user.id,
         settings.signup_grant_amount,
         REASON_SIGNUP_GRANT,
         "user",
@@ -99,42 +109,17 @@ def grant_signup_credits(db: Session, user: User) -> None:
 
 def charge_wiz_chat_for_video(db: Session, user_id: int, video_id: str) -> bool:
     logger.debug("Charging wiz chat", extra={"user_id": user_id, "video_id": video_id})
-    if _ledger_exists(db, user_id, REASON_WIZ_CHAT, "video", video_id):
-        return False
-
-    user = _get_user_or_raise(db, user_id)
-    if user.credits_balance < settings.wiz_chat_cost:
-        raise ForbiddenError(
-            "Insufficient credits",
-            details={
-                "required": settings.wiz_chat_cost,
-                "available": user.credits_balance,
-            },
-        )
-
-    _apply_ledger(db, user, -settings.wiz_chat_cost, REASON_WIZ_CHAT, "video", video_id)
-    return True
+    return _apply_once(
+        db, user_id, -settings.wiz_chat_cost, REASON_WIZ_CHAT, "video", video_id
+    )
 
 
 def charge_ai_note_enqueue(db: Session, user_id: int, note_id: int) -> None:
     logger.debug(
         "Charging AI note enqueue", extra={"user_id": user_id, "note_id": note_id}
     )
-    if _ledger_exists(db, user_id, REASON_AI_NOTE, "note", str(note_id)):
-        return
-
-    user = _get_user_or_raise(db, user_id)
-    if user.credits_balance < settings.ai_note_cost:
-        raise ForbiddenError(
-            "Insufficient credits",
-            details={
-                "required": settings.ai_note_cost,
-                "available": user.credits_balance,
-            },
-        )
-
-    _apply_ledger(
-        db, user, -settings.ai_note_cost, REASON_AI_NOTE, "note", str(note_id)
+    _apply_once(
+        db, user_id, -settings.ai_note_cost, REASON_AI_NOTE, "note", str(note_id)
     )
 
 
@@ -145,8 +130,4 @@ def grant_purchase_credits(
         "Granting purchase credits",
         extra={"user_id": user_id, "payment_id": payment_id, "credits": credits_amount},
     )
-    if _ledger_exists(db, user_id, REASON_PURCHASE, "payment", payment_id):
-        return
-
-    user = _get_user_or_raise(db, user_id)
-    _apply_ledger(db, user, credits_amount, REASON_PURCHASE, "payment", payment_id)
+    _apply_once(db, user_id, credits_amount, REASON_PURCHASE, "payment", payment_id)
