@@ -25,7 +25,7 @@ VidWiz helps users take timestamped notes on YouTube videos, enriches notes with
 - `backend/`: FastAPI backend.
   - `src/`: app modules (routers, services, schemas, models, dependencies).
   - `workers/`: background workers and Lambda functions.
-  - `infra/`: systemd service unit files for helpers.
+- `infra/`: production AWS CDK app for the worker Lambdas.
 - `frontend/`: Vite + React + TypeScript web app.
   - `src/pages/`: route-level views.
   - `src/components/`: shared UI components.
