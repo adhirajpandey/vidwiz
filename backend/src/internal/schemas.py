@@ -14,11 +14,6 @@ class TaskRetrievedResponse(ApiModel):
     message: str
 
 
-class TaskTimeoutResponse(ApiModel):
-    message: str
-    timeout: bool = True
-
-
 class TaskSubmitResponse(ApiModel):
     message: str
     task_id: int

@@ -26,7 +26,6 @@ VidWiz helps users take timestamped notes on YouTube videos, enriches notes with
   - `src/`: app modules (routers, services, schemas, models, dependencies).
   - `workers/`: background workers and Lambda functions.
   - `infra/`: systemd service unit files for helpers.
-  - `wsgi.py`: ASGI entrypoint.
 - `frontend/`: Vite + React + TypeScript web app.
   - `src/pages/`: route-level views.
   - `src/components/`: shared UI components.

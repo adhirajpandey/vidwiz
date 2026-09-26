@@ -38,17 +38,6 @@ def get_video_by_id(db: Session, video_id: str) -> Video | None:
     ).scalar_one_or_none()
 
 
-def get_video_for_user(db: Session, user_id: int, video_id: str) -> Video | None:
-    logger.debug(
-        "Fetching video for user", extra={"user_id": user_id, "video_id": video_id}
-    )
-    query = select(Video).where(
-        Video.video_id == video_id,
-        Video.notes.any(Note.user_id == user_id),
-    )
-    return db.execute(query).scalar_one_or_none()
-
-
 def _library_query(user_id: int):
     notes = (
         select(

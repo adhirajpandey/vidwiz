@@ -247,25 +247,6 @@ def get_valid_transcript_or_raise(
     return video, transcript
 
 
-def _format_mm_ss(seconds: float) -> str:
-    minutes = int(seconds // 60)
-    secs = int(seconds % 60)
-    return f"{minutes}:{secs:02d}"
-
-
-def build_transcript_text(transcript: list, *, include_timestamps: bool = True) -> str:
-    lines = []
-    for segment in transcript:
-        if "text" not in segment:
-            continue
-        text = segment["text"]
-        if include_timestamps and "offset" in segment:
-            lines.append(f"{_format_mm_ss(float(segment['offset']))} {text}")
-        else:
-            lines.append(text)
-    return "\n".join(lines) if include_timestamps else " ".join(lines)
-
-
 def build_system_instruction(
     video_title: str | None, transcript: list, parts_version: int = 1
 ) -> str:

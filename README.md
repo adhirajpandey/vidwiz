@@ -112,8 +112,7 @@ deployment, transcript migration, or cutover operation.
 vidwiz/
 ├── backend/              # FastAPI backend
 │   ├── src/              # App modules (routers, services, schemas, models)
-│   ├── workers/          # Background helpers and Lambdas
-│   └── wsgi.py           # ASGI entrypoint
+│   └── workers/          # Background helpers and Lambdas
 ├── frontend/            # React + Vite web app
 │   └── src/
 │       ├── pages/       # Route-level views

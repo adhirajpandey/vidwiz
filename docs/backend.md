@@ -7,7 +7,6 @@ Describe the FastAPI backend: structure, auth rules, and the request/worker life
 - **App factory**: `backend/src/main.py` configures the FastAPI app and routers.
 - **Settings**: `backend/src/config.py` (DB, JWT, OAuth, AWS, queues). Conversation settings live in `backend/src/conversations/config.py` (OpenRouter, quotas, S3).
 - **Domains**: `auth`, `videos`, `notes`, `conversations`, `internal` follow `models/schemas/service/router/dependencies`.
-- **ASGI entrypoint**: `backend/wsgi.py`.
 
 ## Auth & Access
 - **JWT**: Required for most `/v2` endpoints.
