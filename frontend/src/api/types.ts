@@ -115,18 +115,11 @@ export interface NoteRead {
   id: number;
   video_id: string;
   user_id: number;
-  timestamp: number;
+  timestamp: string;
   text: string;
   created_at: string; // ISO date string
   updated_at: string;
   generated_by_ai: boolean;
-}
-
-export interface NoteCreate {
-  video_title?: string;
-  timestamp: number;
-  text: string;
-  generated_by_ai?: boolean;
 }
 
 export interface NoteUpdate {
@@ -153,10 +146,6 @@ export interface MessageRead {
   role: 'user' | 'assistant';
   content: string;
   created_at: string;
-}
-
-export interface MessageCreate {
-  message: string;
 }
 
 export interface LibrarySummary {

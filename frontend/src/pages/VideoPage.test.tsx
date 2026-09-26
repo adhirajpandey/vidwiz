@@ -36,7 +36,7 @@ const notes = [7, 8].map((id) => ({
   id,
   video_id: "abc123DEF45",
   user_id: 1,
-  timestamp: id,
+  timestamp: `0:0${id}`,
   text: `Note ${id}`,
   generated_by_ai: false,
   created_at: "",

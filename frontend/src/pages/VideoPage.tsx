@@ -12,6 +12,7 @@ import { getToken } from '../lib/authUtils';
 import config from '../config';
 import Seo from '../components/Seo';
 import ErrorState from '../components/ui/ErrorState';
+import { timestampToSeconds } from '../lib/videoUtils';
 
 // Video and Note interfaces removed in favor of VideoRead and NoteRead
 
@@ -193,12 +194,6 @@ export default function VideoPage() {
     setNoteToDelete(noteId);
     setShowDeleteModal(true);
   };
-
-  function timestampToSeconds(timestamp: string | number) {
-    if (typeof timestamp === 'number') return timestamp;
-    const parts = timestamp.split(':').map(Number);
-    return parts.reduce((seconds, value, index) => seconds + value * Math.pow(60, parts.length - 1 - index), 0);
-  }
 
   return (
     <>
