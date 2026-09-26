@@ -1,16 +1,56 @@
-import os
-import sys
+"""Poll the internal API for transcript or metadata tasks and submit results."""
+
 import argparse
 import logging
-from typing import Dict, Optional
+import os
+import sys
+import time
 
 import requests
 import yt_dlp
+from youtube_transcript_api import YouTubeTranscriptApi
 
 logging.basicConfig(level=logging.INFO)
-logger = logging.getLogger("vidwiz.metadata_helper")
+logger = logging.getLogger("vidwiz.task_helper")
 INTERNAL_API_URL_ENV_VAR = "VIDWIZ_INTERNAL_API_BASE_URL"
 INTERNAL_API_TOKEN_ENV_VAR = "VIDWIZ_INTERNAL_API_ADMIN_TOKEN"
+METADATA_FIELDS = (
+    "id",
+    "title",
+    "uploader",
+    "upload_date",
+    "duration",
+    "view_count",
+    "like_count",
+    "channel_url",
+    "description",
+    "thumbnail",
+)
+
+
+def fetch_transcript(video_id: str) -> list[dict]:
+    """Fetch an English or Hindi transcript, renaming `start` to `offset`."""
+    transcript = (
+        YouTubeTranscriptApi().fetch(video_id, languages=["en", "hi"]).to_raw_data()
+    )
+    for item in transcript:
+        if "start" in item:
+            item["offset"] = item.pop("start")
+    return transcript
+
+
+def fetch_metadata(video_id: str) -> dict:
+    """Fetch the video metadata fields stored by VidWiz."""
+    options = {"quiet": True, "no_warnings": True}
+    with yt_dlp.YoutubeDL(options) as ydl:
+        info = ydl.extract_info(
+            f"https://www.youtube.com/watch?v={video_id}", download=False
+        )
+    return {field: info.get(field) for field in METADATA_FIELDS}
+
+
+# The task type is also the result payload key.
+TASKS = {"transcript": fetch_transcript, "metadata": fetch_metadata}
 
 
 def get_auth_token() -> str:
@@ -22,7 +62,7 @@ def get_auth_token() -> str:
     return token
 
 
-def resolve_api_url(api_url_arg: Optional[str]) -> str:
+def resolve_api_url(api_url_arg: str | None) -> str:
     """Resolve the internal API base URL from CLI or environment."""
     api_url = api_url_arg or os.environ.get(INTERNAL_API_URL_ENV_VAR)
     if not api_url:
@@ -34,59 +74,29 @@ def resolve_api_url(api_url_arg: Optional[str]) -> str:
     return api_url
 
 
-class MetadataHelper:
-    """Helper that polls for metadata tasks and submits results."""
+class TaskHelper:
+    """Poll for one task type and submit results."""
 
-    def __init__(self, auth_token: str, timeout_seconds: int, api_url: str) -> None:
+    def __init__(
+        self, task_type: str, auth_token: str, timeout_seconds: int, api_url: str
+    ) -> None:
+        self.task_type = task_type
+        self.fetch = TASKS[task_type]
         self.timeout_seconds = timeout_seconds
         self.headers = {"Authorization": f"Bearer {auth_token}"}
-        # Ensure api_url doesn't end with slash
-        self.base_url = api_url.rstrip("/")
-        self.tasks_url = f"{self.base_url}/v2/internal/tasks"
+        self.tasks_url = f"{api_url.rstrip('/')}/v2/internal/tasks"
 
-    def get_video_metadata(self, video_id: str) -> Optional[Dict]:
-        """Fetch video metadata from YouTube using yt-dlp."""
-        opts = {"quiet": True, "no_warnings": True}
-        url = f"https://www.youtube.com/watch?v={video_id}"
-
-        try:
-            with yt_dlp.YoutubeDL(opts) as ydl:
-                info = ydl.extract_info(url, download=False)
-
-            return {
-                "id": info.get("id"),
-                "title": info.get("title"),
-                "uploader": info.get("uploader"),
-                "upload_date": info.get("upload_date"),
-                "duration": info.get("duration"),
-                "view_count": info.get("view_count"),
-                "like_count": info.get("like_count"),
-                "channel_url": info.get("channel_url"),
-                "description": info.get("description"),
-                "thumbnail": info.get("thumbnail"),
-            }
-        except Exception as e:
-            logger.error(f"Failed to fetch metadata for {video_id}: {e}")
-            raise
-
-    def get_metadata_task(self) -> Optional[Dict]:
-        """Poll for a metadata task from the API."""
-        # Polling for "fetch_metadata" task type
-        params = {
-            "type": "metadata",
-            "timeout": self.timeout_seconds,
-        }
-
+    def get_task(self) -> dict | None:
+        """Long-poll for the next task; return None when no work is available."""
         try:
             response = requests.get(
                 self.tasks_url,
                 headers=self.headers,
-                params=params,
+                params={"type": self.task_type, "timeout": self.timeout_seconds},
                 timeout=(10, self.timeout_seconds + 10),  # for safe teardown
             )
             if response.status_code == 204:
                 return None
-
             response.raise_for_status()
             return response.json()
         except requests.RequestException as e:
@@ -97,80 +107,68 @@ class MetadataHelper:
         self,
         task_id: int,
         video_id: str,
-        metadata: Optional[Dict] = None,
-        error_message: Optional[str] = None,
+        result: list | dict | None = None,
+        error_message: str | None = None,
     ) -> None:
-        """Send task result - either success with metadata or failure with error message."""
-        success = metadata is not None and error_message is None
-
-        data: Dict = {
-            "video_id": video_id,
-            "success": success,
-        }
-
+        """Send either a successful result or a failure message."""
+        success = result is not None and error_message is None
+        data: dict = {"video_id": video_id, "success": success}
         if success:
-            data["metadata"] = metadata
+            data[self.task_type] = result
         else:
             data["error_message"] = error_message
 
         logger.info(f"Sending task result for task_id={task_id}, success={success}")
-
-        url = f"{self.tasks_url}/{task_id}/result"
-
         try:
-            response = requests.post(url, json=data, headers=self.headers)
+            response = requests.post(
+                f"{self.tasks_url}/{task_id}/result", json=data, headers=self.headers
+            )
             response.raise_for_status()
             logger.info(
                 f"Task result submitted successfully: {response.json().get('status')}"
             )
         except requests.RequestException as e:
             logger.error(f"Failed to submit task result: {e}")
-            if hasattr(e, "response") and e.response:
-                logger.error(f"Response content: {e.response.text}")  # type: ignore
+            if e.response is not None:
+                logger.error(f"Response content: {e.response.text}")
 
     def run(self) -> None:
-        """Continuously poll for metadata tasks and process them."""
+        """Continuously poll for tasks and process them."""
         logger.info(
-            f"Starting metadata helper with timeout: {self.timeout_seconds}s, URL: {self.tasks_url}"
+            f"Starting {self.task_type} helper with timeout: "
+            f"{self.timeout_seconds}s, URL: {self.tasks_url}"
         )
-
         while True:
             try:
-                task_data = self.get_metadata_task()
+                task_data = self.get_task()
                 if not task_data or "task_id" not in task_data:
-                    # logger.info("No task available, waiting for next poll...") # Can be noisy
                     continue
 
                 task_id = task_data.get("task_id")
-                # In new schema task details are nested under task_details
-                video_id = task_data.get("task_details", {}).get("video_id")
-
+                video_id = (task_data.get("task_details") or {}).get("video_id")
                 if not video_id:
                     logger.error(f"Received task {task_id} without video_id in details")
                     continue
 
                 logger.info(f"Received task: {task_id}, video_id: {video_id}")
-
                 try:
-                    metadata = self.get_video_metadata(video_id)
-                    self.send_task_result(task_id, video_id, metadata=metadata)
+                    self.send_task_result(
+                        task_id, video_id, result=self.fetch(video_id)
+                    )
                     logger.info(f"Successfully processed video: {video_id}")
                 except Exception as e:  # noqa: BLE001
                     logger.error(f"Failed to process video {video_id}: {e}")
                     self.send_task_result(task_id, video_id, error_message=str(e))
-
             except Exception as e:  # noqa: BLE001
                 logger.error(f"Error in main loop: {e}")
-                import time
-
                 time.sleep(5)  # Backoff on error
-                continue
 
 
 def main() -> None:
     auth_token = get_auth_token()
 
-    parser = argparse.ArgumentParser(description="YouTube metadata helper for VidWiz")
+    parser = argparse.ArgumentParser(description="YouTube task helper for VidWiz")
+    parser.add_argument("task_type", choices=sorted(TASKS))
     parser.add_argument(
         "--timeout",
         type=int,
@@ -183,15 +181,11 @@ def main() -> None:
         default=None,
         help=f"Base API URL (overrides {INTERNAL_API_URL_ENV_VAR})",
     )
-
     args = parser.parse_args()
     api_url = resolve_api_url(args.api_url)
     logger.info("Using internal API base URL: %s", api_url.rstrip("/"))
 
-    helper = MetadataHelper(
-        auth_token=auth_token, timeout_seconds=args.timeout, api_url=api_url
-    )
-    helper.run()
+    TaskHelper(args.task_type, auth_token, args.timeout, api_url).run()
 
 
 if __name__ == "__main__":

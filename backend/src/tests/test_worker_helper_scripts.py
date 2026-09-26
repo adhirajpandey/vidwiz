@@ -20,58 +20,34 @@ def _load_module(script_name: str):
     return module
 
 
-@pytest.mark.parametrize(
-    ("script_name", "helper_class_name"),
-    [
-        ("transcript-helper.py", "TranscriptHelper"),
-        ("metadata-helper.py", "MetadataHelper"),
-    ],
-)
-def test_helper_uses_canonical_internal_api_url_env(
-    script_name, helper_class_name, monkeypatch
-):
-    module = _load_module(script_name)
-    monkeypatch.setenv(
-        "VIDWIZ_INTERNAL_API_BASE_URL",
-        "http://internal.example:5000",
-    )
+def _load_helper():
+    return _load_module("task-helper.py")
+
+
+def test_helper_uses_canonical_internal_api_url_env(monkeypatch):
+    module = _load_helper()
+    monkeypatch.setenv("VIDWIZ_INTERNAL_API_BASE_URL", "http://internal.example:5000")
 
     resolved = module.resolve_api_url(None)
-    helper = getattr(module, helper_class_name)("token", 30, resolved)
+    helper = module.TaskHelper("metadata", "token", 30, resolved)
 
     assert resolved == "http://internal.example:5000"
     assert helper.tasks_url == "http://internal.example:5000/v2/internal/tasks"
 
 
-@pytest.mark.parametrize(
-    ("script_name", "helper_class_name"),
-    [
-        ("transcript-helper.py", "TranscriptHelper"),
-        ("metadata-helper.py", "MetadataHelper"),
-    ],
-)
-def test_helper_prefers_cli_api_url_over_env(
-    script_name, helper_class_name, monkeypatch
-):
-    module = _load_module(script_name)
-    monkeypatch.setenv(
-        "VIDWIZ_INTERNAL_API_BASE_URL",
-        "http://internal.example:5000",
-    )
+def test_helper_prefers_cli_api_url_over_env(monkeypatch):
+    module = _load_helper()
+    monkeypatch.setenv("VIDWIZ_INTERNAL_API_BASE_URL", "http://internal.example:5000")
 
     resolved = module.resolve_api_url("http://cli.example:5000/")
-    helper = getattr(module, helper_class_name)("token", 30, resolved)
+    helper = module.TaskHelper("transcript", "token", 30, resolved)
 
     assert resolved == "http://cli.example:5000/"
     assert helper.tasks_url == "http://cli.example:5000/v2/internal/tasks"
 
 
-@pytest.mark.parametrize(
-    "script_name",
-    ["transcript-helper.py", "metadata-helper.py"],
-)
-def test_helper_exits_when_api_url_missing(script_name, monkeypatch):
-    module = _load_module(script_name)
+def test_helper_exits_when_api_url_missing(monkeypatch):
+    module = _load_helper()
     monkeypatch.delenv("VIDWIZ_INTERNAL_API_BASE_URL", raising=False)
 
     with pytest.raises(SystemExit) as exc_info:
@@ -81,17 +57,12 @@ def test_helper_exits_when_api_url_missing(script_name, monkeypatch):
 
 
 @pytest.mark.parametrize(
-    ("script_name", "helper_class_name"),
-    [
-        ("transcript-helper.py", "TranscriptHelper"),
-        ("metadata-helper.py", "MetadataHelper"),
-    ],
+    ("task_type", "result"),
+    [("transcript", [{"text": "hi"}]), ("metadata", {"title": "hi"})],
 )
-def test_helper_task_result_url_uses_normalized_base(
-    script_name, helper_class_name, monkeypatch
-):
-    module = _load_module(script_name)
-    helper = getattr(module, helper_class_name)("token", 30, "http://api.example/")
+def test_helper_submits_result_under_task_key(task_type, result, monkeypatch):
+    module = _load_helper()
+    helper = module.TaskHelper(task_type, "token", 30, "http://api.example/")
 
     captured = {}
 
@@ -108,11 +79,30 @@ def test_helper_task_result_url_uses_normalized_base(
         return DummyResponse()
 
     monkeypatch.setattr(module.requests, "post", fake_post)
-
-    if helper_class_name == "TranscriptHelper":
-        helper.send_task_result(7, "abc123DEF45", transcript=[{"text": "hi"}])
-    else:
-        helper.send_task_result(7, "abc123DEF45", metadata={"title": "hi"})
+    helper.send_task_result(7, "abc123DEF45", result=result)
 
     assert captured["url"] == "http://api.example/v2/internal/tasks/7/result"
     assert captured["kwargs"]["headers"] == {"Authorization": "Bearer token"}
+    assert captured["kwargs"]["json"] == {
+        "video_id": "abc123DEF45",
+        "success": True,
+        task_type: result,
+    }
+
+
+def test_transcript_fetch_renames_start_to_offset(monkeypatch):
+    module = _load_helper()
+
+    class FakeApi:
+        def fetch(self, video_id, languages):
+            assert languages == ["en", "hi"]
+            return self
+
+        def to_raw_data(self):
+            return [{"text": "hi", "start": 1.5, "duration": 2}]
+
+    monkeypatch.setattr(module, "YouTubeTranscriptApi", FakeApi)
+
+    assert module.fetch_transcript("abc123DEF45") == [
+        {"text": "hi", "duration": 2, "offset": 1.5}
+    ]

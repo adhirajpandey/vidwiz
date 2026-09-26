@@ -5,18 +5,13 @@ Describe background helpers and Lambdas used for transcript/metadata fetching an
 
 ## Components
 ### Helpers (Long-Running)
-- **Transcript helper**: `backend/workers/scripts/transcript-helper.py`
-  - Polls `/v2/internal/tasks?type=transcript` with long-poll timeout (default 30s)
-  - Fetches transcripts via `youtube_transcript_api` (languages: `en`, `hi`)
-  - Normalizes transcript items by renaming `start` -> `offset`
+- **Task helper**: `backend/workers/scripts/task-helper.py {transcript|metadata}`
+  - Polls `/v2/internal/tasks?type=<task type>` with long-poll timeout (default 30s)
+  - `transcript`: fetches transcripts via `youtube_transcript_api` (languages: `en`, `hi`)
+    and renames each item's `start` to `offset`
+  - `metadata`: fetches metadata via `yt_dlp`
   - Submits results to `/v2/internal/tasks/{id}/result`
-  - CLI args: `--timeout` and optional `--api-url`
-  - Internal API base URL resolution: `--api-url` -> `VIDWIZ_INTERNAL_API_BASE_URL`; exits on startup if neither is set
-- **Metadata helper**: `backend/workers/scripts/metadata-helper.py`
-  - Polls `/v2/internal/tasks?type=metadata` with long-poll timeout (default 30s)
-  - Fetches metadata via `yt_dlp`
-  - Submits results to `/v2/internal/tasks/{id}/result`
-  - CLI args: `--timeout` and optional `--api-url`
+  - CLI args: task type, `--timeout`, and optional `--api-url`
   - Internal API base URL resolution: `--api-url` -> `VIDWIZ_INTERNAL_API_BASE_URL`; exits on startup if neither is set
 
 The production helper processes are owned by the `metadata-helper` and
