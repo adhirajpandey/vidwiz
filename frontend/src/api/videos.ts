@@ -1,27 +1,18 @@
-import apiClient from './client';
+import { apiRequest } from './fetch';
 import type {
+  LibrarySummary,
   VideoListParams,
   VideoListResponse,
   VideoRead,
-  LibrarySummary,
 } from './types';
 
 export const videosApi = {
-  librarySummary: async () => (await apiClient.get<LibrarySummary>('/videos/library-summary')).data,
-  getVideo: async (videoId: string) => {
-    const response = await apiClient.get<VideoRead>(`/videos/${videoId}`);
-    return response.data;
-  },
-
-  listVideos: async (params: VideoListParams = {}) => {
-    const response = await apiClient.get<VideoListResponse>('/videos', {
-      params,
-    });
-    return response.data;
-  },
-
-  getStreamUrl: (videoId: string) => {
-    // Return relative URL for EventSource usage
-    return `/videos/${videoId}/stream`;
-  },
+  librarySummary: () =>
+    apiRequest<LibrarySummary>('GET', '/videos/library-summary'),
+  getVideo: (videoId: string) =>
+    apiRequest<VideoRead>('GET', `/videos/${videoId}`),
+  listVideos: (params: VideoListParams = {}) =>
+    apiRequest<VideoListResponse>('GET', '/videos', { params: { ...params } }),
+  // Streaming responses are read with apiFetch directly.
+  getStreamUrl: (videoId: string) => `/videos/${videoId}/stream`,
 };

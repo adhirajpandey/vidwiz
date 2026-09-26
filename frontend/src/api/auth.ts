@@ -1,4 +1,4 @@
-import apiClient from './client';
+import { apiRequest } from './fetch';
 import type {
   AuthLoginRequest,
   AuthRegisterRequest,
@@ -12,38 +12,16 @@ import type {
 } from './types';
 
 export const authApi = {
-  login: async (payload: AuthLoginRequest) => {
-    const response = await apiClient.post<LoginResponse>('/auth/login', payload);
-    return response.data;
-  },
-
-  register: async (payload: AuthRegisterRequest) => {
-    const response = await apiClient.post<MessageResponse>('/auth/register', payload);
-    return response.data;
-  },
-
-  googleLogin: async (payload: GoogleLoginRequest) => {
-    const response = await apiClient.post<LoginResponse>('/auth/google', payload);
-    return response.data;
-  },
-
-  getMe: async () => {
-    const response = await apiClient.get<UserProfileRead>('/users/me');
-    return response.data;
-  },
-
-  updateProfile: async (payload: UserProfileUpdate) => {
-    const response = await apiClient.patch<UserProfileRead>('/users/me', payload);
-    return response.data;
-  },
-
-  createLongTermToken: async () => {
-    const response = await apiClient.post<TokenResponse>('/auth/tokens');
-    return response.data;
-  },
-
-  revokeLongTermToken: async () => {
-    const response = await apiClient.delete<TokenRevokeResponse>('/auth/tokens');
-    return response.data;
-  },
+  login: (body: AuthLoginRequest) =>
+    apiRequest<LoginResponse>('POST', '/auth/login', { body }),
+  register: (body: AuthRegisterRequest) =>
+    apiRequest<MessageResponse>('POST', '/auth/register', { body }),
+  googleLogin: (body: GoogleLoginRequest) =>
+    apiRequest<LoginResponse>('POST', '/auth/google', { body }),
+  getMe: () => apiRequest<UserProfileRead>('GET', '/users/me'),
+  updateProfile: (body: UserProfileUpdate) =>
+    apiRequest<UserProfileRead>('PATCH', '/users/me', { body }),
+  createLongTermToken: () => apiRequest<TokenResponse>('POST', '/auth/tokens'),
+  revokeLongTermToken: () =>
+    apiRequest<TokenRevokeResponse>('DELETE', '/auth/tokens'),
 };

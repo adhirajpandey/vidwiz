@@ -1,7 +1,5 @@
 import { useEffect, useState } from 'react';
-import { FaEdit, FaTrashAlt, FaExternalLinkAlt, FaSave, FaTimes, FaPlay } from 'react-icons/fa';
-import { HiSparkles } from 'react-icons/hi';
-import { BiUser } from 'react-icons/bi';
+import { SquarePen, Trash2, ExternalLink, Save, X, Play, Sparkles, User } from 'lucide-react';
 import { timestampToSeconds } from '../lib/videoUtils';
 
 interface Note {
@@ -82,7 +80,7 @@ export default function NoteCard({
             rel="noopener noreferrer"
             className="inline-flex items-center gap-1.5 px-2 py-1 md:px-2.5 md:py-1.5 rounded-md bg-red-500/10 hover:bg-red-500/20 border border-red-500/20 transition-colors"
           >
-            <FaPlay className="w-2 h-2 md:w-2.5 md:h-2.5 text-red-400" />
+            <Play fill="currentColor" className="w-2 h-2 md:w-2.5 md:h-2.5 text-red-400" />
             <span className="text-xs md:text-sm font-semibold text-red-400 tabular-nums">
               {typeof note.timestamp === 'number' ? formatTimestamp(note.timestamp) : note.timestamp}
             </span>
@@ -102,7 +100,7 @@ export default function NoteCard({
               className="inline-flex items-center gap-1 px-1.5 py-1 md:px-2 md:py-1 rounded-md bg-gradient-to-r from-violet-500/15 to-fuchsia-500/15 border border-violet-500/25"
               title="AI Generated"
             >
-              <HiSparkles className="w-3 h-3 md:w-3.5 md:h-3.5 text-violet-400" />
+              <Sparkles className="w-3 h-3 md:w-3.5 md:h-3.5 text-violet-400" />
               <span className="text-[10px] md:text-xs font-medium text-violet-400 hidden sm:inline">AI</span>
             </div>
           ) : (
@@ -110,7 +108,7 @@ export default function NoteCard({
               className="inline-flex items-center gap-1 px-1.5 py-1 md:px-2 md:py-1 rounded-md bg-emerald-500/10 border border-emerald-500/20"
               title="Your Note"
             >
-              <BiUser className="w-3 h-3 md:w-3.5 md:h-3.5 text-emerald-400" />
+              <User className="w-3 h-3 md:w-3.5 md:h-3.5 text-emerald-400" />
               <span className="text-[10px] md:text-xs font-medium text-emerald-400 hidden sm:inline">You</span>
             </div>
           )}
@@ -132,14 +130,14 @@ export default function NoteCard({
                   onClick={handleSave} 
                   className="inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium text-white bg-blue-600 hover:bg-blue-700 rounded-md transition-colors cursor-pointer"
                 >
-                  <FaSave className="w-2.5 h-2.5" />
+                  <Save className="w-2.5 h-2.5" />
                   Save
                 </button>
                 <button 
                   onClick={handleCancel} 
                   className="inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium text-foreground/70 bg-secondary hover:bg-secondary/80 border border-border rounded-md transition-colors cursor-pointer"
                 >
-                  <FaTimes className="w-2.5 h-2.5" />
+                  <X className="w-2.5 h-2.5" />
                   Cancel
                 </button>
               </div>
@@ -161,7 +159,7 @@ export default function NoteCard({
               className="p-1.5 md:p-2 rounded-md text-foreground/40 hover:text-red-400 hover:bg-red-500/10 transition-all"
               title="Watch on YouTube"
             >
-              <FaExternalLinkAlt className="w-3 h-3 md:w-3.5 md:h-3.5" />
+              <ExternalLink className="w-3 h-3 md:w-3.5 md:h-3.5" />
             </a>
             {!isPendingAI && (
               <button 
@@ -169,7 +167,7 @@ export default function NoteCard({
                 className="p-1.5 md:p-2 rounded-md text-foreground/40 hover:text-blue-400 hover:bg-blue-500/10 transition-all cursor-pointer" 
                 title="Edit"
               >
-                <FaEdit className="w-3 h-3 md:w-3.5 md:h-3.5" />
+                <SquarePen className="w-3 h-3 md:w-3.5 md:h-3.5" />
               </button>
             )}
             <button 
@@ -177,7 +175,7 @@ export default function NoteCard({
               className="p-1.5 md:p-2 rounded-md text-foreground/40 hover:text-red-400 hover:bg-red-500/10 transition-all cursor-pointer" 
               title="Delete"
             >
-              <FaTrashAlt className="w-3 h-3 md:w-3.5 md:h-3.5" />
+              <Trash2 className="w-3 h-3 md:w-3.5 md:h-3.5" />
             </button>
           </div>
         )}

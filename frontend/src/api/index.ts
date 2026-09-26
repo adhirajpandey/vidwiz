@@ -7,4 +7,3 @@ export * from './types';
 export * from './errors';
 export * from './fetch';
 export * from './sse';
-export { default as apiClient } from './client';

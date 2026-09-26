@@ -1,13 +1,12 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { useParams, useNavigate, useLocation } from 'react-router-dom';
-import { Sparkles, ChevronDown, ChevronUp } from 'lucide-react';
+import { Sparkles, ChevronDown, ChevronUp, TriangleAlert, Play, Eye, Heart, ExternalLink } from 'lucide-react';
 import { authApi, videosApi, notesApi } from '../api';
 import { normalizeApiError, toastApiError } from '../api/errors';
 import type { NormalizedApiError } from '../api/errors';
 import type { VideoRead, NoteRead } from '../api/types';
 import NoteCard from '../components/NoteCard';
 import { useToast } from '../hooks/useToast';
-import { FaExclamationTriangle, FaPlay, FaEye, FaHeart, FaExternalLinkAlt } from 'react-icons/fa';
 import { getToken } from '../lib/authUtils';
 import config from '../config';
 import Seo from '../components/Seo';
@@ -182,7 +181,7 @@ export default function VideoPage() {
           <div className="bg-card rounded-lg p-6 max-w-sm w-full mx-4 select-none">
             <div className="text-center">
               <div className="text-red-500 text-3xl mb-4">
-                <FaExclamationTriangle className="inline-block" />
+                <TriangleAlert className="inline-block" />
               </div>
               <h3 className="text-lg font-semibold text-foreground mb-3">Delete Note</h3>
               <p className="text-sm text-muted-foreground mb-6">Are you sure you want to delete this note? This action cannot be undone.</p>
@@ -238,7 +237,7 @@ export default function VideoPage() {
                     {/* Play button overlay */}
                     <div className="absolute inset-0 flex items-center justify-center opacity-0 group-hover:opacity-100 transition-all duration-300">
                       <div className="w-16 h-16 rounded-full bg-red-600/90 backdrop-blur-sm flex items-center justify-center shadow-2xl transform scale-90 group-hover:scale-100 transition-transform duration-300">
-                        <FaPlay className="w-6 h-6 text-white ml-1" />
+                        <Play fill="currentColor" className="w-6 h-6 text-white ml-1" />
                       </div>
                     </div>
                     
@@ -271,7 +270,7 @@ export default function VideoPage() {
                           className="inline-flex items-center px-3 py-1.5 rounded-lg text-sm font-semibold bg-gradient-to-r from-red-500/20 to-red-600/10 text-red-400 border border-red-500/20 hover:from-red-500/30 hover:to-red-600/20 hover:border-red-500/30 transition-all duration-200 cursor-pointer"
                         >
                           {video.metadata.channel || video.metadata.uploader}
-                          <FaExternalLinkAlt className="w-2.5 h-2.5 ml-1.5 opacity-60" />
+                          <ExternalLink className="w-2.5 h-2.5 ml-1.5 opacity-60" />
                         </a>
                       ) : (
                         <span className="inline-flex items-center px-3 py-1.5 rounded-lg text-sm font-semibold bg-gradient-to-r from-red-500/20 to-red-600/10 text-red-400 border border-red-500/20 select-none">
@@ -282,7 +281,7 @@ export default function VideoPage() {
                     <div className="flex items-center gap-2 px-3 py-1.5 rounded-lg bg-white/5 backdrop-blur-sm border border-white/10 select-none">
                       {video.metadata.view_count && (
                         <span className="inline-flex items-center gap-1.5 text-sm text-foreground/70">
-                          <FaEye className="w-3.5 h-3.5" />
+                          <Eye className="w-3.5 h-3.5" />
                           {video.metadata.view_count.toLocaleString()}
                         </span>
                       )}
@@ -291,7 +290,7 @@ export default function VideoPage() {
                       )}
                       {video.metadata.like_count && (
                         <span className="inline-flex items-center gap-1.5 text-sm text-foreground/70">
-                          <FaHeart className="w-3.5 h-3.5" />
+                          <Heart fill="currentColor" className="w-3.5 h-3.5" />
                           {video.metadata.like_count.toLocaleString()}
                         </span>
                       )}

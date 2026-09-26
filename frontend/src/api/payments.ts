@@ -1,4 +1,4 @@
-import apiClient from './client';
+import { apiRequest } from './fetch';
 import type { CreditProductListResponse } from './types';
 
 export interface CheckoutSessionRequest {
@@ -12,17 +12,8 @@ export interface CheckoutSessionResponse {
 }
 
 export const paymentsApi = {
-  listProducts: async () => {
-    const response = await apiClient.get<CreditProductListResponse>(
-      '/payments/products'
-    );
-    return response.data;
-  },
-  createCheckoutSession: async (payload: CheckoutSessionRequest) => {
-    const response = await apiClient.post<CheckoutSessionResponse>(
-      '/payments/checkout',
-      payload
-    );
-    return response.data;
-  },
+  listProducts: () =>
+    apiRequest<CreditProductListResponse>('GET', '/payments/products'),
+  createCheckoutSession: (body: CheckoutSessionRequest) =>
+    apiRequest<CheckoutSessionResponse>('POST', '/payments/checkout', { body }),
 };

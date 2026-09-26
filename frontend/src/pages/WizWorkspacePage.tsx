@@ -1,7 +1,6 @@
 import { useState, useRef, useEffect } from 'react';
 import { useParams, useNavigate, useLocation } from 'react-router-dom';
-import { Sparkles } from 'lucide-react';
-import { FaExternalLinkAlt } from 'react-icons/fa';
+import { Sparkles, ExternalLink } from 'lucide-react';
 import { extractVideoId } from '../lib/videoUtils';
 import GuestLimitModal from '../components/GuestLimitModal';
 import RegisteredLimitModal from '../components/RegisteredLimitModal';
@@ -418,7 +417,7 @@ function WizWorkspacePage() {
                             className="inline-flex items-center px-3 py-1.5 rounded-lg text-sm font-semibold bg-gradient-to-r from-red-500/20 to-red-600/10 text-red-400 border border-red-500/20 hover:from-red-500/30 hover:to-red-600/20 hover:border-red-500/30 transition-all duration-200 cursor-pointer"
                           >
                             {videoData.metadata.channel || videoData.metadata.uploader}
-                            <FaExternalLinkAlt className="w-2.5 h-2.5 ml-1.5 opacity-60" />
+                            <ExternalLink className="w-2.5 h-2.5 ml-1.5 opacity-60" />
                           </a>
                         ) : (
                           <span className="inline-flex items-center px-3 py-1.5 rounded-lg text-sm font-semibold bg-gradient-to-r from-red-500/20 to-red-600/10 text-red-400 border border-red-500/20 select-none">
