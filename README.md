@@ -59,7 +59,7 @@ PostgreSQL ←→ Workers + AWS Services
 ```
 
 Quick start
-Prereqs: Python 3.10–3.13, uv 0.8.22, Node.js, running PostgreSQL
+Prereqs: Python 3.13, uv 0.8.22, Node.js, running PostgreSQL
 
 ### Backend
 1. `cd backend`
