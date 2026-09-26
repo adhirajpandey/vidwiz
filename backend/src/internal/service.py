@@ -69,6 +69,8 @@ def poll_for_task(
             db.refresh(task)
             return task
 
+        # End the read transaction so the connection is not held idle while waiting.
+        db.commit()
         time.sleep(poll_interval)
 
     logger.debug("No task available", extra={"task_type": task_type})
