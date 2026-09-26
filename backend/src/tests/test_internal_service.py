@@ -199,21 +199,49 @@ def test_store_summary_merges_miscellaneous_data(db_session):
     }
 
 
-def test_fetch_ai_note_task_notes_sqlite_branch(db_session):
+def test_fetch_ai_note_task_notes_filters_preference_in_sql(db_session):
     video = Video(video_id="abc123DEF45", title="Video")
-    user = User(email="ai@example.com", profile_data={"ai_notes_enabled": True})
-    db_session.add_all([video, user])
+    profiles = [
+        {"ai_notes_enabled": True},
+        {"ai_notes_enabled": False},
+        {},
+        None,
+    ]
+    users = [
+        User(email=f"ai{index}@example.com", profile_data=profile)
+        for index, profile in enumerate(profiles)
+    ]
+    db_session.add_all([video, *users])
     db_session.commit()
 
-    note = Note(video_id=video.video_id, timestamp="00:01", text=None, user_id=user.id)
-    db_session.add(note)
+    enabled = users[0]
+    db_session.add_all(
+        [
+            *(
+                Note(video_id=video.video_id, timestamp="00:01", user_id=user.id)
+                for user in users
+            ),
+            Note(
+                video_id=video.video_id, timestamp="00:02", text="", user_id=enabled.id
+            ),
+            Note(
+                video_id=video.video_id,
+                timestamp="00:03",
+                text="written",
+                user_id=enabled.id,
+            ),
+        ]
+    )
     db_session.commit()
 
     video_out, notes = internal_service.fetch_ai_note_task_notes(
         db_session, video.video_id
     )
     assert video_out.video_id == video.video_id
-    assert len(notes) == 1
+    assert [(note.user_id, note.timestamp) for note in notes] == [
+        (enabled.id, "00:01"),
+        (enabled.id, "00:02"),
+    ]
 
 
 def test_create_task_idempotent(db_session):
