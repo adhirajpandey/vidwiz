@@ -7,7 +7,7 @@ from src.auth import service as auth_service
 from src.auth.schemas import ViewerContext
 from src.database import get_db
 from src.config import settings
-from src.exceptions import UnauthorizedError, InternalServerError
+from src.exceptions import UnauthorizedError
 
 
 bearer_auth = HTTPBearer(
@@ -24,12 +24,6 @@ guest_session_auth = APIKeyHeader(
     description="Guest session ID for Wiz chat and video status streams.",
     auto_error=False,
 )
-
-
-def _require_secret_key() -> str:
-    if not settings.secret_key:
-        raise InternalServerError("SECRET_KEY is not configured")
-    return settings.secret_key
 
 
 def _get_cached_payload(
@@ -55,7 +49,7 @@ def get_current_user_id(
         raise UnauthorizedError("Missing or invalid Authorization header")
 
     token = authorization.credentials
-    secret_key = _require_secret_key()
+    secret_key = settings.secret_key
 
     try:
         payload = _get_cached_payload(request, token) or jwt.decode(
@@ -85,7 +79,7 @@ def get_viewer_context(
 
     if authorization:
         token = authorization.credentials
-        secret_key = _require_secret_key()
+        secret_key = settings.secret_key
         try:
             payload = _get_cached_payload(request, token) or jwt.decode(
                 token,
@@ -114,7 +108,7 @@ def get_current_user_id_or_long_term(
         raise UnauthorizedError("Missing or invalid Authorization header")
 
     token = authorization.credentials
-    secret_key = _require_secret_key()
+    secret_key = settings.secret_key
 
     try:
         payload = _get_cached_payload(request, token) or jwt.decode(

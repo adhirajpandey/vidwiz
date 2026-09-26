@@ -1,23 +1,21 @@
-import logging
+import json
+from typing import Annotated
 
-from pydantic import (
-    BaseModel,
-    Field,
-    ValidationError,
-    field_validator,
-)
+from pydantic import BaseModel, Field, StringConstraints, field_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
-logger = logging.getLogger(__name__)
+NonEmptyStr = Annotated[str, StringConstraints(min_length=1)]
 
 
 class Settings(BaseSettings):
-    environment: str = Field(alias="ENVIRONMENT")
+    environment: NonEmptyStr = Field(alias="ENVIRONMENT")
     db_url: str = Field(default="sqlite:///./vidwiz.db", alias="DB_URL")
-    secret_key: str = Field(alias="SECRET_KEY")
-    internal_api_admin_token: str = Field(alias="VIDWIZ_INTERNAL_API_ADMIN_TOKEN")
+    secret_key: NonEmptyStr = Field(alias="SECRET_KEY")
+    internal_api_admin_token: NonEmptyStr = Field(
+        alias="VIDWIZ_INTERNAL_API_ADMIN_TOKEN"
+    )
     jwt_expiry_hours: int = Field(default=168, alias="JWT_EXPIRY_HOURS")
-    google_client_id: str = Field(alias="GOOGLE_CLIENT_ID")
+    google_client_id: NonEmptyStr = Field(alias="GOOGLE_CLIENT_ID")
     youtube_data_api_key: str | None = Field(default=None, alias="YOUTUBE_DATA_API_KEY")
     sqs_ai_note_queue_url: str = Field(alias="SQS_AI_NOTE_QUEUE_URL")
     aws_access_key_id: str = Field(alias="AWS_ACCESS_KEY_ID")
@@ -32,7 +30,7 @@ class Settings(BaseSettings):
     rate_limit_videos: str = Field(default="30/minute", alias="RATE_LIMIT_VIDEOS")
     dodo_payments_api_key: str = Field(alias="DODO_PAYMENTS_API_KEY")
     dodo_payments_webhook_key: str = Field(alias="DODO_PAYMENTS_WEBHOOK_KEY")
-    dodo_payments_environment: str = Field(alias="DODO_PAYMENTS_ENVIRONMENT")
+    dodo_payments_environment: NonEmptyStr = Field(alias="DODO_PAYMENTS_ENVIRONMENT")
     dodo_payments_return_url: str = Field(alias="DODO_PAYMENTS_RETURN_URL")
     dodo_credit_products: list["CreditProductConfig"] = Field(
         alias="DODO_CREDIT_PRODUCTS"
@@ -51,8 +49,6 @@ class Settings(BaseSettings):
     def parse_dodo_credit_products(cls, value):
         if isinstance(value, str):
             try:
-                import json
-
                 value = json.loads(value)
             except json.JSONDecodeError as exc:
                 raise ValueError("DODO_CREDIT_PRODUCTS must be valid JSON") from exc
@@ -77,19 +73,4 @@ class CreditProductConfig(BaseModel):
         return value
 
 
-try:
-    settings = Settings()
-except ValidationError as exc:
-    field_aliases = {
-        name: (field.alias or name) for name, field in Settings.model_fields.items()
-    }
-    missing = [
-        field_aliases.get(err.get("loc", [None])[-1], err.get("loc", [None])[-1])
-        for err in exc.errors()
-        if err.get("type") == "missing"
-    ]
-    if missing:
-        logger.error("Missing required environment variables: %s", ", ".join(missing))
-    else:
-        logger.error("Invalid environment configuration: %s", exc)
-    raise
+settings = Settings()

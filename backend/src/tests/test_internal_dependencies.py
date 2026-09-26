@@ -6,7 +6,6 @@ from src.internal import constants as internal_constants
 from src.exceptions import (
     BadRequestError,
     ForbiddenError,
-    InternalServerError,
     UnauthorizedError,
 )
 from src.config import settings
@@ -19,15 +18,6 @@ def bearer_credentials(token: str) -> HTTPAuthorizationCredentials:
 def test_require_admin_token_errors(monkeypatch):
     with pytest.raises(UnauthorizedError):
         internal_dependencies.require_admin_token(None)
-
-    monkeypatch.setattr(
-        settings,
-        "internal_api_admin_token",
-        None,
-        raising=False,
-    )
-    with pytest.raises(InternalServerError):
-        internal_dependencies.require_admin_token(bearer_credentials("token"))
 
     monkeypatch.setattr(
         settings,

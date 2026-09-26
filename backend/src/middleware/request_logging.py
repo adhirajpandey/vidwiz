@@ -145,13 +145,9 @@ def _extract_user_info(
     authorization = headers.get("authorization")
     if not authorization or not authorization.startswith("Bearer "):
         return {}, None, None
-    secret_key = settings.secret_key
-    if not secret_key:
-        return {}, None, None
-
     token = authorization.split(" ", 1)[1]
     try:
-        payload = jwt.decode(token, secret_key, algorithms=["HS256"])
+        payload = jwt.decode(token, settings.secret_key, algorithms=["HS256"])
     except Exception:
         return {}, None, None
 

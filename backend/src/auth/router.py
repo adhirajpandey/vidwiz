@@ -19,7 +19,6 @@ from src.database import get_db
 from src.exceptions import (
     BadRequestError,
     ConflictError,
-    InternalServerError,
     NotFoundError,
     UnauthorizedError,
 )
@@ -66,9 +65,6 @@ def login(
     if not user:
         raise UnauthorizedError("Invalid email or password")
 
-    if not settings.secret_key:
-        raise InternalServerError("SECRET_KEY is not configured")
-
     token = auth_service.generate_jwt_token(
         user,
         settings.secret_key,
@@ -90,9 +86,6 @@ def google_login(
     payload: GoogleLoginRequest,
     db: Session = Depends(get_db),
 ) -> LoginResponse:
-    if not settings.google_client_id:
-        raise InternalServerError("Google OAuth not configured")
-
     try:
         idinfo = auth_service.verify_google_token(
             payload.credential,
@@ -108,9 +101,6 @@ def google_login(
         picture = idinfo.get("picture")
 
         user = auth_service.upsert_google_user(db, google_id, email, name, picture)
-
-        if not settings.secret_key:
-            raise InternalServerError("SECRET_KEY is not configured")
 
         token = auth_service.generate_jwt_token(
             user,
@@ -142,9 +132,6 @@ def create_long_term_token(
         raise BadRequestError(
             "A long-term token already exists. Please revoke the existing token before generating a new one."
         )
-
-    if not settings.secret_key:
-        raise InternalServerError("SECRET_KEY is not configured")
 
     long_term_token = auth_service.create_long_term_token(db, user, settings.secret_key)
     return TokenResponse(

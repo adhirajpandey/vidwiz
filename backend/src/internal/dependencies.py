@@ -5,7 +5,6 @@ from src.config import settings
 from src.exceptions import (
     BadRequestError,
     ForbiddenError,
-    InternalServerError,
     UnauthorizedError,
 )
 from src.internal import constants as internal_constants
@@ -26,9 +25,6 @@ def require_admin_token(
         raise UnauthorizedError("Missing or invalid Authorization header")
 
     token = authorization.credentials
-    if not settings.internal_api_admin_token:
-        raise InternalServerError("Admin token is not configured")
-
     if token != settings.internal_api_admin_token:
         raise ForbiddenError("Invalid admin token")
 
