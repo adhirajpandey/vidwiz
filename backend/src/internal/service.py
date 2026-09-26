@@ -6,7 +6,7 @@ import time
 from datetime import datetime, timedelta
 
 import boto3
-from sqlalchemy import Boolean, and_, cast, or_, select
+from sqlalchemy import and_, or_, select
 from sqlalchemy.orm import Session
 
 from src.auth.models import User
@@ -207,40 +207,18 @@ def fetch_ai_note_task_notes(
     if not video:
         return None, []
 
-    is_sqlite = db.get_bind().dialect.name == "sqlite"
-    if is_sqlite:
-        results = db.execute(
-            select(Note, User)
-            .join(User, Note.user_id == User.id)
-            .where(
-                Note.video_id == video_id,
-                or_(Note.text.is_(None), Note.text == ""),
-            )
-            .order_by(Note.created_at.asc(), Note.id.asc())
-        ).all()
-        notes = [
-            note
-            for note, user in results
-            if user.profile_data and user.profile_data.get("ai_notes_enabled", False)
-        ]
-        return video, notes
-
-    notes = (
-        db.execute(
-            select(Note)
-            .join(User, Note.user_id == User.id)
-            .where(
-                Note.video_id == video_id,
-                cast(User.profile_data["ai_notes_enabled"].as_boolean(), Boolean).is_(
-                    True
-                ),
-                or_(Note.text.is_(None), Note.text == ""),
-            )
-            .order_by(Note.created_at.asc(), Note.id.asc())
-        )
-        .scalars()
-        .all()
-    )
+    # Filter the JSON preference in Python so SQLite tests cover production.
+    results = db.execute(
+        select(Note, User)
+        .join(User, Note.user_id == User.id)
+        .where(Note.video_id == video_id, or_(Note.text.is_(None), Note.text == ""))
+        .order_by(Note.created_at.asc(), Note.id.asc())
+    ).all()
+    notes = [
+        note
+        for note, user in results
+        if (user.profile_data or {}).get("ai_notes_enabled", False)
+    ]
     return video, notes
 
 
