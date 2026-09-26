@@ -21,7 +21,6 @@ from src.payments.models import (
     PURCHASE_STATUS_PENDING,
     PROVIDER_DODO,
 )
-from src.payments.products import get_credit_product
 from src.payments.schemas import CreditProductRead
 
 
@@ -50,7 +49,10 @@ async def create_checkout_session(
         "Creating checkout session",
         extra={"user_id": user_id, "product_id": product_id, "quantity": quantity},
     )
-    product = get_credit_product(product_id)
+    product = next(
+        (p for p in settings.dodo_credit_products if p.product_id == product_id),
+        None,
+    )
     if not product:
         raise BadRequestError("Invalid product ID")
 

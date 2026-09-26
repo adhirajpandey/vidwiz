@@ -6,12 +6,12 @@ from src.auth.dependencies import (
     get_current_user_id_or_long_term,
 )
 from src.database import get_db
+from src.models import MessageResponse
 from src.exceptions import BadRequestError
 from src.internal.scheduling import prepare_video
 from src.notes import service as notes_service
 from src.notes.dependencies import get_note_or_404
 from src.notes.schemas import (
-    MessageResponse,
     NoteCreate,
     NoteCreateByTitle,
     NoteRead,

@@ -1,5 +1,6 @@
 import pytest
 
+from src.config import settings
 from src.internal import service as internal_service
 from src.internal import scheduling as internal_scheduling
 from src.internal import constants as internal_constants
@@ -113,7 +114,7 @@ def test_submit_metadata_result_success(db_session):
 
 def test_store_transcript_in_s3_no_config(monkeypatch):
     monkeypatch.setattr(
-        internal_service.conversations_settings,
+        settings,
         "s3_transcript_bucket_name",
         None,
         raising=False,
@@ -123,25 +124,25 @@ def test_store_transcript_in_s3_no_config(monkeypatch):
 
 def test_store_transcript_in_s3_success(monkeypatch):
     monkeypatch.setattr(
-        internal_service.conversations_settings,
+        settings,
         "s3_transcript_bucket_name",
         "bucket",
         raising=False,
     )
     monkeypatch.setattr(
-        internal_service.conversations_settings,
+        settings,
         "aws_access_key_id",
         "key",
         raising=False,
     )
     monkeypatch.setattr(
-        internal_service.conversations_settings,
+        settings,
         "aws_secret_access_key",
         "secret",
         raising=False,
     )
     monkeypatch.setattr(
-        internal_service.conversations_settings,
+        settings,
         "aws_region",
         "us-east-1",
         raising=False,

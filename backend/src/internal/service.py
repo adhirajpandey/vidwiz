@@ -17,7 +17,7 @@ from src.notes.models import Note
 from src.notes import service as notes_service
 from src.videos import service as videos_service
 from src.videos.models import Video
-from src.conversations.config import conversations_settings
+from src.config import settings
 
 logger = logging.getLogger(__name__)
 
@@ -137,16 +137,16 @@ def submit_task_result(
 
 def store_transcript_in_s3(video_id: str, transcript: list[dict]) -> None:
     logger.debug("Storing transcript in S3", extra={"video_id": video_id})
-    bucket = conversations_settings.s3_transcript_bucket_name
+    bucket = settings.s3_transcript_bucket_name
     if not bucket:
         logger.debug("S3 bucket not configured", extra={"video_id": video_id})
         return
     transcript_key = f"transcripts/{video_id}.json"
     s3_client = boto3.client(
         "s3",
-        aws_access_key_id=conversations_settings.aws_access_key_id,
-        aws_secret_access_key=conversations_settings.aws_secret_access_key,
-        region_name=conversations_settings.aws_region,
+        aws_access_key_id=settings.aws_access_key_id,
+        aws_secret_access_key=settings.aws_secret_access_key,
+        region_name=settings.aws_region,
     )
     s3_client.put_object(
         Bucket=bucket,

@@ -36,10 +36,8 @@ class NoteCreate(ApiModel):
         return _normalize_text(value)
 
 
-class NoteCreateByTitle(ApiModel):
+class NoteCreateByTitle(NoteCreate):
     video_title: str
-    timestamp: str
-    text: str | None = None
 
     @field_validator("video_title")
     @classmethod
@@ -49,29 +47,12 @@ class NoteCreateByTitle(ApiModel):
             raise ValueError("video_title must not be empty")
         return trimmed
 
-    @field_validator("timestamp")
-    @classmethod
-    def validate_timestamp(cls, value: str) -> str:
-        return _validate_timestamp(value)
-
-    @field_validator("text")
-    @classmethod
-    def normalize_text(cls, value: str | None) -> str | None:
-        return _normalize_text(value)
-
 
 class NoteUpdate(ApiModel):
     text: str | None = None
     generated_by_ai: bool | None = None
 
     model_config = ConfigDict(extra="forbid")
-
-    @field_validator("text")
-    @classmethod
-    def validate_text(cls, value: str | None) -> str | None:
-        if value is None:
-            return None
-        return value
 
 
 class NoteRead(ApiModel):
@@ -83,10 +64,6 @@ class NoteRead(ApiModel):
     created_at: datetime
     updated_at: datetime
     user_id: int
-
-
-class MessageResponse(ApiModel):
-    message: str
 
 
 class NoteIdPath(ApiModel):

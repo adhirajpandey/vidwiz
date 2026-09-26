@@ -28,3 +28,7 @@ class ErrorPayload(ApiModel):
 
 class ErrorResponse(ApiModel):
     error: ErrorPayload
+
+
+class MessageResponse(ApiModel):
+    message: str

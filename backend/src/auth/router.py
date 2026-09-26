@@ -8,7 +8,6 @@ from src.auth.schemas import (
     AuthRegisterRequest,
     GoogleLoginRequest,
     LoginResponse,
-    MessageResponse,
     TokenResponse,
     TokenRevokeResponse,
     UserProfileRead,
@@ -16,6 +15,7 @@ from src.auth.schemas import (
 )
 from src.config import settings
 from src.database import get_db
+from src.models import MessageResponse
 from src.exceptions import (
     BadRequestError,
     ConflictError,

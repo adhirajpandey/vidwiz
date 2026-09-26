@@ -4,6 +4,8 @@ from typing import Annotated
 from pydantic import BaseModel, Field, StringConstraints, field_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
+from src.conversations.prompts import WIZ_SYSTEM_PROMPT_TEMPLATE
+
 NonEmptyStr = Annotated[str, StringConstraints(min_length=1)]
 
 
@@ -38,6 +40,22 @@ class Settings(BaseSettings):
     signup_grant_amount: int = Field(default=100, alias="SIGNUP_GRANT_AMOUNT")
     wiz_chat_cost: int = Field(default=5, alias="WIZ_CHAT_COST")
     ai_note_cost: int = Field(default=1, alias="AI_NOTE_COST")
+    openrouter_api_key: str | None = Field(default=None, alias="OPENROUTER_API_KEY")
+    openrouter_base_url: str = Field(
+        default="https://openrouter.ai/api/v1", alias="OPENROUTER_BASE_URL"
+    )
+    wiz_model: Annotated[
+        str, StringConstraints(strip_whitespace=True, min_length=1)
+    ] = Field(default="minimax/minimax-m2.5", alias="WIZ_MODEL")
+    wiz_system_prompt_template: str = Field(
+        default=WIZ_SYSTEM_PROMPT_TEMPLATE, alias="WIZ_SYSTEM_PROMPT_TEMPLATE"
+    )
+    wiz_user_daily_quota: int = Field(default=20, alias="WIZ_USER_DAILY_QUOTA")
+    wiz_guest_daily_quota: int = Field(default=5, alias="WIZ_GUEST_DAILY_QUOTA")
+    wiz_max_tokens: int = Field(default=8192, alias="WIZ_MAX_TOKENS")
+    s3_transcript_bucket_name: str | None = Field(
+        default=None, alias="S3_TRANSCRIPT_BUCKET_NAME"
+    )
     log_level: str = Field(default="INFO", alias="LOG_LEVEL")
     log_service_name: str = Field(default="vidwiz-api", alias="LOG_SERVICE_NAME")
     loki_url: str | None = Field(default=None, alias="LOKI_URL")

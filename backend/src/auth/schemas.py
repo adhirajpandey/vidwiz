@@ -43,10 +43,6 @@ class GoogleLoginRequest(ApiModel):
     credential: str = Field(min_length=1)
 
 
-class MessageResponse(ApiModel):
-    message: str
-
-
 class LoginResponse(ApiModel):
     token: str
 

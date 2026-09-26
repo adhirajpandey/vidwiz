@@ -72,9 +72,7 @@ def setup_settings() -> None:
             name="200 Credits",
         )
     ]
-    conversations_service.conversations_settings.openrouter_api_key = (
-        "test-openrouter-key"
-    )
+    settings.openrouter_api_key = "test-openrouter-key"
 
 
 @pytest.fixture(autouse=True)
