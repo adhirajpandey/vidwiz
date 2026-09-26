@@ -1,6 +1,6 @@
 # /// script
 # requires-python = ">=3.13"
-# dependencies = ["playwright>=1.60.0,<2.0.0", "python-dotenv>=1.1.1,<2.0.0"]
+# dependencies = ["playwright==1.61.0", "python-dotenv>=1.1.1,<2.0.0"]
 # ///
 """Capture deterministic VidWiz UI screenshots with Playwright.
 
