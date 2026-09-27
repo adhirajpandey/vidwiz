@@ -14,9 +14,46 @@ permissions:
 
 concurrency:
   group: ${{ github.workflow }}-${{ github.ref }}
-  cancel-in-progress: true
+  # Queue every run in order. Change detection compares each push with the one
+  # before it, so a skipped run could leave a backend change unpublished.
+  queue: max
+  cancel-in-progress: false
 
 jobs:
+  changes:
+    name: Detect Changed Paths
+    if: github.event_name != 'pull_request'
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    outputs:
+      backend: ${{ steps.paths.outputs.backend }}
+
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v7
+        with:
+          fetch-depth: 0
+          persist-credentials: false
+
+      - name: Compare with the previous push
+        id: paths
+        env:
+          BEFORE: ${{ github.event.before }}
+        run: |
+          # Manual runs and unknown push bases treat every file as changed.
+          if [ "$GITHUB_EVENT_NAME" = push ] && git cat-file -e "$BEFORE^{commit}" 2>/dev/null; then
+            changed=$(git diff --name-only "$BEFORE" "$GITHUB_SHA")
+          else
+            changed=$(git ls-files)
+          fi
+          # Lambda workers ship through CDK, not the backend image.
+          image_files=$(grep -E '^(backend/|\.dockerignore$)' <<< "$changed" | grep -vE '^backend/workers/lambdas/' || true)
+          if [ -n "$image_files" ]; then
+            echo "backend=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "backend=false" >> "$GITHUB_OUTPUT"
+          fi
+
   backend:
     name: Validate Backend
     runs-on: ubuntu-latest
@@ -140,8 +177,8 @@ jobs:
 
   publish-backend:
     name: Publish Backend Container
-    needs: backend
-    if: github.ref == 'refs/heads/main' && github.event_name != 'pull_request'
+    needs: [changes, backend]
+    if: github.ref == 'refs/heads/main' && needs.changes.outputs.backend == 'true'
     runs-on: ubuntu-latest
     timeout-minutes: 30
 
@@ -157,8 +194,8 @@ jobs:
       - name: Sign in to Docker Hub
         uses: docker/login-action@v3
         with:
-          username: ${{ secrets.DOCKERHUB_USERNAME }}
-          password: ${{ secrets.DOCKERHUB_PASSWORD }}
+          username: adhirajpandey
+          password: ${{ secrets.DOCKERHUB_TOKEN }}
 
       - name: Build and publish multi-platform image
         uses: docker/build-push-action@v5
@@ -167,4 +204,6 @@ jobs:
           file: backend/Dockerfile
           platforms: linux/amd64,linux/arm64
           push: true
-          tags: adhirajpandey/vidwiz:latest
+          tags: |
+            adhirajpandey/vidwiz:latest
+            adhirajpandey/vidwiz:sha-${{ github.sha }}
