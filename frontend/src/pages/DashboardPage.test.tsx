@@ -125,7 +125,25 @@ it("separates search results, escapes excerpts, and paginates independently", as
   await user.click(screen.getByRole("button", { name: "Clear" }));
   await screen.findByText("Recent activity");
 });
-it("validates short queries and restores search from the URL", async () => {
+it("shows separate counts for your notes and AI notes", async () => {
+  setup();
+  const totals = await screen.findByLabelText("Library totals");
+  await within(totals).findByText("17");
+  expect(within(totals).getByText("your notes")).toBeTruthy();
+  expect(within(totals).getByText("3")).toBeTruthy();
+});
+it("searches while typing after a short pause", async () => {
+  const user = setup();
+  await screen.findByText("Recent activity");
+  await user.type(
+    screen.getByRole("textbox", { name: "Search videos and notes" }),
+    "matching",
+  );
+  await screen.findByRole("heading", { name: "Videos (12)" });
+  expect(screen.getByTestId("url").textContent).toBe("?q=matching");
+  expect(notesApi.search).toHaveBeenCalledTimes(1);
+});
+it("blocks one-character queries and restores search from the URL", async () => {
   const user = setup("/dashboard?q=matching&videosPage=2");
   await screen.findByRole("heading", { name: "Videos (12)" });
   expect(videosApi.listVideos).toHaveBeenLastCalledWith(
@@ -135,9 +153,12 @@ it("validates short queries and restores search from the URL", async () => {
     name: "Search videos and notes",
   });
   await user.clear(input);
-  await user.type(input, "a");
-  await user.click(screen.getByRole("button", { name: "Search" }));
-  expect(screen.getByRole("alert").textContent).toContain("at least two");
+  await user.type(input, "a{Enter}");
+  expect(
+    screen.getByRole("button", { name: "Search" }).hasAttribute("disabled"),
+  ).toBe(true);
+  await new Promise((resolve) => setTimeout(resolve, 400));
+  expect(screen.getByTestId("url").textContent).toContain("q=matching");
 });
 it("ignores a late response from an older query", async () => {
   let resolveOld!: (value: typeof result) => void;

@@ -551,24 +551,24 @@
     font-size: 26px;
   }
   .library-stats {
-    grid-template-columns: repeat(2, 1fr);
     gap: 8px;
   }
   .library-stat {
-    padding: 12px;
-    gap: 16px;
+    justify-content: center;
+    padding: 10px 4px;
+    text-align: center;
+  }
+  .library-stat > svg {
+    display: none;
   }
   .library-search {
-    display: grid;
-    grid-template-columns: 1fr auto;
     gap: 8px;
   }
-  .library-search-field {
-    grid-column: 1 / -1;
-    grid-row: 2;
-  }
   .library-search .library-button-primary {
-    padding: 0 16px;
+    display: none;
+  }
+  .library-search-scope .library-sort-trigger {
+    min-width: 84px;
   }
   .library-featured-grid {
     grid-template-columns: 1fr;

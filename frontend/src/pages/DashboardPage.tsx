@@ -6,6 +6,7 @@ import {
   MessageSquare,
   Search,
   Sparkles,
+  WandSparkles,
   Youtube,
 } from "lucide-react";
 import { videosApi, notesApi } from "../api";
@@ -154,10 +155,21 @@ export default function DashboardPage() {
       ? selectedSort
       : "activity_desc";
   const [draft, setDraft] = useState(query);
-  const [validation, setValidation] = useState("");
+  const draftTooShort = draft.trim().length === 1;
   useEffect(() => {
-    setDraft(query);
+    // Keep in-progress whitespace, such as a trailing space between words.
+    setDraft((current) => (current.trim() === query ? current : query));
   }, [query]);
+  useEffect(() => {
+    const q = draft.trim();
+    if (q.length === 1 || q === query) return;
+    const timer = setTimeout(() => {
+      const next: Record<string, string> = q ? { q } : {};
+      if (scope !== "all") next.scope = scope;
+      setParams(next, { replace: true });
+    }, 300);
+    return () => clearTimeout(timer);
+  }, [draft, query, scope, setParams]);
   const summary = useResource("summary", videosApi.librarySummary);
   const videos = useResource(`videos:${query}:${videoPage}:${sort}:${showVideos}`, () =>
     showVideos ? videosApi.listVideos({
@@ -177,13 +189,16 @@ export default function DashboardPage() {
   }
   function clear() {
     setDraft("");
-    setValidation("");
     setParams(scope === "all" ? {} : { scope });
   }
   const counts = [
     { label: "videos", value: summary.data?.videos, Icon: Youtube },
-    { label: "notes", value: summary.data?.notes, Icon: FileText },
-    { label: "AI notes", value: summary.data?.ai_notes, Icon: Sparkles },
+    {
+      label: "your notes",
+      value: summary.data && summary.data.notes - summary.data.ai_notes,
+      Icon: FileText,
+    },
+    { label: "AI notes", value: summary.data?.ai_notes, Icon: WandSparkles },
     { label: "Wiz chats", value: summary.data?.wiz_chats, Icon: MessageSquare },
   ];
   return (
@@ -228,11 +243,7 @@ export default function DashboardPage() {
               clear();
               return;
             }
-            if (q.length < 2) {
-              setValidation("Enter at least two characters to search.");
-              return;
-            }
-            setValidation("");
+            if (q.length < 2) return;
             setParams(scope === "all" ? { q } : { q, scope });
           }}
         >
@@ -250,9 +261,9 @@ export default function DashboardPage() {
           <Search size={18} aria-hidden="true" />
           <input
             aria-label="Search videos and notes"
-            aria-describedby={validation ? "search-guidance" : undefined}
             value={draft}
             maxLength={500}
+            enterKeyHint="search"
             onChange={(event) => setDraft(event.target.value)}
             placeholder={scope === "videos" ? "Search video titles…" : scope === "notes" ? "Search notes…" : "Search videos and notes…"}
           />
@@ -265,20 +276,13 @@ export default function DashboardPage() {
           <button
             className="library-button library-button-primary"
             type="submit"
+            disabled={draftTooShort}
+            title={draftTooShort ? "Enter at least two characters" : undefined}
           >
             <Search size={16} />
             Search
           </button>
         </form>
-        {validation && (
-          <p
-            id="search-guidance"
-            role="alert"
-            className="text-red-500 text-sm mb-5"
-          >
-            {validation}
-          </p>
-        )}
         {!searching && !!summary.data?.recent_videos.length && (
           <section className="library-recent" aria-labelledby="recent-heading">
             <div className="library-section-heading">
