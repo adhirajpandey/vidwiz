@@ -27,6 +27,7 @@ jobs:
     timeout-minutes: 5
     outputs:
       backend: ${{ steps.paths.outputs.backend }}
+      frontend: ${{ steps.paths.outputs.frontend }}
 
     steps:
       - name: Check out repository
@@ -52,6 +53,11 @@ jobs:
             echo "backend=true" >> "$GITHUB_OUTPUT"
           else
             echo "backend=false" >> "$GITHUB_OUTPUT"
+          fi
+          if grep -qE '^(frontend/|wrangler\.jsonc$)' <<< "$changed"; then
+            echo "frontend=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "frontend=false" >> "$GITHUB_OUTPUT"
           fi
 
   backend:
@@ -132,6 +138,15 @@ jobs:
       - name: Build Frontend
         run: pnpm build
 
+      - name: Upload Frontend Build
+        if: github.event_name != 'pull_request'
+        uses: actions/upload-artifact@v7
+        with:
+          name: frontend-dist
+          path: frontend/dist
+          retention-days: 1
+          if-no-files-found: error
+
   infrastructure:
     name: Validate AWS Infrastructure
     runs-on: ubuntu-latest
@@ -207,3 +222,33 @@ jobs:
           tags: |
             adhirajpandey/vidwiz:latest
             adhirajpandey/vidwiz:sha-${{ github.sha }}
+
+  deploy-frontend:
+    name: Deploy Frontend
+    needs: [changes, frontend]
+    if: github.ref == 'refs/heads/main' && needs.changes.outputs.frontend == 'true'
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v7
+        with:
+          persist-credentials: false
+
+      - name: Download Frontend Build
+        uses: actions/download-artifact@v8
+        with:
+          name: frontend-dist
+          path: frontend/dist
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v7
+        with:
+          node-version: '22'
+
+      - name: Deploy to Cloudflare Workers
+        env:
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+        run: npx --yes wrangler@4.141.0 deploy

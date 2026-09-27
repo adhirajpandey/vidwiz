@@ -104,7 +104,9 @@ GitHub Actions runs these three checks in parallel for every pull request to
 `main` and every push to `main`. On `main`, the backend container image is
 published only when the push changes the image's backend files, and only after
 the backend checks pass. Each image is tagged `latest` and `sha-<commit>`, so an
-earlier image stays available for rollback.
+earlier image stays available for rollback. When a push to `main` changes
+`frontend/` or `wrangler.jsonc`, the frontend build from the checks is deployed
+to Cloudflare Workers.
 
 Production AWS serverless resources are defined in `infra/` as
 `vidwiz-stack`. See `docs/aws-infrastructure.md` before any bootstrap,
