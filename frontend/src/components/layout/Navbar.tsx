@@ -108,9 +108,9 @@ export default function Navbar() {
       {/* Ambient top glow */}
       <div className="absolute inset-x-0 -top-20 h-20 bg-gradient-to-b from-red-500/5 to-transparent pointer-events-none"></div>
       
-      <div className="relative max-w-[1348px] mx-auto px-4 md:px-6 py-3 md:py-4 flex items-center justify-between">
+      <div className="relative max-w-[1348px] mx-auto px-4 md:px-6 py-3 md:py-4 grid grid-cols-[1fr_auto_1fr] items-center">
         {/* Logo */}
-        <Link to="/" className="group flex shrink-0 items-center gap-2.5">
+        <Link to="/" className="group flex shrink-0 items-center gap-2.5 justify-self-start">
           <div className="relative">
             <div className="absolute inset-0 bg-red-500/20 rounded-lg blur-md opacity-0 group-hover:opacity-100 transition-opacity duration-300"></div>
             <img src={vidwizLogo} alt="VidWiz" className="relative w-8 h-8 md:w-9 md:h-9 transition-transform duration-300 group-hover:scale-105" />
@@ -166,13 +166,13 @@ export default function Navbar() {
         </div>
 
         {/* Right Actions */}
-        <div className="flex items-center gap-2 md:gap-3">
+        <div className="flex items-center justify-self-end gap-2 md:gap-3">
           {/* Theme Toggle - Hidden on landing and auth pages */}
           {!['/', '/login', '/signup'].includes(location.pathname) && (
             <button
               aria-label="Toggle theme"
               onClick={toggleTheme}
-              className="relative h-9 w-9 inline-flex items-center justify-center rounded-lg hover:bg-accent hover:text-accent-foreground border border-border hover:border-accent-foreground/20 text-foreground/70 transition-all duration-200 cursor-pointer"
+              className="relative h-9 w-9 inline-flex items-center justify-center rounded-lg hover:bg-accent hover:text-accent-foreground text-foreground/70 transition-all duration-200 cursor-pointer"
             >
               {theme === 'dark' ? (
                 <Sun className="w-4 h-4 transition-transform duration-200 hover:rotate-45" />
@@ -199,7 +199,7 @@ export default function Navbar() {
                     <img 
                       src={profileImageUrl} 
                       alt={displayName || 'User'}
-                      className="w-9 h-9 rounded-full shadow-lg shadow-red-500/25 transition-transform duration-200 group-hover:scale-105 object-cover"
+                      className="w-9 h-9 rounded-full transition-transform duration-200 group-hover:scale-105 object-cover"
                       onError={(e) => {
                         // Fallback to char avatar on image load error
                         e.currentTarget.style.display = 'none';
@@ -207,7 +207,7 @@ export default function Navbar() {
                       }}
                     />
                   ) : null}
-                  <div className={`w-9 h-9 rounded-full bg-gradient-to-br from-red-500 to-red-600 flex items-center justify-center text-white font-semibold text-sm shadow-lg shadow-red-500/25 transition-transform duration-200 group-hover:scale-105 ${profileImageUrl ? 'hidden' : ''}`}>
+                  <div className={`w-9 h-9 rounded-full bg-gradient-to-br from-red-500 to-red-600 flex items-center justify-center text-white font-semibold text-sm transition-transform duration-200 group-hover:scale-105 ${profileImageUrl ? 'hidden' : ''}`}>
                     {getAvatarChar()}
                   </div>
                   {/* Online indicator */}
