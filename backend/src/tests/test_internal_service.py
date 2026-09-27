@@ -227,7 +227,7 @@ def test_fetch_ai_note_task_notes_filters_preference_in_sql(db_session):
         None,
     ]
     users = [
-        User(email=f"ai{index}@example.com", profile_data=profile)
+        User(email=f"ai{index}@example.com", profile_data=profile, credits_balance=5)
         for index, profile in enumerate(profiles)
     ]
     db_session.add_all([video, *users])
@@ -261,6 +261,67 @@ def test_fetch_ai_note_task_notes_filters_preference_in_sql(db_session):
         (enabled.id, "00:01"),
         (enabled.id, "00:02"),
     ]
+
+
+def test_fetch_ai_note_task_notes_charges_each_note_once(db_session):
+    from src.credits.models import CreditsLedger
+
+    video = Video(video_id="abc123DEF45", transcript_available=True)
+    rich = User(
+        email="rich@example.com",
+        profile_data={"ai_notes_enabled": True},
+        credits_balance=3,
+    )
+    broke = User(
+        email="broke@example.com",
+        profile_data={"ai_notes_enabled": True},
+        credits_balance=0,
+    )
+    db_session.add_all([video, rich, broke])
+    db_session.commit()
+    notes = [
+        Note(video_id=video.video_id, timestamp="00:01", user_id=rich.id),
+        Note(video_id=video.video_id, timestamp="00:02", user_id=rich.id),
+        Note(video_id=video.video_id, timestamp="00:03", user_id=broke.id),
+    ]
+    db_session.add_all(notes)
+    db_session.commit()
+
+    _, first = internal_service.fetch_ai_note_task_notes(db_session, video.video_id)
+    _, again = internal_service.fetch_ai_note_task_notes(db_session, video.video_id)
+
+    expected = [notes[0].id, notes[1].id]
+    assert [note.id for note in first] == expected
+    assert [note.id for note in again] == expected
+    db_session.refresh(rich)
+    db_session.refresh(broke)
+    assert rich.credits_balance == 1
+    assert broke.credits_balance == 0
+    charged = db_session.query(CreditsLedger).filter_by(reason="ai_note").all()
+    assert sorted(entry.ref_id for entry in charged) == [str(id) for id in expected]
+
+
+def test_fetch_ai_note_task_notes_keeps_notes_charged_at_creation(db_session):
+    from src.credits import service as credits_service
+
+    video = Video(video_id="abc123DEF45", transcript_available=True)
+    user = User(
+        email="paid@example.com",
+        profile_data={"ai_notes_enabled": True},
+        credits_balance=1,
+    )
+    db_session.add_all([video, user])
+    db_session.commit()
+    note = Note(video_id=video.video_id, timestamp="00:01", user_id=user.id)
+    db_session.add(note)
+    db_session.commit()
+    credits_service.charge_ai_note_enqueue(db_session, user.id, note.id)
+
+    _, notes = internal_service.fetch_ai_note_task_notes(db_session, video.video_id)
+
+    assert [n.id for n in notes] == [note.id]
+    db_session.refresh(user)
+    assert user.credits_balance == 0
 
 
 def test_create_task_idempotent(db_session):

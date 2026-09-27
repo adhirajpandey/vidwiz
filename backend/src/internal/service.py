@@ -10,7 +10,8 @@ from sqlalchemy import and_, or_, select
 from sqlalchemy.orm import Session
 
 from src.auth.models import User
-from src.exceptions import BadRequestError, NotFoundError
+from src.credits import service as credits_service
+from src.exceptions import BadRequestError, ForbiddenError, NotFoundError
 from src.internal import constants as internal_constants
 from src.internal.models import Task, TaskStatus
 from src.notes.models import Note
@@ -224,7 +225,24 @@ def fetch_ai_note_task_notes(
         .scalars()
         .all()
     )
-    return video, notes
+    return video, [note for note in notes if _charge_ai_note(db, note)]
+
+
+def _charge_ai_note(db: Session, note: Note) -> bool:
+    """Charge a note queued after transcript upload; skip owners without credits.
+
+    Notes already charged, for example when the transcript existed at creation,
+    are not charged again.
+    """
+    try:
+        credits_service.charge_ai_note_enqueue(db, note.user_id, note.id)
+    except ForbiddenError:
+        logger.info(
+            "Skipping AI note without enough credits",
+            extra={"note_id": note.id, "user_id": note.user_id},
+        )
+        return False
+    return True
 
 
 def get_video(db: Session, video_id: str) -> Video | None:

@@ -56,7 +56,7 @@ or systemd unit manages parallel helper processes.
     `dispatch_service.py` module.
   - Triggered by S3 transcript uploads (or manual `video_ids` input)
   - On S3 event: enqueues summary jobs to summary SQS
-  - For all video IDs: fetches eligible AI-note tasks via `/v2/internal/videos/{video_id}/ai-notes` and batches them to the AI note SQS (batch size 10)
+  - For all video IDs: fetches eligible AI-note tasks via `/v2/internal/videos/{video_id}/ai-notes` and batches them to the AI note SQS (batch size 10). The endpoint charges each returned note once and omits notes whose owner lacks credits
   - Notes fetch uses `VIDWIZ_INTERNAL_API_ADMIN_TOKEN`
   - Propagates unhandled dispatch failures so Lambda retry/DLQ handling can run
 

@@ -90,6 +90,7 @@ async def test_internal_ai_notes(client, db_session):
         email="ai-notes@example.com",
         name="AI Notes User",
         profile_data={"ai_notes_enabled": True},
+        credits_balance=1,
     )
     video = Video(video_id=video_id, title="AI Notes Video")
     db_session.add_all([user, video])
@@ -114,6 +115,29 @@ async def test_internal_ai_notes(client, db_session):
     payload = response.json()
     assert payload["video_id"] == video_id
     assert len(payload["notes"]) == 1
+    db_session.refresh(user)
+    assert user.credits_balance == 0
+
+
+@pytest.mark.asyncio
+async def test_internal_ai_notes_skips_users_without_credits(client, db_session):
+    video_id = "abc123DEF45"
+    user = User(
+        email="no-credits@example.com",
+        profile_data={"ai_notes_enabled": True},
+        credits_balance=0,
+    )
+    db_session.add_all([user, Video(video_id=video_id, title="AI Notes Video")])
+    db_session.commit()
+    db_session.add(Note(video_id=video_id, timestamp="00:01", user_id=user.id))
+    db_session.commit()
+
+    response = await client.get(
+        f"/v2/internal/videos/{video_id}/ai-notes",
+        headers=admin_headers(),
+    )
+
+    assert response.status_code == 404
 
 
 @pytest.mark.asyncio
