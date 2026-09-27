@@ -36,6 +36,10 @@ Describe the FastAPI backend: structure, auth rules, and the request/worker life
 - **Task scheduling**: Creating a note or conversation upserts the video and schedules transcript/metadata tasks when missing.
 - **AI notes**: Enqueued only when note text is empty, AI notes are enabled, and the transcript is already available.
   - Enqueue uses the required `SQS_AI_NOTE_QUEUE_URL`.
+  - Each AI note costs `AI_NOTE_COST` credits once, charged when it is queued. Notes
+    created before their transcript are charged when the dispatcher collects them
+    through `GET /v2/internal/videos/{video_id}/ai-notes`. That endpoint omits notes
+    whose owner lacks enough credits, and the ledger prevents charging a note twice.
 - **Wiz quotas**: Daily message limits enforced separately for users and guests via `WIZ_USER_DAILY_QUOTA` and `WIZ_GUEST_DAILY_QUOTA`.
 - **Wiz token budget**: `WIZ_MAX_TOKENS` (default 8192) controls the max completion tokens per Wiz response, including model reasoning. The larger ceiling accommodates structured evidence on long transcripts; explicit environment overrides remain authoritative.
 
