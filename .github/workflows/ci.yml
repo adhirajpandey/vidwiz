@@ -14,7 +14,10 @@ permissions:
 
 concurrency:
   group: ${{ github.workflow }}-${{ github.ref }}
-  cancel-in-progress: true
+  # Queue every run in order. Change detection compares each push with the one
+  # before it, so a skipped run could leave a backend change unpublished.
+  queue: max
+  cancel-in-progress: false
 
 jobs:
   changes:
