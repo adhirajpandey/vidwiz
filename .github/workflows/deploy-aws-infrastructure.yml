@@ -1,4 +1,4 @@
-name: Deploy Production AWS Infrastructure
+name: Deploy AWS Infrastructure
 
 on:
   workflow_dispatch:
@@ -7,8 +7,8 @@ permissions:
   contents: read
 
 jobs:
-  deploy-production:
-    name: Validate and Deploy Production Infrastructure
+  deploy-infrastructure:
+    name: Deploy AWS Infrastructure
     if: github.ref == 'refs/heads/main'
     runs-on: ubuntu-latest
     timeout-minutes: 30

@@ -1,4 +1,4 @@
-name: Validate Application and Infrastructure
+name: CI
 
 on:
   pull_request:
@@ -21,7 +21,7 @@ concurrency:
 
 jobs:
   changes:
-    name: Detect Changed Paths
+    name: Detect Changes
     if: github.event_name != 'pull_request'
     runs-on: ubuntu-latest
     timeout-minutes: 5
@@ -60,7 +60,7 @@ jobs:
             echo "frontend=false" >> "$GITHUB_OUTPUT"
           fi
 
-  backend:
+  validate-backend:
     name: Validate Backend
     runs-on: ubuntu-latest
     timeout-minutes: 15
@@ -99,7 +99,7 @@ jobs:
       - name: Run Backend Tests
         run: uv run --locked pytest
 
-  frontend:
+  validate-frontend:
     name: Validate Frontend
     runs-on: ubuntu-latest
     timeout-minutes: 10
@@ -147,7 +147,7 @@ jobs:
           retention-days: 1
           if-no-files-found: error
 
-  infrastructure:
+  validate-infrastructure:
     name: Validate AWS Infrastructure
     runs-on: ubuntu-latest
     timeout-minutes: 30
@@ -191,8 +191,8 @@ jobs:
         run: uv run --locked python scripts/validate.py
 
   publish-backend:
-    name: Publish Backend Container
-    needs: [changes, backend]
+    name: Publish Backend Image
+    needs: [changes, validate-backend]
     if: github.ref == 'refs/heads/main' && needs.changes.outputs.backend == 'true'
     runs-on: ubuntu-latest
     timeout-minutes: 30
@@ -224,8 +224,8 @@ jobs:
             adhirajpandey/vidwiz:sha-${{ github.sha }}
 
   deploy-frontend:
-    name: Deploy Frontend
-    needs: [changes, frontend]
+    name: Deploy Frontend to Cloudflare
+    needs: [changes, validate-frontend]
     if: github.ref == 'refs/heads/main' && needs.changes.outputs.frontend == 'true'
     runs-on: ubuntu-latest
     timeout-minutes: 10

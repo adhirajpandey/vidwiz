@@ -72,7 +72,7 @@ payloads.
   `vidwiz-stack`.
 - Canonical function names are `vidwiz-prod-transcript-dispatcher`,
   `vidwiz-prod-ai-note-worker`, and `vidwiz-prod-ai-summary-worker`.
-- `.github/workflows/aws-infrastructure.yml` validates and deploys production
+- `.github/workflows/deploy-aws-infrastructure.yml` validates and deploys production
   infrastructure only when manually dispatched from `main`.
 - The deployment job assumes `VidwizGitHubDeployRole` through GitHub OIDC,
   rejects an unexpected AWS account, and uses only the production CDK
