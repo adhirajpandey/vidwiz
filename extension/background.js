@@ -13,12 +13,8 @@ const CONSTANTS = {
 
 // Listen for messages from the web app (externally_connectable)
 chrome.runtime.onMessageExternal.addListener((message, sender, sendResponse) => {
-  // Verify the sender is our web app
-  // The matches in manifest.json restrict who can send messages, but double checking URL is good practice
-  // We use "activeTab" to inject scripts/styles only when the user interacts with the extension.
-  // We use "storage" to persist the authentication token.
-  
-  if (sender.url && sender.url.startsWith(CONSTANTS.ORIGINS.PROD)) {
+  // externally_connectable already restricts senders; also require an exact origin match.
+  if (sender.origin === CONSTANTS.ORIGINS.PROD) {
     
     if (message.type === CONSTANTS.MESSAGES.SYNC_TOKEN) {
       const { token } = message;
