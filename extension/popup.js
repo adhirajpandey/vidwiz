@@ -41,7 +41,8 @@ const CONSTANTS = {
     CONN_LOST: "Connection lost. Please reload the YouTube page.",
     SYNCED: "Synced with VidWiz!",
     WELCOME: "Welcome to VidWiz!",
-    SESSION_EXPIRED: "Your session expired. Please log in again."
+    SESSION_EXPIRED: "Your session expired. Please log in again.",
+    RETRY: "Your login was refreshed. Please try again."
   }
 };
 
@@ -79,6 +80,15 @@ function decodeTokenExp(token) {
 
 let sessionExpired = false
 
+// Removes the stored token only if it is still `token`, so a newer synced token survives.
+async function clearTokenIfCurrent(token) {
+	const current = (await chrome.storage.local.get(CONSTANTS.STORAGE.TOKEN))[CONSTANTS.STORAGE.TOKEN]
+	if (current !== token) return false
+	sessionExpired = true
+	await chrome.storage.local.remove(CONSTANTS.STORAGE.TOKEN)
+	return true
+}
+
 // Returns the stored token, removing it when it is expired or malformed.
 async function getAuthToken() {
 	const token = (await chrome.storage.local.get(CONSTANTS.STORAGE.TOKEN))[CONSTANTS.STORAGE.TOKEN]
@@ -86,8 +96,7 @@ async function getAuthToken() {
 	const exp = decodeTokenExp(token)
 	// Allow 5 seconds of clock skew.
 	if (!exp || Date.now() >= exp * 1000 - 5000) {
-		sessionExpired = true
-		await chrome.storage.local.remove(CONSTANTS.STORAGE.TOKEN)
+		await clearTokenIfCurrent(token)
 		return null
 	}
 	return token
@@ -112,8 +121,9 @@ async function apiRequest(path, options = {}) {
 	if (!res.ok) {
 		const body = await res.json().catch(() => ({}))
 		if (res.status === 401) {
-			sessionExpired = true
-			await chrome.storage.local.remove(CONSTANTS.STORAGE.TOKEN)
+			if (!(await clearTokenIfCurrent(token))) {
+				throw { status: 0, body: { error: CONSTANTS.MESSAGES.RETRY } }
+			}
 			showTokenSetup()
 		}
 		throw { status: res.status, body }
