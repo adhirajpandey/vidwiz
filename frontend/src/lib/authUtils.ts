@@ -84,6 +84,12 @@ export function setToken(token: string): void {
   }
 }
 
+/** Re-sends the current token to the extension, e.g. on app load. */
+export function syncExtensionAuth(): void {
+  const token = getToken();
+  if (token) syncExtension({ type: 'SYNC_TOKEN', token });
+}
+
 /** JSON headers with a Bearer token when a valid token exists. */
 export function getAuthHeaders(): Record<string, string> {
   const token = getToken();
