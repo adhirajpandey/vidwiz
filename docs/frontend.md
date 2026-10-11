@@ -23,7 +23,7 @@ Summarize the web app structure, routing, and API integration.
 
 ## Key Behavior
 - **Auth**: JWT stored in `localStorage`, validated on read, and injected into axios requests.
-- **Web-to-extension auth sync**: `setToken`/`removeToken` send `SYNC_TOKEN`/`LOGOUT` to the configured extension ID.
+- **Web-to-extension auth sync**: `setToken`/`removeToken` send `SYNC_TOKEN`/`LOGOUT` to the configured extension ID; `syncExtensionAuth` (called once in `main.tsx`) re-sends a valid token on app load.
 - **Auth failure handling**: Axios and Fetch requests emit one session-expired
   event on application `401` responses. The React session handler clears the
   token, shows one notification, and redirects to `/login`; credential failures

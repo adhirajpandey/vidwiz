@@ -49,7 +49,7 @@ VidWiz helps users take timestamped notes on YouTube videos, enriches notes with
 
 ## Auth and Access Rules (Important)
 - **JWT tokens**: required for most `/v2` endpoints.
-- **Long-term tokens**: accepted only for note creation (extension/mobile).
+- **Long-term tokens**: accepted only for note creation (mobile/API clients). The extension uses the web session JWT synced from the web app.
 - **Guest sessions**: `X-Guest-Session-ID` header is used for Wiz chat without JWT.
 - **Admin token**: required for `/v2/internal` endpoints.
 

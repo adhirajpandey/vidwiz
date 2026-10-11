@@ -90,7 +90,7 @@ Backend note creation supports:
    - `extension/background.js` → `CONSTANTS.ORIGINS.PROD`
 4) Set the extension ID used by the web app:
    - `frontend/src/config.ts` → `EXTENSION_ID` (production must be a real ID, not placeholder)
-5) Reload both extension and web app, then log in on the web app
+5) Reload both extension and web app, then log in (or just open the web app if already logged in)
 6) Open the extension popup; it auto-unlocks when token sync succeeds
 
 The extension note UI appears on supported YouTube watch pages after sync.
