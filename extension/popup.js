@@ -42,7 +42,9 @@ const CONSTANTS = {
     SYNCED: "Synced with VidWiz!",
     WELCOME: "Welcome to VidWiz!",
     SESSION_EXPIRED: "Your session expired. Please log in again.",
-    RETRY: "Your login was refreshed. Please try again."
+    RETRY: "Your login was refreshed. Please try again.",
+    NETWORK: "Can't reach VidWiz. Check your connection and try again.",
+    UNKNOWN: "Something went wrong. Please try again."
   }
 };
 
@@ -109,20 +111,25 @@ async function apiRequest(path, options = {}) {
 		showTokenSetup()
 		throw { status: 401, body: {} }
 	}
-	const res = await fetch(`${CONSTANTS.API.API_URL}${path}`, {
-		...options,
-		headers: {
-			"Content-Type": "application/json",
-			Authorization: `Bearer ${token}`,
-			...options.headers,
-		},
-	})
+	let res
+	try {
+		res = await fetch(`${CONSTANTS.API.API_URL}${path}`, {
+			...options,
+			headers: {
+				"Content-Type": "application/json",
+				Authorization: `Bearer ${token}`,
+				...options.headers,
+			},
+		})
+	} catch {
+		throw { status: 0, body: { error: { message: CONSTANTS.MESSAGES.NETWORK } } }
+	}
 
 	if (!res.ok) {
 		const body = await res.json().catch(() => ({}))
 		if (res.status === 401) {
 			if (!(await clearTokenIfCurrent(token))) {
-				throw { status: 0, body: { error: CONSTANTS.MESSAGES.RETRY } }
+				throw { status: 0, body: { error: { message: CONSTANTS.MESSAGES.RETRY } } }
 			}
 			showTokenSetup()
 		}
@@ -131,18 +138,23 @@ async function apiRequest(path, options = {}) {
 	return res.json()
 }
 
+// API errors have the shape { error: { code, message, details } }.
 function formatApiError(err) {
 	const messages = {
 		401: "Your session expired. Please log in again.",
 		403: "Access denied. Please check your permissions.",
 		404: "Resource not found.",
+		429: "Too many requests. Please wait a moment and try again.",
 		500: "Server error. Please try again later.",
 	}
-	if (err.status === 422) {
-		const d = err.body?.detail
-		return Array.isArray(d) ? d.map((x) => x.msg).join("; ") : "Invalid data. Please check your input."
+	const error = err?.body?.error
+	if (err?.status === 422) {
+		const details = error?.details
+		return Array.isArray(details) && details.length
+			? details.map((d) => d.message).join("; ")
+			: "Invalid data. Please check your input."
 	}
-	return messages[err.status] || err.body?.error || `HTTP error: ${err.status}`
+	return messages[err?.status] || error?.message || CONSTANTS.MESSAGES.UNKNOWN
 }
 
 // ── Content Script Communication ──────────────────────────────────────────────
