@@ -152,7 +152,7 @@ function formatApiError(err) {
 		const details = error?.details
 		return Array.isArray(details) && details.length
 			? details.map((d) => d.message).join("; ")
-			: "Invalid data. Please check your input."
+			: error?.message || "Invalid data. Please check your input."
 	}
 	return messages[err?.status] || error?.message || CONSTANTS.MESSAGES.UNKNOWN
 }
