@@ -9,7 +9,7 @@ const CONSTANTS = {
     WATCH_PATH: "/watch"
   },
   STRINGS: {
-    TITLE_SUFFIX: " - YouTube",
+    TITLE_SUFFIX: /\s+-\s+YouTube$/,
     // Unread notification count YouTube prepends to the tab title, e.g. "(3) ".
     TITLE_COUNT_PREFIX: /^\(\d+\)\s*/,
     NO_VIDEO_FOUND: "No YouTube video found."
