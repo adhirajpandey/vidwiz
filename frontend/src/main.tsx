@@ -8,6 +8,10 @@ import ToastProvider from './components/ToastProvider'
 import ScrollToTop from './components/ScrollToTop'
 import SessionExpiredHandler from './components/SessionExpiredHandler'
 import ErrorBoundary from './components/ErrorBoundary'
+import { syncExtensionAuth } from './lib/authUtils'
+
+// Keep the extension's token in step with the web session.
+syncExtensionAuth()
 
 createRoot(document.getElementById('root')!).render(
   <StrictMode>

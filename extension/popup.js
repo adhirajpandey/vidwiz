@@ -13,6 +13,7 @@ const CONSTANTS = {
   SELECTORS: {
     FEEDBACK: "feedback-message",
     TOKEN_SETUP: "token-setup",
+    TOKEN_SUBTITLE: "token-subtitle",
     NOTES_VIEW: "notes-view",
     VIDEO_TITLE: "video-title",
     TIMESTAMP_WRAPPER: "timestamp-wrapper",
@@ -39,7 +40,9 @@ const CONSTANTS = {
     SAVED: "Note saved successfully!",
     CONN_LOST: "Connection lost. Please reload the YouTube page.",
     SYNCED: "Synced with VidWiz!",
-    WELCOME: "Welcome to VidWiz!"
+    WELCOME: "Welcome to VidWiz!",
+    SESSION_EXPIRED: "Your session expired. Please log in again.",
+    RETRY: "Your login was refreshed. Please try again."
   }
 };
 
@@ -65,12 +68,47 @@ function setButtonLoading(btn, loading) {
 }
 
 // ── Token Storage ────────────────────────────────────────────────────────────
-const getAuthToken = () => chrome.storage.local.get(CONSTANTS.STORAGE.TOKEN).then((r) => r[CONSTANTS.STORAGE.TOKEN] || null)
-const setAuthToken = (token) => chrome.storage.local.set({ [CONSTANTS.STORAGE.TOKEN]: token })
+// Reads `exp` from a JWT payload without verification; null when malformed.
+function decodeTokenExp(token) {
+	try {
+		const base64 = token.split(".")[1].replace(/-/g, "+").replace(/_/g, "/")
+		return JSON.parse(atob(base64)).exp || null
+	} catch {
+		return null
+	}
+}
+
+let sessionExpired = false
+
+// Removes the stored token only if it is still `token`, so a newer synced token survives.
+async function clearTokenIfCurrent(token) {
+	const current = (await chrome.storage.local.get(CONSTANTS.STORAGE.TOKEN))[CONSTANTS.STORAGE.TOKEN]
+	if (current !== token) return false
+	sessionExpired = true
+	await chrome.storage.local.remove(CONSTANTS.STORAGE.TOKEN)
+	return true
+}
+
+// Returns the stored token, removing it when it is expired or malformed.
+async function getAuthToken() {
+	const token = (await chrome.storage.local.get(CONSTANTS.STORAGE.TOKEN))[CONSTANTS.STORAGE.TOKEN]
+	if (!token) return null
+	const exp = decodeTokenExp(token)
+	// Allow 5 seconds of clock skew.
+	if (!exp || Date.now() >= exp * 1000 - 5000) {
+		await clearTokenIfCurrent(token)
+		return null
+	}
+	return token
+}
 
 // ── API Client ───────────────────────────────────────────────────────────────
 async function apiRequest(path, options = {}) {
 	const token = await getAuthToken()
+	if (!token) {
+		showTokenSetup()
+		throw { status: 401, body: {} }
+	}
 	const res = await fetch(`${CONSTANTS.API.API_URL}${path}`, {
 		...options,
 		headers: {
@@ -83,7 +121,9 @@ async function apiRequest(path, options = {}) {
 	if (!res.ok) {
 		const body = await res.json().catch(() => ({}))
 		if (res.status === 401) {
-			await chrome.storage.local.remove(CONSTANTS.STORAGE.TOKEN)
+			if (!(await clearTokenIfCurrent(token))) {
+				throw { status: 0, body: { error: CONSTANTS.MESSAGES.RETRY } }
+			}
 			showTokenSetup()
 		}
 		throw { status: res.status, body }
@@ -93,7 +133,7 @@ async function apiRequest(path, options = {}) {
 
 function formatApiError(err) {
 	const messages = {
-		401: "Authentication failed. Please check your API token.",
+		401: "Your session expired. Please log in again.",
 		403: "Access denied. Please check your permissions.",
 		404: "Resource not found.",
 		500: "Server error. Please try again later.",
@@ -169,6 +209,7 @@ async function saveNote(url, text, videoTitle, videoTimestamp) {
 
 // ── Views ────────────────────────────────────────────────────────────────────
 function showTokenSetup() {
+	if (sessionExpired) $(CONSTANTS.SELECTORS.TOKEN_SUBTITLE).textContent = CONSTANTS.MESSAGES.SESSION_EXPIRED
 	$(CONSTANTS.SELECTORS.TOKEN_SETUP).classList.remove(CONSTANTS.CLASSES.HIDDEN)
 	$(CONSTANTS.SELECTORS.NOTES_VIEW).classList.add(CONSTANTS.CLASSES.HIDDEN)
 }
@@ -321,6 +362,7 @@ chrome.storage.onChanged.addListener((changes, area) => {
 	if (area === "local" && changes[CONSTANTS.STORAGE.TOKEN]) {
 		const newToken = changes[CONSTANTS.STORAGE.TOKEN].newValue
 		if (newToken) {
+			sessionExpired = false
 			setMessage(CONSTANTS.MESSAGES.SYNCED, CONSTANTS.CLASSES.SUCCESS)
 			showNotesView()
 			initNotesView()
