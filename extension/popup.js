@@ -388,5 +388,5 @@ document.addEventListener("DOMContentLoaded", async () => {
 	$(CONSTANTS.SELECTORS.OPEN_SMART_NOTES).addEventListener("click", (e) => { e.preventDefault(); openVideoTab("/dashboard") })
 	$(CONSTANTS.SELECTORS.OPEN_IN_WIZ).addEventListener("click", (e) => { e.preventDefault(); openVideoTab("/wiz") })
 	$(CONSTANTS.SELECTORS.GO_DASHBOARD).addEventListener("click", (e) => { e.preventDefault(); openTab("/dashboard") })
-	$(CONSTANTS.SELECTORS.GO_LOGIN).addEventListener("click", (e) => { e.preventDefault(); openTab("/login") })
+	$(CONSTANTS.SELECTORS.GO_LOGIN).addEventListener("click", (e) => { e.preventDefault(); openTab("/dashboard") })
 })

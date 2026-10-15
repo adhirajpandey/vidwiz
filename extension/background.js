@@ -11,6 +11,13 @@ const CONSTANTS = {
   }
 };
 
+// Open the web app on first install so it syncs an existing login to the extension.
+chrome.runtime.onInstalled.addListener(({ reason }) => {
+  if (reason === chrome.runtime.OnInstalledReason.INSTALL) {
+    chrome.tabs.create({ url: `${CONSTANTS.ORIGINS.PROD}/dashboard` });
+  }
+});
+
 // Listen for messages from the web app (externally_connectable)
 chrome.runtime.onMessageExternal.addListener((message, sender, sendResponse) => {
   // externally_connectable already restricts senders; also require an exact origin match.
