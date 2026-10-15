@@ -238,7 +238,8 @@ async function initNotesView() {
 	const [tab] = await chrome.tabs.query({ active: true, currentWindow: true })
 	const { id: tabId, url: tabURL } = tab
 
-	if (!tabURL.includes("youtube.com/watch")) {
+	// The URL is undefined for tabs the extension cannot read, e.g. when the popup outlives a tab switch.
+	if (!tabURL?.includes("youtube.com/watch")) {
 		setMessage(CONSTANTS.MESSAGES.NO_VIDEO, CONSTANTS.CLASSES.ERROR)
 		;[CONSTANTS.SELECTORS.VIDEO_TITLE, CONSTANTS.SELECTORS.TIMESTAMP_WRAPPER, CONSTANTS.SELECTORS.NOTES_TEXTAREA, CONSTANTS.SELECTORS.SAVE_BTN, CONSTANTS.SELECTORS.OPEN_SMART_NOTES, CONSTANTS.SELECTORS.OPEN_IN_WIZ]
 			.forEach((id) => setVisible(id, false))
