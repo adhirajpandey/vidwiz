@@ -1,7 +1,7 @@
 const CONSTANTS = {
   SELECTORS: {
-    TITLE_PRIMARY: ".title.style-scope.ytd-video-primary-info-renderer",
-    TITLE_META: 'meta[name="title"]',
+    // Current watch-page title; YouTube updates it on in-page navigation.
+    TITLE_PRIMARY: "ytd-watch-metadata h1",
     VIDEO: "video"
   },
   URL: {
@@ -10,6 +10,8 @@ const CONSTANTS = {
   },
   STRINGS: {
     TITLE_SUFFIX: " - YouTube",
+    // Unread notification count YouTube prepends to the tab title, e.g. "(3) ".
+    TITLE_COUNT_PREFIX: /^\(\d+\)\s*/,
     NO_VIDEO_FOUND: "No YouTube video found."
   }
 };
@@ -35,15 +37,15 @@ function isYouTubeWatchPage() {
 function fetchVideoTitle() {
   if (isYouTubeWatchPage()) {
     // Try primary title element
-    const el = document.querySelector(CONSTANTS.SELECTORS.TITLE_PRIMARY)
-    if (el) return el.textContent.trim()
-    
-    // Fallback: meta tag
-    const meta = document.querySelector(CONSTANTS.SELECTORS.TITLE_META)
-    if (meta) return meta.content
+    const title = document.querySelector(CONSTANTS.SELECTORS.TITLE_PRIMARY)?.textContent.trim()
+    if (title) return title
 
-    // Fallback: document title (often formatted as "Video Title - YouTube")
-    return document.title.replace(CONSTANTS.STRINGS.TITLE_SUFFIX, "")
+    // Fallback: document title, formatted as "(3) Video Title - YouTube".
+    // The meta title tag is not used because it keeps the first video's title after in-page navigation.
+    return document.title
+      .replace(CONSTANTS.STRINGS.TITLE_COUNT_PREFIX, "")
+      .replace(CONSTANTS.STRINGS.TITLE_SUFFIX, "")
+      .trim()
   }
   return CONSTANTS.STRINGS.NO_VIDEO_FOUND
 }
