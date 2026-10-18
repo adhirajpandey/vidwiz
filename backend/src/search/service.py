@@ -6,6 +6,7 @@ from dataclasses import dataclass
 from typing import Literal
 
 from sqlalchemy import Float, cast, func, literal, select
+from sqlalchemy import text as sql_text
 from sqlalchemy.orm import Session
 
 from src.library.models import LibraryItem
