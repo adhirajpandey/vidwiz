@@ -61,11 +61,11 @@ user. The product has three verbs:
 - A capture within 10 seconds of the user's existing moment on the same video
   merges into it. Merged captures are not charged again.
 - `GET /v2/search` ranks PostgreSQL full-text matches (stemming, prefix,
-  trigram typo tolerance)
+  trigram typo tolerance) across moments and transcript passages.
 - Library Ask expands the question into search terms with a small model,
   retrieves matching moments and passages with full-text search across the
-  user's library, and reuses the structured citation stream. It is free within the existing daily
-  message quota.
+  user's library, and reuses the structured citation stream. It is free within
+  the existing daily message quota.
 - Conversations can be listed and resumed.
 - A cited passage can be saved as a moment without AI or credits.
 - `GET /v2/videos/{id}/transcript` and Markdown export for a video or the whole
