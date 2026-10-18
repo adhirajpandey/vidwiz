@@ -10,14 +10,20 @@ from src.auth import service as auth_service
 from src.auth.models import User
 from src.config import settings
 from src.credits import service as credits_service
-from src.exceptions import BadRequestError, ForbiddenError
+from src.exceptions import BadRequestError, ForbiddenError, NotFoundError
 from src.internal import constants as internal_constants
 from src.internal.models import Task, TaskStatus
 from src.internal.scheduling import prepare_video
 from src.library import service as library_service
 from src.library.models import LibraryItem
-from src.moments.models import AiStatus, Moment, ResolveStatus
-from src.moments.schemas import CaptureCreate, FeedMoment, MomentFeed, MomentRead
+from src.moments.models import AiStatus, CaptureSource, Moment, ResolveStatus
+from src.moments.schemas import (
+    CaptureCreate,
+    FeedMoment,
+    MomentFeed,
+    MomentRead,
+    PassageSave,
+)
 from src.videos import service as videos_service
 from src.videos.models import Video
 
@@ -190,6 +196,51 @@ def _request_ai(db: Session, moment: Moment) -> bool:
         return False
     moment.ai_status = AiStatus.QUEUED
     return True
+
+
+def save_passage(
+    db: Session, user_id: int, payload: PassageSave
+) -> tuple[Moment, bool]:
+    """Keep a cited passage as a moment, with the cited text as its quote."""
+    video = videos_service.get_video_by_id(db, payload.video_id)
+    if video is None:
+        raise NotFoundError("Video not found")
+    start = int(payload.start_seconds)
+    library_service.save_video(db, user_id, payload.video_id)
+    existing = _find_nearby(db, user_id, payload.video_id, start)
+    if existing is not None:
+        _merge(db, existing, payload.note, wants_ai=False)
+        db.commit()
+        db.refresh(existing)
+        return existing, True
+
+    transcript = (
+        transcripts.load_transcript(payload.video_id)
+        if video.transcript_available
+        else None
+    )
+    moment = Moment(
+        user_id=user_id,
+        video_id=payload.video_id,
+        at_seconds=start,
+        quote=(
+            transcripts.text_between(
+                transcript, payload.start_seconds, payload.end_seconds
+            )
+            if transcript
+            else None
+        ),
+        quote_start_seconds=start,
+        note=payload.note,
+        source=CaptureSource.WEB,
+        resolve_status=ResolveStatus.RESOLVED,
+        ai_status=AiStatus.NOT_REQUESTED,
+    )
+    db.add(moment)
+    db.commit()
+    db.refresh(moment)
+    logger.debug("Saved passage as moment", extra={"moment_id": moment.id})
+    return moment, False
 
 
 def apply_quote(moment: Moment, transcript: list) -> None:

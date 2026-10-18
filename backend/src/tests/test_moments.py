@@ -534,3 +534,41 @@ async def test_request_ai_route_rejects_ready_moment(client, db_session, user):
     )
 
     assert response.status_code == 400
+
+
+@pytest.mark.asyncio
+async def test_save_passage_keeps_cited_text_without_ai(
+    client, db_session, user, transcript_ready, sent_jobs
+):
+    headers = auth_headers(user)
+    body = {"video_id": VIDEO_ID, "start_seconds": 95, "end_seconds": 104.5}
+
+    created = await client.post("/v2/moments/passages", headers=headers, json=body)
+    merged = await client.post(
+        "/v2/moments/passages", headers=headers, json={**body, "note": "keep this"}
+    )
+    missing = await client.post(
+        "/v2/moments/passages",
+        headers=headers,
+        json={**body, "video_id": "zzzzzzzzzzz"},
+    )
+    backwards = await client.post(
+        "/v2/moments/passages",
+        headers=headers,
+        json={**body, "start_seconds": 120},
+    )
+
+    assert created.status_code == 201
+    moment = created.json()["moment"]
+    assert moment["quote"] == (
+        "composite index order matters the leftmost column comes first"
+    )
+    assert moment["quote_start_seconds"] == 95
+    assert moment["ai_status"] == "not_requested"
+    assert moment["source"] == "web"
+    assert merged.status_code == 200
+    assert merged.json()["moment"]["note"] == "keep this"
+    assert missing.status_code == 404
+    assert backwards.status_code == 422
+    assert sent_jobs == []
+    assert charges(db_session, user) == []

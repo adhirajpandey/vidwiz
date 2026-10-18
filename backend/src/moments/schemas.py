@@ -85,6 +85,33 @@ class CaptureCreate(ApiModel):
         return self
 
 
+class PassageSave(ApiModel):
+    """A cited passage to keep as a moment. No AI line and no credits."""
+
+    video_id: str
+    start_seconds: float = Field(ge=0)
+    end_seconds: float = Field(ge=0)
+    note: str | None = Field(default=None, max_length=5000)
+
+    model_config = ConfigDict(extra="forbid")
+
+    @field_validator("video_id")
+    @classmethod
+    def normalize_video(cls, value: str) -> str:
+        return normalize_youtube_video_id(value)
+
+    @field_validator("note")
+    @classmethod
+    def clean_text(cls, value: str | None) -> str | None:
+        return _clean_text(value)
+
+    @model_validator(mode="after")
+    def ordered(self) -> "PassageSave":
+        if self.end_seconds < self.start_seconds:
+            raise ValueError("end_seconds must not be before start_seconds")
+        return self
+
+
 class MomentRead(ApiModel):
     id: int
     video_id: str | None

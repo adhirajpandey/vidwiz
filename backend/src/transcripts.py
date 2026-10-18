@@ -135,3 +135,21 @@ def _close_chunk(segments: list[tuple[float, float, str]]) -> tuple[int, int, st
     start = int(segments[0][0])
     end = max(start, int(math.ceil(max(segment[1] for segment in segments))))
     return start, end, " ".join(segment[2] for segment in segments)
+
+
+def text_between(
+    transcript: list, start_seconds: float, end_seconds: float
+) -> str | None:
+    """Transcript text overlapping a cited range, for saving a passage."""
+    pieces = []
+    for item in transcript:
+        if not isinstance(item, dict):
+            continue
+        times = segment_times(item)
+        text = " ".join(str(item.get("text") or "").split())
+        if times and text and times[1] >= start_seconds and times[0] <= end_seconds:
+            pieces.append((times[0], text))
+    if not pieces:
+        return None
+    pieces.sort(key=lambda piece: piece[0])
+    return " ".join(text for _, text in pieces)[: QUOTE_MAX_CHARS * 2]

@@ -18,6 +18,7 @@ from src.moments.schemas import (
     MomentFeed,
     MomentRead,
     MomentUpdate,
+    PassageSave,
     parse_seconds,
 )
 from src.videos.schemas import VideoIdPath
@@ -43,6 +44,28 @@ def create_capture(
     user_id: int = Depends(get_current_user_id_or_api_token),
 ) -> CaptureResponse:
     moment, merged = moments_service.capture(db, user_id, payload)
+    if merged:
+        response.status_code = status.HTTP_200_OK
+    return CaptureResponse(moment=MomentRead.model_validate(moment), merged=merged)
+
+
+@router.post(
+    "/moments/passages",
+    response_model=CaptureResponse,
+    status_code=status.HTTP_201_CREATED,
+    description=(
+        "Save a cited passage (from an answer or the transcript) as a moment. "
+        "Free: no AI line and no credits. Merges into a moment within 10 "
+        "seconds and returns 200."
+    ),
+)
+def save_passage(
+    payload: PassageSave,
+    response: Response,
+    db: Session = Depends(get_db),
+    user_id: int = Depends(get_current_user_id),
+) -> CaptureResponse:
+    moment, merged = moments_service.save_passage(db, user_id, payload)
     if merged:
         response.status_code = status.HTTP_200_OK
     return CaptureResponse(moment=MomentRead.model_validate(moment), merged=merged)
