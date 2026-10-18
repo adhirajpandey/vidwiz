@@ -67,13 +67,13 @@ Prereqs: Python 3.13, uv 0.8.22, Node.js, running PostgreSQL
 3. Copy the root environment template: `cp ../.env.example .env`.
 4. When running the API outside Compose against the Compose PostgreSQL container, change the `DB_URL` host and port from `database:5432` to `localhost:5433`.
 5. Fill the required values documented in `docs/backend.md`.
-6. Start server: `uv run --locked uvicorn src.main:app --host 0.0.0.0 --port 5000`
-7. Open Swagger UI at `http://localhost:5000/docs` or fetch the generated
+6. Apply migrations: `uv run --locked alembic upgrade head`
+7. Start server: `uv run --locked uvicorn src.main:app --host 0.0.0.0 --port 5000`
+8. Open Swagger UI at `http://localhost:5000/docs` or fetch the generated
    OpenAPI schema from `http://localhost:5000/openapi.json`.
 
-Backend note creation supports:
-- `POST /v2/videos/{video_id}/notes` for known video IDs/URLs
-- `POST /v2/notes/by-title` to resolve a YouTube video from `video_title` and save against the top result
+Every client captures moments through `POST /v2/captures`, with a video URL or
+ID, or a title when the client cannot see the ID. See `docs/backend.md`.
 
 ### Frontend
 1. `cd frontend`
@@ -96,7 +96,9 @@ Backend note creation supports:
 The extension note UI appears on supported YouTube watch pages after sync.
 
 ## Running tests
-- Backend: `cd backend && uv sync --locked && uv run --locked ruff format --check src workers && uv run --locked ruff check src workers && uv run --locked pytest`
+- Backend: `cd backend && uv sync --locked && uv run --locked ruff format --check src workers && uv run --locked ruff check src workers && TEST_DB_URL=postgresql://user:password@localhost:5432/vidwiz_test uv run --locked pytest`
+  - Tests need a disposable PostgreSQL database with pgvector, such as the
+    `pgvector/pgvector:pg17` image. Each run wipes and migrates it.
 - Frontend: `cd frontend && pnpm install --frozen-lockfile && pnpm lint && pnpm test && pnpm build`
 - AWS infrastructure: `cd infra && uv sync --locked && npm ci --ignore-scripts && uv run --locked python scripts/validate.py`
 
@@ -109,7 +111,7 @@ earlier image stays available for rollback. When a push to `main` changes
 to Cloudflare Workers.
 
 Production AWS serverless resources are defined in `infra/` as
-`vidwiz-stack`. See `docs/aws-infrastructure.md` before any bootstrap,
+`vidwiz-v3-stack`. See `docs/aws-infrastructure.md` before any bootstrap,
 deployment, transcript migration, or cutover operation.
 
 ## Project Structure

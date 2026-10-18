@@ -23,17 +23,18 @@ Learning from YouTube is friction-heavy: pausing, losing context, and poor note 
 - Creators/reviewers taking timestamped notes.
 
 ## Core Use Cases
-- Save a note at the current timestamp without leaving the video.
-- Auto-generate a note when only a timestamp is provided.
+- Capture a moment at the current time without leaving the video, from a phone, the extension, or the web.
+- Get an AI line and the exact transcript quote for each moment.
 - Ask questions about a video with transcript-based answers.
 - Review notes by video and jump to timestamps.
 
 ## Functional Requirements
-- **Auth**: Email/password and Google OAuth; extension auth sync from web login; long-term tokens for automations.
-- **Notes**: Create, list, edit, delete; always timestamped.
+- **Auth**: Email/password and Google OAuth; extension auth sync from web login; named personal API tokens for automations.
+- **Moments**: Capture, list, edit, delete; always timed. Nearby captures merge. Title-only captures resolve in the background.
+- **Library**: Explicitly saved videos, including videos used only in chat.
 - **Videos**: Store metadata + transcript availability; list/search; stream readiness.
 - **Wiz Chat**: Conversation per video; transcript-only answers with timestamp citations; guest and user quotas.
-- **AI Notes**: Generate when note text is empty, AI notes are enabled, and transcript is already available.
+- **AI Moments**: Generate when requested (or by the user's default), charged once per moment, with an explicit status.
 - **AI Summary**: Generate after transcript availability; optional display in video detail.
 - **Wiz starter questions**: Generate three transcript-grounded questions with
   each new summary and show them in the empty Wiz chat.

@@ -16,7 +16,6 @@ class Settings(BaseSettings):
     )
     jwt_expiry_hours: int = Field(default=168, alias="JWT_EXPIRY_HOURS")
     google_client_id: NonEmptyStr = Field(alias="GOOGLE_CLIENT_ID")
-    youtube_data_api_key: str | None = Field(default=None, alias="YOUTUBE_DATA_API_KEY")
     sqs_ai_note_queue_url: str = Field(alias="SQS_AI_NOTE_QUEUE_URL")
     aws_access_key_id: str = Field(alias="AWS_ACCESS_KEY_ID")
     aws_secret_access_key: str = Field(alias="AWS_SECRET_ACCESS_KEY")

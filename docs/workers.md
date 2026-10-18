@@ -5,31 +5,36 @@ Describe background helpers and Lambdas used for transcript/metadata fetching an
 
 ## Components
 ### Helpers (Long-Running)
-- **Task helper**: `backend/workers/scripts/task-helper.py {transcript|metadata}`
+- **Task helper**: `backend/workers/scripts/task-helper.py {transcript|metadata|resolve_title}`
   - Polls `/v2/internal/tasks?type=<task type>` with long-poll timeout (default 30s)
   - `transcript`: fetches transcripts via `youtube_transcript_api` (languages: `en`, `hi`)
     and renames each item's `start` to `offset`
   - `metadata`: fetches metadata via `yt_dlp`
+  - `resolve_title`: finds the video for a title-only capture with a 5-result
+    `yt_dlp` search, preferring a matching channel, then an exact title, then
+    the first result. Sends `resolved: {video_id, title}`
   - Submits results to `/v2/internal/tasks/{id}/result`
   - CLI args: task type, `--timeout`, and optional `--api-url`
   - Internal API base URL resolution: `--api-url` -> `VIDWIZ_INTERNAL_API_BASE_URL`; exits on startup if neither is set
 
-The production helper processes are owned by the `metadata-helper` and
-`transcript-helper` services in `docker-compose.yml`; no repository workflow
+The production helper processes are owned by the `metadata-helper`,
+`transcript-helper`, and `title-helper` Compose services; no repository workflow
 or systemd unit manages parallel helper processes.
 
 ### Lambdas
-- **AI Note Lambda**: `backend/workers/lambdas/ai_note_worker`
+- **AI Moment Lambda**: `backend/workers/lambdas/ai_note_worker`
   - `handler.py` parses SQS events and delegates to the functional
     `note_service.py` module.
-  - Triggered by SQS messages containing note payloads (minimal: `{ id, video_id, timestamp, user_id }`)
+  - Triggered by SQS messages containing moment jobs: `{ id, video_id, at_seconds, user_id }`
   - Fetches transcript from S3 with retry/backoff
   - Extracts context around the timestamp (buffer + surrounding segments)
   - Generates a one-line note with length constraints and retries on length mismatch
   - Uses OpenRouter via OpenAI-compatible API (`OPENROUTER_API_KEY`)
-  - Updates note via `/v2/internal/notes/{id}` (sets `generated_by_ai=true`)
-  - Fails the invocation when transcript/context, generation, or persistence fails so SQS retries the record
-  - Falls back to `/v2/internal/videos/{video_id}` to resolve title when not provided in payload
+  - Stores the line via `PUT /v2/internal/moments/{id}/ai`
+  - A missing transcript or empty context is permanent: the worker stores
+    `ai_text: null`, which marks the moment `failed`
+  - Generation or persistence failures fail the invocation so SQS retries the record
+  - Reads the video title from `/v2/internal/videos/{video_id}`
   - Configurable: `TRANSCRIPT_BUFFER_SECONDS`, `CONTEXT_SEGMENTS`, `MIN_NOTE_LENGTH`, `MAX_NOTE_LENGTH`, `MAX_RETRIES`
 
 - **AI Summary Lambda**: `backend/workers/lambdas/ai_summary_worker`
@@ -56,8 +61,8 @@ or systemd unit manages parallel helper processes.
     `dispatch_service.py` module.
   - Triggered by S3 transcript uploads (or manual `video_ids` input)
   - On S3 event: enqueues summary jobs to summary SQS
-  - For all video IDs: fetches eligible AI-note tasks via `/v2/internal/videos/{video_id}/ai-notes` and batches them to the AI note SQS (batch size 10). The endpoint charges each returned note once and omits notes whose owner lacks credits
-  - Notes fetch uses `VIDWIZ_INTERNAL_API_ADMIN_TOKEN`
+  - For all video IDs: calls `POST /v2/internal/videos/{video_id}/pending-moments`, which charges and marks queued the moments waiting for the transcript, then batches them to the AI note SQS (batch size 10). Owners without credits get `insufficient_credits` instead
+  - Uses `VIDWIZ_INTERNAL_API_ADMIN_TOKEN`
   - Propagates unhandled dispatch failures so Lambda retry/DLQ handling can run
 
 ### Lambda Logging
@@ -69,9 +74,9 @@ payloads.
 ### Lambda Infrastructure and Delivery
 - `infra/` defines all three production functions, queues, the transcript
   bucket, event sources, log groups, and separate execution roles in
-  `vidwiz-stack`.
-- Canonical function names are `vidwiz-prod-transcript-dispatcher`,
-  `vidwiz-prod-ai-note-worker`, and `vidwiz-prod-ai-summary-worker`.
+  `vidwiz-v3-stack`.
+- Canonical function names are `vidwiz-v3-transcript-dispatcher`,
+  `vidwiz-v3-ai-note-worker`, and `vidwiz-v3-ai-summary-worker`.
 - `.github/workflows/deploy-aws-infrastructure.yml` validates and deploys production
   infrastructure only when manually dispatched from `main`.
 - The deployment job assumes `VidwizGitHubDeployRole` through GitHub OIDC,
@@ -100,7 +105,7 @@ payloads.
 
 ## Data & Storage
 - **Transcripts**: Stored in S3 at `transcripts/{video_id}.json` when configured.
-- **Tasks**: Stored in the DB (`tasks` table) and polled via `/v2/internal/tasks`.
+- **Tasks**: Stored in the DB (`tasks` table) and polled via `/v2/internal/tasks`. Title tasks carry `{moment_id, title, channel}`.
 - **Queues**: SQS for AI note generation and AI summaries.
 
 ## Configuration (Common)

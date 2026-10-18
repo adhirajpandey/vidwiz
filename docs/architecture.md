@@ -6,19 +6,19 @@ Provide a system-level view of how VidWiz components interact. Subsystem details
 ## System Overview
 - **Clients**: Web app (React), Chromium extension, and mobile automations (MacroDroid/Shortcuts).
 - **Backend**: FastAPI service exposing public `/v2` and admin-only `/v2/internal` endpoints.
-- **Workers**: Helpers + Lambdas for transcript/metadata fetching, AI notes, and AI summaries.
+- **Workers**: Helpers for transcript, metadata, and title resolution; Lambdas for AI moments and AI summaries.
 - **Storage**: PostgreSQL in deployed environments; SQLite by default in local dev.
 - **Object store**: S3 for transcript JSON when `S3_TRANSCRIPT_BUCKET_NAME` and AWS credentials are configured.
-- **Queues**: SQS for AI note jobs (app + dispatcher) and AI summary jobs (dispatcher).
+- **Queues**: SQS for AI moment jobs (app + dispatcher) and AI summary jobs (dispatcher).
 - **AWS infrastructure**: The production transcript bucket, queues, Lambdas,
   logs, event sources, and runtime roles are defined by the Python CDK app in
-  `infra/` as `vidwiz-stack`.
+  `infra/` as `vidwiz-v3-stack`.
 
 ## Core Flows (High Level)
-- **Note creation**: Client posts a note (timestamp + optional text). Backend upserts the video and schedules transcript/metadata tasks.
+- **Capture**: Clients post `POST /v2/captures` with a video or a title, a time, an optional note, and an AI flag. Backend upserts the video, saves it to the user's library, schedules transcript/metadata tasks, and merges captures within 10 seconds of an existing moment. Title-only captures resolve through a `resolve_title` task.
 - **Conversation start**: Starting Wiz chat also upserts the video and schedules transcript/metadata tasks.
-- **Transcript/metadata**: Helpers poll `/v2/internal/tasks`, fetch data, and submit results. Transcript JSON is stored in S3 when configured; the DB `transcript_available` flag is set either way.
-- **AI notes**: Empty-text notes from users with AI notes enabled are queued to SQS once a transcript is already available; the AI note Lambda writes back via internal API. New signups default to AI notes enabled.
+- **Transcript/metadata/titles**: Helpers poll `/v2/internal/tasks`, fetch data, and submit results. A stored transcript fills the quotes of the video's moments. Transcript JSON is stored in S3 when configured; the DB `transcript_available` flag is set either way.
+- **AI moments**: Moments with an AI request are charged and queued to SQS once a transcript exists (at capture, or when the dispatcher collects pending moments after the transcript upload). The AI moment Lambda writes back via internal API. AI status is explicit on each moment.
 - **Wiz chat**: Transcript-only grounding through OpenRouter. `WIZ_MODEL` selects the model and defaults to `minimax/minimax-m2.5`. If the transcript is not ready, chat returns `202 Accepted` and waits for processing.
 - **AI summaries + Wiz questions**: Task dispatcher Lambda fires on transcript
   upload (S3) and enqueues one structured generation that returns the video
@@ -28,7 +28,7 @@ Provide a system-level view of how VidWiz components interact. Subsystem details
 ## Auth Boundaries
 - **JWT**: Required for most `/v2` endpoints.
 - **Extension auth sync**: Web app login/logout can sync JWT to the extension via Chrome external messaging.
-- **Long-term tokens**: Accepted only for note creation (primarily mobile automations).
+- **Personal API tokens**: Hashed, named, revocable tokens accepted only by capture endpoints (mobile automations and other capture clients).
 - **Guest sessions**: `X-Guest-Session-ID` header enables Wiz chat without a JWT.
 - **Admin token**: Required for `/v2/internal` endpoints.
   - Helpers/Lambdas use this token for polling tasks and writing results.
@@ -40,7 +40,7 @@ Provide a system-level view of how VidWiz components interact. Subsystem details
 - `DB_URL` defaults to SQLite if not provided.
 - Transcript storage and Wiz chat require S3 credentials and bucket configuration.
 - Wiz chat also requires `OPENROUTER_API_KEY`; without it, chat requests error.
-- AI notes use `AI_NOTE_MODEL`, which defaults to `z-ai/glm-5.3-flash`.
+- AI moments use `AI_NOTE_MODEL`, which defaults to `z-ai/glm-5.3-flash`.
 - If S3 is not configured, transcripts are not persisted even though `transcript_available` may be true, and Wiz chat will fail to load transcript data.
 - Production AWS changes are deployed only by a manual workflow dispatch from
   `main`. GitHub uses
@@ -57,17 +57,17 @@ FastAPI API
      |             |
      |             +--> S3 (transcripts)
      |
-     +--> DB (users, videos, notes, tasks, conversations)
-     +--> SQS (AI note/summary jobs)
+     +--> DB (users, videos, moments, library, tasks, conversations)
+     +--> SQS (AI moment/summary jobs)
              |
              v
-         AI Note/Summary Lambdas
+         AI Moment/Summary Lambdas
 ```
 
 The production AWS path is:
 
 ```text
-GitHub OIDC -> VidwizGitHubDeployRole -> CDK bootstrap roles -> vidwiz-stack
+GitHub OIDC -> VidwizGitHubDeployRole -> CDK bootstrap roles -> vidwiz-v3-stack
                                                                |
                          +-------------------------------------+----------+
                          |                                     |          |
