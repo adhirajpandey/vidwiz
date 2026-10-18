@@ -6,7 +6,6 @@ from dataclasses import dataclass
 from typing import Literal
 
 from sqlalchemy import Float, cast, func, literal, select
-from sqlalchemy import text as sql_text
 from sqlalchemy.orm import Session
 
 from src.library.models import LibraryItem
@@ -169,7 +168,9 @@ def _passage_hits(db, user_id, tsquery, limit, video_id) -> list[Hit]:
 def _fuzzy_hits(db, user_id, query_text, limit, video_id) -> list[Hit]:
     """Trigram word similarity, for queries with typos and no exact match."""
     # The default 0.6 threshold misses single-letter typos in short words.
-    db.execute(text(f"SET LOCAL pg_trgm.word_similarity_threshold = {FUZZY_THRESHOLD}"))
+    db.execute(
+        sql_text(f"SET LOCAL pg_trgm.word_similarity_threshold = {FUZZY_THRESHOLD}")
+    )
     # Matches the moments_text_trgm_idx expression, so the index applies.
     words = (
         func.coalesce(Moment.note, "") + " " + func.coalesce(Moment.ai_text, "")
