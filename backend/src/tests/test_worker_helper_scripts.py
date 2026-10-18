@@ -135,6 +135,28 @@ def test_resolve_title_prefers_single_matching_channel(monkeypatch):
     assert payload == {"resolved": {"video_id": "bbbbbbbbbbb", "title": "Deep focus …"}}
 
 
+def test_resolve_title_ignores_punctuation_in_titles(monkeypatch):
+    module = _load_helper()
+    _fake_search(
+        monkeypatch,
+        module,
+        [
+            {
+                "id": "aaaaaaaaaaa",
+                "title": "Steve Jobs' 2005 Address",
+                "channel": "Stanford",
+            },
+            {
+                "id": "bbbbbbbbbbb",
+                "title": "Steve Jobs' 2005 Address (with intro)",
+                "channel": "Stanford",
+            },
+        ],
+    )
+    payload = module.resolve_title("Steve Jobs 2005 address", "Stanford")
+    assert payload["resolved"]["video_id"] == "aaaaaaaaaaa"
+
+
 def test_resolve_title_uses_unique_exact_title(monkeypatch):
     module = _load_helper()
     _fake_search(

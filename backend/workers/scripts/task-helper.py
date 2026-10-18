@@ -76,8 +76,13 @@ def search_titles(title: str) -> list[dict]:
     ]
 
 
+def _normalized(text: str) -> str:
+    """Letters and digits only, so punctuation and spacing don't block a match."""
+    return "".join(char for char in text.casefold() if char.isalnum())
+
+
 def _same(left: str | None, right: str | None) -> bool:
-    return bool(left and right) and left.casefold() == right.casefold()
+    return bool(left and right) and _normalized(left) == _normalized(right)
 
 
 def jev_choose(
