@@ -32,6 +32,11 @@ STACK_NAME = "vidwiz-v3-stack"
 TRANSCRIPT_BUCKET_NAME = "vidwiz-v3-transcripts"
 AI_NOTE_QUEUE_NAME = "vidwiz-v3-ai-note-jobs"
 AI_SUMMARY_QUEUE_NAME = "vidwiz-v3-ai-summary-jobs"
+AI_NOTE_DLQ_NAME = "vidwiz-v3-ai-note-dlq"
+AI_SUMMARY_DLQ_NAME = "vidwiz-v3-ai-summary-dlq"
+# A job that fails this many times moves to its dead-letter queue, where it can
+# be inspected and redriven instead of disappearing.
+MAX_RECEIVE_COUNT = 3
 
 
 class VidwizStack(cdk.Stack):
@@ -67,6 +72,8 @@ class VidwizStack(cdk.Stack):
         )
         bucket.apply_removal_policy(cdk.RemovalPolicy.RETAIN)
 
+        ai_note_dlq = self._dead_letter_queue("AiNoteDlq", AI_NOTE_DLQ_NAME)
+        ai_summary_dlq = self._dead_letter_queue("AiSummaryDlq", AI_SUMMARY_DLQ_NAME)
         ai_note_queue = sqs.Queue(
             self,
             "AiNoteQueue",
@@ -75,6 +82,9 @@ class VidwizStack(cdk.Stack):
             retention_period=cdk.Duration.days(4),
             visibility_timeout=cdk.Duration.seconds(
                 settings.ai_note_timeout_seconds * 6
+            ),
+            dead_letter_queue=sqs.DeadLetterQueue(
+                queue=ai_note_dlq, max_receive_count=MAX_RECEIVE_COUNT
             ),
         )
         ai_summary_queue = sqs.Queue(
@@ -85,6 +95,9 @@ class VidwizStack(cdk.Stack):
             retention_period=cdk.Duration.days(4),
             visibility_timeout=cdk.Duration.seconds(
                 settings.ai_summary_timeout_seconds * 6
+            ),
+            dead_letter_queue=sqs.DeadLetterQueue(
+                queue=ai_summary_dlq, max_receive_count=MAX_RECEIVE_COUNT
             ),
         )
 
@@ -209,6 +222,8 @@ class VidwizStack(cdk.Stack):
         )
         cfn_bucket.add_resource_dependency(invoke_permission)
 
+        cdk.CfnOutput(self, "AiNoteDlqUrl", value=ai_note_dlq.queue_url)
+        cdk.CfnOutput(self, "AiSummaryDlqUrl", value=ai_summary_dlq.queue_url)
         self._outputs(
             bucket,
             ai_note_queue,
@@ -216,6 +231,15 @@ class VidwizStack(cdk.Stack):
             dispatcher,
             note_worker,
             summary_worker,
+        )
+
+    def _dead_letter_queue(self, construct_id: str, name: str) -> sqs.Queue:
+        return sqs.Queue(
+            self,
+            construct_id,
+            queue_name=name,
+            encryption=sqs.QueueEncryption.SQS_MANAGED,
+            retention_period=cdk.Duration.days(14),
         )
 
     def _worker_environment(

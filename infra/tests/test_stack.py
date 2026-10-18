@@ -127,6 +127,32 @@ def test_queues_and_event_sources(template: Template) -> None:
                 "VisibilityTimeout": visibility,
             },
         )
+    for queue, dlq in (
+        ("vidwiz-v3-ai-note-jobs", "AiNoteDlq"),
+        ("vidwiz-v3-ai-summary-jobs", "AiSummaryDlq"),
+    ):
+        template.has_resource_properties(
+            "AWS::SQS::Queue",
+            {
+                "QueueName": queue,
+                "RedrivePolicy": {
+                    "deadLetterTargetArn": {
+                        "Fn::GetAtt": [Match.string_like_regexp(dlq), "Arn"]
+                    },
+                    "maxReceiveCount": 3,
+                },
+            },
+        )
+    for name in ("vidwiz-v3-ai-note-dlq", "vidwiz-v3-ai-summary-dlq"):
+        template.has_resource_properties(
+            "AWS::SQS::Queue",
+            {
+                "QueueName": name,
+                "SqsManagedSseEnabled": True,
+                "MessageRetentionPeriod": 1209600,
+            },
+        )
+    template.resource_count_is("AWS::SQS::Queue", 4)
     template.resource_count_is("AWS::Lambda::EventSourceMapping", 2)
     template.has_resource_properties(
         "AWS::Lambda::EventSourceMapping",
