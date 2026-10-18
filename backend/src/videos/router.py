@@ -1,14 +1,18 @@
 from fastapi import APIRouter, Depends, Request, Response, status
 from fastapi.responses import StreamingResponse
 
+from sqlalchemy.orm import Session
+
 from src.config import settings
+from src.database import get_db
 from src.videos import service as videos_service
 from src.videos.dependencies import (
     get_user_video_or_404,
     get_stream_video_id_or_404,
+    get_stream_video_or_404,
 )
 
-from src.videos.schemas import VideoRead
+from src.videos.schemas import TranscriptRead, VideoRead
 from src.shared.ratelimit import limiter
 
 
@@ -31,6 +35,24 @@ def get_video(
     video=Depends(get_user_video_or_404),
 ) -> VideoRead:
     return VideoRead.model_validate(video)
+
+
+@router.get(
+    "/{video_id}/transcript",
+    response_model=TranscriptRead,
+    description=(
+        "The video's transcript segments. status is processing while the "
+        "transcript is being fetched and unavailable when fetching failed."
+    ),
+)
+@limiter.limit(settings.rate_limit_videos)
+def get_transcript(
+    request: Request,
+    response: Response,
+    video=Depends(get_stream_video_or_404),
+    db: Session = Depends(get_db),
+) -> TranscriptRead:
+    return videos_service.get_transcript(db, video)
 
 
 @router.get("/{video_id}/stream", status_code=status.HTTP_200_OK)

@@ -31,3 +31,17 @@ class VideoIdPath(ApiModel):
     @classmethod
     def validate_video_id(cls, value: str) -> str:
         return normalize_youtube_video_id(value)
+
+
+class TranscriptSegment(ApiModel):
+    start_seconds: float
+    end_seconds: float
+    text: str
+
+
+class TranscriptRead(ApiModel):
+    video_id: str
+    # ready: segments present; processing: still being fetched;
+    # unavailable: fetching failed for good, so there is no transcript.
+    status: Literal["ready", "processing", "unavailable"]
+    segments: list[TranscriptSegment]

@@ -64,7 +64,7 @@ def store_transcript(video_id: str, transcript: list[dict]) -> None:
     logger.debug("Stored transcript in S3", extra={"video_id": video_id})
 
 
-def _segment_times(item: dict) -> tuple[float, float] | None:
+def segment_times(item: dict) -> tuple[float, float] | None:
     try:
         start = float(item.get("offset", item.get("start")))
     except (TypeError, ValueError):
@@ -86,7 +86,7 @@ def quote_for(transcript: list, at_seconds: int) -> tuple[str, int] | None:
     for item in transcript:
         if not isinstance(item, dict):
             continue
-        times = _segment_times(item)
+        times = segment_times(item)
         text = " ".join(str(item.get("text") or "").split())
         if times is None or not text:
             continue
@@ -113,7 +113,7 @@ def chunk_transcript(transcript: list) -> list[tuple[int, int, str]]:
     for item in transcript:
         if not isinstance(item, dict):
             continue
-        times = _segment_times(item)
+        times = segment_times(item)
         text = " ".join(str(item.get("text") or "").split())
         if times is not None and text:
             segments.append((times[0], times[1], text))

@@ -9,7 +9,15 @@ from sqlalchemy.orm import Session
 
 from src.database import SessionLocal
 from src.videos.models import Video
-from src.videos.schemas import VideoRead, VideoStreamPayload
+from src import transcripts
+from src.internal import constants as internal_constants
+from src.internal.models import Task, TaskStatus
+from src.videos.schemas import (
+    TranscriptRead,
+    TranscriptSegment,
+    VideoRead,
+    VideoStreamPayload,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -39,6 +47,54 @@ def get_or_create_video(db: Session, video_id: str, title: str | None = None) ->
     db.commit()
     db.refresh(video)
     return video
+
+
+def get_transcript(db: Session, video: Video) -> TranscriptRead:
+    if video.transcript_available:
+        stored = transcripts.load_transcript(video.video_id) or []
+        segments = []
+        for item in stored:
+            if not isinstance(item, dict):
+                continue
+            times = transcripts.segment_times(item)
+            text = " ".join(str(item.get("text") or "").split())
+            if times and text:
+                segments.append(
+                    TranscriptSegment(
+                        start_seconds=times[0], end_seconds=times[1], text=text
+                    )
+                )
+        segments.sort(key=lambda segment: segment.start_seconds)
+        return TranscriptRead(
+            video_id=video.video_id, status="ready", segments=segments
+        )
+    return TranscriptRead(
+        video_id=video.video_id,
+        status="unavailable"
+        if _transcript_failed(db, video.video_id)
+        else "processing",
+        segments=[],
+    )
+
+
+def _transcript_failed(db: Session, video_id: str) -> bool:
+    """True when the latest transcript task for the video failed for good."""
+    tasks = (
+        db.execute(
+            select(Task)
+            .where(Task.task_type == internal_constants.FETCH_TRANSCRIPT_TASK_TYPE)
+            .order_by(Task.id.desc())
+        )
+        .scalars()
+        .all()
+    )
+    for task in tasks:
+        if (task.task_details or {}).get("video_id") == video_id:
+            return (
+                task.status == TaskStatus.FAILED
+                and task.retry_count >= internal_constants.TASK_MAX_RETRIES
+            )
+    return False
 
 
 def is_video_ready(video: Video) -> bool:

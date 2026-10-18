@@ -11,7 +11,7 @@ from src.auth.schemas import ViewerContext
 from src import transcripts
 from src.library import service as library_service
 from src.config import settings
-from src.conversations.models import Conversation, Message
+from src.conversations.models import Conversation, ConversationScope, Message
 from src.conversations.parts import (
     BlockPart,
     DoneEvent,
@@ -27,7 +27,13 @@ from src.conversations.parts import (
     history_parts,
 )
 from src.conversations.prompts import WIZ_SYSTEM_PROMPT_TEMPLATE
-from src.exceptions import InternalServerError, RateLimitError, NotFoundError
+from src.conversations.schemas import ConversationList, ConversationSummary
+from src.exceptions import (
+    BadRequestError,
+    InternalServerError,
+    NotFoundError,
+    RateLimitError,
+)
 from src.videos.models import Video
 from src.videos import service as videos_service
 
@@ -38,7 +44,11 @@ logger = logging.getLogger(__name__)
 
 
 def create_conversation(
-    db: Session, video_id: str, user_id: int | None, guest_session_id: str | None
+    db: Session,
+    video_id: str | None,
+    user_id: int | None,
+    guest_session_id: str | None,
+    scope: ConversationScope = ConversationScope.VIDEO,
 ) -> Conversation:
     logger.debug(
         "Creating conversation",
@@ -49,6 +59,7 @@ def create_conversation(
         },
     )
     conversation = Conversation(
+        scope=scope,
         video_id=video_id,
         user_id=user_id,
         guest_session_id=guest_session_id,
@@ -78,6 +89,80 @@ def get_conversation_for_viewer(
             Conversation.guest_session_id == viewer.guest_session_id,
         )
     return db.execute(query).scalar_one_or_none()
+
+
+TITLE_MAX_CHARS = 80
+
+
+def list_conversations(
+    db: Session,
+    user_id: int,
+    scope: ConversationScope | None,
+    video_id: str | None,
+    page: int,
+    per_page: int,
+) -> ConversationList:
+    """The user's conversations with at least one question, latest first."""
+    first_question = (
+        select(Message.content)
+        .where(Message.conversation_id == Conversation.id, Message.role == DB_ROLE_USER)
+        .order_by(Message.created_at.asc(), Message.id.asc())
+        .limit(1)
+        .scalar_subquery()
+    )
+    stats = (
+        select(
+            Message.conversation_id,
+            func.count(Message.id).label("message_count"),
+            func.max(Message.created_at).label("last_message_at"),
+        )
+        .group_by(Message.conversation_id)
+        .subquery()
+    )
+    query = (
+        select(
+            Conversation,
+            Video.title,
+            first_question,
+            stats.c.message_count,
+            stats.c.last_message_at,
+        )
+        .join(stats, stats.c.conversation_id == Conversation.id)
+        .outerjoin(Video, Video.video_id == Conversation.video_id)
+        .where(Conversation.user_id == user_id, first_question.is_not(None))
+        .order_by(stats.c.last_message_at.desc(), Conversation.id.desc())
+        .offset((page - 1) * per_page)
+        .limit(per_page + 1)
+    )
+    if scope is not None:
+        query = query.where(Conversation.scope == scope)
+    if video_id is not None:
+        query = query.where(Conversation.video_id == video_id)
+    rows = db.execute(query).all()
+    return ConversationList(
+        conversations=[
+            ConversationSummary(
+                id=conversation.id,
+                scope=conversation.scope,
+                video_id=conversation.video_id,
+                video_title=title,
+                title=_title(question),
+                message_count=count,
+                last_message_at=last_at,
+            )
+            for conversation, title, question, count, last_at in rows[:per_page]
+        ],
+        page=page,
+        per_page=per_page,
+        has_more=len(rows) > per_page,
+    )
+
+
+def _title(question: str) -> str:
+    question = " ".join(question.split())
+    if len(question) <= TITLE_MAX_CHARS:
+        return question
+    return question[:TITLE_MAX_CHARS].rsplit(" ", 1)[0] + "…"
 
 
 def list_messages(db: Session, conversation_id: int) -> list[Message]:
@@ -381,6 +466,8 @@ def prepare_chat(
         extra={"conversation_id": conversation.id, "user_id": viewer.user_id},
     )
     check_daily_quota(db, viewer.user_id, viewer.guest_session_id)
+    if conversation.scope == ConversationScope.LIBRARY:
+        raise BadRequestError("Library questions are not supported yet")
 
     transcript_result = get_valid_transcript_or_raise(db, conversation.video_id)
     if transcript_result is None:
