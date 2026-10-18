@@ -57,14 +57,19 @@ user. The product has three verbs:
   channel, plus the time, an optional note, the AI flag, and the client source.
 - Title-only captures return immediately as `resolving`. The metadata helper
   resolves them with `yt-dlp` search, checking the user's recent videos first.
+  Exact title and channel matches decide first; when that is ambiguous, Jev
+  chooses among the search results. A low-confidence choice leaves the moment
+  `unresolved` with its candidates, so the user picks.
   `YOUTUBE_DATA_API_KEY` is no longer needed.
 - A capture within 10 seconds of the user's existing moment on the same video
   merges into it. Merged captures are not charged again.
 - `GET /v2/search` ranks PostgreSQL full-text matches (stemming, prefix,
   trigram typo tolerance) across moments and transcript passages.
 - Library Ask expands the question into search terms with a small model,
-  retrieves matching moments and passages with full-text search across the
-  user's library, and reuses the structured citation stream. It is free within
+  retrieves a wide set of matching moments and passages with full-text search
+  across the user's library, has Jev score each one's relevance, sends only the
+  best passages to the answer model, and reuses the structured citation stream.
+  Without Jev, or when it fails, Ask uses the full-text ranking. It is free within
   the existing daily message quota.
 - Conversations can be listed and resumed.
 - A cited passage can be saved as a moment without AI or credits.
@@ -102,6 +107,20 @@ code is reused.
 - Shorts and `youtu.be` URLs are supported.
 - A build script sets API and web origins for development builds.
 - Auth stays as web login sync.
+
+### Jev
+Jev is a decision model (choices and probabilities, no text), called through
+OpenRouter's decisions endpoint with the existing OpenRouter key and a pinned
+model version (`typesafe/jev-1.14-20261014`). It is used only where one request
+makes many semantic decisions or where its confidence changes what happens:
+
+- Library Ask passage relevance (batched yes/no probabilities per request).
+- Title resolution when exact matching is ambiguous.
+
+Thresholds come from an evaluation set built from real library questions, not
+guesses. Every decision is logged with its probability and model version. If
+the evaluation shows no clear improvement over full-text ranking, Jev stays
+out of Ask.
 
 ## Rollout
 v3 runs as a second, complete deployment beside the current one:
