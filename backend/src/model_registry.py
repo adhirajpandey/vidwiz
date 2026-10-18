@@ -7,4 +7,5 @@ def import_models() -> None:
     from src.library import models as library_models  # noqa: F401
     from src.moments import models as moments_models  # noqa: F401
     from src.payments import models as payments_models  # noqa: F401
+    from src.search import models as search_models  # noqa: F401
     from src.videos import models as video_models  # noqa: F401

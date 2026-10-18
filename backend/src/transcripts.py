@@ -16,6 +16,9 @@ QUOTE_SECONDS_BEFORE = 30
 QUOTE_SECONDS_AFTER = 3
 QUOTE_MAX_CHARS = 700
 
+# Searchable passages: long enough to hold an idea, short enough to cite.
+CHUNK_TARGET_SECONDS = 45
+
 
 def _s3_client():
     return boto3.client(
@@ -98,3 +101,37 @@ def quote_for(transcript: list, at_seconds: int) -> tuple[str, int] | None:
         # Keep the end: it is closest to the moment of capture.
         quote = "…" + quote[-QUOTE_MAX_CHARS:].split(" ", 1)[-1]
     return quote, int(pieces[0][0])
+
+
+def chunk_transcript(transcript: list) -> list[tuple[int, int, str]]:
+    """Group transcript segments into ~45-second passages.
+
+    Returns (start_seconds, end_seconds, text) tuples in playback order.
+    Segments without valid timing or text are skipped.
+    """
+    segments = []
+    for item in transcript:
+        if not isinstance(item, dict):
+            continue
+        times = _segment_times(item)
+        text = " ".join(str(item.get("text") or "").split())
+        if times is not None and text:
+            segments.append((times[0], times[1], text))
+    segments.sort(key=lambda segment: segment[0])
+
+    chunks: list[tuple[int, int, str]] = []
+    current: list[tuple[float, float, str]] = []
+    for segment in segments:
+        if current and segment[0] - current[0][0] >= CHUNK_TARGET_SECONDS:
+            chunks.append(_close_chunk(current))
+            current = []
+        current.append(segment)
+    if current:
+        chunks.append(_close_chunk(current))
+    return chunks
+
+
+def _close_chunk(segments: list[tuple[float, float, str]]) -> tuple[int, int, str]:
+    start = int(segments[0][0])
+    end = max(start, int(math.ceil(max(segment[1] for segment in segments))))
+    return start, end, " ".join(segment[2] for segment in segments)

@@ -15,6 +15,7 @@ from src.payments.router import router as payments_router
 from src.models import ErrorDetail, ErrorPayload, ErrorResponse
 from src.library.router import router as library_router
 from src.moments.router import router as moments_router
+from src.search.router import router as search_router
 from src.shared.ratelimit import limiter
 from src.videos.router import router as videos_router
 from src.logging import setup_logging, shutdown_logging
@@ -140,6 +141,7 @@ def create_app() -> FastAPI:
     app.include_router(auth_router)
     app.include_router(library_router)
     app.include_router(moments_router)
+    app.include_router(search_router)
     app.include_router(conversations_router)
     app.include_router(internal_router)
     app.include_router(payments_router)

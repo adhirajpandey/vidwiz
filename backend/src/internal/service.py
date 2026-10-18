@@ -12,6 +12,7 @@ from src.internal import constants as internal_constants
 from src.internal.models import Task, TaskStatus
 from src.moments import service as moments_service
 from src.moments.models import Moment, ResolveStatus
+from src.search.chunks import replace_chunks
 from src.internal.schemas import TaskResultRequest
 from src.videos import service as videos_service
 from src.videos.models import Video
@@ -169,6 +170,7 @@ def _apply_success(db: Session, task: Task, result: TaskResultRequest) -> None:
         if result.transcript:
             store_transcript_in_s3(result.video_id, result.transcript)
             moments_service.on_transcript_stored(db, result.video_id, result.transcript)
+            replace_chunks(db, result.video_id, result.transcript)
         if video:
             video.transcript_available = True
     elif video and result.metadata:
@@ -201,6 +203,7 @@ def store_transcript(db: Session, video_id: str, transcript: list[dict]) -> Vide
     video = videos_service.get_or_create_video(db, video_id)
     store_transcript_in_s3(video_id, transcript)
     moments_service.on_transcript_stored(db, video_id, transcript)
+    replace_chunks(db, video_id, transcript)
     video.transcript_available = True
     db.commit()
     db.refresh(video)
