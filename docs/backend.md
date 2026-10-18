@@ -68,10 +68,64 @@ Describe the FastAPI backend: structure, auth rules, and the request/worker life
     `ai_text: null` marks the generation `failed`.
 - **Quotes** are filled at capture when the transcript exists, and for all of a
   video's moments when its transcript arrives.
+- **Saved passages**: `POST /v2/moments/passages` keeps a cited range as a
+  moment whose quote is the transcript text in that range. No AI, no credits;
+  merges like a capture.
+- **Ambiguous titles**: when the title helper cannot pick one video
+  confidently, the moment becomes `unresolved` with `resolve_candidates`;
+  `POST /v2/moments/{id}/resolve` with one of their ids completes it (or merges
+  it into a nearby moment), keeping any pending AI request.
+- **Export**: `GET /v2/videos/{video_id}/export.md` and
+  `GET /v2/library/export.md` return Markdown with timestamped YouTube links.
 - **Legacy route**: `POST /v2/videos/{video_id}/notes` keeps the published 2.x
   extension working (`timestamp`, `text`, `video_title`). An empty `text`
   requests AI if the user setting allows it. Remove it once the 3.x extension
   is live.
+
+### Search
+- Stored transcripts are split into ~45-second passages in `transcript_chunks`
+  (written whenever a transcript is stored; `python -m src.management.backfill
+  chunks [--missing-only]` fills existing videos from S3).
+- Moments and passages have generated `tsvector` columns (English stemming) with
+  GIN indexes. The user's note and AI line weigh more than the quote.
+- `GET /v2/search?q=` requires every term as a word prefix and ranks moments
+  (boosted ×1.5) and passages from saved videos together. Results carry a `kind`
+  discriminator (`moment` or `passage`), the video, a start time, and a snippet
+  split into highlighted and plain parts. With no full-text match, trigram word
+  similarity (threshold 0.45) tolerates typos and the response says
+  `match: fuzzy`; `none` means nothing matched. `video_id` limits the search to
+  one video.
+
+### Library Ask
+- `POST /v2/conversations` with `{"scope": "library"}` (no `video_id`) starts a
+  library conversation for a signed-in user. It is free within the daily
+  message quota.
+- Each question: `ASK_QUERY_MODEL` (default `z-ai/glm-5.3-flash`) turns it into
+  search terms and synonyms; full-text search in any-term mode gathers up to
+  `ASK_CANDIDATES` (48) moments and passages; Jev (`JEV_MODEL`, a pinned dated
+  version, through OpenRouter's decisions endpoint) scores each candidate's
+  relevance in parallel batches; up to `ASK_MAX_SOURCES` (8) candidates at or
+  above `JEV_RELEVANCE_THRESHOLD` (0.5) become the answer's sources. With
+  `JEV_ENABLED=false` or a Jev failure, the full-text order is used.
+- Answers use the same structured block stream as video chat. Source ids are
+  `m<moment id>` or `c<chunk id>`, and resolved citations carry `video_id`
+  (null in video conversations). Each question logs one `Library Ask
+  retrieval:` line with the model, candidate count, kept count, threshold, and
+  top scores.
+
+### Conversations
+- `GET /v2/conversations` lists the user's conversations that have at least one
+  question, latest first, with the first question as a title. Filter by
+  `scope` or `video_id` to resume a chat.
+
+### Transcripts and overviews
+- `GET /v2/videos/{video_id}/transcript` returns segments with an explicit
+  status: `ready`, `processing`, or `unavailable` (the last transcript task
+  failed for good). JWT or guest session.
+- `VideoRead.key_points` exposes the overview's key points
+  (`text`, `start_seconds`, `end_seconds`), stored in
+  `miscellaneous_data.key_points`. Writes that omit key points keep the
+  existing ones.
 
 ### Library
 - `library_items` records saved videos per user. Capturing a moment or sending
@@ -191,6 +245,7 @@ a transcript is replaced.
 ### Videos
 - `GET /v2/videos/{video_id}`
 - `GET /v2/videos/{video_id}/stream`
+- `GET /v2/videos/{video_id}/transcript`
 
 ### Moments
 - `POST /v2/captures`
@@ -200,11 +255,18 @@ a transcript is replaced.
 - `POST /v2/moments/{moment_id}/ai`
 - `POST /v2/videos/{video_id}/notes` (legacy 2.x extension)
 
+- `POST /v2/moments/passages`, `POST /v2/moments/{moment_id}/resolve`
+- `GET /v2/videos/{video_id}/export.md`, `GET /v2/library/export.md`
+
 ### Library
 - `GET /v2/library`
 - `PUT /v2/library/{video_id}`, `DELETE /v2/library/{video_id}`
 
+### Search
+- `GET /v2/search`
+
 ### Conversations
+- `GET /v2/conversations`
 - `POST /v2/conversations`
 - `GET /v2/conversations/{id}`
 - `GET /v2/conversations/{id}/messages`

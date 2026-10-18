@@ -11,8 +11,11 @@ Describe background helpers and Lambdas used for transcript/metadata fetching an
     and renames each item's `start` to `offset`
   - `metadata`: fetches metadata via `yt_dlp`
   - `resolve_title`: finds the video for a title-only capture with a 5-result
-    `yt_dlp` search, preferring a matching channel, then an exact title, then
-    the first result. Sends `resolved: {video_id, title}`
+    `yt_dlp` search. A single result from the captured channel, or a single
+    exact title (ignoring case and punctuation), decides. Otherwise Jev
+    (`JEV_MODEL`, through OpenRouter with `OPENROUTER_API_KEY`) chooses among
+    the results; at confidence 0.75 or above it sends `resolved: {video_id,
+    title}`, below that or on failure it sends `candidates` for the user to pick
   - Submits results to `/v2/internal/tasks/{id}/result`
   - CLI args: task type, `--timeout`, and optional `--api-url`
   - Internal API base URL resolution: `--api-url` -> `VIDWIZ_INTERNAL_API_BASE_URL`; exits on startup if neither is set
@@ -37,19 +40,24 @@ or systemd unit manages parallel helper processes.
   - Reads the video title from `/v2/internal/videos/{video_id}`
   - Configurable: `TRANSCRIPT_BUFFER_SECONDS`, `CONTEXT_SEGMENTS`, `MIN_NOTE_LENGTH`, `MAX_NOTE_LENGTH`, `MAX_RETRIES`
 
-- **AI Summary Lambda**: `backend/workers/lambdas/ai_summary_worker`
+- **AI Overview Lambda**: `backend/workers/lambdas/ai_summary_worker`
   - `handler.py` parses SQS events and delegates to the functional
     `summary_service.py` module.
-  - Triggered by SQS messages containing `{ video_id }`
-  - Reads transcript from S3 with retry/backoff and builds a full transcript string
-  - Skips generation if summary already exists
-  - Uses one OpenRouter structured-output request to generate the summary and
-    exactly three video-specific Wiz questions
+  - Triggered by SQS messages containing `{ video_id, regenerate? }`
+  - Reads transcript from S3 with retry/backoff and groups it into ~45-second
+    passages with ids
+  - Skips videos that already have a summary and key points unless
+    `regenerate` is true; older summaries without key points are regenerated
+  - Uses one OpenRouter structured-output request to generate the summary,
+    3 to 8 key points that cite passage ids, and exactly three video-specific
+    Wiz questions. The worker turns cited ids into start and end times, so the
+    model never writes timestamps; points citing unknown ids are dropped, and
+    fewer than three valid points means a retry
   - Enforces summary and question character limits in the prompt and local
     validation. The JSON Schema enforces the response shape and exactly three
     questions while avoiding constraints unsupported by some providers
-  - Updates the summary and `miscellaneous_data.suggested_questions` together
-    via `/v2/internal/videos/{id}/summary`
+  - Updates the summary, `suggested_questions`, and `key_points` together via
+    `/v2/internal/videos/{id}/summary`
   - Propagates processing exceptions so the single-record SQS batch is retried
   - Configurable: `MIN_SUMMARY_LENGTH`, `MAX_SUMMARY_LENGTH`,
     `MIN_QUESTION_LENGTH` (default 20), `MAX_QUESTION_LENGTH` (default 120),
@@ -106,7 +114,9 @@ payloads.
 ## Data & Storage
 - **Transcripts**: Stored in S3 at `transcripts/{video_id}.json` when configured.
 - **Tasks**: Stored in the DB (`tasks` table) and polled via `/v2/internal/tasks`. Title tasks carry `{moment_id, title, channel}`.
-- **Queues**: SQS for AI note generation and AI summaries.
+- **Queues**: SQS for AI moments and overviews. Each has a dead-letter queue
+  (`vidwiz-v3-ai-note-dlq`, `vidwiz-v3-ai-summary-dlq`, 14-day retention): a
+  message that fails three receives moves there for inspection and redrive.
 
 ## Configuration (Common)
 - Internal API access: `VIDWIZ_INTERNAL_API_BASE_URL`, `VIDWIZ_INTERNAL_API_ADMIN_TOKEN`
