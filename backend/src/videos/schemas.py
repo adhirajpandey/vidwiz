@@ -7,6 +7,14 @@ from src.models import ApiModel
 from src.videos.utils import normalize_youtube_video_id
 
 
+class KeyPoint(ApiModel):
+    """A key idea from the overview, at the time the video explains it."""
+
+    text: str
+    start_seconds: float
+    end_seconds: float
+
+
 class VideoRead(ApiModel):
     id: int
     video_id: str
@@ -15,6 +23,7 @@ class VideoRead(ApiModel):
     transcript_available: bool
     summary: str | None = None
     suggested_questions: list[str] | None = None
+    key_points: list["KeyPoint"] | None = None
     created_at: datetime
     updated_at: datetime
 

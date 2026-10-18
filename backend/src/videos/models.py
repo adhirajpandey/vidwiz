@@ -26,6 +26,11 @@ class Video(Base):
     moments = relationship("Moment", back_populates="video")
 
     @property
+    def key_points(self) -> list[dict] | None:
+        points = (self.miscellaneous_data or {}).get("key_points")
+        return points if isinstance(points, list) and points else None
+
+    @property
     def suggested_questions(self) -> list[str] | None:
         questions = (self.miscellaneous_data or {}).get("suggested_questions")
         if not isinstance(questions, list) or len(questions) != 3:

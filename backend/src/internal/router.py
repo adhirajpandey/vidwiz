@@ -152,7 +152,7 @@ def store_summary(
         path.video_id,
         payload.summary,
         (
-            payload.miscellaneous_data.model_dump()
+            payload.miscellaneous_data.model_dump(exclude_none=True)
             if payload.miscellaneous_data is not None
             else None
         ),

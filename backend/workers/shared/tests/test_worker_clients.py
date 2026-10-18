@@ -110,7 +110,7 @@ def test_internal_api_client_saves_moment_ai(settings):
     assert calls[1][1]["json"] == {"ai_text": None}
 
 
-def test_internal_api_client_updates_summary_and_questions(settings):
+def test_internal_api_client_updates_overview(settings):
     calls = []
 
     class Response:
@@ -128,13 +128,15 @@ def test_internal_api_client_updates_summary_and_questions(settings):
         "What conclusion follows from the discussion?",
     ]
 
-    assert client.update_summary("video-id", "Generated summary", questions)
+    points = [{"text": "Point", "start_seconds": 1.0, "end_seconds": 2.0}]
+
+    assert client.update_summary("video-id", "Generated summary", questions, points)
     assert calls[0][0] == (
         "https://internal.example/v2/internal/videos/video-id/summary",
     )
     assert calls[0][1]["json"] == {
         "summary": "Generated summary",
-        "miscellaneous_data": {"suggested_questions": questions},
+        "miscellaneous_data": {"suggested_questions": questions, "key_points": points},
     }
 
 

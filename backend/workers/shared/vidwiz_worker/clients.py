@@ -38,6 +38,7 @@ class InternalApiClient:
         video_id: str,
         summary: str,
         suggested_questions: list[str],
+        key_points: list[dict[str, Any]],
     ) -> bool:
         return self._request_success(
             "post",
@@ -46,6 +47,7 @@ class InternalApiClient:
                 "summary": summary,
                 "miscellaneous_data": {
                     "suggested_questions": suggested_questions,
+                    "key_points": key_points,
                 },
             },
             "video_id",

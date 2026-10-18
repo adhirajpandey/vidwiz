@@ -166,3 +166,51 @@ async def test_internal_metrics_success(client):
     assert response.status_code == 200
     body = response.text
     assert "http_requests_total" in body or "http_request_duration_seconds" in body
+
+
+@pytest.mark.asyncio
+async def test_internal_summary_stores_key_points_without_dropping_them(
+    client, db_session
+):
+    from src.videos.models import Video
+
+    db_session.add(Video(video_id="kp123456789", title="Key points"))
+    db_session.flush()
+    questions = ["Question one here?", "Question two here?", "Question three here?"]
+    points = [{"text": "Point", "start_seconds": 10, "end_seconds": 55.5}]
+
+    stored = await client.post(
+        "/v2/internal/videos/kp123456789/summary",
+        headers=admin_headers(),
+        json={
+            "summary": "Summary",
+            "miscellaneous_data": {
+                "suggested_questions": questions,
+                "key_points": points,
+            },
+        },
+    )
+    assert stored.status_code == 200
+    assert stored.json()["key_points"] == [
+        {"text": "Point", "start_seconds": 10.0, "end_seconds": 55.5}
+    ]
+
+    # A later write with questions only keeps the existing key points.
+    again = await client.post(
+        "/v2/internal/videos/kp123456789/summary",
+        headers=admin_headers(),
+        json={"miscellaneous_data": {"suggested_questions": questions}},
+    )
+    assert again.json()["key_points"][0]["text"] == "Point"
+
+    bad = await client.post(
+        "/v2/internal/videos/kp123456789/summary",
+        headers=admin_headers(),
+        json={
+            "miscellaneous_data": {
+                "suggested_questions": questions,
+                "key_points": [{"text": "x", "start_seconds": 9, "end_seconds": 1}],
+            }
+        },
+    )
+    assert bad.status_code == 422

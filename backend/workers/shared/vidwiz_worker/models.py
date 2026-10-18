@@ -18,12 +18,36 @@ class Moment(BaseModel):
 
 class SummaryRequest(BaseModel):
     video_id: str
+    # Regenerate even when an overview exists, for example after a model change.
+    regenerate: bool = False
+
+
+class ModelKeyPoint(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    text: str
+    passage_ids: list[str] = Field(min_length=1, max_length=4)
+
+    @field_validator("text")
+    @classmethod
+    def normalize_text(cls, value: str) -> str:
+        normalized = " ".join(value.split())
+        if not normalized:
+            raise ValueError("key point must not be blank")
+        return normalized
+
+
+class KeyPoint(BaseModel):
+    text: str
+    start_seconds: float
+    end_seconds: float
 
 
 class SummaryArtifacts(BaseModel):
     model_config = ConfigDict(extra="forbid")
 
     summary: str
+    key_points: list[ModelKeyPoint] = Field(min_length=3, max_length=8)
     suggested_questions: list[str] = Field(min_length=3, max_length=3)
 
     @field_validator("summary")

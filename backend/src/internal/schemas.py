@@ -1,6 +1,12 @@
 from typing import Annotated
 
-from pydantic import AfterValidator, Field, StringConstraints, field_validator
+from pydantic import (
+    AfterValidator,
+    Field,
+    StringConstraints,
+    field_validator,
+    model_validator,
+)
 
 from src.models import ApiModel
 from src.videos.utils import normalize_youtube_video_id
@@ -76,8 +82,25 @@ QuestionText = Annotated[
 ]
 
 
+class KeyPointWrite(ApiModel):
+    text: Annotated[
+        str, StringConstraints(strip_whitespace=True, min_length=1, max_length=300)
+    ]
+    start_seconds: float = Field(ge=0, allow_inf_nan=False)
+    end_seconds: float = Field(ge=0, allow_inf_nan=False)
+
+    @model_validator(mode="after")
+    def ordered(self) -> "KeyPointWrite":
+        if self.end_seconds < self.start_seconds:
+            raise ValueError("key point ends before it starts")
+        return self
+
+
 class MiscellaneousDataWrite(ApiModel):
     suggested_questions: list[QuestionText] = Field(min_length=3, max_length=3)
+    key_points: list[KeyPointWrite] | None = Field(
+        default=None, min_length=1, max_length=8
+    )
 
     @field_validator("suggested_questions")
     @classmethod
