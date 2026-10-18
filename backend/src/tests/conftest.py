@@ -2,6 +2,7 @@ from collections.abc import Generator
 import os
 from pathlib import Path
 
+import boto3
 import pytest
 import pytest_asyncio
 from httpx import ASGITransport, AsyncClient
@@ -37,10 +38,8 @@ from src.conversations import models as conversation_models  # noqa: E402,F401
 from src.conversations import service as conversations_service  # noqa: E402
 from src.credits import models as credits_models  # noqa: E402,F401
 from src.internal import models as internal_models  # noqa: E402,F401
-from src.internal import service as internal_service  # noqa: E402
 from src.moments import models as moments_models  # noqa: E402,F401
 from src.library import models as library_models  # noqa: E402,F401
-from src.moments import service as moments_service  # noqa: E402
 from src.payments import models as payments_models  # noqa: E402,F401
 from src.videos import models as video_models  # noqa: E402,F401
 from src import database  # noqa: E402
@@ -117,9 +116,7 @@ def mock_external_services(monkeypatch):
     def blocked_client(*_args, **_kwargs):
         raise AssertionError("External service calls are blocked in tests.")
 
-    monkeypatch.setattr(conversations_service.boto3, "client", fake_boto3_client)
-    monkeypatch.setattr(internal_service.boto3, "client", fake_boto3_client)
-    monkeypatch.setattr(moments_service.boto3, "client", fake_boto3_client)
+    monkeypatch.setattr(boto3, "client", fake_boto3_client)
     monkeypatch.setattr(conversations_service, "OpenAI", blocked_client)
     monkeypatch.setattr(auth_service, "verify_google_token", blocked_client)
 

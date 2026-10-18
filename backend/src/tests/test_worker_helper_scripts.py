@@ -57,13 +57,26 @@ def test_helper_exits_when_api_url_missing(monkeypatch):
 
 
 @pytest.mark.parametrize(
-    ("task_type", "result"),
-    [("transcript", [{"text": "hi"}]), ("metadata", {"title": "hi"})],
+    ("task_type", "fetcher", "value", "field"),
+    [
+        ("transcript", "fetch_transcript", [{"text": "hi"}], "transcript"),
+        ("metadata", "fetch_metadata", {"title": "hi"}, "metadata"),
+    ],
 )
-def test_helper_submits_result_under_task_key(task_type, result, monkeypatch):
+def test_video_tasks_build_result_payloads(
+    task_type, fetcher, value, field, monkeypatch
+):
     module = _load_helper()
-    helper = module.TaskHelper(task_type, "token", 30, "http://api.example/")
+    monkeypatch.setattr(module, fetcher, lambda video_id: value)
 
+    payload = module.TASKS[task_type]({"video_id": "abc123DEF45"})
+
+    assert payload == {"video_id": "abc123DEF45", field: value}
+
+
+def test_helper_submits_result_payload(monkeypatch):
+    module = _load_helper()
+    helper = module.TaskHelper("metadata", "token", 30, "http://api.example/")
     captured = {}
 
     class DummyResponse:
@@ -79,15 +92,68 @@ def test_helper_submits_result_under_task_key(task_type, result, monkeypatch):
         return DummyResponse()
 
     monkeypatch.setattr(module.requests, "post", fake_post)
-    helper.send_task_result(7, "abc123DEF45", result=result)
+    helper.send_task_result(7, {"video_id": "abc123DEF45", "success": True})
 
     assert captured["url"] == "http://api.example/v2/internal/tasks/7/result"
     assert captured["kwargs"]["headers"] == {"Authorization": "Bearer token"}
-    assert captured["kwargs"]["json"] == {
-        "video_id": "abc123DEF45",
-        "success": True,
-        task_type: result,
-    }
+    assert captured["kwargs"]["json"] == {"video_id": "abc123DEF45", "success": True}
+
+
+def _fake_search(monkeypatch, module, entries):
+    class FakeYdl:
+        def __init__(self, options):
+            assert options["extract_flat"] is True
+
+        def __enter__(self):
+            return self
+
+        def __exit__(self, *_args):
+            return False
+
+        def extract_info(self, query, download):
+            assert query.startswith("ytsearch5:")
+            return {"entries": entries}
+
+    monkeypatch.setattr(module.yt_dlp, "YoutubeDL", FakeYdl)
+
+
+def test_resolve_title_prefers_matching_channel(monkeypatch):
+    module = _load_helper()
+    _fake_search(
+        monkeypatch,
+        module,
+        [
+            {"id": "aaaaaaaaaaa", "title": "Deep Focus", "channel": "Someone"},
+            {"id": "bbbbbbbbbbb", "title": "Deep focus", "channel": "Odysseas"},
+        ],
+    )
+
+    payload = module.TASKS["resolve_title"](
+        {"title": "Deep Focus", "channel": "odysseas"}
+    )
+
+    assert payload == {"resolved": {"video_id": "bbbbbbbbbbb", "title": "Deep focus"}}
+
+
+def test_resolve_title_falls_back_to_exact_title_then_first(monkeypatch):
+    module = _load_helper()
+    _fake_search(
+        monkeypatch,
+        module,
+        [
+            {"id": "aaaaaaaaaaa", "title": "Something else"},
+            {"id": "bbbbbbbbbbb", "title": "Deep Focus"},
+        ],
+    )
+    assert module.resolve_title("deep focus")["video_id"] == "bbbbbbbbbbb"
+    assert module.resolve_title("no match")["video_id"] == "aaaaaaaaaaa"
+
+
+def test_resolve_title_raises_without_results(monkeypatch):
+    module = _load_helper()
+    _fake_search(monkeypatch, module, [])
+    with pytest.raises(LookupError):
+        module.resolve_title("Deep Focus")
 
 
 def test_transcript_fetch_renames_start_to_offset(monkeypatch):

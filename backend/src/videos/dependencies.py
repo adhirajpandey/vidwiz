@@ -7,6 +7,7 @@ from src.auth.dependencies import get_current_user_id, get_viewer_context
 from src.videos import service as videos_service
 from src.videos.schemas import VideoIdPath
 
+
 def get_user_video_or_404(
     path: VideoIdPath = Depends(),
     db: Session = Depends(get_db),

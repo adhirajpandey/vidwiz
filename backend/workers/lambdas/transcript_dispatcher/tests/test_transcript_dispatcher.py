@@ -73,7 +73,7 @@ def test_dispatch_service_uses_domain_specific_queue_urls(monkeypatch):
 
     monkeypatch.setattr(dispatch_service.boto3, "client", lambda _name: FakeSqs())
 
-    dispatch_service.push_notes_to_sqs_batch([{"id": 1}])
+    dispatch_service.push_moments_to_sqs_batch([{"id": 1}])
     dispatch_service.push_summary_to_sqs("video-id")
 
     assert calls[0]["QueueUrl"] == "note-queue"
@@ -88,25 +88,26 @@ def test_dispatch_service_skips_summary_without_summary_queue(monkeypatch):
     assert dispatch_service.push_summary_to_sqs("video-id") is False
 
 
-def test_fetch_all_notes_uses_configured_request_timeout(monkeypatch):
+def test_collect_pending_moments_uses_configured_request_timeout(monkeypatch):
     monkeypatch.setenv("REQUEST_TIMEOUT", "17")
     dispatch_service = _load_module("dispatch_service.py", monkeypatch)
     calls = []
 
     class Response:
         status_code = 200
-        text = '{"notes":[]}'
+        text = '{"moments":[]}'
 
         def json(self):
-            return {"notes": []}
+            return {"moments": []}
 
     monkeypatch.setattr(
         dispatch_service.requests,
-        "get",
+        "post",
         lambda *args, **kwargs: calls.append((args, kwargs)) or Response(),
     )
 
-    assert dispatch_service.fetch_all_notes("video-id") == []
+    assert dispatch_service.collect_pending_moments("video-id") == []
+    assert calls[0][0][0].endswith("/v2/internal/videos/video-id/pending-moments")
     assert calls[0][1]["timeout"] == 17
     assert "response_preview" not in dispatch_service.logger.records[0][2]
 
@@ -130,7 +131,7 @@ def test_sqs_partial_failure_log_excludes_message_and_body(monkeypatch):
 
     monkeypatch.setattr(dispatch_service.boto3, "client", lambda _name: FakeSqs())
 
-    result = dispatch_service.push_notes_to_sqs_batch(
+    result = dispatch_service.push_moments_to_sqs_batch(
         [{"id": 1, "text": "private body"}, {"id": 2, "text": "private body"}]
     )
 

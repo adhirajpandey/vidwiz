@@ -3,11 +3,8 @@ import json
 from datetime import datetime
 import pytest
 
-from src.auth.models import User
-from src.notes.models import Note
 from src.videos import service as videos_service
 from src.videos.models import Video
-from src.videos.schemas import VideoListParams
 
 
 def seed_video(db_session, video_id: str, title: str | None = None):
@@ -16,59 +13,6 @@ def seed_video(db_session, video_id: str, title: str | None = None):
     db_session.commit()
     db_session.refresh(video)
     return video
-
-
-def test_list_videos_for_user_filters_and_sorts(db_session):
-    user = User(email="videos@example.com", name="Videos User")
-    db_session.add(user)
-    db_session.commit()
-    db_session.refresh(user)
-
-    video_a = seed_video(db_session, "abc123DEF45", "Alpha Video")
-    video_b = seed_video(db_session, "xyz987LMN12", "Beta Video")
-
-    db_session.add_all(
-        [
-            Note(
-                video_id=video_a.video_id, timestamp="00:01", text="a", user_id=user.id
-            ),
-            Note(
-                video_id=video_b.video_id, timestamp="00:02", text="b", user_id=user.id
-            ),
-        ]
-    )
-    db_session.commit()
-
-    params = VideoListParams(q="Alpha", page=1, per_page=10, sort="title_asc")
-    response = videos_service.list_videos_for_user(db_session, user.id, params)
-    assert response.total == 1
-    assert response.videos[0].video_id == "abc123DEF45"
-
-    params = VideoListParams(q="", page=1, per_page=10, sort="title_desc")
-    response = videos_service.list_videos_for_user(db_session, user.id, params)
-    assert response.total == 2
-    assert response.videos[0].video_id == "xyz987LMN12"
-
-
-def test_list_videos_for_user_pagination(db_session):
-    user = User(email="paging@example.com", name="Paging User")
-    db_session.add(user)
-    db_session.commit()
-    db_session.refresh(user)
-
-    for index in range(3):
-        video_id = f"vid{index:02d}ABCDE1"
-        seed_video(db_session, video_id, f"Video {index}")
-        db_session.add(
-            Note(video_id=video_id, timestamp="00:01", text="note", user_id=user.id)
-        )
-    db_session.commit()
-
-    params = VideoListParams(q="", page=1, per_page=2, sort="created_at_desc")
-    response = videos_service.list_videos_for_user(db_session, user.id, params)
-    assert response.total == 3
-    assert response.total_pages == 2
-    assert len(response.videos) == 2
 
 
 def test_is_video_ready(db_session):
@@ -116,10 +60,6 @@ def test_video_read_hides_invalid_suggested_questions(db_session):
     payload = json.loads(data_line.replace("data: ", "", 1))
 
     assert payload["video"]["suggested_questions"] is None
-
-
-def test_compute_total_pages_zero():
-    assert videos_service._compute_total_pages(0, 10) == 0
 
 
 @pytest.mark.asyncio

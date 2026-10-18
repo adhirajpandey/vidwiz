@@ -46,7 +46,9 @@ def process_moment(moment: Moment) -> None:
     logger.info("Processing AI moment", extra=extra)
     transcript = transcripts.get(moment.video_id)
     context = (
-        relevant_context(transcript, moment.at_seconds, settings) if transcript else None
+        relevant_context(transcript, moment.at_seconds, settings)
+        if transcript
+        else None
     )
     if context is None:
         logger.error("No transcript context for AI moment", extra=extra)

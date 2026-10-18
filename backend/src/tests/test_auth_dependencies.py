@@ -7,7 +7,7 @@ from fastapi.security import HTTPAuthorizationCredentials
 from src.auth import service as auth_service
 from src.auth.dependencies import (
     get_current_user_id,
-    get_current_user_id_or_long_term,
+    get_current_user_id_or_api_token,
     get_viewer_context,
 )
 from src.config import settings
@@ -95,43 +95,67 @@ def test_get_viewer_context_requires_auth_or_guest():
         get_viewer_context(authorization=None, guest_session_id=None)
 
 
-def test_get_current_user_id_or_long_term_accepts_active_token(db_session):
-    user = auth_service.create_user(
-        db_session,
-        "lt@example.com",
-        "LT User",
-        "password123",
-    )
-    token = auth_service.create_long_term_token(db_session, user, settings.secret_key)
+def test_api_token_dependency_accepts_active_token(db_session, user):
+    _, token = auth_service.create_api_token(db_session, user.id, "Phone")
     assert (
-        get_current_user_id_or_long_term(
-            authorization=bearer_credentials(token),
-            db=db_session,
+        get_current_user_id_or_api_token(
+            authorization=bearer_credentials(token), db=db_session
+        )
+        == user.id
+    )
+    [stored] = auth_service.list_api_tokens(db_session, user.id)
+    assert stored.last_used_at is not None
+    assert token not in (stored.token_hash, stored.token_hint)
+
+
+def test_api_token_dependency_rejects_revoked_token(db_session, user):
+    api_token, token = auth_service.create_api_token(db_session, user.id, "Phone")
+    assert auth_service.revoke_api_token(db_session, user.id, api_token.id)
+
+    with pytest.raises(UnauthorizedError):
+        get_current_user_id_or_api_token(
+            authorization=bearer_credentials(token), db=db_session
+        )
+
+
+def test_api_token_dependency_accepts_web_session_jwt(db_session):
+    token = make_access_token(42)
+    assert (
+        get_current_user_id_or_api_token(
+            authorization=bearer_credentials(token), db=db_session
+        )
+        == 42
+    )
+
+
+def test_legacy_long_term_jwt_is_checked_by_hash(db_session, user):
+    """Migrated long-term tokens keep working, even if their JWT still decodes."""
+    from src.auth.models import ApiToken
+
+    token = make_long_term_token(user.id)
+    with pytest.raises(UnauthorizedError):
+        get_current_user_id_or_api_token(
+            authorization=bearer_credentials(token), db=db_session
+        )
+    db_session.add(
+        ApiToken(
+            user_id=user.id,
+            name="Legacy token",
+            token_hash=auth_service.hash_api_token(token),
+            token_hint=token[-4:],
+        )
+    )
+    db_session.flush()
+    assert (
+        get_current_user_id_or_api_token(
+            authorization=bearer_credentials(token), db=db_session
         )
         == user.id
     )
 
 
-def test_get_current_user_id_or_long_term_rejects_revoked_token(db_session):
-    user = auth_service.create_user(
-        db_session,
-        "lt-revoke@example.com",
-        "LT Revoke",
-        "password123",
-    )
-    token = auth_service.create_long_term_token(db_session, user, settings.secret_key)
-    auth_service.revoke_long_term_token(db_session, user)
-
+def test_api_token_dependency_rejects_invalid_token(db_session):
     with pytest.raises(UnauthorizedError):
-        get_current_user_id_or_long_term(
-            authorization=bearer_credentials(token),
-            db=db_session,
-        )
-
-
-def test_get_current_user_id_or_long_term_rejects_invalid_token(db_session):
-    with pytest.raises(UnauthorizedError):
-        get_current_user_id_or_long_term(
-            authorization=bearer_credentials("invalid-token"),
-            db=db_session,
+        get_current_user_id_or_api_token(
+            authorization=bearer_credentials("invalid-token"), db=db_session
         )

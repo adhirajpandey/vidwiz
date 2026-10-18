@@ -13,6 +13,7 @@ from src.videos.schemas import VideoRead, VideoStreamPayload
 
 logger = logging.getLogger(__name__)
 
+
 def get_video_by_id(db: Session, video_id: str) -> Video | None:
     logger.debug("Fetching video by id", extra={"video_id": video_id})
     return db.execute(

@@ -198,13 +198,18 @@ def apply_quote(moment: Moment, transcript: list) -> None:
         moment.quote, moment.quote_start_seconds = quote
 
 
-def push_moment_to_sqs(db: Session, moment: Moment) -> None:
-    payload = {
+def queue_payload(moment: Moment) -> dict:
+    """The AI moment job, shared with the dispatcher's pending-moments reply."""
+    return {
         "id": moment.id,
         "video_id": moment.video_id,
         "at_seconds": moment.at_seconds,
         "user_id": moment.user_id,
     }
+
+
+def push_moment_to_sqs(db: Session, moment: Moment) -> None:
+    payload = queue_payload(moment)
     try:
         sqs = boto3.client(
             "sqs",
@@ -408,4 +413,3 @@ def delete(db: Session, moment: Moment) -> None:
     logger.debug("Deleting moment", extra={"moment_id": moment.id})
     db.delete(moment)
     db.commit()
-

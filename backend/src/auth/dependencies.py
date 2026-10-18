@@ -13,9 +13,7 @@ from src.exceptions import UnauthorizedError
 bearer_auth = HTTPBearer(
     bearerFormat="JWT",
     scheme_name="BearerAuth",
-    description=(
-        "JWT access token, or a personal API token on capture endpoints."
-    ),
+    description=("JWT access token, or a personal API token on capture endpoints."),
     auto_error=False,
 )
 guest_session_auth = APIKeyHeader(

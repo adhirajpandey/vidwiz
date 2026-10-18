@@ -4,8 +4,6 @@ from src.config import settings
 from src.internal import constants as internal_constants
 from src.internal.models import Task, TaskStatus
 from src.internal import service as internal_service
-from src.auth.models import User
-from src.notes.models import Note
 from src.videos.models import Video
 
 
@@ -84,86 +82,6 @@ async def test_internal_task_submit_transcript_success(client, db_session, monke
 
 
 @pytest.mark.asyncio
-async def test_internal_ai_notes(client, db_session):
-    video_id = "abc123DEF45"
-    user = User(
-        email="ai-notes@example.com",
-        name="AI Notes User",
-        profile_data={"ai_notes_enabled": True},
-        credits_balance=1,
-    )
-    video = Video(video_id=video_id, title="AI Notes Video")
-    db_session.add_all([user, video])
-    db_session.commit()
-
-    note = Note(
-        video_id=video_id,
-        timestamp="00:01",
-        text=None,
-        generated_by_ai=False,
-        user_id=user.id,
-    )
-    db_session.add(note)
-    db_session.commit()
-
-    response = await client.get(
-        f"/v2/internal/videos/{video_id}/ai-notes",
-        headers=admin_headers(),
-    )
-
-    assert response.status_code == 200
-    payload = response.json()
-    assert payload["video_id"] == video_id
-    assert len(payload["notes"]) == 1
-    db_session.refresh(user)
-    assert user.credits_balance == 0
-
-
-@pytest.mark.asyncio
-async def test_internal_ai_notes_skips_users_without_credits(client, db_session):
-    video_id = "abc123DEF45"
-    user = User(
-        email="no-credits@example.com",
-        profile_data={"ai_notes_enabled": True},
-        credits_balance=0,
-    )
-    db_session.add_all([user, Video(video_id=video_id, title="AI Notes Video")])
-    db_session.commit()
-    db_session.add(Note(video_id=video_id, timestamp="00:01", user_id=user.id))
-    db_session.commit()
-
-    response = await client.get(
-        f"/v2/internal/videos/{video_id}/ai-notes",
-        headers=admin_headers(),
-    )
-
-    assert response.status_code == 404
-
-
-@pytest.mark.asyncio
-async def test_internal_ai_notes_not_found(client, db_session):
-    video_id = "abc123DEF45"
-    video = Video(video_id=video_id, title="AI Notes Video")
-    db_session.add(video)
-    db_session.commit()
-
-    response = await client.get(
-        f"/v2/internal/videos/{video_id}/ai-notes",
-        headers=admin_headers(),
-    )
-    assert response.status_code == 404
-
-
-@pytest.mark.asyncio
-async def test_internal_ai_notes_video_missing(client):
-    response = await client.get(
-        "/v2/internal/videos/abc123DEF45/ai-notes",
-        headers=admin_headers(),
-    )
-    assert response.status_code == 404
-
-
-@pytest.mark.asyncio
 async def test_internal_store_transcript_metadata_summary(client, monkeypatch):
     monkeypatch.setattr(
         internal_service, "store_transcript_in_s3", lambda *_args, **_kwargs: None
@@ -231,33 +149,6 @@ async def test_internal_get_video_success(client):
     assert response.status_code == 200
     payload = response.json()
     assert payload["video_id"] == video_id
-
-
-@pytest.mark.asyncio
-async def test_internal_update_note_not_found(client):
-    response = await client.patch(
-        "/v2/internal/notes/9999",
-        headers=admin_headers(),
-        json={"text": "updated"},
-    )
-    assert response.status_code == 404
-
-
-@pytest.mark.asyncio
-async def test_internal_update_note_success(client, db_session):
-    video = Video(video_id="abc123DEF45", title="Video")
-    note = Note(video_id=video.video_id, timestamp="00:01", text="hi", user_id=1)
-    db_session.add_all([video, note])
-    db_session.commit()
-
-    response = await client.patch(
-        f"/v2/internal/notes/{note.id}",
-        headers=admin_headers(),
-        json={"text": "updated"},
-    )
-    assert response.status_code == 200
-    payload = response.json()
-    assert payload["text"] == "updated"
 
 
 @pytest.mark.asyncio
