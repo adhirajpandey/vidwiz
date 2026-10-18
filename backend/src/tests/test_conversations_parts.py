@@ -251,8 +251,8 @@ def test_persistence_failure_never_emits_done(db_session, monkeypatch):
     assert messages == []
 
 
-def test_legacy_message_remains_text(db_session):
-    conversation = Conversation(video_id="abc123DEF45", user_id=1)
+def test_legacy_message_remains_text(db_session, user):
+    conversation = Conversation(video_id="abc123DEF45", user_id=user.id)
     db_session.add(conversation)
     db_session.commit()
     message = service.save_chat_message(

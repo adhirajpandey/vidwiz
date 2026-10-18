@@ -13,9 +13,13 @@ from src.internal.schemas import (
     TaskRetrievedResponse,
     TaskSubmitResponse,
     TranscriptWrite,
-    VideoNotesResponse,
+    MomentAiWrite,
+    PendingMoment,
+    PendingMomentsResponse,
 )
-from src.notes.schemas import NoteRead, NoteUpdate
+from src.moments import service as moments_service
+from src.moments.models import Moment
+from src.moments.schemas import MomentRead
 from src.shared.ratelimit import limiter
 from src.videos.schemas import VideoIdPath, VideoRead
 
@@ -65,15 +69,7 @@ def submit_task_result(
     db: Session = Depends(get_db),
     _: None = Depends(require_admin_token),
 ) -> TaskSubmitResponse:
-    task = internal_service.submit_task_result(
-        db,
-        task_id,
-        payload.video_id,
-        payload.success,
-        payload.transcript,
-        payload.metadata,
-        payload.error_message,
-    )
+    task = internal_service.submit_task_result(db, task_id, payload)
 
     return TaskSubmitResponse(
         message="Task result submitted successfully",
@@ -82,28 +78,25 @@ def submit_task_result(
     )
 
 
-@router.get(
-    "/videos/{video_id}/ai-notes",
-    response_model=VideoNotesResponse,
+@router.post(
+    "/videos/{video_id}/pending-moments",
+    response_model=PendingMomentsResponse,
     status_code=status.HTTP_200_OK,
-    description="Fetch eligible notes for AI note generation.",
+    description=(
+        "Charge and mark queued the moments waiting for this video's transcript. "
+        "Called by the dispatcher after the transcript upload."
+    ),
 )
 @limiter.exempt
-def list_ai_notes(
+def collect_pending_moments(
     path: VideoIdPath = Depends(),
     db: Session = Depends(get_db),
     _: None = Depends(require_admin_token),
-) -> VideoNotesResponse:
-    video, notes = internal_service.fetch_ai_note_task_notes(db, path.video_id)
-    if not video:
-        raise NotFoundError("Video not found")
-    if not notes:
-        raise NotFoundError("No notes found for users with AI notes enabled")
-
-    return VideoNotesResponse(
+) -> PendingMomentsResponse:
+    moments = moments_service.collect_pending_ai(db, path.video_id)
+    return PendingMomentsResponse(
         video_id=path.video_id,
-        notes=[NoteRead.model_validate(note) for note in notes],
-        message="Successfully retrieved notes for AI note generation.",
+        moments=[PendingMoment.model_validate(moment) for moment in moments],
     )
 
 
@@ -185,25 +178,22 @@ def get_video(
     return VideoRead.model_validate(video)
 
 
-@router.patch(
-    "/notes/{note_id}",
-    response_model=NoteRead,
+@router.put(
+    "/moments/{moment_id}/ai",
+    response_model=MomentRead,
     status_code=status.HTTP_200_OK,
-    description="Update note (internal).",
+    description="Store the AI line generated for a moment (internal).",
 )
 @limiter.exempt
-def update_note(
-    note_id: int,
-    payload: NoteUpdate,
+def store_moment_ai(
+    moment_id: int,
+    payload: MomentAiWrite,
     db: Session = Depends(get_db),
     _: None = Depends(require_admin_token),
-) -> NoteRead:
-    note = internal_service.update_note(
-        db,
-        note_id,
-        payload.text,
-        payload.generated_by_ai,
+) -> MomentRead:
+    moment = db.get(Moment, moment_id)
+    if not moment:
+        raise NotFoundError("Moment not found")
+    return MomentRead.model_validate(
+        moments_service.save_ai_text(db, moment, payload.ai_text)
     )
-    if not note:
-        raise NotFoundError("Note not found")
-    return NoteRead.model_validate(note)

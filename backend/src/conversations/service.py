@@ -3,12 +3,13 @@ import logging
 from collections import Counter
 from datetime import datetime, timedelta
 
-import boto3
 from openai import OpenAI
 from sqlalchemy import func, select
 from sqlalchemy.orm import Session
 
 from src.auth.schemas import ViewerContext
+from src import transcripts
+from src.library import service as library_service
 from src.config import settings
 from src.conversations.models import Conversation, Message
 from src.conversations.parts import (
@@ -111,6 +112,11 @@ def save_chat_message(
         metadata_=metadata,
     )
     db.add(message)
+    if role == "user":
+        # Asking about a video saves it to the signed-in user's library.
+        conversation = db.get(Conversation, conversation_id)
+        if conversation and conversation.user_id and conversation.video_id:
+            library_service.save_video(db, conversation.user_id, conversation.video_id)
     db.commit()
     db.refresh(message)
     logger.debug("Saved chat message", extra={"message_id": message.id})
@@ -174,29 +180,7 @@ def check_daily_quota(
         )
 
 
-def get_transcript_from_s3(video_id: str) -> list | None:
-    logger.debug("Fetching transcript from S3", extra={"video_id": video_id})
-    if not settings.s3_transcript_bucket_name:
-        return None
-
-    transcript_key = f"transcripts/{video_id}.json"
-    try:
-        s3_client = boto3.client(
-            "s3",
-            aws_access_key_id=settings.aws_access_key_id,
-            aws_secret_access_key=settings.aws_secret_access_key,
-            region_name=settings.aws_region,
-        )
-        response = s3_client.get_object(
-            Bucket=settings.s3_transcript_bucket_name,
-            Key=transcript_key,
-        )
-        transcript_data = json.loads(response["Body"].read().decode("utf-8"))
-        logger.debug("Fetched transcript from S3", extra={"video_id": video_id})
-        return transcript_data
-    except Exception as exc:
-        logger.warning("Transcript fetch failed", extra={"error": str(exc)})
-        return None
+get_transcript_from_s3 = transcripts.load_transcript
 
 
 def get_valid_transcript_or_raise(

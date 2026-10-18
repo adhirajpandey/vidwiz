@@ -36,9 +36,9 @@ def test_build_system_instruction_formats_transcript():
     assert "chunk_" in instruction
 
 
-def test_check_daily_quota_enforces_limit(db_session, monkeypatch):
+def test_check_daily_quota_enforces_limit(db_session, monkeypatch, user):
     monkeypatch.setattr(settings, "wiz_user_daily_quota", 1, raising=False)
-    conversation = Conversation(video_id="abc123DEF45", user_id=1)
+    conversation = Conversation(video_id="abc123DEF45", user_id=user.id)
     db_session.add(conversation)
     db_session.commit()
 
@@ -51,17 +51,17 @@ def test_check_daily_quota_enforces_limit(db_session, monkeypatch):
 
     with pytest.raises(RateLimitError):
         conversations_service.check_daily_quota(
-            db_session, user_id=1, guest_session_id=None
+            db_session, user_id=user.id, guest_session_id=None
         )
 
 
-def test_prepare_chat_returns_processing_when_transcript_missing(db_session):
+def test_prepare_chat_returns_processing_when_transcript_missing(db_session, user):
     video = Video(video_id="abc123DEF45", title="Video", transcript_available=False)
-    conversation = Conversation(video_id=video.video_id, user_id=1)
+    conversation = Conversation(video_id=video.video_id, user_id=user.id)
     db_session.add_all([video, conversation])
     db_session.commit()
 
-    viewer = ViewerContext(user_id=1)
+    viewer = ViewerContext(user_id=user.id)
     result = conversations_service.prepare_chat(
         db_session, conversation, viewer, "hello"
     )
@@ -118,12 +118,14 @@ def test_ensure_openrouter_api_key_raises(monkeypatch):
         conversations_service.ensure_openrouter_api_key()
 
 
-def test_prepare_chat_returns_history_when_transcript_ready(db_session, monkeypatch):
+def test_prepare_chat_returns_history_when_transcript_ready(
+    db_session, monkeypatch, user
+):
     monkeypatch.setattr(settings, "openrouter_api_key", "key", raising=False)
     monkeypatch.setattr(settings, "wiz_user_daily_quota", 99, raising=False)
 
     video = Video(video_id="abc123DEF45", title="Video", transcript_available=True)
-    conversation = Conversation(video_id=video.video_id, user_id=1)
+    conversation = Conversation(video_id=video.video_id, user_id=user.id)
     db_session.add_all([video, conversation])
     db_session.commit()
 
@@ -133,7 +135,7 @@ def test_prepare_chat_returns_history_when_transcript_ready(db_session, monkeypa
         lambda _video_id: [{"text": "hi", "offset": 0}],
     )
 
-    viewer = ViewerContext(user_id=1)
+    viewer = ViewerContext(user_id=user.id)
     video_out, transcript, history, api_key = conversations_service.prepare_chat(
         db_session, conversation, viewer, "hello"
     )
@@ -144,8 +146,10 @@ def test_prepare_chat_returns_history_when_transcript_ready(db_session, monkeypa
     assert api_key == "key"
 
 
-def test_stream_wiz_response_yields_error_on_empty_content(db_session, monkeypatch):
-    conversation = Conversation(video_id="abc123DEF45", user_id=1)
+def test_stream_wiz_response_yields_error_on_empty_content(
+    db_session, monkeypatch, user
+):
+    conversation = Conversation(video_id="abc123DEF45", user_id=user.id)
     db_session.add(conversation)
     db_session.commit()
 

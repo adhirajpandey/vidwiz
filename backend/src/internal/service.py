@@ -1,24 +1,21 @@
 from __future__ import annotations
 
-import json
 import logging
 import time
 from datetime import datetime, timedelta
 
-import boto3
 from sqlalchemy import and_, or_, select
 from sqlalchemy.orm import Session
 
-from src.auth.models import User
-from src.credits import service as credits_service
-from src.exceptions import BadRequestError, ForbiddenError, NotFoundError
+from src.exceptions import BadRequestError, NotFoundError
 from src.internal import constants as internal_constants
 from src.internal.models import Task, TaskStatus
-from src.notes.models import Note
-from src.notes import service as notes_service
+from src.moments import service as moments_service
+from src.moments.models import Moment, ResolveStatus
+from src.internal.schemas import TaskResultRequest
 from src.videos import service as videos_service
 from src.videos.models import Video
-from src.config import settings
+from src import transcripts
 
 logger = logging.getLogger(__name__)
 
@@ -81,54 +78,48 @@ def poll_for_task(
 def submit_task_result(
     db: Session,
     task_id: int,
-    video_id: str,
-    success: bool,
-    transcript: list[dict] | None,
-    metadata: dict | None,
-    error_message: str | None,
+    result: TaskResultRequest,
 ) -> Task:
     task = db.get(Task, task_id)
     if not task:
         raise NotFoundError("Task not found")
     logger.debug(
         "Submitting task result",
-        extra={"task_id": task_id, "task_type": task.task_type, "success": success},
+        extra={
+            "task_id": task_id,
+            "task_type": task.task_type,
+            "success": result.success,
+        },
     )
-
-    if task.task_details and task.task_details.get("video_id") != video_id:
-        raise BadRequestError("Task video_id mismatch")
-
     if task.status != TaskStatus.IN_PROGRESS:
         raise BadRequestError("Task is not in progress")
 
-    is_transcript = task.task_type == internal_constants.FETCH_TRANSCRIPT_TASK_TYPE
-    is_metadata = task.task_type == internal_constants.FETCH_METADATA_TASK_TYPE
-    if not (is_transcript or is_metadata):
+    task_type = task.task_type
+    if task_type == internal_constants.RESOLVE_TITLE_TASK_TYPE:
+        _validate_resolve_result(result)
+    elif task_type in (
+        internal_constants.FETCH_TRANSCRIPT_TASK_TYPE,
+        internal_constants.FETCH_METADATA_TASK_TYPE,
+    ):
+        _validate_video_result(task, result)
+    else:
         raise BadRequestError("Unsupported task type")
-    if is_transcript and metadata:
-        raise BadRequestError("Metadata payload is not valid for transcript tasks")
-    if is_metadata and transcript:
-        raise BadRequestError("Transcript payload is not valid for metadata tasks")
 
     task.completed_at = datetime.utcnow()
-    if success:
+    if result.success:
         task.status = TaskStatus.COMPLETED
-        if is_transcript and transcript:
-            store_transcript_in_s3(video_id, transcript)
-        video = videos_service.get_video_by_id(db, video_id)
-        if video and is_transcript:
-            video.transcript_available = True
-        elif video and metadata:
-            video.video_metadata = metadata
+        _apply_success(db, task, result)
     else:
-        if task.retry_count >= internal_constants.TASK_MAX_RETRIES:
+        final = task.retry_count >= internal_constants.TASK_MAX_RETRIES
+        if final:
             task.status = TaskStatus.FAILED
+            _apply_final_failure(db, task)
         else:
             task.status = TaskStatus.PENDING
             task.started_at = None
         task.worker_details = {
             **(task.worker_details or {}),
-            "error_message": error_message or "Unknown error occurred",
+            "error_message": result.error_message or "Unknown error occurred",
             "retry_attempt": task.retry_count,
         }
 
@@ -138,32 +129,71 @@ def submit_task_result(
     return task
 
 
-def store_transcript_in_s3(video_id: str, transcript: list[dict]) -> None:
-    logger.debug("Storing transcript in S3", extra={"video_id": video_id})
-    bucket = settings.s3_transcript_bucket_name
-    if not bucket:
-        logger.debug("S3 bucket not configured", extra={"video_id": video_id})
+def _validate_video_result(task: Task, result: TaskResultRequest) -> None:
+    if not result.video_id:
+        raise BadRequestError("video_id is required for video tasks")
+    if task.task_details and task.task_details.get("video_id") != result.video_id:
+        raise BadRequestError("Task video_id mismatch")
+    is_transcript = task.task_type == internal_constants.FETCH_TRANSCRIPT_TASK_TYPE
+    if result.resolved is not None:
+        raise BadRequestError("Resolved video is only valid for title tasks")
+    if is_transcript and result.metadata:
+        raise BadRequestError("Metadata payload is not valid for transcript tasks")
+    if not is_transcript and result.transcript:
+        raise BadRequestError("Transcript payload is not valid for metadata tasks")
+
+
+def _validate_resolve_result(result: TaskResultRequest) -> None:
+    if result.transcript or result.metadata:
+        raise BadRequestError("Title tasks only accept a resolved video")
+    if result.success and result.resolved is None:
+        raise BadRequestError("A successful title task needs a resolved video")
+
+
+def _task_moment(db: Session, task: Task) -> Moment | None:
+    moment_id = (task.task_details or {}).get("moment_id")
+    return db.get(Moment, moment_id) if moment_id else None
+
+
+def _apply_success(db: Session, task: Task, result: TaskResultRequest) -> None:
+    if task.task_type == internal_constants.RESOLVE_TITLE_TASK_TYPE:
+        moment = _task_moment(db, task)
+        if moment is not None and moment.resolve_status == ResolveStatus.RESOLVING:
+            moments_service.complete_resolution(
+                db, moment, result.resolved.video_id, result.resolved.title
+            )
         return
-    transcript_key = f"transcripts/{video_id}.json"
-    s3_client = boto3.client(
-        "s3",
-        aws_access_key_id=settings.aws_access_key_id,
-        aws_secret_access_key=settings.aws_secret_access_key,
-        region_name=settings.aws_region,
-    )
-    s3_client.put_object(
-        Bucket=bucket,
-        Key=transcript_key,
-        Body=json.dumps(transcript).encode("utf-8"),
-        ContentType="application/json",
-    )
-    logger.debug("Stored transcript in S3", extra={"video_id": video_id})
+
+    video = videos_service.get_video_by_id(db, result.video_id)
+    if task.task_type == internal_constants.FETCH_TRANSCRIPT_TASK_TYPE:
+        if result.transcript:
+            store_transcript_in_s3(result.video_id, result.transcript)
+            moments_service.on_transcript_stored(db, result.video_id, result.transcript)
+        if video:
+            video.transcript_available = True
+    elif video and result.metadata:
+        video.video_metadata = result.metadata
+
+
+def _apply_final_failure(db: Session, task: Task) -> None:
+    if task.task_type == internal_constants.RESOLVE_TITLE_TASK_TYPE:
+        moment = _task_moment(db, task)
+        if moment is not None and moment.resolve_status == ResolveStatus.RESOLVING:
+            moments_service.fail_resolution(db, moment)
+    elif task.task_type == internal_constants.FETCH_TRANSCRIPT_TASK_TYPE:
+        video_id = (task.task_details or {}).get("video_id")
+        if video_id:
+            moments_service.on_transcript_unavailable(db, video_id)
+
+
+store_transcript_in_s3 = transcripts.store_transcript
 
 
 def store_transcript(db: Session, video_id: str, transcript: list[dict]) -> Video:
     logger.debug("Storing transcript", extra={"video_id": video_id})
     video = videos_service.get_or_create_video(db, video_id)
     store_transcript_in_s3(video_id, transcript)
+    moments_service.on_transcript_stored(db, video_id, transcript)
     video.transcript_available = True
     db.commit()
     db.refresh(video)
@@ -202,65 +232,6 @@ def store_summary(
     return video
 
 
-def fetch_ai_note_task_notes(
-    db: Session, video_id: str
-) -> tuple[Video | None, list[Note]]:
-    logger.debug("Fetching AI note task notes", extra={"video_id": video_id})
-    video = videos_service.get_video_by_id(db, video_id)
-    if not video:
-        return None, []
-
-    notes = (
-        db.execute(
-            select(Note)
-            .join(User, Note.user_id == User.id)
-            .where(
-                Note.video_id == video_id,
-                or_(Note.text.is_(None), Note.text == ""),
-                # Portable JSON predicate: SQLite tests run the production query.
-                User.profile_data["ai_notes_enabled"].as_boolean().is_(True),
-            )
-            .order_by(Note.created_at.asc(), Note.id.asc())
-        )
-        .scalars()
-        .all()
-    )
-    return video, [note for note in notes if _charge_ai_note(db, note)]
-
-
-def _charge_ai_note(db: Session, note: Note) -> bool:
-    """Charge a note queued after transcript upload; skip owners without credits.
-
-    Notes already charged, for example when the transcript existed at creation,
-    are not charged again.
-    """
-    try:
-        credits_service.charge_ai_note_enqueue(db, note.user_id, note.id)
-    except ForbiddenError:
-        logger.info(
-            "Skipping AI note without enough credits",
-            extra={"note_id": note.id, "user_id": note.user_id},
-        )
-        return False
-    return True
-
-
 def get_video(db: Session, video_id: str) -> Video | None:
     logger.debug("Fetching video", extra={"video_id": video_id})
     return videos_service.get_video_by_id(db, video_id)
-
-
-def update_note(
-    db: Session,
-    note_id: int,
-    text: str | None,
-    generated_by_ai: bool | None,
-) -> Note | None:
-    logger.debug("Updating note via internal", extra={"note_id": note_id})
-    # We need to find the user_id for the note to use get_note_for_user or just get it directly.
-    # Since this is internal admin, we can get note directly by ID.
-    note = notes_service.get_note_by_id(db, note_id)
-    if not note:
-        return None
-
-    return notes_service.update_note(db, note, text, generated_by_ai)

@@ -47,13 +47,30 @@ class LoginResponse(ApiModel):
     token: str
 
 
-class TokenResponse(ApiModel):
-    message: str
+class ApiTokenCreate(ApiModel):
+    name: str = Field(min_length=1, max_length=80)
+
+    @field_validator("name")
+    @classmethod
+    def strip_name(cls, value: str) -> str:
+        trimmed = value.strip()
+        if not trimmed:
+            raise ValueError("name must not be empty")
+        return trimmed
+
+
+class ApiTokenRead(ApiModel):
+    id: int
+    name: str
+    token_hint: str
+    created_at: datetime
+    last_used_at: datetime | None
+
+
+class ApiTokenCreated(ApiTokenRead):
+    """Includes the plain token, which is shown only once."""
+
     token: str
-
-
-class TokenRevokeResponse(ApiModel):
-    message: str
 
 
 class UserProfileRead(ApiModel):
@@ -61,15 +78,13 @@ class UserProfileRead(ApiModel):
     email: str
     name: str | None = None
     profile_image_url: str | None = None
-    ai_notes_enabled: bool
-    token_exists: bool
+    ai_moments_default: bool
     credits_balance: int
-    long_term_token: str | None = None
     created_at: datetime | None = None
 
 
 class UserProfileUpdate(ApiModel):
-    ai_notes_enabled: bool | None = None
+    ai_moments_default: bool | None = None
     name: str | None = None
 
     @field_validator("name")

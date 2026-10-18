@@ -6,7 +6,7 @@ from src.exceptions import ForbiddenError
 
 
 def _user(db_session, balance: int) -> User:
-    user = User(email="credits@example.com", credits_balance=balance)
+    user = User(email="credits@example.com", name="Credits", credits_balance=balance)
     db_session.add(user)
     db_session.commit()
     return user

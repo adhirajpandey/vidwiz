@@ -38,8 +38,9 @@ from src.conversations import service as conversations_service  # noqa: E402
 from src.credits import models as credits_models  # noqa: E402,F401
 from src.internal import models as internal_models  # noqa: E402,F401
 from src.internal import service as internal_service  # noqa: E402
-from src.notes import models as notes_models  # noqa: E402,F401
-from src.notes import service as notes_service  # noqa: E402
+from src.moments import models as moments_models  # noqa: E402,F401
+from src.library import models as library_models  # noqa: E402,F401
+from src.moments import service as moments_service  # noqa: E402
 from src.payments import models as payments_models  # noqa: E402,F401
 from src.videos import models as video_models  # noqa: E402,F401
 from src import database  # noqa: E402
@@ -118,7 +119,7 @@ def mock_external_services(monkeypatch):
 
     monkeypatch.setattr(conversations_service.boto3, "client", fake_boto3_client)
     monkeypatch.setattr(internal_service.boto3, "client", fake_boto3_client)
-    monkeypatch.setattr(notes_service.boto3, "client", fake_boto3_client)
+    monkeypatch.setattr(moments_service.boto3, "client", fake_boto3_client)
     monkeypatch.setattr(conversations_service, "OpenAI", blocked_client)
     monkeypatch.setattr(auth_service, "verify_google_token", blocked_client)
 
@@ -189,3 +190,14 @@ async def client(app):
         base_url="http://test",
     ) as client:
         yield client
+
+
+@pytest.fixture
+def user(db_session):
+    """A persisted user; PostgreSQL enforces user foreign keys."""
+    from src.auth.models import User
+
+    user = User(email="user@example.com", name="Test User", credits_balance=100)
+    db_session.add(user)
+    db_session.flush()
+    return user

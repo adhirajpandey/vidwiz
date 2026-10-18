@@ -65,6 +65,21 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 15
 
+    services:
+      postgres:
+        image: pgvector/pgvector:pg17
+        env:
+          POSTGRES_USER: vidwiz
+          POSTGRES_PASSWORD: vidwiz
+          POSTGRES_DB: vidwiz_test
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U vidwiz"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 10
+
     defaults:
       run:
         working-directory: backend
@@ -97,6 +112,8 @@ jobs:
         run: uv run --locked ruff check src workers
 
       - name: Run Backend Tests
+        env:
+          TEST_DB_URL: postgresql://vidwiz:vidwiz@localhost:5432/vidwiz_test
         run: uv run --locked pytest
 
   validate-frontend:

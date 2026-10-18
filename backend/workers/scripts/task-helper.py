@@ -1,4 +1,4 @@
-"""Poll the internal API for transcript or metadata tasks and submit results."""
+"""Poll the internal API for transcript, metadata, or title tasks and submit results."""
 
 import argparse
 import logging
@@ -50,8 +50,44 @@ def fetch_metadata(video_id: str) -> dict:
     return {field: info.get(field) for field in METADATA_FIELDS}
 
 
-# The task type is also the result payload key.
-TASKS = {"transcript": fetch_transcript, "metadata": fetch_metadata}
+TITLE_SEARCH_RESULTS = 5
+
+
+def resolve_title(title: str, channel: str | None = None) -> dict:
+    """Find the video a phone capture refers to from its title and channel."""
+    options = {"quiet": True, "no_warnings": True, "extract_flat": True}
+    with yt_dlp.YoutubeDL(options) as ydl:
+        info = ydl.extract_info(
+            f"ytsearch{TITLE_SEARCH_RESULTS}:{title}", download=False
+        )
+    entries = [entry for entry in info.get("entries") or [] if entry.get("id")]
+    if not entries:
+        raise LookupError(f"No YouTube results for title: {title}")
+
+    def matches(entry: dict) -> tuple[bool, bool]:
+        same_title = (entry.get("title") or "").casefold() == title.casefold()
+        uploader = entry.get("channel") or entry.get("uploader") or ""
+        same_channel = bool(channel) and uploader.casefold() == channel.casefold()
+        return same_channel, same_title
+
+    best = max(entries, key=matches)
+    return {"video_id": best["id"], "title": best.get("title")}
+
+
+# Each task turns its details into the result payload fields.
+TASKS = {
+    "transcript": lambda details: {
+        "video_id": details["video_id"],
+        "transcript": fetch_transcript(details["video_id"]),
+    },
+    "metadata": lambda details: {
+        "video_id": details["video_id"],
+        "metadata": fetch_metadata(details["video_id"]),
+    },
+    "resolve_title": lambda details: {
+        "resolved": resolve_title(details["title"], details.get("channel")),
+    },
+}
 
 
 def get_auth_token() -> str:
@@ -105,22 +141,11 @@ class TaskHelper:
             time.sleep(POLL_ERROR_BACKOFF_SECONDS)
             return None
 
-    def send_task_result(
-        self,
-        task_id: int,
-        video_id: str,
-        result: list | dict | None = None,
-        error_message: str | None = None,
-    ) -> None:
-        """Send either a successful result or a failure message."""
-        success = result is not None and error_message is None
-        data: dict = {"video_id": video_id, "success": success}
-        if success:
-            data[self.task_type] = result
-        else:
-            data["error_message"] = error_message
-
-        logger.info(f"Sending task result for task_id={task_id}, success={success}")
+    def send_task_result(self, task_id: int, data: dict) -> None:
+        """Send a result payload: the task fields on success, or an error."""
+        logger.info(
+            f"Sending task result for task_id={task_id}, success={data['success']}"
+        )
         try:
             response = requests.post(
                 f"{self.tasks_url}/{task_id}/result", json=data, headers=self.headers
@@ -146,21 +171,23 @@ class TaskHelper:
                 if not task_data or "task_id" not in task_data:
                     continue
 
-                task_id = task_data.get("task_id")
-                video_id = (task_data.get("task_details") or {}).get("video_id")
-                if not video_id:
-                    logger.error(f"Received task {task_id} without video_id in details")
-                    continue
-
-                logger.info(f"Received task: {task_id}, video_id: {video_id}")
+                task_id = task_data["task_id"]
+                details = task_data.get("task_details") or {}
+                logger.info(f"Received task: {task_id}, details: {sorted(details)}")
                 try:
-                    self.send_task_result(
-                        task_id, video_id, result=self.fetch(video_id)
-                    )
-                    logger.info(f"Successfully processed video: {video_id}")
+                    result = self.fetch(details)
+                    self.send_task_result(task_id, {**result, "success": True})
+                    logger.info(f"Successfully processed task: {task_id}")
                 except Exception as e:  # noqa: BLE001
-                    logger.error(f"Failed to process video {video_id}: {e}")
-                    self.send_task_result(task_id, video_id, error_message=str(e))
+                    logger.error(f"Failed to process task {task_id}: {e}")
+                    self.send_task_result(
+                        task_id,
+                        {
+                            "video_id": details.get("video_id"),
+                            "success": False,
+                            "error_message": str(e),
+                        },
+                    )
             except Exception as e:  # noqa: BLE001
                 logger.error(f"Error in main loop: {e}")
                 time.sleep(5)  # Backoff on error

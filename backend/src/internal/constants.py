@@ -6,8 +6,10 @@ TASK_IN_PROGRESS_TIMEOUT = 120
 
 FETCH_TRANSCRIPT_TASK_TYPE = "fetch_transcript"
 FETCH_METADATA_TASK_TYPE = "fetch_metadata"
+RESOLVE_TITLE_TASK_TYPE = "resolve_title"
 
 TASK_TYPE_MAP = {
     "transcript": FETCH_TRANSCRIPT_TASK_TYPE,
     "metadata": FETCH_METADATA_TASK_TYPE,
+    "resolve_title": RESOLVE_TITLE_TASK_TYPE,
 }

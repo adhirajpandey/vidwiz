@@ -37,7 +37,7 @@ class Settings(BaseSettings):
     )
     signup_grant_amount: int = Field(default=100, alias="SIGNUP_GRANT_AMOUNT")
     wiz_chat_cost: int = Field(default=5, alias="WIZ_CHAT_COST")
-    ai_note_cost: int = Field(default=1, alias="AI_NOTE_COST")
+    ai_moment_cost: int = Field(default=1, alias="AI_MOMENT_COST")
     openrouter_api_key: str | None = Field(default=None, alias="OPENROUTER_API_KEY")
     openrouter_base_url: str = Field(
         default="https://openrouter.ai/api/v1", alias="OPENROUTER_BASE_URL"

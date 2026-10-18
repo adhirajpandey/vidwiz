@@ -1,32 +1,11 @@
-from fastapi import Depends, Query
+from fastapi import Depends
 from sqlalchemy.orm import Session
 
 from src.database import get_db
-from src.exceptions import BadRequestError, NotFoundError
+from src.exceptions import NotFoundError
 from src.auth.dependencies import get_current_user_id, get_viewer_context
 from src.videos import service as videos_service
-from src.videos.schemas import VideoIdPath, VideoListParams
-
-VIDEO_SORT_KEYS = {
-    "activity_desc",
-    "created_at_desc",
-    "created_at_asc",
-    "title_asc",
-    "title_desc",
-}
-
-
-def get_video_list_params(
-    q: str = Query(default="", alias="q"),
-    page: int = Query(default=1, ge=1),
-    per_page: int = Query(default=10, ge=1, le=50),
-    sort: str = Query(default="created_at_desc"),
-) -> VideoListParams:
-    if sort not in VIDEO_SORT_KEYS:
-        raise BadRequestError("Invalid sort parameter")
-
-    return VideoListParams(q=q, page=page, per_page=per_page, sort=sort)
-
+from src.videos.schemas import VideoIdPath
 
 def get_user_video_or_404(
     path: VideoIdPath = Depends(),

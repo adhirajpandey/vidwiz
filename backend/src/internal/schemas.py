@@ -3,7 +3,7 @@ from typing import Annotated
 from pydantic import AfterValidator, Field, StringConstraints, field_validator
 
 from src.models import ApiModel
-from src.notes.schemas import NoteRead
+from src.videos.utils import normalize_youtube_video_id
 
 
 def _require_text(items: list[dict]) -> list[dict]:
@@ -34,8 +34,20 @@ class TaskPollParams(ApiModel):
     timeout: int
 
 
-class TaskResultRequest(ApiModel):
+class ResolvedVideo(ApiModel):
     video_id: str
+    title: str | None = None
+
+    @field_validator("video_id")
+    @classmethod
+    def validate_video_id(cls, value: str) -> str:
+        return normalize_youtube_video_id(value)
+
+
+class TaskResultRequest(ApiModel):
+    # Video tasks send video_id; title tasks send resolved on success.
+    video_id: str | None = None
+    resolved: ResolvedVideo | None = None
     success: bool
     transcript: Transcript | None = None
     metadata: dict | None = None
@@ -72,7 +84,19 @@ class SummaryWrite(ApiModel):
     miscellaneous_data: MiscellaneousDataWrite | None = None
 
 
-class VideoNotesResponse(ApiModel):
+class PendingMoment(ApiModel):
+    id: int
     video_id: str
-    notes: list[NoteRead]
-    message: str
+    at_seconds: int
+    user_id: int
+
+
+class PendingMomentsResponse(ApiModel):
+    video_id: str
+    moments: list[PendingMoment]
+
+
+class MomentAiWrite(ApiModel):
+    """Worker result. Null marks the generation as failed."""
+
+    ai_text: str | None = Field(default=None, max_length=1000)

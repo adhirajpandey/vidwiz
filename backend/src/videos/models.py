@@ -23,7 +23,7 @@ class Video(Base):
         default=func.now(), onupdate=func.now(), server_default=func.now()
     )
 
-    notes = relationship("Note", back_populates="video", cascade="all, delete-orphan")
+    moments = relationship("Moment", back_populates="video")
 
     @property
     def suggested_questions(self) -> list[str] | None:

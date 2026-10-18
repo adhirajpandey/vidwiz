@@ -1,16 +1,30 @@
+import enum
 from datetime import datetime
 
 from sqlalchemy import ForeignKey, JSON, Text, func
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from src.database import Base
+from src.shared.types import text_enum
+
+
+class ConversationScope(str, enum.Enum):
+    VIDEO = "video"
+    LIBRARY = "library"
 
 
 class Conversation(Base):
     __tablename__ = "conversations"
 
     id: Mapped[int] = mapped_column(primary_key=True)
-    video_id: Mapped[str] = mapped_column(Text, nullable=False)
+    scope: Mapped[ConversationScope] = mapped_column(
+        text_enum(ConversationScope),
+        nullable=False,
+        default=ConversationScope.VIDEO,
+        server_default="video",
+    )
+    # Set for video conversations, null for library conversations.
+    video_id: Mapped[str | None] = mapped_column(Text, nullable=True)
     user_id: Mapped[int | None] = mapped_column(nullable=True)
     guest_session_id: Mapped[str | None] = mapped_column(Text, nullable=True)
     created_at: Mapped[datetime] = mapped_column(

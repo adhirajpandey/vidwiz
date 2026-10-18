@@ -23,13 +23,14 @@ class InternalApiClient:
     def get_video(self, video_id: str) -> dict[str, Any] | None:
         return self._request_json("get", f"/v2/internal/videos/{video_id}", video_id)
 
-    def update_note(self, note_id: int, text: str) -> bool:
+    def save_moment_ai(self, moment_id: int, ai_text: str | None) -> bool:
+        """Store the AI line, or null to mark the generation as failed."""
         return self._request_success(
-            "patch",
-            f"/v2/internal/notes/{note_id}",
-            {"text": text, "generated_by_ai": True},
-            "note_id",
-            note_id,
+            "put",
+            f"/v2/internal/moments/{moment_id}/ai",
+            {"ai_text": ai_text},
+            "moment_id",
+            moment_id,
         )
 
     def update_summary(

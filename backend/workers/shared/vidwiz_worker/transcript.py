@@ -29,20 +29,9 @@ def build_transcript_text(
     return "\n".join(lines) if include_timestamps else " ".join(lines)
 
 
-def parse_timestamp_seconds(timestamp: str) -> int:
-    try:
-        parts = [int(part) for part in timestamp.split(":")]
-        if len(parts) not in (2, 3):
-            raise ValueError(timestamp)
-        return sum(value * 60**index for index, value in enumerate(reversed(parts)))
-    except Exception as error:
-        raise ValueError(f"Invalid timestamp format: {timestamp}") from error
-
-
 def relevant_context(
-    transcript: list[dict[str, Any]], timestamp: str, settings: WorkerSettings
+    transcript: list[dict[str, Any]], timestamp_seconds: int, settings: WorkerSettings
 ) -> RelevantTranscriptContext | None:
-    timestamp_seconds = parse_timestamp_seconds(timestamp)
     relevant = [
         segment
         for segment in transcript

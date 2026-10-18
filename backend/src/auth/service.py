@@ -1,14 +1,17 @@
 from datetime import datetime, timedelta, timezone
+import hashlib
+import secrets
 
 import jwt
 import logging
 from google.auth.transport import requests as google_requests
 from google.oauth2 import id_token
+from sqlalchemy import select
 from sqlalchemy.orm import Session
 from sqlalchemy.orm.attributes import flag_modified
 from werkzeug.security import check_password_hash, generate_password_hash
 
-from src.auth.models import User
+from src.auth.models import ApiToken, User
 from src.credits import service as credits_service
 
 logger = logging.getLogger(__name__)
@@ -25,7 +28,7 @@ def create_user(db: Session, email: str, name: str, password: str) -> User:
         email=email,
         name=name,
         password_hash=generate_password_hash(password),
-        profile_data={"ai_notes_enabled": True},
+        profile_data={"ai_moments_default": True},
     )
     db.add(user)
     db.commit()
@@ -72,84 +75,110 @@ def get_user_by_id(db: Session, user_id: int) -> User | None:
     return db.query(User).filter(User.id == user_id).first()
 
 
-def get_user_by_long_term_token(db: Session, token: str) -> User | None:
-    logger.debug("Fetching user by long-term token")
-    return db.query(User).filter(User.long_term_token == token).first()
+API_TOKEN_PREFIX = "vw_"
 
 
-def create_long_term_token(db: Session, user: User, secret_key: str) -> str:
-    logger.debug("Creating long-term token", extra={"user_id": user.id})
-    long_term_token = jwt.encode(
-        {
-            "user_id": user.id,
-            "email": user.email,
-            "type": "long_term",
-            "iat": datetime.now(timezone.utc).timestamp(),
-        },
-        secret_key,
-        algorithm="HS256",
+def hash_api_token(token: str) -> str:
+    return hashlib.sha256(token.encode("utf-8")).hexdigest()
+
+
+def create_api_token(db: Session, user_id: int, name: str) -> tuple[ApiToken, str]:
+    logger.debug("Creating API token", extra={"user_id": user_id})
+    token = API_TOKEN_PREFIX + secrets.token_urlsafe(32)
+    api_token = ApiToken(
+        user_id=user_id,
+        name=name,
+        token_hash=hash_api_token(token),
+        token_hint=token[-4:],
     )
-    user.long_term_token = long_term_token
+    db.add(api_token)
     db.commit()
-    db.refresh(user)
-    logger.debug("Created long-term token", extra={"user_id": user.id})
-    return long_term_token
+    db.refresh(api_token)
+    return api_token, token
 
 
-def revoke_long_term_token(db: Session, user: User) -> None:
-    logger.debug("Revoking long-term token", extra={"user_id": user.id})
-    user.long_term_token = None
-    db.commit()
-
-
-def build_profile_data(user: User, include_long_term_token: bool = True) -> dict:
-    logger.debug(
-        "Building profile data",
-        extra={"user_id": user.id, "include_long_term_token": include_long_term_token},
+def list_api_tokens(db: Session, user_id: int) -> list[ApiToken]:
+    return (
+        db.execute(
+            select(ApiToken)
+            .where(ApiToken.user_id == user_id, ApiToken.revoked_at.is_(None))
+            .order_by(ApiToken.created_at.desc(), ApiToken.id.desc())
+        )
+        .scalars()
+        .all()
     )
-    ai_notes_enabled = False
+
+
+def revoke_api_token(db: Session, user_id: int, token_id: int) -> bool:
+    api_token = db.execute(
+        select(ApiToken).where(
+            ApiToken.id == token_id,
+            ApiToken.user_id == user_id,
+            ApiToken.revoked_at.is_(None),
+        )
+    ).scalar_one_or_none()
+    if api_token is None:
+        return False
+    logger.debug("Revoking API token", extra={"user_id": user_id, "token_id": token_id})
+    api_token.revoked_at = datetime.now(timezone.utc)
+    db.commit()
+    return True
+
+
+def authenticate_api_token(db: Session, token: str) -> int | None:
+    """Return the owner of an active token and record its use."""
+    api_token = db.execute(
+        select(ApiToken).where(
+            ApiToken.token_hash == hash_api_token(token),
+            ApiToken.revoked_at.is_(None),
+        )
+    ).scalar_one_or_none()
+    if api_token is None:
+        return None
+    api_token.last_used_at = datetime.now(timezone.utc)
+    db.commit()
+    return api_token.user_id
+
+
+def ai_moments_default(user: User) -> bool:
     if user.profile_data and isinstance(user.profile_data, dict):
-        ai_notes_enabled = user.profile_data.get("ai_notes_enabled", False)
+        return bool(user.profile_data.get("ai_moments_default", False))
+    return False
 
-    token_exists = user.long_term_token is not None
 
-    profile_data = {
+def build_profile_data(user: User) -> dict:
+    logger.debug("Building profile data", extra={"user_id": user.id})
+    return {
         "id": user.id,
         "email": user.email,
         "name": user.name,
         "profile_image_url": user.profile_image_url,
-        "ai_notes_enabled": ai_notes_enabled,
-        "token_exists": token_exists,
+        "ai_moments_default": ai_moments_default(user),
         "credits_balance": user.credits_balance,
         "created_at": user.created_at,
     }
-
-    if include_long_term_token:
-        profile_data["long_term_token"] = user.long_term_token
-
-    return profile_data
 
 
 def update_profile(
     db: Session,
     user: User,
     name: str | None,
-    ai_notes_enabled: bool | None,
+    ai_moments_default: bool | None,
 ) -> User:
     logger.debug(
         "Updating profile",
         extra={
             "user_id": user.id,
             "name_provided": name is not None,
-            "ai_notes_enabled_provided": ai_notes_enabled is not None,
+            "ai_moments_default_provided": ai_moments_default is not None,
         },
     )
     if name is not None:
         user.name = name
-    if ai_notes_enabled is not None:
+    if ai_moments_default is not None:
         if user.profile_data is None:
             user.profile_data = {}
-        user.profile_data["ai_notes_enabled"] = ai_notes_enabled
+        user.profile_data["ai_moments_default"] = ai_moments_default
         flag_modified(user, "profile_data")
 
     db.commit()
@@ -191,7 +220,7 @@ def upsert_google_user(
             google_id=google_id,
             name=name,
             profile_image_url=picture,
-            profile_data={"ai_notes_enabled": True},
+            profile_data={"ai_moments_default": True},
         )
         db.add(user)
         created = True

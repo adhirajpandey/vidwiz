@@ -11,7 +11,7 @@ from src.exceptions import ForbiddenError, NotFoundError
 
 REASON_SIGNUP_GRANT = "signup_grant"
 REASON_WIZ_CHAT = "wiz_chat"
-REASON_AI_NOTE = "ai_note"
+REASON_AI_MOMENT = "ai_moment"
 REASON_PURCHASE = "purchase"
 
 logger = logging.getLogger(__name__)
@@ -114,12 +114,18 @@ def charge_wiz_chat_for_video(db: Session, user_id: int, video_id: str) -> bool:
     )
 
 
-def charge_ai_note_enqueue(db: Session, user_id: int, note_id: int) -> None:
+def charge_ai_moment(db: Session, user_id: int, moment_id: int) -> None:
+    """Charge one AI line per moment; repeat requests are free."""
     logger.debug(
-        "Charging AI note enqueue", extra={"user_id": user_id, "note_id": note_id}
+        "Charging AI moment", extra={"user_id": user_id, "moment_id": moment_id}
     )
     _apply_once(
-        db, user_id, -settings.ai_note_cost, REASON_AI_NOTE, "note", str(note_id)
+        db,
+        user_id,
+        -settings.ai_moment_cost,
+        REASON_AI_MOMENT,
+        "moment",
+        str(moment_id),
     )
 
 
