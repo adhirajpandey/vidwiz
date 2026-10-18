@@ -14,7 +14,7 @@ user. The product has three verbs:
 
 - **Capture**: one tap on a phone, one shortcut in the extension, or one button
   in the web player.
-- **Revisit**: search saved moments and transcripts by keyword or meaning, then
+- **Revisit**: search saved moments and transcripts by keyword, then
   jump to the source.
 - **Ask**: ask about one video or across the whole library, with timestamp
   citations resolved by the server.
@@ -43,7 +43,11 @@ user. The product has three verbs:
   time. Existing long-term tokens are hashed in place.
 - `conversations.scope` is `video` or `library`; `video_id` is nullable for
   library chats.
-- `transcript_chunks` and `moments.embedding` use pgvector.
+- `transcript_chunks` stores transcripts as ~45-second windows with full-text
+  indexes, so transcripts are searchable in PostgreSQL. Moments get a full-text
+  index too. There are no embeddings in v3; the chunk table and the search and
+  retrieval functions are shaped so a vector column and an embedding worker can
+  be added later without API changes.
 - Schema changes go through Alembic, starting from a baseline that matches the
   current production schema.
 
@@ -56,10 +60,11 @@ user. The product has three verbs:
   `YOUTUBE_DATA_API_KEY` is no longer needed.
 - A capture within 10 seconds of the user's existing moment on the same video
   merges into it. Merged captures are not charged again.
-- `GET /v2/search` combines PostgreSQL full-text ranking with vector similarity
-  across moments and transcript passages.
-- Library Ask retrieves moments and passages across the user's library and
-  reuses the structured citation stream. It is free within the existing daily
+- `GET /v2/search` ranks PostgreSQL full-text matches (stemming, prefix,
+  trigram typo tolerance)
+- Library Ask expands the question into search terms with a small model,
+  retrieves matching moments and passages with full-text search across the
+  user's library, and reuses the structured citation stream. It is free within the existing daily
   message quota.
 - Conversations can be listed and resumed.
 - A cited passage can be saved as a moment without AI or credits.
@@ -74,8 +79,9 @@ user. The product has three verbs:
   moments that are already `ready`.
 - The summary worker returns an overview: a summary plus key points cited to
   transcript chunks, resolved to timestamps by the API. Starter questions stay.
-- A new embedding worker embeds transcript windows and moments.
-- The dispatcher also enqueues transcript embedding on upload.
+- Transcript chunks are written by the API when a transcript is stored; no new
+  worker is needed.
+- The moment and summary queues get dead-letter queues.
 
 ### Frontend
 A new app on the same stack (Vite, React, TypeScript, Tailwind) with TanStack
@@ -111,8 +117,8 @@ v3 runs as a second, complete deployment beside the current one:
 0. v3 deployment running the current code against restored data.
 1. Alembic baseline, moments, library items, API tokens, captures, title
    resolution, and the moment worker.
-2. Embeddings, search, Ask scopes, conversation history, transcript endpoint,
-   and overviews.
+2. Transcript chunks, full-text search, library Ask with query expansion,
+   conversation history, transcript endpoint, overviews, and dead-letter queues.
 3. New frontend.
 4. Extension.
 5. Cutover.
