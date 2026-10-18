@@ -119,7 +119,7 @@ Summarize the web app structure, routing, and API integration.
 - Tailwind tokens are defined via CSS variables in `frontend/src/index.css`.
 
 ## UI Screenshot Workflow
-`scripts/screenshot_pages.py` uses Playwright to capture named routes as overlapping desktop and mobile viewport images. The workflow forces dark mode, uses anonymous contexts for public pages, and logs into the local API for protected pages. It does not start the frontend or backend.
+`scripts/screenshot_pages.py` uses Playwright to capture named routes and UI states at desktop, tablet, and mobile sizes in dark or light mode. It saves either overlapping viewport slices or one full-page image per capture. It uses anonymous contexts for public pages and logs into the configured API for protected pages. It does not start the frontend or backend.
 
 The script declares its own dependencies inline. Install the matching Playwright
 Chromium once, and again whenever the pinned Playwright version changes:
@@ -136,6 +136,10 @@ Common commands from the repository root:
 uv run scripts/screenshot_pages.py --list
 uv run scripts/screenshot_pages.py --pages landing dashboard --sizes mobile desktop
 uv run scripts/screenshot_pages.py --all --sizes mobile desktop --browser-mode headless
+uv run scripts/screenshot_pages.py --all --sizes desktop tablet mobile --themes dark light --mode full
+uv run scripts/screenshot_pages.py --pages wiz-chat --sizes desktop tablet mobile --themes dark light --mode full
 ```
 
-Generated PNGs default to `scripts/outputs/ui-images/` and are ignored by Git. Before each page capture, older numbered images for the same page and size are removed. Opening the Wiz workspace follows the real application behavior and creates an empty local conversation, but the script never sends a chat message.
+Generated PNGs default to `scripts/outputs/ui-images/` and are ignored by Git. Images are grouped into numbered screen folders such as `07-dashboard/` and named `<size>-<theme>[-<state>]-<NN|full>.png`. Before each capture, older images with the same name are removed.
+
+Opening the Wiz workspace follows the real application behavior and creates an empty conversation. Only the `wiz-chat` page sends a message. It sends exactly one message, which spends the account's Wiz credits, then resizes and re-themes the same page to capture the answer at each size and theme. `--all` leaves it out, so it runs only when you name it.
