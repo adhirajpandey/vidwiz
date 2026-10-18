@@ -14,6 +14,7 @@ from src.config import settings
 from src.conversations.models import Conversation, ConversationScope, Message
 from src.conversations.parts import (
     BlockPart,
+    CitationPart,
     DoneEvent,
     DropReason,
     ErrorEvent,
@@ -26,6 +27,8 @@ from src.conversations.parts import (
     split_block,
     history_parts,
 )
+from src.ask import retrieval as ask_retrieval
+from src.ask.prompts import LIBRARY_SYSTEM_PROMPT_TEMPLATE
 from src.conversations.prompts import WIZ_SYSTEM_PROMPT_TEMPLATE
 from src.conversations.schemas import ConversationList, ConversationSummary
 from src.exceptions import (
@@ -340,18 +343,35 @@ def stream_wiz_response(
     db: Session,
     api_key: str,
 ):
+    """Answer about one video, citing its transcript segments."""
+    _, references = transcript_context(transcript)
+    yield from stream_answer(
+        system_prompt=build_system_instruction(video_title, transcript),
+        references=references,
+        history=history,
+        conversation_id=conversation_id,
+        db=db,
+        api_key=api_key,
+    )
+
+
+def stream_answer(
+    *,
+    system_prompt: str,
+    references: dict[str, CitationPart],
+    history: list[dict],
+    conversation_id: int,
+    db: Session,
+    api_key: str,
+):
+    """Stream a structured, cited answer and save it once complete."""
+
     def event(part):
         return f"data: {part.model_dump_json()}\n\n"
 
     response_stream = None
     try:
-        _, references = transcript_context(transcript)
-        messages = [
-            {
-                "role": "system",
-                "content": build_system_instruction(video_title, transcript),
-            }
-        ]
+        messages = [{"role": "system", "content": system_prompt}]
         for msg in history:
             content = msg["content"]
             if msg["role"] == DB_ROLE_ASSISTANT:
@@ -467,7 +487,7 @@ def prepare_chat(
     )
     check_daily_quota(db, viewer.user_id, viewer.guest_session_id)
     if conversation.scope == ConversationScope.LIBRARY:
-        raise BadRequestError("Library questions are not supported yet")
+        raise BadRequestError("Use prepare_library_chat for library conversations")
 
     transcript_result = get_valid_transcript_or_raise(db, conversation.video_id)
     if transcript_result is None:
@@ -494,3 +514,32 @@ def prepare_chat(
     ]
 
     return video, transcript, history_serializable, api_key
+
+
+def prepare_library_chat(
+    db: Session, conversation: Conversation, message: str
+) -> tuple[str, dict[str, CitationPart], list[dict], str]:
+    """Retrieve library sources for the question and build the answer context."""
+    logger.debug(
+        "Preparing library chat",
+        extra={"conversation_id": conversation.id, "user_id": conversation.user_id},
+    )
+    check_daily_quota(db, conversation.user_id, None)
+    api_key = ensure_openrouter_api_key()
+    earlier_questions = [
+        msg.content
+        for msg in fetch_recent_history(db, conversation.id, limit=6)
+        if msg.role == DB_ROLE_USER
+    ]
+    sources = ask_retrieval.retrieve(
+        db, conversation.user_id, message, earlier_questions
+    )
+    save_chat_message(db, conversation.id, DB_ROLE_USER, message)
+    history = [
+        {"role": msg.role, "content": msg.content, "metadata": msg.metadata_}
+        for msg in fetch_recent_history(db, conversation.id, limit=10)
+    ]
+    system_prompt = LIBRARY_SYSTEM_PROMPT_TEMPLATE.format(
+        sources=ask_retrieval.sources_json(sources)
+    )
+    return system_prompt, ask_retrieval.build_references(sources), history, api_key

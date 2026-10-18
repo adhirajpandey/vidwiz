@@ -350,7 +350,12 @@ def test_stream_persistence_and_history(db_session, monkeypatch, fail):
     events, messages = run_stream(db_session)
     assert events[0]["type"] == "block"
     assert events[0]["citations"][0]["passages"] == [
-        {"chunk_ids": [key], "start_seconds": 763.5, "end_seconds": 790.0}
+        {
+            "chunk_ids": [key],
+            "start_seconds": 763.5,
+            "end_seconds": 790.0,
+            "video_id": None,
+        }
     ]
     assert closed == [True]
     if fail:
@@ -607,7 +612,12 @@ def test_stream_splits_a_multi_element_block(db_session, monkeypatch, caplog):
         events, messages = run_stream(db_session)
     assert [e["type"] for e in events] == ["block"] * 3 + ["done"]
     assert [e["text"] for e in events[:3]] == ["Lead", "- One\n- Two", "Closing"]
-    passage = {"chunk_ids": [key], "start_seconds": 763.5, "end_seconds": 790.0}
+    passage = {
+        "chunk_ids": [key],
+        "start_seconds": 763.5,
+        "end_seconds": 790.0,
+        "video_id": None,
+    }
     assert [e["citations"] for e in events[:3]] == [
         [],
         [

@@ -124,6 +124,25 @@ def create_message(
     db: Session = Depends(get_db),
     viewer: ViewerContext = Depends(get_viewer_context),
 ):
+    if conversation.scope == ConversationScope.LIBRARY:
+        system_prompt, references, history, api_key = (
+            conversations_service.prepare_library_chat(
+                db, conversation, payload.message
+            )
+        )
+        return StreamingResponse(
+            conversations_service.stream_answer(
+                system_prompt=system_prompt,
+                references=references,
+                history=history,
+                conversation_id=conversation.id,
+                db=db,
+                api_key=api_key,
+            ),
+            media_type="text/event-stream",
+            headers={"Cache-Control": "no-cache"},
+        )
+
     video, transcript, history_serializable, api_key = (
         conversations_service.prepare_chat(db, conversation, viewer, payload.message)
     )
