@@ -72,8 +72,8 @@ jobs:
           aws-region: ${{ env.VIDWIZ_PRODUCTION_AWS_REGION }}
           allowed-account-ids: ${{ env.VIDWIZ_PRODUCTION_AWS_ACCOUNT_ID }}
 
-      - name: Deploy vidwiz-stack to Production
-        run: npm exec -- cdk deploy vidwiz-stack --require-approval never
+      - name: Deploy vidwiz-v3-stack to Production
+        run: npm exec -- cdk deploy vidwiz-v3-stack --require-approval never
 
       - name: Remove Temporary Deployment Configuration
         if: always()

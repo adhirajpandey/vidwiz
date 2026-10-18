@@ -45,7 +45,7 @@ def template() -> Template:
         app = cdk.App()
         stack = VidwizStack(
             app,
-            "vidwiz-stack",
+            "vidwiz-v3-stack",
             settings=settings,
             env=cdk.Environment(
                 account=settings.aws_account_id,
@@ -61,7 +61,7 @@ def test_exact_resource_names_and_security(template: Template) -> None:
     template.has_resource_properties(
         "AWS::S3::Bucket",
         {
-            "BucketName": "vidwiz-prod",
+            "BucketName": "vidwiz-v3-transcripts",
             "BucketEncryption": {
                 "ServerSideEncryptionConfiguration": [
                     {"ServerSideEncryptionByDefault": {"SSEAlgorithm": "AES256"}}
@@ -115,8 +115,8 @@ def test_exact_resource_names_and_security(template: Template) -> None:
 
 def test_queues_and_event_sources(template: Template) -> None:
     for name, visibility in (
-        ("vidwiz-prod-ai-note-jobs", 720),
-        ("vidwiz-prod-ai-summary-jobs", 720),
+        ("vidwiz-v3-ai-note-jobs", 720),
+        ("vidwiz-v3-ai-summary-jobs", 720),
     ):
         template.has_resource_properties(
             "AWS::SQS::Queue",
@@ -141,9 +141,9 @@ def test_lambda_runtime_sizing_logs_and_configuration_values(
     template: Template,
 ) -> None:
     expected = {
-        "vidwiz-prod-transcript-dispatcher": (128, 30),
-        "vidwiz-prod-ai-note-worker": (512, 120),
-        "vidwiz-prod-ai-summary-worker": (512, 120),
+        "vidwiz-v3-transcript-dispatcher": (128, 30),
+        "vidwiz-v3-ai-note-worker": (512, 120),
+        "vidwiz-v3-ai-summary-worker": (512, 120),
     }
     for name, (memory, timeout) in expected.items():
         template.has_resource_properties(
@@ -178,7 +178,7 @@ def test_lambda_environments_use_domain_specific_contracts(
     template.has_resource_properties(
         "AWS::Lambda::Function",
         {
-            "FunctionName": "vidwiz-prod-transcript-dispatcher",
+            "FunctionName": "vidwiz-v3-transcript-dispatcher",
             "Environment": {
                 "Variables": Match.object_like(
                     {
@@ -192,8 +192,8 @@ def test_lambda_environments_use_domain_specific_contracts(
         },
     )
     for function_name in (
-        "vidwiz-prod-ai-note-worker",
-        "vidwiz-prod-ai-summary-worker",
+        "vidwiz-v3-ai-note-worker",
+        "vidwiz-v3-ai-summary-worker",
     ):
         template.has_resource_properties(
             "AWS::Lambda::Function",
@@ -214,7 +214,7 @@ def test_lambda_environments_use_domain_specific_contracts(
     template.has_resource_properties(
         "AWS::Lambda::Function",
         {
-            "FunctionName": "vidwiz-prod-ai-note-worker",
+            "FunctionName": "vidwiz-v3-ai-note-worker",
             "Environment": {
                 "Variables": Match.object_like(
                     {
@@ -227,7 +227,7 @@ def test_lambda_environments_use_domain_specific_contracts(
     template.has_resource_properties(
         "AWS::Lambda::Function",
         {
-            "FunctionName": "vidwiz-prod-ai-summary-worker",
+            "FunctionName": "vidwiz-v3-ai-summary-worker",
             "Environment": {
                 "Variables": Match.object_like(
                     {
@@ -253,8 +253,8 @@ def test_lambda_environments_use_domain_specific_contracts(
         ]
         for function in functions.values()
     }
-    note_environment = environments_by_name["vidwiz-prod-ai-note-worker"]
-    summary_environment = environments_by_name["vidwiz-prod-ai-summary-worker"]
+    note_environment = environments_by_name["vidwiz-v3-ai-note-worker"]
+    summary_environment = environments_by_name["vidwiz-v3-ai-summary-worker"]
     assert "SUMMARY_MODEL" not in note_environment
     assert "AI_NOTE_MODEL" not in summary_environment
     for function in functions.values():
@@ -273,7 +273,7 @@ def test_s3_invoke_permission_is_source_restricted(template: Template) -> None:
         },
     )
     permissions = template.find_resources("AWS::Lambda::Permission")
-    assert "vidwiz-prod" in str(permissions)
+    assert "vidwiz-v3-transcripts" in str(permissions)
 
 
 def test_excluded_cost_resources_are_absent(template: Template) -> None:

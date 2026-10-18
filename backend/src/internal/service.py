@@ -172,7 +172,14 @@ def _apply_success(db: Session, task: Task, result: TaskResultRequest) -> None:
         if video:
             video.transcript_available = True
     elif video and result.metadata:
-        video.video_metadata = result.metadata
+        _apply_metadata(video, result.metadata)
+
+
+def _apply_metadata(video: Video, metadata: dict) -> None:
+    video.video_metadata = metadata
+    # Captures by ID carry no title; metadata supplies it.
+    if not video.title and metadata.get("title"):
+        video.title = metadata["title"]
 
 
 def _apply_final_failure(db: Session, task: Task) -> None:
@@ -203,7 +210,7 @@ def store_transcript(db: Session, video_id: str, transcript: list[dict]) -> Vide
 def store_metadata(db: Session, video_id: str, metadata: dict) -> Video:
     logger.debug("Storing metadata", extra={"video_id": video_id})
     video = videos_service.get_or_create_video(db, video_id)
-    video.video_metadata = metadata
+    _apply_metadata(video, metadata)
     db.commit()
     db.refresh(video)
     return video

@@ -133,6 +133,7 @@ def test_submit_metadata_result_success(db_session):
     assert result.status == TaskStatus.COMPLETED
     updated = db_session.get(Video, video.id)
     assert updated.video_metadata == {"title": "Video"}
+    assert updated.title == "Video"
 
 
 def test_store_transcript_in_s3_no_config(monkeypatch):

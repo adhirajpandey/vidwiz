@@ -61,14 +61,14 @@ def application_user_policy(account_id: str, region: str) -> PolicyDocument:
                 "Sid": "TranscriptObjects",
                 "Effect": "Allow",
                 "Action": ["s3:GetObject", "s3:PutObject"],
-                "Resource": ("arn:aws:s3:::vidwiz-prod/transcripts/*"),
+                "Resource": ("arn:aws:s3:::vidwiz-v3-transcripts/transcripts/*"),
             },
             {
                 "Sid": "SubmitAiNoteJobs",
                 "Effect": "Allow",
                 "Action": "sqs:SendMessage",
                 "Resource": (
-                    f"arn:aws:sqs:{region}:{account_id}:vidwiz-prod-ai-note-jobs"
+                    f"arn:aws:sqs:{region}:{account_id}:vidwiz-v3-ai-note-jobs"
                 ),
             },
         ],

@@ -28,10 +28,10 @@ from vidwiz_infra.bundling import lambda_bundling, shared_worker_bundling
 from vidwiz_infra.lambda_specs import LAMBDA_SPECS_BY_KEY, LambdaSpec
 from vidwiz_infra.settings import ProductionDeploymentConfig
 
-STACK_NAME = "vidwiz-stack"
-TRANSCRIPT_BUCKET_NAME = "vidwiz-prod"
-AI_NOTE_QUEUE_NAME = "vidwiz-prod-ai-note-jobs"
-AI_SUMMARY_QUEUE_NAME = "vidwiz-prod-ai-summary-jobs"
+STACK_NAME = "vidwiz-v3-stack"
+TRANSCRIPT_BUCKET_NAME = "vidwiz-v3-transcripts"
+AI_NOTE_QUEUE_NAME = "vidwiz-v3-ai-note-jobs"
+AI_SUMMARY_QUEUE_NAME = "vidwiz-v3-ai-summary-jobs"
 
 
 class VidwizStack(cdk.Stack):
