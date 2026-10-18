@@ -572,3 +572,32 @@ async def test_save_passage_keeps_cited_text_without_ai(
     assert backwards.status_code == 422
     assert sent_jobs == []
     assert charges(db_session, user) == []
+
+
+@pytest.mark.asyncio
+async def test_markdown_exports(client, db_session, user, transcript_ready):
+    moment, _ = capture(db_session, user, at=100, note="Order\nmatters")
+    moments_service.save_ai_text(db_session, moment, "Index order matters")
+    db_session.add(Video(video_id="emptyvideo1", title="Nothing here"))
+    db_session.flush()
+    db_session.add(LibraryItem(user_id=user.id, video_id="emptyvideo1"))
+    db_session.flush()
+    headers = auth_headers(user)
+
+    video = await client.get(f"/v2/videos/{VIDEO_ID}/export.md", headers=headers)
+    library = await client.get("/v2/library/export.md", headers=headers)
+    missing = await client.get("/v2/videos/zzzzzzzzzzz/export.md", headers=headers)
+
+    assert video.status_code == 200
+    assert video.headers["content-type"].startswith("text/markdown")
+    assert video.text.splitlines()[:5] == [
+        f"# [Indexes](https://youtu.be/{VIDEO_ID})",
+        "",
+        f"- [1:35](https://youtu.be/{VIDEO_ID}?t=95)",
+        "  - Order matters",
+        "  - AI: Index order matters",
+    ]
+    assert library.text.startswith("# VidWiz library")
+    assert f"## [Indexes](https://youtu.be/{VIDEO_ID})" in library.text
+    assert "Nothing here" not in library.text
+    assert missing.status_code == 404

@@ -1,4 +1,5 @@
 from fastapi import APIRouter, Depends, Query, Response, status
+from fastapi.responses import PlainTextResponse
 from sqlalchemy.orm import Session
 
 from src.auth.dependencies import (
@@ -6,8 +7,9 @@ from src.auth.dependencies import (
     get_current_user_id_or_api_token,
 )
 from src.database import get_db
-from src.exceptions import BadRequestError
+from src.exceptions import BadRequestError, NotFoundError
 from src.models import MessageResponse
+from src.moments import export
 from src.moments import service as moments_service
 from src.moments.dependencies import get_moment_or_404
 from src.moments.models import CaptureSource, Moment
@@ -21,6 +23,7 @@ from src.moments.schemas import (
     PassageSave,
     parse_seconds,
 )
+from src.videos import service as videos_service
 from src.videos.schemas import VideoIdPath
 
 router = APIRouter(prefix="/v2", tags=["Moments"])
@@ -167,3 +170,39 @@ def create_legacy_note(
     )
     moment, _ = moments_service.capture(db, user_id, capture)
     return MomentRead.model_validate(moment)
+
+
+@router.get(
+    "/videos/{video_id}/export.md",
+    response_class=PlainTextResponse,
+    description="The user's moments for a video as Markdown.",
+)
+def export_video(
+    path: VideoIdPath = Depends(),
+    db: Session = Depends(get_db),
+    user_id: int = Depends(get_current_user_id),
+) -> PlainTextResponse:
+    video = videos_service.get_video_by_id(db, path.video_id)
+    if video is None:
+        raise NotFoundError("Video not found")
+    return _markdown(export.video_markdown(db, user_id, video), path.video_id)
+
+
+@router.get(
+    "/library/export.md",
+    response_class=PlainTextResponse,
+    description="All of the user's moments, grouped by saved video, as Markdown.",
+)
+def export_library(
+    db: Session = Depends(get_db),
+    user_id: int = Depends(get_current_user_id),
+) -> PlainTextResponse:
+    return _markdown(export.library_markdown(db, user_id), "vidwiz-library")
+
+
+def _markdown(content: str, name: str) -> PlainTextResponse:
+    return PlainTextResponse(
+        content,
+        media_type="text/markdown; charset=utf-8",
+        headers={"Content-Disposition": f'attachment; filename="{name}.md"'},
+    )
