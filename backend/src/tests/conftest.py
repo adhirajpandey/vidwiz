@@ -1,12 +1,14 @@
 from collections.abc import Generator
 import os
+from pathlib import Path
 
 import pytest
 import pytest_asyncio
 from httpx import ASGITransport, AsyncClient
-from sqlalchemy import create_engine
+from alembic import command
+from alembic.config import Config
+from sqlalchemy import create_engine, text
 from sqlalchemy.orm import sessionmaker
-from sqlalchemy.pool import StaticPool
 
 TEST_CREDIT_PRODUCTS = (
     '[{"product_id":"pdt_test","credits":200,"price_inr":20,"name":"200 Credits"}]'
@@ -41,12 +43,19 @@ from src.notes import service as notes_service  # noqa: E402
 from src.payments import models as payments_models  # noqa: E402,F401
 from src.videos import models as video_models  # noqa: E402,F401
 from src import database  # noqa: E402
-from src.database import Base, get_db  # noqa: E402
+from src.database import get_db  # noqa: E402
 from src.main import create_app  # noqa: E402
 from src.config import CreditProductConfig, settings  # noqa: E402
 
 
-TEST_DATABASE_URL = "sqlite+pysqlite:///:memory:"
+# Tests need PostgreSQL with pgvector, because search and embeddings use
+# PostgreSQL features. The database is wiped and migrated at session start.
+TEST_DATABASE_URL = os.environ.get("TEST_DB_URL")
+if not TEST_DATABASE_URL:
+    raise RuntimeError(
+        "TEST_DB_URL must point to a disposable PostgreSQL database with pgvector"
+    )
+BACKEND_DIR = Path(__file__).resolve().parents[2]
 
 
 def setup_settings() -> None:
@@ -116,12 +125,13 @@ def mock_external_services(monkeypatch):
 
 @pytest.fixture(scope="session")
 def engine():
-    engine = create_engine(
-        TEST_DATABASE_URL,
-        connect_args={"check_same_thread": False},
-        poolclass=StaticPool,
-    )
-    Base.metadata.create_all(engine)
+    engine = create_engine(TEST_DATABASE_URL)
+    with engine.begin() as connection:
+        connection.execute(text("DROP SCHEMA public CASCADE"))
+        connection.execute(text("CREATE SCHEMA public"))
+        config = Config(str(BACKEND_DIR / "alembic.ini"))
+        config.attributes["connection"] = connection
+        command.upgrade(config, "head")
     database.engine = engine
     database.SessionLocal = sessionmaker(
         bind=engine,
@@ -138,10 +148,12 @@ def engine():
 def db_session(engine) -> Generator:
     connection = engine.connect()
     transaction = connection.begin()
+    # Service commits become savepoints, so each test rolls back cleanly.
     TestingSessionLocal = sessionmaker(
         bind=connection,
         autocommit=False,
         autoflush=False,
+        join_transaction_mode="create_savepoint",
     )
     db = TestingSessionLocal()
     try:
