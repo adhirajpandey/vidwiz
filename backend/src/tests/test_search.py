@@ -167,3 +167,43 @@ def test_any_mode_matches_partial_terms(db_session, user, library):
     hits = search_service.find(db_session, user.id, "phone database", mode="any")
     assert {hit.result.start_seconds for hit in hits} >= {0, 60}
     assert search_service.find(db_session, user.id, "phone database") == []
+
+
+def test_backfill_chunks_resumes_and_skips_missing(db_session, monkeypatch):
+    from src import database
+    from src.management import backfill
+
+    db_session.add_all(
+        [
+            Video(video_id="aaaaaaaaaaa", title="A", transcript_available=True),
+            Video(video_id="bbbbbbbbbbb", title="B", transcript_available=True),
+            Video(video_id="ccccccccccc", title="C", transcript_available=False),
+        ]
+    )
+    db_session.flush()
+
+    class Session:
+        def __getattr__(self, name):
+            return getattr(db_session, name)
+
+        def close(self):
+            pass
+
+    loads = []
+
+    def load(video_id):
+        loads.append(video_id)
+        return TRANSCRIPT if video_id == "aaaaaaaaaaa" else None
+
+    monkeypatch.setattr(database, "SessionLocal", Session)
+    monkeypatch.setattr(transcripts, "load_transcript", load)
+
+    backfill.backfill_chunks(missing_only=False)
+    assert (
+        db_session.query(TranscriptChunk).filter_by(video_id="aaaaaaaaaaa").count() == 2
+    )
+    assert sorted(loads) == ["aaaaaaaaaaa", "bbbbbbbbbbb"]
+
+    loads.clear()
+    backfill.backfill_chunks(missing_only=True)
+    assert loads == ["bbbbbbbbbbb"]
