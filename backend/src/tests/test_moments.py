@@ -601,3 +601,72 @@ async def test_markdown_exports(client, db_session, user, transcript_ready):
     assert f"## [Indexes](https://youtu.be/{VIDEO_ID})" in library.text
     assert "Nothing here" not in library.text
     assert missing.status_code == 404
+
+
+@pytest.mark.asyncio
+async def test_ambiguous_title_offers_candidates_and_user_picks(
+    client, db_session, user
+):
+    moment, _ = capture(db_session, user, video=None, title="Focus", ai=True)
+    task = _claim_resolve_task(db_session)
+    candidates = [
+        {"video_id": VIDEO_ID, "title": "Focus part 1", "channel": "A"},
+        {"video_id": "zzz123ZZZ45", "title": "Focus part 2", "channel": "B"},
+    ]
+
+    response = await client.post(
+        f"/v2/internal/tasks/{task.id}/result",
+        headers=admin_headers(),
+        json={"success": True, "candidates": candidates},
+    )
+    assert response.status_code == 200
+    db_session.refresh(moment)
+    assert moment.resolve_status == ResolveStatus.UNRESOLVED
+    assert moment.ai_status == AiStatus.WAITING_TRANSCRIPT
+
+    listed = (await client.get("/v2/moments", headers=auth_headers(user))).json()
+    assert listed["moments"][0]["resolve_candidates"] == candidates
+
+    wrong = await client.post(
+        f"/v2/moments/{moment.id}/resolve",
+        headers=auth_headers(user),
+        json={"video_id": "notachoice1"},
+    )
+    assert wrong.status_code == 400
+
+    picked = await client.post(
+        f"/v2/moments/{moment.id}/resolve",
+        headers=auth_headers(user),
+        json={"video_id": "zzz123ZZZ45"},
+    )
+    assert picked.status_code == 200
+    payload = picked.json()
+    assert payload["video_id"] == "zzz123ZZZ45"
+    assert payload["resolve_status"] == "resolved"
+    assert payload["resolve_candidates"] is None
+    # Still waiting for the transcript, so the AI request carries over.
+    assert payload["ai_status"] == "waiting_transcript"
+
+    again = await client.post(
+        f"/v2/moments/{moment.id}/resolve",
+        headers=auth_headers(user),
+        json={"video_id": "zzz123ZZZ45"},
+    )
+    assert again.status_code == 400
+
+
+@pytest.mark.asyncio
+async def test_title_result_needs_exactly_one_outcome(client, db_session, user):
+    capture(db_session, user, video=None, title="Focus")
+    task = _claim_resolve_task(db_session)
+
+    both = await client.post(
+        f"/v2/internal/tasks/{task.id}/result",
+        headers=admin_headers(),
+        json={
+            "success": True,
+            "resolved": {"video_id": VIDEO_ID},
+            "candidates": [{"video_id": VIDEO_ID}],
+        },
+    )
+    assert both.status_code == 400

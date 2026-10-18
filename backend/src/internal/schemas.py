@@ -44,10 +44,18 @@ class ResolvedVideo(ApiModel):
         return normalize_youtube_video_id(value)
 
 
+class CandidateVideo(ApiModel):
+    video_id: str
+    title: str | None = None
+    channel: str | None = None
+
+
 class TaskResultRequest(ApiModel):
-    # Video tasks send video_id; title tasks send resolved on success.
+    # Video tasks send video_id. Title tasks send resolved when one video was
+    # chosen confidently, or candidates when the user has to pick.
     video_id: str | None = None
     resolved: ResolvedVideo | None = None
+    candidates: list[CandidateVideo] | None = Field(default=None, max_length=10)
     success: bool
     transcript: Transcript | None = None
     metadata: dict | None = None

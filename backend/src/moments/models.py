@@ -2,7 +2,7 @@ import enum
 from datetime import datetime
 
 from sqlalchemy import Computed, ForeignKey, Text, func
-from sqlalchemy.dialects.postgresql import TSVECTOR
+from sqlalchemy.dialects.postgresql import JSONB, TSVECTOR
 from sqlalchemy.orm import Mapped, deferred, mapped_column, relationship
 
 from src.database import Base
@@ -58,6 +58,8 @@ class Moment(Base):
     )
     pending_title: Mapped[str | None] = mapped_column(Text, nullable=True)
     pending_channel: Mapped[str | None] = mapped_column(Text, nullable=True)
+    # Set when a title capture was ambiguous: the user picks one of these.
+    resolve_candidates: Mapped[list | None] = mapped_column(JSONB, nullable=True)
     created_at: Mapped[datetime] = mapped_column(
         default=func.now(), server_default=func.now()
     )

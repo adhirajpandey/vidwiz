@@ -112,6 +112,23 @@ class PassageSave(ApiModel):
         return self
 
 
+class ResolveCandidate(ApiModel):
+    video_id: str
+    title: str | None = None
+    channel: str | None = None
+
+
+class ResolveChoice(ApiModel):
+    video_id: str
+
+    model_config = ConfigDict(extra="forbid")
+
+    @field_validator("video_id")
+    @classmethod
+    def normalize_video(cls, value: str) -> str:
+        return normalize_youtube_video_id(value)
+
+
 class MomentRead(ApiModel):
     id: int
     video_id: str | None
@@ -124,6 +141,7 @@ class MomentRead(ApiModel):
     resolve_status: ResolveStatus
     source: CaptureSource
     pending_title: str | None
+    resolve_candidates: list[ResolveCandidate] | None = None
     created_at: datetime
     updated_at: datetime
 

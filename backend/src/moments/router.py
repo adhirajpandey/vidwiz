@@ -21,6 +21,7 @@ from src.moments.schemas import (
     MomentRead,
     MomentUpdate,
     PassageSave,
+    ResolveChoice,
     parse_seconds,
 )
 from src.videos import service as videos_service
@@ -128,6 +129,24 @@ def request_moment_ai(
     moment: Moment = Depends(get_moment_or_404),
 ) -> MomentRead:
     return MomentRead.model_validate(moments_service.request_ai(db, moment))
+
+
+@router.post(
+    "/moments/{moment_id}/resolve",
+    response_model=MomentRead,
+    description=(
+        "Pick the video for a title capture that matched several videos. "
+        "Returns the resolved moment, or the moment it merged into."
+    ),
+)
+def resolve_moment(
+    payload: ResolveChoice,
+    db: Session = Depends(get_db),
+    moment: Moment = Depends(get_moment_or_404),
+) -> MomentRead:
+    return MomentRead.model_validate(
+        moments_service.choose_candidate(db, moment, payload.video_id)
+    )
 
 
 @router.delete("/moments/{moment_id}", response_model=MessageResponse)

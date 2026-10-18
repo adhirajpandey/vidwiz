@@ -146,9 +146,11 @@ def _validate_video_result(task: Task, result: TaskResultRequest) -> None:
 
 def _validate_resolve_result(result: TaskResultRequest) -> None:
     if result.transcript or result.metadata:
-        raise BadRequestError("Title tasks only accept a resolved video")
-    if result.success and result.resolved is None:
-        raise BadRequestError("A successful title task needs a resolved video")
+        raise BadRequestError("Title tasks only accept a resolved video or candidates")
+    if result.success and (result.resolved is None) == (not result.candidates):
+        raise BadRequestError(
+            "A successful title task sends either a resolved video or candidates"
+        )
 
 
 def _task_moment(db: Session, task: Task) -> Moment | None:
@@ -159,9 +161,15 @@ def _task_moment(db: Session, task: Task) -> Moment | None:
 def _apply_success(db: Session, task: Task, result: TaskResultRequest) -> None:
     if task.task_type == internal_constants.RESOLVE_TITLE_TASK_TYPE:
         moment = _task_moment(db, task)
-        if moment is not None and moment.resolve_status == ResolveStatus.RESOLVING:
+        if moment is None or moment.resolve_status != ResolveStatus.RESOLVING:
+            return
+        if result.resolved is not None:
             moments_service.complete_resolution(
                 db, moment, result.resolved.video_id, result.resolved.title
+            )
+        else:
+            moments_service.offer_candidates(
+                db, moment, [candidate.model_dump() for candidate in result.candidates]
             )
         return
 

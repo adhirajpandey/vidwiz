@@ -117,14 +117,14 @@ def _fake_search(monkeypatch, module, entries):
     monkeypatch.setattr(module.yt_dlp, "YoutubeDL", FakeYdl)
 
 
-def test_resolve_title_prefers_matching_channel(monkeypatch):
+def test_resolve_title_prefers_single_matching_channel(monkeypatch):
     module = _load_helper()
     _fake_search(
         monkeypatch,
         module,
         [
             {"id": "aaaaaaaaaaa", "title": "Deep Focus", "channel": "Someone"},
-            {"id": "bbbbbbbbbbb", "title": "Deep focus", "channel": "Odysseas"},
+            {"id": "bbbbbbbbbbb", "title": "Deep focus …", "channel": "Odysseas"},
         ],
     )
 
@@ -132,10 +132,10 @@ def test_resolve_title_prefers_matching_channel(monkeypatch):
         {"title": "Deep Focus", "channel": "odysseas"}
     )
 
-    assert payload == {"resolved": {"video_id": "bbbbbbbbbbb", "title": "Deep focus"}}
+    assert payload == {"resolved": {"video_id": "bbbbbbbbbbb", "title": "Deep focus …"}}
 
 
-def test_resolve_title_falls_back_to_exact_title_then_first(monkeypatch):
+def test_resolve_title_uses_unique_exact_title(monkeypatch):
     module = _load_helper()
     _fake_search(
         monkeypatch,
@@ -145,8 +145,84 @@ def test_resolve_title_falls_back_to_exact_title_then_first(monkeypatch):
             {"id": "bbbbbbbbbbb", "title": "Deep Focus"},
         ],
     )
-    assert module.resolve_title("deep focus")["video_id"] == "bbbbbbbbbbb"
-    assert module.resolve_title("no match")["video_id"] == "aaaaaaaaaaa"
+    assert module.resolve_title("deep focus")["resolved"]["video_id"] == "bbbbbbbbbbb"
+
+
+@pytest.mark.parametrize(
+    ("confidence", "expected"),
+    [(0.9, "resolved"), (0.4, "candidates")],
+)
+def test_resolve_title_asks_jev_when_ambiguous(monkeypatch, confidence, expected):
+    module = _load_helper()
+    entries = [
+        {"id": "aaaaaaaaaaa", "title": "Focus part 1", "channel": "A"},
+        {"id": "bbbbbbbbbbb", "title": "Focus part 2", "channel": "B"},
+    ]
+    _fake_search(monkeypatch, module, entries)
+    calls = []
+
+    def fake_choose(title, channel, candidates):
+        calls.append((title, channel, [c["video_id"] for c in candidates]))
+        return "bbbbbbbbbbb", confidence
+
+    monkeypatch.setattr(module, "jev_choose", fake_choose)
+
+    payload = module.resolve_title("Focus", None)
+
+    assert calls == [("Focus", None, ["aaaaaaaaaaa", "bbbbbbbbbbb"])]
+    assert expected in payload
+    if expected == "resolved":
+        assert payload["resolved"]["video_id"] == "bbbbbbbbbbb"
+    else:
+        assert [c["video_id"] for c in payload["candidates"]] == [
+            "aaaaaaaaaaa",
+            "bbbbbbbbbbb",
+        ]
+
+
+def test_resolve_title_offers_candidates_when_jev_fails(monkeypatch):
+    module = _load_helper()
+    _fake_search(
+        monkeypatch,
+        module,
+        [{"id": "aaaaaaaaaaa", "title": "One"}, {"id": "bbbbbbbbbbb", "title": "Two"}],
+    )
+    monkeypatch.delenv("OPENROUTER_API_KEY", raising=False)
+
+    payload = module.resolve_title("Neither")
+
+    assert len(payload["candidates"]) == 2
+
+
+def test_jev_choose_parses_choice(monkeypatch):
+    module = _load_helper()
+    monkeypatch.setenv("OPENROUTER_API_KEY", "key")
+    sent = {}
+
+    class Response:
+        def raise_for_status(self):
+            return None
+
+        def json(self):
+            return {"answers": {"video": {"choice": "v1", "confidence": 0.8}}}
+
+    def fake_post(url, json, headers, timeout):
+        sent.update(json)
+        return Response()
+
+    monkeypatch.setattr(module.requests, "post", fake_post)
+
+    result = module.jev_choose(
+        "Focus",
+        "B",
+        [
+            {"video_id": "aaaaaaaaaaa", "title": "Focus 1", "channel": "A"},
+            {"video_id": "bbbbbbbbbbb", "title": "Focus 2", "channel": "B"},
+        ],
+    )
+
+    assert result == ("bbbbbbbbbbb", 0.8)
+    assert sent["questions"]["video"]["criteria"]["v1"] == "Focus 2 (channel: B)"
 
 
 def test_resolve_title_raises_without_results(monkeypatch):

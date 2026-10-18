@@ -327,6 +327,37 @@ def complete_resolution(
         push_moment_to_sqs(db, moment)
 
 
+def offer_candidates(db: Session, moment: Moment, candidates: list[dict]) -> None:
+    """The title matched several videos; keep them so the user can pick."""
+    logger.debug(
+        "Title capture needs a choice",
+        extra={"moment_id": moment.id, "candidates": len(candidates)},
+    )
+    moment.resolve_status = ResolveStatus.UNRESOLVED
+    moment.resolve_candidates = candidates
+    db.commit()
+
+
+def choose_candidate(db: Session, moment: Moment, video_id: str) -> Moment:
+    """Resolve an unresolved title capture to the video the user picked."""
+    if moment.resolve_status != ResolveStatus.UNRESOLVED:
+        raise BadRequestError("This moment does not need a video choice")
+    candidates = moment.resolve_candidates or []
+    chosen = next((c for c in candidates if c.get("video_id") == video_id), None)
+    if chosen is None:
+        raise BadRequestError("Pick one of the suggested videos")
+    moment.resolve_status = ResolveStatus.RESOLVING
+    moment.resolve_candidates = None
+    db.flush()
+    moment_id, user_id, at_seconds = moment.id, moment.user_id, moment.at_seconds
+    complete_resolution(db, moment, video_id, chosen.get("title"))
+    merged_into = get_for_user(db, user_id, moment_id)
+    if merged_into is not None:
+        return merged_into
+    # The capture merged into an existing nearby moment.
+    return _find_nearby(db, user_id, video_id, at_seconds)
+
+
 def fail_resolution(db: Session, moment: Moment) -> None:
     logger.debug("Title resolution failed", extra={"moment_id": moment.id})
     moment.resolve_status = ResolveStatus.UNRESOLVED
