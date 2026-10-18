@@ -53,7 +53,7 @@ async def test_signup_grants_credits(client):
     assert profile_response.status_code == 200
     payload = profile_response.json()
     assert payload["credits_balance"] == 100
-    assert payload["ai_notes_enabled"] is True
+    assert payload["ai_moments_default"] is True
 
 
 @pytest.mark.asyncio
@@ -175,7 +175,7 @@ async def test_google_login_invalid_credential(client, monkeypatch):
 
 
 @pytest.mark.asyncio
-async def test_profile_and_long_term_token_flow(client):
+async def test_profile_flow(client):
     await register_user(
         client,
         "profile@example.com",
@@ -184,36 +184,28 @@ async def test_profile_and_long_term_token_flow(client):
     login_response = await login_user(client, "profile@example.com")
     token = login_response.json()["token"]
 
-    token_response = await client.post(
-        "/v2/auth/tokens",
-        headers={"Authorization": f"Bearer {token}"},
-    )
-    assert token_response.status_code == 200
-    assert "token" in token_response.json()
-
     profile_response = await client.get(
         "/v2/users/me",
         headers={"Authorization": f"Bearer {token}"},
     )
     profile_payload = profile_response.json()
     assert profile_payload["email"] == "profile@example.com"
-    assert profile_payload["token_exists"] is True
-    assert profile_payload["long_term_token"] is not None
+    assert "long_term_token" not in profile_payload
 
     patch_response = await client.patch(
         "/v2/users/me",
         headers={"Authorization": f"Bearer {token}"},
-        json={"ai_notes_enabled": True, "name": "Updated Name"},
+        json={"ai_moments_default": False, "name": "Updated Name"},
     )
 
     assert patch_response.status_code == 200
     updated_payload = patch_response.json()
     assert updated_payload["name"] == "Updated Name"
-    assert updated_payload["ai_notes_enabled"] is True
+    assert updated_payload["ai_moments_default"] is False
 
 
 @pytest.mark.asyncio
-async def test_profile_rejects_long_term_token(client):
+async def test_profile_rejects_api_token(client):
     await register_user(client, "longterm-profile@example.com")
     login_response = await login_user(client, "longterm-profile@example.com")
     token = login_response.json()["token"]
@@ -221,20 +213,18 @@ async def test_profile_rejects_long_term_token(client):
     token_response = await client.post(
         "/v2/auth/tokens",
         headers={"Authorization": f"Bearer {token}"},
+        json={"name": "Phone"},
     )
-    long_term_token = token_response.json()["token"]
+    api_token = token_response.json()["token"]
 
     profile_response = await client.get(
         "/v2/users/me",
-        headers={"Authorization": f"Bearer {long_term_token}"},
+        headers={"Authorization": f"Bearer {api_token}"},
     )
     assert profile_response.status_code == 401
     payload = profile_response.json()
     assert payload["error"]["code"] == "UNAUTHORIZED"
-    assert (
-        payload["error"]["message"]
-        == "Long-term tokens are not allowed for this endpoint"
-    )
+    assert payload["error"]["message"] == "Invalid or expired token"
 
 
 @pytest.mark.asyncio
@@ -273,59 +263,3 @@ async def test_update_profile_validates_name(client):
     assert response.status_code == 422
     payload = response.json()
     assert payload["error"]["code"] == "VALIDATION_ERROR"
-
-
-@pytest.mark.asyncio
-async def test_long_term_token_errors(client):
-    await register_user(client, "token-errors@example.com")
-    login_response = await login_user(client, "token-errors@example.com")
-    token = login_response.json()["token"]
-
-    token_response = await client.post(
-        "/v2/auth/tokens",
-        headers={"Authorization": f"Bearer {token}"},
-    )
-    assert token_response.status_code == 200
-
-    duplicate_response = await client.post(
-        "/v2/auth/tokens",
-        headers={"Authorization": f"Bearer {token}"},
-    )
-    assert duplicate_response.status_code == 400
-    payload = duplicate_response.json()
-    assert payload["error"]["code"] == "BAD_REQUEST"
-
-
-@pytest.mark.asyncio
-async def test_long_term_token_missing_user(client):
-    token = jwt.encode(
-        {
-            "user_id": 9999,
-            "email": "ghost@example.com",
-            "name": "Ghost",
-        },
-        settings.secret_key,
-        algorithm="HS256",
-    )
-    response = await client.post(
-        "/v2/auth/tokens",
-        headers={"Authorization": f"Bearer {token}"},
-    )
-    assert response.status_code == 404
-    payload = response.json()
-    assert payload["error"]["code"] == "NOT_FOUND"
-
-
-@pytest.mark.asyncio
-async def test_revoke_long_term_token_requires_existing_token(client):
-    await register_user(client, "revoke@example.com")
-    login_response = await login_user(client, "revoke@example.com")
-    token = login_response.json()["token"]
-
-    response = await client.delete(
-        "/v2/auth/tokens",
-        headers={"Authorization": f"Bearer {token}"},
-    )
-    assert response.status_code == 404
-    payload = response.json()
-    assert payload["error"]["code"] == "NOT_FOUND"

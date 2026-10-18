@@ -29,7 +29,7 @@ async def test_openapi_describes_vidwiz_authentication(client):
         "BearerAuth": {
             "type": "http",
             "description": (
-                "JWT access token. Long-term JWTs are accepted only by note creation."
+                "JWT access token, or a personal API token on capture endpoints."
             ),
             "scheme": "bearer",
             "bearerFormat": "JWT",

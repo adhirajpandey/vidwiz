@@ -26,7 +26,7 @@ def test_charge_requires_enough_balance(db_session):
     user = _user(db_session, 0)
 
     with pytest.raises(ForbiddenError) as error:
-        credits_service.charge_ai_note_enqueue(db_session, user.id, 1)
+        credits_service.charge_ai_moment(db_session, user.id, 1)
     assert error.value.details == {"required": 1, "available": 0}
 
 

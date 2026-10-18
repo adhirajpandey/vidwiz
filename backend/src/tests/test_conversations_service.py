@@ -1,3 +1,4 @@
+import boto3
 import json
 import pytest
 
@@ -38,6 +39,7 @@ def test_build_system_instruction_formats_transcript():
 
 def test_check_daily_quota_enforces_limit(db_session, monkeypatch, user):
     monkeypatch.setattr(settings, "wiz_user_daily_quota", 1, raising=False)
+    db_session.add(Video(video_id="abc123DEF45", title="Quota"))
     conversation = Conversation(video_id="abc123DEF45", user_id=user.id)
     db_session.add(conversation)
     db_session.commit()
@@ -101,9 +103,7 @@ def test_get_transcript_from_s3_fetches_when_configured(monkeypatch):
             captured["Key"] = Key
             return {"Body": _Body()}
 
-    monkeypatch.setattr(
-        conversations_service.boto3, "client", lambda *args, **kwargs: _S3()
-    )
+    monkeypatch.setattr(boto3, "client", lambda *args, **kwargs: _S3())
     transcript = conversations_service.get_transcript_from_s3("abc123DEF45")
     assert transcript == [{"text": "hi", "offset": 0}]
     assert captured == {

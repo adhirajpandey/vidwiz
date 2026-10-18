@@ -1,24 +1,9 @@
 import pytest
 
 from src.auth.schemas import ViewerContext
-from src.exceptions import BadRequestError, NotFoundError
+from src.exceptions import NotFoundError
 from src.videos import dependencies as videos_dependencies
 from src.videos.models import Video
-
-
-def test_get_video_list_params_rejects_invalid_sort():
-    with pytest.raises(BadRequestError):
-        videos_dependencies.get_video_list_params(sort="invalid")
-
-
-def test_get_video_list_params_accepts_valid_sort():
-    params = videos_dependencies.get_video_list_params(
-        q="",
-        page=1,
-        per_page=10,
-        sort="title_desc",
-    )
-    assert params.sort == "title_desc"
 
 
 def test_get_user_video_or_404(db_session):

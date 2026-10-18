@@ -1,3 +1,4 @@
+import boto3
 import pytest
 
 from src.config import settings
@@ -177,7 +178,7 @@ def test_store_transcript_in_s3_success(monkeypatch):
             captured["Bucket"] = Bucket
             captured["Key"] = Key
 
-    monkeypatch.setattr(internal_service.boto3, "client", lambda *args, **kwargs: _S3())
+    monkeypatch.setattr(boto3, "client", lambda *args, **kwargs: _S3())
     internal_service.store_transcript_in_s3("abc123DEF45", [{"text": "hi"}])
     assert captured["Bucket"] == "bucket"
     assert captured["Key"] == "transcripts/abc123DEF45.json"
