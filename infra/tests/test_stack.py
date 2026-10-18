@@ -347,6 +347,8 @@ def test_outputs_are_complete_and_stable(template: Template) -> None:
         "AiNoteQueueArn",
         "AiSummaryQueueUrl",
         "AiSummaryQueueArn",
+        "AiNoteDlqUrl",
+        "AiSummaryDlqUrl",
         "DispatcherFunctionName",
         "AiNoteWorkerFunctionName",
         "AiSummaryWorkerFunctionName",
