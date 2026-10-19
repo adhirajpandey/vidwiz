@@ -144,12 +144,11 @@ v3 runs as a second, complete deployment beside the current one:
 
 ## Status
 - Phases 0–4 are built and running on the v3 deployment.
+- Data backfill is done. All existing transcripts are in the v3 bucket and
+  have search chunks. The overview backfill stopped on 2026-10-20 at 284
+  overviews. The other videos with a transcript stay `pending`; nothing
+  queues them until `backfill overviews --limit N` runs.
 - Still open before cutover:
-  - Overview backfill: copy all existing transcripts to the v3 bucket (copying
-    no longer starts overviews), run `backfill chunks --missing-only`, then
-    `backfill overviews --limit N` in weekly batches to stay inside the
-    OpenRouter budget (about $0.0045 per video with
-    `deepseek/deepseek-v4.1-flash`). 26 of 460 done on 2026-10-19.
   - Jev evaluation on about 20 real library questions, to set
     `JEV_RELEVANCE_THRESHOLD` and confirm Jev improves Ask.
   - Update `scripts/screenshot_pages.py` and the README screenshots for the v3
