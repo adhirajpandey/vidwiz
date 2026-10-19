@@ -16,8 +16,8 @@ afterEach(cleanup);
 function controller(overrides: Partial<WizChatController> = {}): WizChatController {
   return {
     messages: [], generation: 1, conversationId: 1, isRunning: false, isCreatingConversation: false,
-    conversationError: null, isSendDisabled: false, send: vi.fn(async () => {}),
-    newChat: vi.fn(), retryConversation: vi.fn(async () => {}), limit: null, isProcessing: false,
+    conversationError: null, isLoadingHistory: false, isSendDisabled: false, send: vi.fn(async () => {}),
+    newChat: vi.fn(), resume: vi.fn(), retryConversation: vi.fn(async () => {}), limit: null, isProcessing: false,
     dismissLimit: vi.fn(), dismissProcessing: vi.fn(), ...overrides,
   };
 }
@@ -25,7 +25,7 @@ function answer(content: string): WizMessage {
   return { id: 'answer', role: 'assistant', parts: [{ type: 'text', text: content }], createdAt: new Date(0), status: 'complete' };
 }
 function view(chat: WizChatController, onSeek = vi.fn(), questions?: string[]) {
-  return <WizChat key={chat.generation} chat={chat} isReady suggestedQuestions={questions} onSeek={onSeek} statusBanner={null} />;
+  return <WizChat key={chat.generation} chat={chat} isReady suggestedQuestions={questions} passages={{ watch: passage => onSeek(passage.start_seconds) }} statusBanner={null} />;
 }
 
 describe('WizChat', () => {
@@ -42,13 +42,13 @@ describe('WizChat', () => {
     ] };
     const message: WizMessage = { ...answer(''), parts: [paragraph, list] };
     const rendered = render(view(controller({ messages: [message] }), seek));
-    const first = screen.getByRole('button', { name: 'Watch passage from 1:15:32 to 1:15:50' });
+    const first = screen.getByRole('button', { name: 'Watch from 1:15:32 to 1:15:50' });
     expect(first.closest('p')?.textContent).toContain('First claim.');
-    const bullet = screen.getByRole('button', { name: 'Watch passage from 1:23 to 1:30' });
+    const bullet = screen.getByRole('button', { name: 'Watch from 1:23 to 1:30' });
     expect(bullet.closest('li')?.textContent).toContain('Scope creep');
     expect(bullet.closest('li')?.parentElement?.tagName).toBe('OL');
     expect(rendered.container.querySelector('ol')?.start).toBe(3);
-    expect(screen.getByRole('button', { name: 'Watch passage from 3:20 to 3:40' }).closest('li')?.textContent).toContain('Forgetting');
+    expect(screen.getByRole('button', { name: 'Watch from 3:20 to 3:40' }).closest('li')?.textContent).toContain('Forgetting');
     expect(screen.getByText('Nested detail').querySelector('button')).toBeNull();
     await user.click(first);
     bullet.focus();
@@ -63,7 +63,7 @@ describe('WizChat', () => {
       type: 'block', text, citations: [{ list_item_index: null, passages: [{ chunk_ids: [String(index)], start_seconds: index * 10, end_seconds: index * 10 + 5 }] }],
     }));
     const rendered = render(view(controller({ messages: [{ ...answer(''), parts }] })));
-    expect(screen.getAllByRole('button', { name: /Watch passage/ })).toHaveLength(3);
+    expect(screen.getAllByRole('button', { name: /^Watch from/ })).toHaveLength(3);
     expect(rendered.container.querySelector('table button, blockquote button, pre button')).toBeNull();
     expect(rendered.container.querySelector('pre')?.textContent).toContain('const x = 1;');
   });
@@ -103,7 +103,7 @@ describe('WizChat', () => {
     const chat = controller({ messages: [answer('Hello')] });
     const rendered = render(view(chat));
     await user.type(screen.getByRole('textbox'), 'Draft');
-    await user.click(screen.getByRole('button', { name: 'New' }));
+    await user.click(screen.getByRole('button', { name: 'New chat' }));
     expect(chat.newChat).toHaveBeenCalledOnce();
     rendered.rerender(view({ ...chat, messages: [], generation: 2 }));
     expect((screen.getByRole('textbox') as HTMLTextAreaElement).value).toBe('');
@@ -162,4 +162,24 @@ describe('WizChat', () => {
     expect(screen.getByRole('button', { name: 'Copied answer' })).toBeTruthy();
     await act(async () => {});
   }, 15000);
+
+  it('labels library citations with their video and saves passages', async () => {
+    const user = userEvent.setup();
+    const watch = vi.fn();
+    const save = vi.fn(async () => {});
+    const block: BlockPart = { type: 'block', text: 'From two talks.', citations: [
+      { list_item_index: null, passages: [{ chunk_ids: ['c1'], start_seconds: 60, end_seconds: 70, video_id: 'abc123DEF45' }] },
+    ] };
+    render(<WizChat chat={controller({ messages: [{ ...answer(''), parts: [block] }] })} isReady scope="library"
+      passages={{ watch, save, videoLabel: id => (id === 'abc123DEF45' ? 'Deep focus' : undefined) }} />);
+    const button = screen.getByRole('button', { name: 'Watch Deep focus from 1:00 to 1:10' });
+    expect(button.textContent).toContain('Deep focus');
+    await user.click(button);
+    expect(watch).toHaveBeenCalledWith(expect.objectContaining({ video_id: 'abc123DEF45', start_seconds: 60 }));
+    await user.click(screen.getByRole('button', { name: 'Save passage as a moment' }));
+    await waitFor(() => expect((screen.getByRole('button', { name: 'Saved as a moment' }) as HTMLButtonElement).disabled).toBe(true));
+    expect(save).toHaveBeenCalledTimes(1);
+    expect(screen.getByPlaceholderText('Ask your library…')).toBeTruthy();
+  });
 });
+

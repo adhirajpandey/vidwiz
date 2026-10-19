@@ -1,10 +1,15 @@
 import { forwardRef, useEffect, useImperativeHandle, useRef, useState } from 'react';
 
-export interface YouTubePlayerHandle { watch: (seconds: number) => void }
+export interface YouTubePlayerHandle {
+  watch: (seconds: number) => void;
+  /** Current playback position, or null before the player is ready. */
+  currentTime: () => number | null;
+}
 export interface Player {
   seekTo: (seconds: number, allowSeekAhead: boolean) => void;
   playVideo: () => void;
   getPlayerState: () => number;
+  getCurrentTime?: () => number;
   destroy: () => void;
 }
 export interface PlayerOptions {
@@ -44,13 +49,26 @@ function loadYouTubeAPI(): Promise<YouTubeAPI> {
   return apiPromise;
 }
 
-const YouTubePlayer = forwardRef<YouTubePlayerHandle, { videoId: string }>(function YouTubePlayer({ videoId }, ref) {
+interface PlayerProps {
+  videoId: string;
+  /** Called about once a second with the playback position while playing. */
+  onTimeUpdate?: (seconds: number) => void;
+  className?: string;
+}
+
+const YouTubePlayer = forwardRef<YouTubePlayerHandle, PlayerProps>(function YouTubePlayer({ videoId, onTimeUpdate, className }, ref) {
   const container = useRef<HTMLDivElement>(null);
   const mount = useRef<HTMLDivElement>(null);
   const watch = useRef<(seconds: number) => void>(() => undefined);
+  const currentTime = useRef<() => number | null>(() => null);
+  const onTime = useRef(onTimeUpdate);
+  onTime.current = onTimeUpdate;
   const [notice, setNotice] = useState<{ message: string; seconds: number } | null>(null);
 
-  useImperativeHandle(ref, () => ({ watch: seconds => watch.current(seconds) }), []);
+  useImperativeHandle(ref, () => ({
+    watch: seconds => watch.current(seconds),
+    currentTime: () => currentTime.current(),
+  }), []);
 
   useEffect(() => {
     let disposed = false;
@@ -60,6 +78,16 @@ const YouTubePlayer = forwardRef<YouTubePlayerHandle, { videoId: string }>(funct
     let pending: number | null = null;
     let lastSeconds = 0;
     let timer: ReturnType<typeof setTimeout> | undefined;
+    const ticker = setInterval(() => {
+      if (!ready || !player?.getCurrentTime) return;
+      try {
+        if (player.getPlayerState() === 1) onTime.current?.(player.getCurrentTime());
+      } catch { /* player not ready */ }
+    }, 1000);
+    currentTime.current = () => {
+      if (!ready || !player?.getCurrentTime) return null;
+      try { return player.getCurrentTime(); } catch { return null; }
+    };
     const clearTimer = () => { if (timer !== undefined) clearTimeout(timer); timer = undefined; };
     const showFailure = (message: string) => {
       if (disposed) return;
@@ -116,14 +144,16 @@ const YouTubePlayer = forwardRef<YouTubePlayerHandle, { videoId: string }>(funct
       disposed = true;
       pending = null;
       clearTimer();
+      clearInterval(ticker);
+      currentTime.current = () => null;
       watch.current = () => undefined;
       player?.destroy();
       host?.replaceChildren();
     };
   }, [videoId]);
 
-  return <div ref={container}>
-    <div ref={mount} className="aspect-video bg-black [&_iframe]:h-full [&_iframe]:w-full" />
+  return <div ref={container} className={className}>
+    <div ref={mount} className="aspect-video overflow-hidden bg-black [&_iframe]:h-full [&_iframe]:w-full" />
     {notice && <div role="status" className="p-3 text-sm bg-muted text-foreground">
       {notice.message}{' '}
       <a className="underline wiz-accent-text" href={`https://www.youtube.com/watch?v=${encodeURIComponent(videoId)}&t=${Math.max(0, Math.floor(notice.seconds - 2))}s`}

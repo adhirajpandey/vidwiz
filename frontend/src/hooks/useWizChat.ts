@@ -2,6 +2,7 @@ import { useCallback, useEffect, useRef, useState } from 'react';
 import { apiFetch, conversationsApi, normalizeApiError, normalizeFetchError, readSseEvents } from '../api';
 import type { NormalizedApiError } from '../api/errors';
 import { parseWizEvent, type MessagePart, type WizStreamEvent } from '../api/messageParts';
+import type { MessageRead } from '../api/types';
 import { getToken } from '../lib/authUtils';
 
 export interface WizMessage {
@@ -15,9 +16,19 @@ export interface WizMessage {
 }
 
 type Limit = { kind: 'guest' | 'user'; resetSeconds: number | null };
+
+/** What the chat is about: one video, or the user's whole library. */
+export type ChatTarget = { scope: 'video'; videoId: string } | { scope: 'library' };
+
+function targetKey(target: ChatTarget | null): string | null {
+  if (!target) return null;
+  return target.scope === 'video' ? `video:${target.videoId}` : 'library';
+}
+
 interface Session {
   generation: number;
-  videoId: string;
+  key: string;
+  target: ChatTarget;
   conversationId: number | null;
   creation?: Promise<number | null>;
   request?: AbortController;
@@ -27,8 +38,33 @@ function isRecord(value: unknown): value is Record<string, unknown> {
   return typeof value === 'object' && value !== null && !Array.isArray(value);
 }
 
-/** VidWiz transport and state. UI libraries adapt these domain values at their boundary. */
-export function useWizChat(videoId: string | null, isReady: boolean) {
+function fromServer(message: MessageRead): WizMessage {
+  return {
+    id: `server-${message.id}`,
+    role: message.role,
+    parts: message.parts,
+    serverMessageId: message.role === 'assistant' ? message.id : undefined,
+    createdAt: new Date(message.created_at),
+    status: 'complete',
+  };
+}
+
+/**
+ * VidWiz chat transport and state. UI libraries adapt these domain values at
+ * their boundary. Pass `resumeId` to continue a saved conversation; `onStarted`
+ * reports the id of a conversation once it exists.
+ */
+export function useWizChat(
+  target: ChatTarget | null,
+  isReady: boolean,
+  { resumeId = null, onStarted }: { resumeId?: number | null; onStarted?: (id: number) => void } = {},
+) {
+  const key = targetKey(target);
+  const targetRef = useRef(target);
+  targetRef.current = target;
+  const onStartedRef = useRef(onStarted);
+  onStartedRef.current = onStarted;
+  const [isLoadingHistory, setIsLoadingHistory] = useState(false);
   const [messages, setMessages] = useState<WizMessage[]>([]);
   const [generation, setGeneration] = useState(0);
   const [conversationId, setConversationId] = useState<number | null>(null);
@@ -46,15 +82,20 @@ export function useWizChat(videoId: string | null, isReady: boolean) {
     if (session.conversationId !== null) return Promise.resolve(session.conversationId);
     setIsCreatingConversation(true);
     setConversationError(null);
-    if (!getToken() && !sessionStorage.getItem('guestSessionId')) {
+    if (session.target.scope === 'video' && !getToken() && !sessionStorage.getItem('guestSessionId')) {
       sessionStorage.setItem('guestSessionId', crypto.randomUUID());
     }
     session.creation = (async () => {
       try {
-        const result = await conversationsApi.createConversation({ video_id: session.videoId });
+        const result = await conversationsApi.createConversation(
+          session.target.scope === 'video'
+            ? { scope: 'video', video_id: session.target.videoId }
+            : { scope: 'library' },
+        );
         if (active.current !== session) return null;
         session.conversationId = result.id;
         setConversationId(result.id);
+        onStartedRef.current?.(result.id);
         return result.id;
       } catch (error) {
         if (active.current !== session) return null;
@@ -71,32 +112,49 @@ export function useWizChat(videoId: string | null, isReady: boolean) {
     return session.creation;
   }, []);
 
-  const startSession = useCallback(() => {
+  const startSession = useCallback((resume: number | null = null) => {
     active.current?.request?.abort();
-    const session: Session | null = videoId
-      ? { generation: ++sequence.current, videoId, conversationId: null }
+    const current = targetRef.current;
+    const session: Session | null = key && current
+      ? { generation: ++sequence.current, key, target: current, conversationId: resume }
       : null;
     active.current = session;
     setGeneration(sequence.current);
-    setConversationId(null);
+    setConversationId(resume);
     setMessages([]);
     setIsRunning(false);
-    setIsCreatingConversation(Boolean(session));
+    setIsCreatingConversation(Boolean(session) && resume === null);
+    setIsLoadingHistory(Boolean(session) && resume !== null);
     setConversationError(null);
     setLimit(null);
     setIsProcessing(false);
-    // Defer the initial POST so React StrictMode's discarded effect creates no conversation.
+    // Defer requests so React StrictMode's discarded effect creates no conversation.
     queueMicrotask(() => {
-      if (session && active.current === session) void createConversation(session);
+      if (!session || active.current !== session) return;
+      if (resume === null) {
+        void createConversation(session);
+        return;
+      }
+      void conversationsApi.listMessages(resume).then(history => {
+        if (active.current === session) setMessages(history.map(fromServer));
+      }).catch(error => {
+        if (active.current !== session) return;
+        const normalized = normalizeApiError(error, 'This conversation could not be loaded.');
+        if (!normalized.handled) setConversationError(normalized);
+      }).finally(() => {
+        if (active.current === session) setIsLoadingHistory(false);
+      });
     });
-  }, [videoId, createConversation]);
+  }, [key, createConversation]);
 
   useEffect(() => {
-    startSession();
+    startSession(resumeId);
     return () => {
       active.current?.request?.abort();
       active.current = null;
     };
+    // Resuming is decided when the chat opens; later id changes come from this hook.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [startSession]);
 
   const retryConversation = useCallback(async () => {
@@ -107,7 +165,7 @@ export function useWizChat(videoId: string | null, isReady: boolean) {
   const send = useCallback(async (text: string) => {
     const message = text.trim();
     const session = active.current;
-    if (!message || !session || session.videoId !== videoId || !isReady ||
+    if (!message || !session || session.key !== key || !isReady ||
         conversationError || session.creation || session.request || session.conversationId === null) return;
     const id = session.conversationId;
     const controller = new AbortController();
@@ -207,12 +265,15 @@ export function useWizChat(videoId: string | null, isReady: boolean) {
       // Release this Fetch stream only; this does not cancel server-side generation.
       controller.abort();
     }
-  }, [videoId, isReady, conversationError]);
+  }, [key, isReady, conversationError]);
 
   return {
     messages, generation, conversationId, isRunning, isCreatingConversation, conversationError,
-    isSendDisabled: isRunning || isCreatingConversation || !isReady || Boolean(conversationError) || conversationId === null,
-    send, newChat: startSession, retryConversation, limit, isProcessing,
+    isLoadingHistory,
+    isSendDisabled: isRunning || isCreatingConversation || isLoadingHistory || !isReady ||
+      Boolean(conversationError) || conversationId === null,
+    send, newChat: () => startSession(null), resume: (id: number) => startSession(id),
+    retryConversation, limit, isProcessing,
     dismissLimit: () => setLimit(null), dismissProcessing: () => setIsProcessing(false),
   };
 }

@@ -1,30 +1,34 @@
-import { StrictMode } from 'react'
-import { createRoot } from 'react-dom/client'
-import { BrowserRouter } from 'react-router-dom'
-import { HelmetProvider } from 'react-helmet-async'
-import './index.css'
-import App from './App.tsx'
-import ToastProvider from './components/ToastProvider'
-import ScrollToTop from './components/ScrollToTop'
-import SessionExpiredHandler from './components/SessionExpiredHandler'
-import ErrorBoundary from './components/ErrorBoundary'
-import { syncExtensionAuth } from './lib/authUtils'
+import { StrictMode } from 'react';
+import { createRoot } from 'react-dom/client';
+import { BrowserRouter } from 'react-router-dom';
+import { HelmetProvider } from 'react-helmet-async';
+import { QueryClientProvider } from '@tanstack/react-query';
+import './index.css';
+import App from './App.tsx';
+import { queryClient } from './app/queryClient';
+import ToastProvider from './components/ToastProvider';
+import ScrollToTop from './components/ScrollToTop';
+import SessionExpiredHandler from './components/SessionExpiredHandler';
+import ErrorBoundary from './components/ErrorBoundary';
+import { syncExtensionAuth } from './lib/authUtils';
 
 // Keep the extension's token in step with the web session.
-syncExtensionAuth()
+syncExtensionAuth();
 
 createRoot(document.getElementById('root')!).render(
   <StrictMode>
     <HelmetProvider>
-      <BrowserRouter>
-        <ScrollToTop />
-        <ToastProvider>
-          <ErrorBoundary>
-            <SessionExpiredHandler />
-            <App />
-          </ErrorBoundary>
-        </ToastProvider>
-      </BrowserRouter>
+      <QueryClientProvider client={queryClient}>
+        <BrowserRouter>
+          <ScrollToTop />
+          <ToastProvider>
+            <ErrorBoundary>
+              <SessionExpiredHandler />
+              <App />
+            </ErrorBoundary>
+          </ToastProvider>
+        </BrowserRouter>
+      </QueryClientProvider>
     </HelmetProvider>
   </StrictMode>,
-)
+);

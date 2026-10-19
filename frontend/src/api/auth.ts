@@ -1,12 +1,12 @@
 import { apiRequest } from './fetch';
 import type {
+  ApiTokenCreated,
+  ApiTokenRead,
   AuthLoginRequest,
   AuthRegisterRequest,
   GoogleLoginRequest,
   LoginResponse,
   MessageResponse,
-  TokenResponse,
-  TokenRevokeResponse,
   UserProfileRead,
   UserProfileUpdate,
 } from './types';
@@ -21,7 +21,9 @@ export const authApi = {
   getMe: () => apiRequest<UserProfileRead>('GET', '/users/me'),
   updateProfile: (body: UserProfileUpdate) =>
     apiRequest<UserProfileRead>('PATCH', '/users/me', { body }),
-  createLongTermToken: () => apiRequest<TokenResponse>('POST', '/auth/tokens'),
-  revokeLongTermToken: () =>
-    apiRequest<TokenRevokeResponse>('DELETE', '/auth/tokens'),
+  listTokens: () => apiRequest<ApiTokenRead[]>('GET', '/auth/tokens'),
+  createToken: (name: string) =>
+    apiRequest<ApiTokenCreated>('POST', '/auth/tokens', { body: { name } }),
+  revokeToken: (tokenId: number) =>
+    apiRequest<MessageResponse>('DELETE', `/auth/tokens/${tokenId}`),
 };

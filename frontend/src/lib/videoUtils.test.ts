@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 
-import { extractVideoId, timestampToSeconds } from './videoUtils';
+import { extractVideoId, isValidVideoId } from './videoUtils';
 
 describe('extractVideoId', () => {
   it('normalizes a malformed single-slash HTTPS protocol', () => {
@@ -29,8 +29,10 @@ describe('extractVideoId', () => {
   });
 });
 
-describe('timestampToSeconds', () => {
-  it.each([['0:07', 7], ['12:34', 754], ['1:02:03', 3723]])('converts %s', (input, seconds) => {
-    expect(timestampToSeconds(input)).toBe(seconds);
+describe('isValidVideoId', () => {
+  it('accepts 11-character IDs only', () => {
+    expect(isValidVideoId('dQw4w9WgXcQ')).toBe(true);
+    expect(isValidVideoId('dQw4w9WgXc')).toBe(false);
+    expect(isValidVideoId('https://youtu.be/dQw4w9WgXcQ')).toBe(false);
   });
 });

@@ -9,7 +9,9 @@ import { ArrowDown, ArrowUp, Check, Copy, RotateCcw, Sparkles } from 'lucide-rea
 import type { WizChatController, WizMessage } from '../../hooks/useWizChat';
 import ErrorState from '../ui/ErrorState';
 import WizMarkdown from './WizMarkdown';
-import WizCitation, { WizSeekProvider } from './WizCitation';
+import WizCitation, { WizPassageProvider } from './WizCitation';
+import type { PassageActions } from './WizCitation';
+import { cn } from '../../lib/utils';
 import './wiz-chat.css';
 
 function convertMessage(message: WizMessage): ThreadMessageLike {
@@ -28,7 +30,7 @@ function convertMessage(message: WizMessage): ThreadMessageLike {
 
 function UserMessage() {
   return <MessagePrimitive.Root className="flex justify-end py-3">
-    <div className="max-w-[90%] rounded-2xl rounded-br-sm bg-violet-600 px-4 py-3 text-sm leading-6 whitespace-pre-wrap break-words text-white">
+    <div className="max-w-[90%] rounded-2xl rounded-br-sm bg-accent px-4 py-2.5 text-sm leading-6 whitespace-pre-wrap break-words text-accent-foreground">
       <MessagePrimitive.Parts />
     </div>
   </MessagePrimitive.Root>;
@@ -41,7 +43,7 @@ function AssistantMessage() {
   const copied = useAuiState(s => s.message.isCopied);
   return <MessagePrimitive.Root className="py-3 min-w-0">
     <div className="flex items-center gap-2 mb-2 text-xs font-medium text-muted-foreground">
-      <Sparkles className="size-3.5 text-violet-500" />Wiz
+      <Sparkles className="size-3.5 text-accent" />Wiz
       {running && <span role="status" className="font-normal motion-safe:animate-pulse">{hasText ? 'Answering…' : 'Thinking…'}</span>}
     </div>
     <MessagePrimitive.Parts components={{ Text: WizMarkdown, data: { by_name: { citation: WizCitation } } }} />
@@ -58,16 +60,15 @@ function AssistantMessage() {
   </MessagePrimitive.Root>;
 }
 
-function StarterQuestions({ questions }: { questions?: string[] | null }) {
+function StarterQuestions({ questions, intro }: { questions?: string[] | null; intro: string }) {
   const aui = useAui();
-  return <div className="flex flex-col items-center justify-center text-center py-10 px-2">
-    <div className="size-14 rounded-2xl bg-violet-500/10 flex items-center justify-center mb-4 border border-violet-500/20"><Sparkles className="size-7 text-violet-500" /></div>
-    <h3 className="text-lg font-semibold mb-2">Ready to chat!</h3>
-    <p className="text-muted-foreground text-sm max-w-xs leading-relaxed mb-6">Ask about this video. Follow timestamp citations to jump straight to the source.</p>
-    {questions?.length === 3 && <div className="flex flex-col gap-2 w-full">
+  return <div className="flex flex-col items-center justify-center text-center py-8 px-2">
+    <div className="size-11 rounded-xl bg-accent-soft flex items-center justify-center mb-3"><Sparkles className="size-5 text-accent" /></div>
+    <p className="text-muted-foreground text-sm max-w-sm leading-6 mb-5">{intro}</p>
+    {questions && questions.length > 0 && <div className="flex flex-col gap-2 w-full">
       {questions.map(question => <button key={question} type="button"
         onClick={() => { aui.composer.setText(question); }}
-        className="rounded-xl border border-border bg-muted/30 px-4 py-3 text-left text-sm text-foreground/80 hover:bg-muted hover:border-violet-500/40 transition-colors"
+        className="rounded-lg border border-border px-3.5 py-2.5 text-left text-sm text-foreground/85 hover:bg-muted transition-colors"
       >{question}</button>)}
     </div>}
   </div>;
@@ -77,11 +78,28 @@ interface Props {
   chat: WizChatController;
   isReady: boolean;
   suggestedQuestions?: string[] | null;
-  onSeek: (seconds: number) => void;
-  statusBanner: ReactNode;
+  passages: PassageActions;
+  statusBanner?: ReactNode;
+  scope?: 'video' | 'library';
+  header?: ReactNode;
+  className?: string;
 }
 
-export default function WizChat({ chat, isReady, suggestedQuestions, onSeek, statusBanner }: Props) {
+const COPY = {
+  video: {
+    intro: 'Ask about this video. Citations jump straight to the moment it was said.',
+    placeholder: 'Ask about this video…',
+    footer: "Answers come from this video's transcript",
+  },
+  library: {
+    intro: 'Ask about anything you have saved. Answers cite the videos and moments they come from.',
+    placeholder: 'Ask your library…',
+    footer: 'Answers come from your saved videos and moments',
+  },
+};
+
+export default function WizChat({ chat, isReady, suggestedQuestions, passages, statusBanner, scope = 'video', header, className }: Props) {
+  const copy = COPY[scope];
   const { send } = chat;
   const onNew = useCallback(async (message: AppendMessage) => {
     const text = message.content.filter(part => part.type === 'text').map(part => part.text).join('\n');
@@ -92,17 +110,18 @@ export default function WizChat({ chat, isReady, suggestedQuestions, onSeek, sta
     isRunning: chat.isRunning, isSendDisabled: chat.isSendDisabled,
   });
   return <AssistantRuntimeProvider runtime={runtime}>
-    <WizSeekProvider value={onSeek}>
-      <ThreadPrimitive.Root className="w-full lg:w-[45%] flex flex-col rounded-2xl bg-card border border-border overflow-hidden h-[560px] lg:h-auto lg:min-h-0">
-        <div className="flex items-center justify-between px-4 py-3 border-b border-border">
-          <div className="flex items-center gap-2"><Sparkles className="size-4 text-violet-500" /><h2 className="text-sm font-semibold">Wiz Chat</h2></div>
-          {chat.messages.length > 0 && <button type="button" onClick={chat.newChat} className="inline-flex items-center gap-1.5 rounded-lg px-2.5 py-1.5 text-xs text-muted-foreground hover:text-foreground hover:bg-muted"><RotateCcw className="size-3.5" />New</button>}
+    <WizPassageProvider value={passages}>
+      <ThreadPrimitive.Root className={cn('flex min-h-0 flex-col overflow-hidden', className)}>
+        <div className="flex items-center justify-between gap-2 px-4 py-2.5 border-b border-border">
+          {header ?? <div className="flex items-center gap-2"><Sparkles className="size-4 text-accent" /><h2 className="text-sm font-semibold">Ask</h2></div>}
+          {chat.messages.length > 0 && <button type="button" onClick={chat.newChat} className="inline-flex items-center gap-1.5 rounded-lg px-2.5 py-1.5 text-xs text-muted-foreground hover:text-foreground hover:bg-muted"><RotateCcw className="size-3.5" />New chat</button>}
         </div>
         {statusBanner}
         <div className="relative flex flex-1 min-h-0 flex-col">
           <ThreadPrimitive.Viewport className="flex-1 overflow-y-auto px-4 md:px-5 py-2" autoScroll>
             {chat.conversationError && <ErrorState compact title="Unable to start chat" message={chat.conversationError.message} referenceId={chat.conversationError.requestId} onRetry={() => void chat.retryConversation()} />}
-            {isReady && !chat.conversationError && <ThreadPrimitive.Empty><StarterQuestions questions={suggestedQuestions} /></ThreadPrimitive.Empty>}
+            {chat.isLoadingHistory && <p role="status" className="py-8 text-center text-sm text-muted-foreground">Loading conversation…</p>}
+            {isReady && !chat.conversationError && !chat.isLoadingHistory && <ThreadPrimitive.Empty><StarterQuestions questions={suggestedQuestions} intro={copy.intro} /></ThreadPrimitive.Empty>}
             <ThreadPrimitive.Messages components={{ UserMessage, AssistantMessage }} />
             <div className="sticky bottom-2 flex justify-center pointer-events-none">
               <ThreadPrimitive.ScrollToBottom aria-label="Scroll to latest message" className="pointer-events-auto rounded-full border border-border bg-card p-2 shadow-md disabled:hidden"><ArrowDown className="size-4" /></ThreadPrimitive.ScrollToBottom>
@@ -110,13 +129,13 @@ export default function WizChat({ chat, isReady, suggestedQuestions, onSeek, sta
           </ThreadPrimitive.Viewport>
         </div>
         <div className="p-3 md:p-4 border-t border-border">
-          <ComposerPrimitive.Root className="flex items-end gap-2 rounded-xl border border-input bg-muted/30 p-2 focus-within:border-violet-500/60 focus-within:ring-2 focus-within:ring-violet-500/10">
-            <ComposerPrimitive.Input aria-label="Message Wiz" placeholder={isReady ? 'Ask about this video...' : 'Waiting for transcript...'} submitMode="enter" rows={1} className="flex-1 min-w-0 max-h-36 resize-none bg-transparent px-2 py-2 text-sm outline-none placeholder:text-muted-foreground" />
-            <ComposerPrimitive.Send aria-label="Send message" className="shrink-0 rounded-lg bg-violet-600 text-white p-2.5 hover:bg-violet-500 disabled:opacity-40 disabled:cursor-not-allowed"><ArrowUp className="size-4" /></ComposerPrimitive.Send>
+          <ComposerPrimitive.Root className="flex items-end gap-2 rounded-xl border border-input bg-surface p-2 focus-within:border-accent focus-within:ring-2 focus-within:ring-accent/15">
+            <ComposerPrimitive.Input aria-label="Message Wiz" placeholder={isReady ? copy.placeholder : 'Waiting for the transcript…'} submitMode="enter" rows={1} className="flex-1 min-w-0 max-h-36 resize-none bg-transparent px-2 py-2 text-sm outline-none placeholder:text-muted-foreground" />
+            <ComposerPrimitive.Send aria-label="Send message" className="shrink-0 rounded-lg bg-accent text-accent-foreground p-2.5 hover:opacity-90 disabled:opacity-40 disabled:cursor-not-allowed"><ArrowUp className="size-4" /></ComposerPrimitive.Send>
           </ComposerPrimitive.Root>
-          <p className="mt-2 text-center text-[11px] text-muted-foreground">Answers grounded in this video's transcript</p>
+          <p className="mt-2 text-center text-[11px] text-muted-foreground">{copy.footer}</p>
         </div>
       </ThreadPrimitive.Root>
-    </WizSeekProvider>
+    </WizPassageProvider>
   </AssistantRuntimeProvider>;
 }

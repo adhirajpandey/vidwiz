@@ -1,8 +1,10 @@
 import type { MessagePart } from './messageParts';
+
 export interface MessageResponse {
   message: string;
 }
 
+// Auth
 export interface AuthLoginRequest {
   email: string;
   password: string;
@@ -22,27 +24,35 @@ export interface LoginResponse {
   token: string;
 }
 
-export interface TokenResponse {
-  message: string;
-  token: string;
-}
-
-export interface TokenRevokeResponse {
-  message: string;
-}
-
 export interface UserProfileRead {
   id: number;
   email: string;
-  name?: string;
-  profile_image_url?: string;
-  ai_notes_enabled: boolean;
-  token_exists: boolean;
+  name?: string | null;
+  profile_image_url?: string | null;
+  ai_moments_default: boolean;
   credits_balance: number;
-  long_term_token?: string;
-  created_at?: string;
+  created_at?: string | null;
 }
 
+export interface UserProfileUpdate {
+  name?: string;
+  ai_moments_default?: boolean;
+}
+
+export interface ApiTokenRead {
+  id: number;
+  name: string;
+  token_hint: string;
+  created_at: string;
+  last_used_at: string | null;
+}
+
+export interface ApiTokenCreated extends ApiTokenRead {
+  /** Shown once; only its hash is stored. */
+  token: string;
+}
+
+// Payments
 export interface CreditProduct {
   product_id: string;
   credits: number;
@@ -55,12 +65,24 @@ export interface CreditProductListResponse {
   products: CreditProduct[];
 }
 
-export interface UserProfileUpdate {
-  name?: string;
-  ai_notes_enabled?: boolean;
+// Videos
+export interface VideoMetadata {
+  title?: string;
+  uploader?: string;
+  channel_url?: string;
+  duration?: number;
+  thumbnail?: string;
+  view_count?: number;
+  like_count?: number;
+  upload_date?: string;
 }
 
-// Video Types
+export interface KeyPoint {
+  text: string;
+  start_seconds: number;
+  end_seconds: number;
+}
+
 export interface VideoRead {
   id: number;
   video_id: string;
@@ -69,74 +91,194 @@ export interface VideoRead {
   metadata: VideoMetadata | null;
   summary: string | null;
   suggested_questions: string[] | null;
+  key_points: KeyPoint[] | null;
   created_at: string;
   updated_at: string;
 }
 
-export interface VideoMetadata {
-  title?: string;
-  channel?: string;
-  channel_url?: string;
-  uploader?: string;
-  uploader_url?: string;
-  duration_string?: string;
-  duration?: number;
-  thumbnail?: string;
-  view_count?: number;
-  like_count?: number;
-  upload_date?: string;
+export interface TranscriptSegment {
+  start_seconds: number;
+  end_seconds: number;
+  text: string;
 }
 
-export interface VideoListParams {
-  page?: number;
-  per_page?: number;
-  q?: string;
-  sort?: 'activity_desc' | 'created_at_desc' | 'created_at_asc' | 'title_asc' | 'title_desc';
+export type TranscriptStatus = 'ready' | 'processing' | 'unavailable';
+
+export interface TranscriptRead {
+  video_id: string;
+  status: TranscriptStatus;
+  segments: TranscriptSegment[];
 }
 
-export interface VideoSearchItem {
-  note_count: number;
-  last_activity_at: string | null;
+// Moments
+export type AiStatus =
+  | 'not_requested'
+  | 'waiting_transcript'
+  | 'queued'
+  | 'ready'
+  | 'failed'
+  | 'no_transcript'
+  | 'insufficient_credits';
+
+export type ResolveStatus = 'resolving' | 'resolved' | 'unresolved';
+
+export type CaptureSource = 'phone' | 'extension' | 'web' | 'api' | 'legacy';
+
+export interface ResolveCandidate {
   video_id: string;
   title: string | null;
-  metadata?: VideoMetadata | null;
+  channel: string | null;
 }
 
-export interface VideoListResponse {
-  videos: VideoSearchItem[];
+export interface MomentRead {
+  id: number;
+  video_id: string | null;
+  at_seconds: number;
+  quote: string | null;
+  quote_start_seconds: number | null;
+  ai_text: string | null;
+  note: string | null;
+  ai_status: AiStatus;
+  resolve_status: ResolveStatus;
+  source: CaptureSource;
+  pending_title: string | null;
+  resolve_candidates: ResolveCandidate[] | null;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface FeedMoment extends MomentRead {
+  video_title: string | null;
+  video_metadata: VideoMetadata | null;
+}
+
+export interface MomentFeed {
+  moments: FeedMoment[];
+  page: number;
+  per_page: number;
+  has_more: boolean;
+}
+
+export interface CaptureCreate {
+  video?: string;
+  title?: string;
+  channel?: string;
+  at: number | string;
+  note?: string | null;
+  ai?: boolean;
+  source: Exclude<CaptureSource, 'legacy'>;
+}
+
+export interface CaptureResponse {
+  moment: MomentRead;
+  merged: boolean;
+}
+
+export interface MomentUpdate {
+  note?: string | null;
+  ai_text?: string | null;
+}
+
+export interface PassageSave {
+  video_id: string;
+  start_seconds: number;
+  end_seconds: number;
+  note?: string | null;
+}
+
+// Library
+export type LibrarySort = 'activity_desc' | 'added_desc' | 'title_asc' | 'title_desc';
+
+export interface LibraryVideo {
+  video_id: string;
+  title: string | null;
+  metadata: VideoMetadata | null;
+  transcript_available: boolean;
+  moment_count: number;
+  added_at: string;
+  last_activity_at: string;
+}
+
+export interface LibraryResponse {
+  videos: LibraryVideo[];
   total: number;
   page: number;
   per_page: number;
   total_pages: number;
 }
 
-// Note Types
-export interface NoteRead {
-  id: number;
+// Search
+export interface VideoBrief {
   video_id: string;
-  user_id: number;
-  timestamp: string;
+  title: string | null;
+  thumbnail_url: string;
+}
+
+export interface SnippetPart {
   text: string;
-  created_at: string; // ISO date string
-  updated_at: string;
-  generated_by_ai: boolean;
+  highlight: boolean;
 }
 
-export interface NoteUpdate {
-  text?: string;
-  generated_by_ai?: boolean;
+export interface MomentResult {
+  kind: 'moment';
+  video: VideoBrief;
+  moment: MomentRead;
+  start_seconds: number;
+  snippet: SnippetPart[];
+  score: number;
 }
 
-// Conversation Types
+export interface PassageResult {
+  kind: 'passage';
+  video: VideoBrief;
+  chunk_id: number;
+  start_seconds: number;
+  end_seconds: number;
+  snippet: SnippetPart[];
+  score: number;
+}
+
+export type SearchResult = MomentResult | PassageResult;
+
+export interface SearchResponse {
+  query: string;
+  match: 'exact' | 'fuzzy' | 'none';
+  results: SearchResult[];
+  page: number;
+  per_page: number;
+  has_more: boolean;
+}
+
+// Conversations
+export type ConversationScope = 'video' | 'library';
+
 export interface ConversationRead {
   id: number;
-  video_id: string;
-  user_id?: number;
+  scope: ConversationScope;
+  video_id: string | null;
   created_at: string;
+  updated_at: string;
 }
 
-export interface ConversationCreate {
-  video_id: string;
+export type ConversationCreate =
+  | { scope: 'video'; video_id: string }
+  | { scope: 'library' };
+
+export interface ConversationSummary {
+  id: number;
+  scope: ConversationScope;
+  video_id: string | null;
+  video_title: string | null;
+  title: string;
+  message_count: number;
+  last_message_at: string;
+}
+
+export interface ConversationList {
+  conversations: ConversationSummary[];
+  page: number;
+  per_page: number;
+  has_more: boolean;
 }
 
 export interface MessageRead {
@@ -146,28 +288,4 @@ export interface MessageRead {
   role: 'user' | 'assistant';
   content: string;
   created_at: string;
-}
-
-export interface LibrarySummary {
-  videos: number;
-  notes: number;
-  ai_notes: number;
-  wiz_chats: number;
-  recent_videos: VideoSearchItem[];
-}
-export interface NoteSearchItem {
-  id: number;
-  video_id: string;
-  title: string | null;
-  metadata: VideoMetadata | null;
-  timestamp: string;
-  generated_by_ai: boolean;
-  excerpt: string;
-}
-export interface NoteSearchResponse {
-  notes: NoteSearchItem[];
-  total: number;
-  page: number;
-  per_page: number;
-  total_pages: number;
 }
