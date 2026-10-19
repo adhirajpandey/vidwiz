@@ -54,3 +54,9 @@ class TranscriptRead(ApiModel):
     # unavailable: fetching failed for good, so there is no transcript.
     status: Literal["ready", "processing", "unavailable"]
     segments: list[TranscriptSegment]
+
+
+class AskStatus(ApiModel):
+    unlocked: bool
+    # Credits charged when the first conversation for the video starts.
+    cost: int

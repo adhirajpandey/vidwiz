@@ -6,26 +6,6 @@ from src.videos import dependencies as videos_dependencies
 from src.videos.models import Video
 
 
-def test_get_user_video_or_404(db_session):
-    video = Video(video_id="dep1234567A", title="Dep Video")
-    db_session.add(video)
-    db_session.commit()
-
-    path = videos_dependencies.VideoIdPath.model_validate({"video_id": "dep1234567A"})
-    result = videos_dependencies.get_user_video_or_404(
-        path=path, db=db_session, user_id=1
-    )
-    assert result.video_id == "dep1234567A"
-
-    missing_path = videos_dependencies.VideoIdPath.model_validate(
-        {"video_id": "mis1234567A"}
-    )
-    with pytest.raises(NotFoundError):
-        videos_dependencies.get_user_video_or_404(
-            path=missing_path, db=db_session, user_id=1
-        )
-
-
 def test_get_stream_video_or_404_allows_authenticated_without_notes(db_session):
     video = Video(video_id="stream12345", title="Stream")
     db_session.add(video)

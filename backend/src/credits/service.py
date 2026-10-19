@@ -107,6 +107,10 @@ def grant_signup_credits(db: Session, user: User) -> None:
     )
 
 
+def wiz_chat_unlocked(db: Session, user_id: int, video_id: str) -> bool:
+    return _ledger_exists(db, user_id, REASON_WIZ_CHAT, "video", video_id)
+
+
 def charge_wiz_chat_for_video(db: Session, user_id: int, video_id: str) -> bool:
     logger.debug("Charging wiz chat", extra={"user_id": user_id, "video_id": video_id})
     return _apply_once(
