@@ -69,7 +69,8 @@ Workers.
   credits). Title captures still resolving show a placeholder; ambiguous ones
   show the candidate videos to pick from.
 - **Overview**: rendered from `overview_status`: writing, failed with a free
-  retry (signed in), no transcript, or pending. While a newer overview is
+  retry (signed in), no transcript, pending (transcript still loading), or
+  no overview yet (transcript ready, never queued). While a newer overview is
   written or after it fails, the older one stays visible with a status line.
 - **Video workspace**: the player is sticky on desktop and above the tabs on
   mobile. Captures use the player's current time. Timestamps in moments,

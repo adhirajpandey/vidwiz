@@ -65,6 +65,10 @@ export default function OverviewPanel({ video, signedIn, onSeek, onAsk }: {
       case 'no_transcript':
         return <EmptyState icon={<FileX className="size-5" />} title="No overview for this video">YouTube has no captions for it, so there is nothing to summarize.</EmptyState>;
       default:
+        // A transcript but no queued overview, such as older videos the backfill skipped.
+        if (video.transcript_status === 'ready') {
+          return <EmptyState icon={<Sparkles className="size-5" />} title="No overview yet">You can still read the transcript or ask about the video.</EmptyState>;
+        }
         return <EmptyState icon={<Sparkles className="size-5" />} title="Overview pending">The overview is written once the transcript is ready.</EmptyState>;
     }
   }
