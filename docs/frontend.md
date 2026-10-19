@@ -59,13 +59,18 @@ Workers.
   authenticated request triggers one session-expired notice and a redirect to
   `/login`.
 - **Server state**: TanStack Query. Moment lists poll every 5 seconds while a
-  moment is resolving, queued, or waiting for a transcript; the video and its
-  transcript poll while background work is pending, up to about three minutes.
+  moment is resolving, queued, or waiting for a transcript; the video polls
+  while its `transcript_status` is `pending` or its `overview_status` is
+  `queued`, and the transcript while it is `pending`. Every job ends in an
+  explicit state, so polling always stops.
   Mutations invalidate moments, the library, and the profile (credit balance).
 - **Moments**: `MomentItem` shows the AI line, the user's note, the quote, and
   one explicit status line with its fix (retry without a new charge, get
   credits). Title captures still resolving show a placeholder; ambiguous ones
   show the candidate videos to pick from.
+- **Overview**: rendered from `overview_status`: writing, failed with a free
+  retry (signed in), no transcript, or pending. While a newer overview is
+  written or after it fails, the older one stays visible with a status line.
 - **Video workspace**: the player is sticky on desktop and above the tabs on
   mobile. Captures use the player's current time. Timestamps in moments,
   key points, transcript lines, and citations seek the same player. The

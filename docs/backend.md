@@ -31,7 +31,6 @@ Describe the FastAPI backend: structure, auth rules, and the request/worker life
 
 ## Key Behavior
 - **Video lookup**: `GET /v2/videos/{video_id}` is JWT-only but is not scoped to the user; it returns the video if it exists.
-- **Video stream**: `GET /v2/videos/{video_id}/stream` requires JWT or guest session. The video is not user-scoped for either viewers or guests.
 - **Task scheduling**: Capturing, saving, or starting a conversation upserts the video and schedules transcript/metadata tasks when missing.
 - **Wiz quotas**: Daily message limits enforced separately for users and guests via `WIZ_USER_DAILY_QUOTA` and `WIZ_GUEST_DAILY_QUOTA`.
 - **Wiz token budget**: `WIZ_MAX_TOKENS` (default 8192) controls the max completion tokens per Wiz response, including model reasoning. The larger ceiling accommodates structured evidence on long transcripts; explicit environment overrides remain authoritative.
@@ -65,7 +64,10 @@ Describe the FastAPI backend: structure, auth rules, and the request/worker life
   - If sending the job to SQS fails, the moment becomes `failed`. Requesting AI
     again (`POST /v2/moments/{id}/ai`) does not charge again.
   - The worker stores its result through `PUT /v2/internal/moments/{id}/ai`;
-    `ai_text: null` marks the generation `failed`.
+    `ai_text: null` marks a queued generation `failed` and leaves a ready line
+    alone.
+  - The sweep marks lines queued for over 30 minutes `failed`, for jobs whose
+    result never arrived.
 - **Quotes** are filled at capture when the transcript exists, and for all of a
   video's moments when its transcript arrives.
 - **Saved passages**: `POST /v2/moments/passages` keeps a cited range as a
@@ -119,9 +121,35 @@ Describe the FastAPI backend: structure, auth rules, and the request/worker life
   `scope` or `video_id` to resume a chat.
 
 ### Transcripts and overviews
-- `GET /v2/videos/{video_id}/transcript` returns segments with an explicit
-  status: `ready`, `processing`, or `unavailable` (the last transcript task
-  failed for good). JWT or guest session.
+- **Transcript status** (`videos.transcript_status`) is explicit: `pending`,
+  `ready`, or `unavailable`. Storing a transcript makes it `ready`. A
+  transcript task that fails for the last time, or succeeds without segments,
+  makes it `unavailable`; a later capture schedules a new task and sets it back
+  to `pending`.
+- **Overview status** (`videos.overview_status`, changed at
+  `overview_status_at`):
+
+  ```
+  pending ──transcript ready──▶ queued ──worker saves──▶ ready
+     │                            │  ▲
+     │                            │  └── retry, backfill ── failed, ready
+     │                            └── worker gives up, sweep ──▶ failed
+     └── transcript unavailable ──▶ no_transcript ── transcript ready ──▶ queued
+  ```
+
+  - The API is the only place that queues an overview: when it stores a
+    transcript (from `pending`, `no_transcript`, or `failed`), on a retry, and
+    in the backfill. If sending the job fails, the overview becomes `failed`.
+  - The worker saves through `POST /v2/internal/videos/{id}/summary`, which
+    marks it `ready`, or reports `POST /v2/internal/videos/{id}/overview/failed`,
+    which fails only a queued overview.
+  - `POST /v2/videos/{video_id}/overview/retry` (signed in, free) queues a
+    failed overview again.
+  - The sweep marks overviews queued for over two hours `failed`.
+  - Summaries from before key points count as `ready`; the backfill rewrites
+    them.
+- `GET /v2/videos/{video_id}/transcript` returns `status` (the transcript
+  status) and, when `ready`, the segments. JWT or guest session.
 - **Models are recorded on every AI output**: `moments.ai_model` for AI
   lines, `miscellaneous_data.overview_model` and `overview_generated_at` for
   overviews (`VideoRead.overview_model`), and a `models` object in saved
@@ -136,7 +164,8 @@ Describe the FastAPI backend: structure, auth rules, and the request/worker life
 - `library_items` records saved videos per user. Capturing a moment or sending
   a chat message saves the video. `PUT /v2/library/{video_id}` saves
   explicitly; `DELETE` removes the item and keeps its moments.
-- `GET /v2/library` returns `moment_count`, `transcript_available`,
+- `GET /v2/library` returns `moment_count`, `transcript_status`,
+  `overview_status`,
   `added_at`, and `last_activity_at` (latest of added, opened, moment update,
   or chat message). Sorts: `activity_desc` (default), `added_desc`,
   `title_asc`, `title_desc`. `q` (2+ characters) filters titles literally.
@@ -145,11 +174,12 @@ Describe the FastAPI backend: structure, auth rules, and the request/worker life
 - **Tasks**: Metadata, transcript, and title-resolution tasks are stored in the `tasks` table and polled via `/v2/internal/tasks`.
 - **Task polling**: `/v2/internal/tasks?type=transcript|metadata|resolve_title` blocks up to a configurable timeout and returns `204` when no work is available.
 - **Task lifecycle**: On claim, a task is marked `in_progress`, `started_at` is set, and `retry_count` increments. Stale `in_progress` tasks can be reclaimed after a timeout.
-- **Transcript storage**: Transcripts are written to S3 when `S3_TRANSCRIPT_BUCKET_NAME` is configured, using the application's required AWS credentials; `transcript_available` is still set when the bucket is not configured.
+- **Transcript storage**: Transcripts are written to S3 when `S3_TRANSCRIPT_BUCKET_NAME` is configured, using the application's required AWS credentials; the transcript is still marked `ready` when the bucket is not configured.
+- **Sweep**: `python -m src.management.sweep --every 600` runs beside the API and fails jobs that stayed queued past the limits above.
+- **Backfills**: `python -m src.management.backfill chunks [--missing-only]` stores search passages; `python -m src.management.backfill overviews --limit N` queues up to N overviews that are missing, failed, or older than key points, most recently used videos first.
 - **Wiz chat**: Requires S3 transcript access and `OPENROUTER_API_KEY`. If transcript is not ready, `POST /v2/conversations/{id}/messages` returns `202 Accepted` with `status=processing`. If the transcript flag is set but S3 data is missing, the request errors with `Transcript data missing`.
 
 ## Streaming (SSE)
-- **Video readiness**: `/v2/videos/{id}/stream` emits `snapshot`, `update`, and `done` when metadata, transcript, and summary are all ready (timeout 60s).
 - **Wiz responses**: `/v2/conversations/{id}/messages` emits JSON SSE data with a
   `type` discriminator: `block`, `done`, or `error`. Each `block` event contains
   one complete Markdown block in `text` and its resolved `citations`. `done`
@@ -232,7 +262,8 @@ a transcript is replaced.
 
 ## Data Model (Core Tables)
 - **users**: Email/password or Google login; stores `profile_data` (`ai_moments_default`) and `credits_balance`.
-- **videos**: Metadata JSON, `transcript_available`, optional `summary`, and
+- **videos**: Metadata JSON, `transcript_status`, optional `summary`,
+  `overview_status` and `overview_status_at`, and
   general-purpose `miscellaneous_data` JSON. Wiz starter questions are stored
   under `miscellaneous_data.suggested_questions`.
 - **moments**: Captures tied to a user and (once resolved) a video, with explicit `ai_status`, `resolve_status`, and `source`, enforced by CHECK constraints.
