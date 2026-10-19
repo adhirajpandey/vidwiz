@@ -80,7 +80,7 @@ VIEWPORT_PRESETS = {
     "mobile": ViewportPreset(390, 844, 2),
 }
 PAGE_CAPTURES = {
-    "landing": PageCapture("/", 'h1:has-text("Tap while watching")', False),
+    "landing": PageCapture("/", 'h1:has-text("You just heard")', False),
     "login": PageCapture("/login", 'h1:has-text("Welcome back")', False),
     "signup": PageCapture("/signup", 'h1:has-text("Create your account")', False),
     "privacy": PageCapture("/privacy", 'h1:has-text("Your Privacy Matters")', False),

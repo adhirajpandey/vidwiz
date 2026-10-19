@@ -133,6 +133,9 @@ function MobileNav() {
 
 export default function AppShell({ children }: { children: ReactNode }) {
   const signedIn = useSignedIn();
+  const { pathname } = useLocation();
+  // The signed-out landing page brings its own header and full-width sections.
+  if (!signedIn && pathname === '/') return children;
   return (
     <div className="min-h-dvh">
       <header className="sticky top-0 z-40 border-b border-border bg-background/95 backdrop-blur">

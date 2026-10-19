@@ -33,7 +33,9 @@ Workers.
 ## Routes
 - `/`: Home when signed in (search on mobile, add a video, Ask entry, continue
   watching, recent moments grouped by day and video); the landing page when
-  signed out.
+  signed out. The landing page renders without the app header and has its own
+  styles in `features/landing/landing.css` (Bricolage Grotesque, light and dark
+  from the app theme).
 - `/v/:videoId`: the video workspace. Query parameters: `t` (start playback at
   seconds), `m` (highlight a moment), `c` (resume a conversation), `tab`
   (`moments`, `ask`, `transcript`, `overview`).
