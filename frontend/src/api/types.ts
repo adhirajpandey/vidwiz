@@ -92,6 +92,7 @@ export interface VideoRead {
   summary: string | null;
   suggested_questions: string[] | null;
   key_points: KeyPoint[] | null;
+  overview_model?: string | null;
   created_at: string;
   updated_at: string;
 }
@@ -137,6 +138,8 @@ export interface MomentRead {
   quote: string | null;
   quote_start_seconds: number | null;
   ai_text: string | null;
+  /** The model that wrote ai_text. */
+  ai_model?: string | null;
   note: string | null;
   ai_status: AiStatus;
   resolve_status: ResolveStatus;

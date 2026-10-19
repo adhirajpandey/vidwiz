@@ -195,5 +195,5 @@ def store_moment_ai(
     if not moment:
         raise NotFoundError("Moment not found")
     return MomentRead.model_validate(
-        moments_service.save_ai_text(db, moment, payload.ai_text)
+        moments_service.save_ai_text(db, moment, payload.ai_text, payload.ai_model)
     )

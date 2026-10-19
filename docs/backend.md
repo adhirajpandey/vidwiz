@@ -122,6 +122,11 @@ Describe the FastAPI backend: structure, auth rules, and the request/worker life
 - `GET /v2/videos/{video_id}/transcript` returns segments with an explicit
   status: `ready`, `processing`, or `unavailable` (the last transcript task
   failed for good). JWT or guest session.
+- **Models are recorded on every AI output**: `moments.ai_model` for AI
+  lines, `miscellaneous_data.overview_model` and `overview_generated_at` for
+  overviews (`VideoRead.overview_model`), and a `models` object in saved
+  answer metadata (`model`, plus `query_model` and `relevance_model` for
+  library answers; null when that step was skipped).
 - `VideoRead.key_points` exposes the overview's key points
   (`text`, `start_seconds`, `end_seconds`), stored in
   `miscellaneous_data.key_points`. Writes that omit key points keep the

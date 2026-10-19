@@ -24,6 +24,7 @@ class VideoRead(ApiModel):
     summary: str | None = None
     suggested_questions: list[str] | None = None
     key_points: list["KeyPoint"] | None = None
+    overview_model: str | None = None
     created_at: datetime
     updated_at: datetime
 

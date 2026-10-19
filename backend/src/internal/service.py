@@ -2,7 +2,7 @@ from __future__ import annotations
 
 import logging
 import time
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
 
 from sqlalchemy import and_, or_, select
 from sqlalchemy.orm import Session
@@ -241,6 +241,10 @@ def store_summary(
     if summary is not None:
         video.summary = summary
     if miscellaneous_data:
+        if miscellaneous_data.get("key_points"):
+            miscellaneous_data["overview_generated_at"] = datetime.now(
+                timezone.utc
+            ).isoformat()
         video.miscellaneous_data = {
             **(video.miscellaneous_data or {}),
             **miscellaneous_data,

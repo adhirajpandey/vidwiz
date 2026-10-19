@@ -355,6 +355,11 @@ def stream_wiz_response(
     )
 
 
+def answer_models(retrieval: dict | None = None) -> dict:
+    """Models behind a saved answer, stored in the message metadata."""
+    return {"model": settings.wiz_model, **(retrieval or {})}
+
+
 def stream_answer(
     *,
     system_prompt: str,
@@ -363,6 +368,7 @@ def stream_answer(
     conversation_id: int,
     db: Session,
     api_key: str,
+    models: dict | None = None,
 ):
     """Stream a structured, cited answer and save it once complete."""
 
@@ -454,6 +460,7 @@ def stream_answer(
             metadata={
                 "parts_version": 2,
                 "parts": [part.model_dump() for part in resolved],
+                "models": models or answer_models(),
             },
         )
         yield event(DoneEvent(message_id=message.id))
@@ -518,8 +525,11 @@ def prepare_chat(
 
 def prepare_library_chat(
     db: Session, conversation: Conversation, message: str
-) -> tuple[str, dict[str, CitationPart], list[dict], str]:
-    """Retrieve library sources for the question and build the answer context."""
+) -> tuple[str, dict[str, CitationPart], list[dict], str, dict]:
+    """Retrieve library sources for the question and build the answer context.
+
+    Also returns the models used, for the saved answer's metadata.
+    """
     logger.debug(
         "Preparing library chat",
         extra={"conversation_id": conversation.id, "user_id": conversation.user_id},
@@ -531,9 +541,10 @@ def prepare_library_chat(
         for msg in fetch_recent_history(db, conversation.id, limit=6)
         if msg.role == DB_ROLE_USER
     ]
-    sources = ask_retrieval.retrieve(
+    retrieval = ask_retrieval.retrieve(
         db, conversation.user_id, message, earlier_questions
     )
+    sources = retrieval.sources
     save_chat_message(db, conversation.id, DB_ROLE_USER, message)
     history = [
         {"role": msg.role, "content": msg.content, "metadata": msg.metadata_}
@@ -542,4 +553,16 @@ def prepare_library_chat(
     system_prompt = LIBRARY_SYSTEM_PROMPT_TEMPLATE.format(
         sources=ask_retrieval.sources_json(sources)
     )
-    return system_prompt, ask_retrieval.build_references(sources), history, api_key
+    models = answer_models(
+        {
+            "query_model": retrieval.query_model,
+            "relevance_model": retrieval.relevance_model,
+        }
+    )
+    return (
+        system_prompt,
+        ask_retrieval.build_references(sources),
+        history,
+        api_key,
+        models,
+    )

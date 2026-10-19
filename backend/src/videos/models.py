@@ -26,6 +26,10 @@ class Video(Base):
     moments = relationship("Moment", back_populates="video")
 
     @property
+    def overview_model(self) -> str | None:
+        return (self.miscellaneous_data or {}).get("overview_model")
+
+    @property
     def key_points(self) -> list[dict] | None:
         points = (self.miscellaneous_data or {}).get("key_points")
         return points if isinstance(points, list) and points else None

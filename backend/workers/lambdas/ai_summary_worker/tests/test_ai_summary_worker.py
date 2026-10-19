@@ -317,4 +317,5 @@ def test_process_summary_persists_overview(monkeypatch, persisted):
         "Generated summary",
         QUESTIONS,
         [{"text": "Point", "start_seconds": 50.0, "end_seconds": 55.0}],
+        summary_service.settings.summary_model,
     )

@@ -122,30 +122,37 @@ def _source(hit: search_service.Hit) -> Source:
     )
 
 
-def retrieve(
-    db: Session, user_id: int, question: str, history: list[str]
-) -> list[Source]:
+@dataclass(frozen=True)
+class Retrieval:
+    sources: list[Source]
+    # Null when query expansion failed or relevance scoring was not used.
+    query_model: str | None
+    relevance_model: str | None
+
+
+def retrieve(db: Session, user_id: int, question: str, history: list[str]) -> Retrieval:
     """Expand, search wide, then keep the passages Jev judges relevant.
 
     Without Jev, or if it fails, the best full-text matches are kept instead.
     """
     terms = expand_terms(question, history)
+    query_model = settings.ask_query_model if terms else None
     query = " ".join([question, *terms])
     hits = search_service.find(
         db, user_id, query, mode="any", limit=settings.ask_candidates
     )
     if not hits:
         logger.info("Library Ask found no candidates: terms=%d", len(terms))
-        return []
+        return Retrieval([], query_model, None)
 
     sources = [_source(hit) for hit in hits]
     if not settings.jev_enabled:
-        return sources[: settings.ask_max_sources]
+        return Retrieval(sources[: settings.ask_max_sources], query_model, None)
     try:
         scores = jev.relevance(question, [source.text for source in sources])
     except jev.JevError as exc:
         logger.warning("Jev relevance failed; using full-text order: %s", exc)
-        return sources[: settings.ask_max_sources]
+        return Retrieval(sources[: settings.ask_max_sources], query_model, None)
 
     ranked = sorted(zip(sources, scores), key=lambda pair: pair[1], reverse=True)
     kept = [
@@ -162,7 +169,7 @@ def retrieve(
         settings.jev_relevance_threshold,
         ",".join(f"{score:.2f}" for _, score in ranked[:10]),
     )
-    return kept
+    return Retrieval(kept, query_model, settings.jev_model)
 
 
 def build_references(sources: list[Source]) -> dict[str, CitationPart]:

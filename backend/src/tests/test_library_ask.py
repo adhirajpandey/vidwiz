@@ -68,7 +68,10 @@ def test_retrieve_keeps_only_relevant_sources(db_session, user, library, monkeyp
 
     monkeypatch.setattr(jev, "relevance", fake_relevance)
 
-    sources = retrieval.retrieve(db_session, user.id, "How do I stay focused?", [])
+    result = retrieval.retrieve(db_session, user.id, "How do I stay focused?", [])
+    sources = result.sources
+    assert result.query_model == settings.ask_query_model
+    assert result.relevance_model == settings.jev_model
 
     kinds = {source.kind for source in sources}
     assert kinds == {"moment", "transcript"}
@@ -90,9 +93,10 @@ def test_retrieve_falls_back_to_full_text_when_jev_fails(
 
     monkeypatch.setattr(jev, "relevance", broken)
 
-    sources = retrieval.retrieve(db_session, user.id, "index order", [])
+    result = retrieval.retrieve(db_session, user.id, "index order", [])
 
-    assert [source.video_id for source in sources] == ["ddddddddddd"]
+    assert [source.video_id for source in result.sources] == ["ddddddddddd"]
+    assert result.relevance_model is None
 
 
 def test_retrieve_without_candidates_returns_nothing(
@@ -101,7 +105,9 @@ def test_retrieve_without_candidates_returns_nothing(
     monkeypatch.setattr(retrieval, "expand_terms", lambda question, history: [])
     monkeypatch.setattr(settings, "jev_enabled", False)
 
-    assert retrieval.retrieve(db_session, user.id, "quantum zebra", []) == []
+    result = retrieval.retrieve(db_session, user.id, "quantum zebra", [])
+    assert result.sources == []
+    assert result.query_model is None
 
 
 def test_jev_relevance_batches_and_validates(monkeypatch):
@@ -131,8 +137,9 @@ async def test_library_message_streams_cited_answer(
     conversation = Conversation(scope=ConversationScope.LIBRARY, user_id=user.id)
     db_session.add(conversation)
     db_session.flush()
-    sources = retrieval.retrieve(db_session, user.id, "phone", [])
-    source_id = sources[0].source_id
+    source_id = (
+        retrieval.retrieve(db_session, user.id, "phone", []).sources[0].source_id
+    )
     captured, _ = fake_provider(
         monkeypatch,
         json.dumps(
@@ -170,3 +177,8 @@ async def test_library_message_streams_cited_answer(
     assert "Deep focus" in captured["messages"][0]["content"]
     saved = conversations_service.list_messages(db_session, conversation.id)
     assert [message.role for message in saved] == ["user", "assistant"]
+    assert saved[1].metadata_["models"] == {
+        "model": settings.wiz_model,
+        "query_model": settings.ask_query_model,
+        "relevance_model": settings.jev_model,
+    }

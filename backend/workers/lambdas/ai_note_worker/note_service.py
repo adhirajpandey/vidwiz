@@ -62,7 +62,7 @@ def process_moment(moment: Moment) -> None:
     if not ai_text:
         logger.error("Failed to generate AI moment", extra=extra)
         raise RuntimeError(f"Failed to generate AI moment {moment.id}")
-    if not api.save_moment_ai(moment.id, ai_text):
+    if not api.save_moment_ai(moment.id, ai_text, settings.ai_note_model):
         logger.error("Failed to save AI moment", extra=extra)
         raise RuntimeError(f"Failed to save AI moment {moment.id}")
     logger.info("AI moment saved", extra=extra)

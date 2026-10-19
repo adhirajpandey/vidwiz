@@ -124,8 +124,8 @@ def test_process_moment_uses_video_title_and_persists(monkeypatch):
         def get_video(self, _video_id):
             return {"title": "Fallback title"}
 
-        def save_moment_ai(self, moment_id, ai_text):
-            self.updated = (moment_id, ai_text)
+        def save_moment_ai(self, moment_id, ai_text, ai_model=None):
+            self.updated = (moment_id, ai_text, ai_model)
             return True
 
     class Llm:
@@ -141,7 +141,7 @@ def test_process_moment_uses_video_title_and_persists(monkeypatch):
         Moment(id=12, video_id="video-id", at_seconds=60, user_id=2)
     )
 
-    assert api.updated == (12, "Generated note")
+    assert api.updated == (12, "Generated note", note_service.settings.ai_note_model)
     assert note_service.logger.records[-1] == (
         "info",
         "AI moment saved",
@@ -209,7 +209,7 @@ def test_process_moment_raises_when_save_fails(monkeypatch):
         def get_video(self, _video_id):
             return {"title": "Fallback title"}
 
-        def save_moment_ai(self, _moment_id, _ai_text):
+        def save_moment_ai(self, _moment_id, _ai_text, _ai_model=None):
             return False
 
     monkeypatch.setattr(note_service, "transcripts", Transcripts())

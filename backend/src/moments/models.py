@@ -46,6 +46,8 @@ class Moment(Base):
     quote: Mapped[str | None] = mapped_column(Text, nullable=True)
     quote_start_seconds: Mapped[int | None] = mapped_column(nullable=True)
     ai_text: Mapped[str | None] = mapped_column(Text, nullable=True)
+    # The model that wrote ai_text.
+    ai_model: Mapped[str | None] = mapped_column(Text, nullable=True)
     note: Mapped[str | None] = mapped_column(Text, nullable=True)
     ai_status: Mapped[AiStatus] = mapped_column(
         text_enum(AiStatus), nullable=False, default=AiStatus.NOT_REQUESTED

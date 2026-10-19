@@ -101,6 +101,8 @@ class MiscellaneousDataWrite(ApiModel):
     key_points: list[KeyPointWrite] | None = Field(
         default=None, min_length=1, max_length=8
     )
+    # The model that wrote the overview; stored with a generation time.
+    overview_model: str | None = Field(default=None, max_length=200)
 
     @field_validator("suggested_questions")
     @classmethod
@@ -131,3 +133,4 @@ class MomentAiWrite(ApiModel):
     """Worker result. Null marks the generation as failed."""
 
     ai_text: str | None = Field(default=None, max_length=1000)
+    ai_model: str | None = Field(default=None, max_length=200)

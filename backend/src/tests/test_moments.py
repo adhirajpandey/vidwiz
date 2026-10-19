@@ -407,10 +407,11 @@ async def test_internal_ai_write_sets_ready_or_failed(client, db_session, user):
     response = await client.put(
         f"/v2/internal/moments/{moment.id}/ai",
         headers=admin_headers(),
-        json={"ai_text": "Index order matters"},
+        json={"ai_text": "Index order matters", "ai_model": "z-ai/test"},
     )
     assert response.status_code == 200
     assert response.json()["ai_status"] == "ready"
+    assert response.json()["ai_model"] == "z-ai/test"
     assert response.json()["ai_text"] == "Index order matters"
 
     response = await client.put(

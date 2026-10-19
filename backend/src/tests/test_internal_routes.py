@@ -187,10 +187,14 @@ async def test_internal_summary_stores_key_points_without_dropping_them(
             "miscellaneous_data": {
                 "suggested_questions": questions,
                 "key_points": points,
+                "overview_model": "qwen/test",
             },
         },
     )
     assert stored.status_code == 200
+    assert stored.json()["overview_model"] == "qwen/test"
+    video = db_session.query(Video).filter_by(video_id="kp123456789").one()
+    assert video.miscellaneous_data["overview_generated_at"]
     assert stored.json()["key_points"] == [
         {"text": "Point", "start_seconds": 10.0, "end_seconds": 55.5}
     ]

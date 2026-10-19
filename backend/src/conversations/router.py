@@ -125,7 +125,7 @@ def create_message(
     viewer: ViewerContext = Depends(get_viewer_context),
 ):
     if conversation.scope == ConversationScope.LIBRARY:
-        system_prompt, references, history, api_key = (
+        system_prompt, references, history, api_key, models = (
             conversations_service.prepare_library_chat(
                 db, conversation, payload.message
             )
@@ -138,6 +138,7 @@ def create_message(
                 conversation_id=conversation.id,
                 db=db,
                 api_key=api_key,
+                models=models,
             ),
             media_type="text/event-stream",
             headers={"Cache-Control": "no-cache"},

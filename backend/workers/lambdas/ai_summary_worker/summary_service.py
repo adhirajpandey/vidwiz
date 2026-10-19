@@ -103,6 +103,7 @@ def process_summary(video_id: str, regenerate: bool = False) -> None:
         artifacts.summary,
         artifacts.suggested_questions,
         [point.model_dump() for point in key_points],
+        settings.summary_model,
     ):
         logger.error("Failed to save AI summary", extra={"video_id": video_id})
         raise RuntimeError("Failed to persist AI summary")

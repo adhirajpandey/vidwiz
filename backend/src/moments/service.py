@@ -427,10 +427,13 @@ def collect_pending_ai(db: Session, video_id: str) -> list[Moment]:
     return queued
 
 
-def save_ai_text(db: Session, moment: Moment, ai_text: str | None) -> Moment:
+def save_ai_text(
+    db: Session, moment: Moment, ai_text: str | None, ai_model: str | None = None
+) -> Moment:
     """Store the worker result; null marks the generation as failed."""
     if ai_text:
         moment.ai_text = ai_text
+        moment.ai_model = ai_model
         moment.ai_status = AiStatus.READY
     else:
         moment.ai_status = AiStatus.FAILED

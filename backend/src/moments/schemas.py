@@ -136,6 +136,7 @@ class MomentRead(ApiModel):
     quote: str | None
     quote_start_seconds: int | None
     ai_text: str | None
+    ai_model: str | None = None
     note: str | None
     ai_status: AiStatus
     resolve_status: ResolveStatus

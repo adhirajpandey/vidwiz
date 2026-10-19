@@ -72,7 +72,7 @@ export default function MomentItem({ moment, onSeek, highlighted, showQuote = tr
         <div className="pt-0.5">{time}</div>
         <div className="min-w-0 flex-1 space-y-1.5">
           {moment.ai_text && (
-            <p className="flex gap-1.5 text-sm leading-6">
+            <p className="flex gap-1.5 text-sm leading-6" title={moment.ai_model ? `AI line by ${moment.ai_model}` : 'AI line'}>
               <Sparkles className="mt-1 size-3.5 shrink-0 text-accent" aria-label="AI line" />
               <span>{moment.ai_text}</span>
             </p>
