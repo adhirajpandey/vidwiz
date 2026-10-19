@@ -211,7 +211,6 @@ def test_lambda_environments_use_domain_specific_contracts(
                         "VIDWIZ_INTERNAL_API_BASE_URL": ("https://example.invalid"),
                         "VIDWIZ_INTERNAL_API_ADMIN_TOKEN": "fixture-admin-token",
                         "SQS_AI_NOTE_QUEUE_URL": Match.any_value(),
-                        "SQS_AI_SUMMARY_QUEUE_URL": Match.any_value(),
                     }
                 )
             },
@@ -232,6 +231,7 @@ def test_lambda_environments_use_domain_specific_contracts(
                             "VIDWIZ_INTERNAL_API_BASE_URL": ("https://example.invalid"),
                             "VIDWIZ_INTERNAL_API_ADMIN_TOKEN": "fixture-admin-token",
                             "OPENROUTER_API_KEY": "fixture-openrouter-key",
+                            "JOB_MAX_ATTEMPTS": "3",
                         }
                     )
                 },
@@ -282,6 +282,11 @@ def test_lambda_environments_use_domain_specific_contracts(
     note_environment = environments_by_name["vidwiz-v3-ai-note-worker"]
     summary_environment = environments_by_name["vidwiz-v3-ai-summary-worker"]
     assert "SUMMARY_MODEL" not in note_environment
+    # The API queues overviews; the dispatcher only queues AI lines.
+    assert (
+        "SQS_AI_SUMMARY_QUEUE_URL"
+        not in environments_by_name["vidwiz-v3-transcript-dispatcher"]
+    )
     assert "AI_NOTE_MODEL" not in summary_environment
     for function in functions.values():
         variables = function["Properties"]["Environment"]["Variables"]

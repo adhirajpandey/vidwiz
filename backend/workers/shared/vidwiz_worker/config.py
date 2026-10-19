@@ -35,6 +35,8 @@ class WorkerSettings:
     max_question_length: int
     min_question_length: int
     max_retries: int
+    # Deliveries per job; matches the queue's maxReceiveCount.
+    max_attempts: int
     request_timeout: int
     transcript_fetch_max_retries: int
     transcript_fetch_retry_delay: int
@@ -71,6 +73,7 @@ class WorkerSettings:
             max_question_length=max_question_length,
             min_question_length=min_question_length,
             max_retries=int(os.getenv("MAX_RETRIES", "3")),
+            max_attempts=int(os.getenv("JOB_MAX_ATTEMPTS", "3")),
             request_timeout=int(os.getenv("REQUEST_TIMEOUT", "30")),
             transcript_fetch_max_retries=int(
                 os.getenv("TRANSCRIPT_FETCH_MAX_RETRIES", "5")

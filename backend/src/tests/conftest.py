@@ -23,6 +23,7 @@ os.environ.setdefault(
 )
 os.environ.setdefault("GOOGLE_CLIENT_ID", "test-google-client-id")
 os.environ.setdefault("SQS_AI_NOTE_QUEUE_URL", "test-queue-url")
+os.environ.setdefault("SQS_AI_SUMMARY_QUEUE_URL", "test-summary-queue-url")
 os.environ.setdefault("AWS_ACCESS_KEY_ID", "test-aws-key")
 os.environ.setdefault("AWS_SECRET_ACCESS_KEY", "test-aws-secret")
 os.environ.setdefault("DODO_PAYMENTS_API_KEY", "test-dodo-key")
@@ -65,6 +66,7 @@ def setup_settings() -> None:
     settings.db_url = TEST_DATABASE_URL
     settings.rate_limit_enabled = False
     settings.sqs_ai_note_queue_url = "test-queue-url"
+    settings.sqs_ai_summary_queue_url = "test-summary-queue-url"
     settings.aws_access_key_id = "test-aws-key"
     settings.aws_secret_access_key = "test-aws-secret"
     settings.dodo_payments_api_key = "test-dodo-key"

@@ -392,9 +392,11 @@ def test_decoder_atomic_and_model_cannot_supply_times():
 
 @pytest.mark.asyncio
 async def test_route_stream_and_history_contract(client, db_session, monkeypatch):
-    from src.videos.models import Video
+    from src.videos.models import TranscriptStatus, Video
 
-    video = Video(video_id="abc123DEF45", transcript_available=True, title="Video")
+    video = Video(
+        video_id="abc123DEF45", transcript_status=TranscriptStatus.READY, title="Video"
+    )
     conversation = Conversation(video_id=video.video_id, guest_session_id="v2-guest")
     db_session.add_all([video, conversation])
     db_session.commit()

@@ -9,9 +9,10 @@ from src.internal import constants as internal_constants
 from src.internal.models import Task, TaskStatus
 from src.library.models import LibraryItem
 from src.moments import service as moments_service
-from src.moments.models import AiStatus, Moment, ResolveStatus
+from src.moments.models import AiStatus, CaptureSource, Moment, ResolveStatus
 from src.moments.schemas import CaptureCreate, parse_seconds
-from src.videos.models import Video
+from src.shared import queues
+from src.videos.models import TranscriptStatus, Video
 
 VIDEO_ID = "abc123DEF45"
 TRANSCRIPT = [
@@ -45,13 +46,17 @@ def sent_jobs(monkeypatch):
             jobs.append(MessageBody)
             return {}
 
-    monkeypatch.setattr(moments_service.boto3, "client", lambda *_a, **_k: Sqs())
+    monkeypatch.setattr(queues.boto3, "client", lambda *_a, **_k: Sqs())
     return jobs
 
 
 @pytest.fixture
 def transcript_ready(db_session, monkeypatch):
-    db_session.add(Video(video_id=VIDEO_ID, title="Indexes", transcript_available=True))
+    db_session.add(
+        Video(
+            video_id=VIDEO_ID, title="Indexes", transcript_status=TranscriptStatus.READY
+        )
+    )
     db_session.flush()
     monkeypatch.setattr(transcripts, "load_transcript", lambda _video_id: TRANSCRIPT)
 
@@ -180,13 +185,13 @@ def test_failed_queue_marks_moment_failed_and_retry_does_not_recharge(
         def send_message(self, **_kwargs):
             raise RuntimeError("queue down")
 
-    monkeypatch.setattr(moments_service.boto3, "client", lambda *_a, **_k: BrokenSqs())
+    monkeypatch.setattr(queues.boto3, "client", lambda *_a, **_k: BrokenSqs())
     moment, _ = capture(db_session, user, ai=True)
     assert moment.ai_status == AiStatus.FAILED
 
     jobs = []
     monkeypatch.setattr(
-        moments_service.boto3,
+        queues.boto3,
         "client",
         lambda *_a, **_k: type(
             "Sqs", (), {"send_message": lambda self, **k: jobs.append(k)}
@@ -379,7 +384,7 @@ async def test_pending_moments_charges_queues_and_flags_missing_credits(
     theirs, _ = capture(db_session, poor, ai=True)
     db_session.query(Video).filter_by(
         video_id=VIDEO_ID
-    ).one().transcript_available = True
+    ).one().transcript_status = TranscriptStatus.READY
     db_session.flush()
 
     response = await client.post(
@@ -414,6 +419,16 @@ async def test_internal_ai_write_sets_ready_or_failed(client, db_session, user):
     assert response.json()["ai_model"] == "z-ai/test"
     assert response.json()["ai_text"] == "Index order matters"
 
+    # A late failure report leaves a ready line alone.
+    response = await client.put(
+        f"/v2/internal/moments/{moment.id}/ai",
+        headers=admin_headers(),
+        json={"ai_text": None},
+    )
+    assert response.json()["ai_status"] == "ready"
+
+    moment.ai_status = AiStatus.QUEUED
+    db_session.commit()
     response = await client.put(
         f"/v2/internal/moments/{moment.id}/ai",
         headers=admin_headers(),
@@ -671,3 +686,33 @@ async def test_title_result_needs_exactly_one_outcome(client, db_session, user):
         },
     )
     assert both.status_code == 400
+
+
+def test_sweep_fails_only_stale_queued_ai_lines(db_session, user):
+    from datetime import datetime, timedelta
+
+    from sqlalchemy import update
+
+    stale, _ = capture(db_session, user)
+    fresh = Moment(
+        user_id=user.id,
+        video_id=VIDEO_ID,
+        at_seconds=500,
+        ai_status=AiStatus.QUEUED,
+        source=CaptureSource.WEB,
+    )
+    db_session.add(fresh)
+    stale.ai_status = AiStatus.QUEUED
+    db_session.commit()
+    db_session.execute(
+        update(Moment)
+        .where(Moment.id == stale.id)
+        .values(updated_at=datetime.utcnow() - timedelta(hours=1))
+    )
+    db_session.commit()
+
+    assert moments_service.sweep_stale_ai(db_session, timedelta(minutes=30)) == 1
+    db_session.refresh(stale)
+    db_session.refresh(fresh)
+    assert stale.ai_status == AiStatus.FAILED
+    assert fresh.ai_status == AiStatus.QUEUED

@@ -43,7 +43,6 @@ def _set_environment(monkeypatch):
     monkeypatch.setenv("VIDWIZ_INTERNAL_API_BASE_URL", "https://internal.example")
     monkeypatch.setenv("VIDWIZ_INTERNAL_API_ADMIN_TOKEN", "admin-token")
     monkeypatch.setenv("SQS_AI_NOTE_QUEUE_URL", "note-queue")
-    monkeypatch.setenv("SQS_AI_SUMMARY_QUEUE_URL", "summary-queue")
 
 
 def _load_module(filename, monkeypatch):
@@ -59,7 +58,7 @@ def _load_module(filename, monkeypatch):
     return module
 
 
-def test_dispatch_service_uses_domain_specific_queue_urls(monkeypatch):
+def test_dispatch_videos_queues_only_ai_lines(monkeypatch):
     dispatch_service = _load_module("dispatch_service.py", monkeypatch)
     calls = []
 
@@ -68,24 +67,16 @@ def test_dispatch_service_uses_domain_specific_queue_urls(monkeypatch):
             calls.append(kwargs)
             return {"Successful": [{"Id": "0"}]}
 
-        def send_message(self, **kwargs):
-            calls.append(kwargs)
-
     monkeypatch.setattr(dispatch_service.boto3, "client", lambda _name: FakeSqs())
+    monkeypatch.setattr(
+        dispatch_service, "collect_pending_moments", lambda _video_id: [{"id": 1}]
+    )
 
-    dispatch_service.push_moments_to_sqs_batch([{"id": 1}])
-    dispatch_service.push_summary_to_sqs("video-id")
+    dispatch_service.dispatch_videos(["video-id"])
 
-    assert calls[0]["QueueUrl"] == "note-queue"
-    assert calls[1]["QueueUrl"] == "summary-queue"
-
-
-def test_dispatch_service_skips_summary_without_summary_queue(monkeypatch):
-    monkeypatch.delenv("SQS_AI_SUMMARY_QUEUE_URL", raising=False)
-    dispatch_service = _load_module("dispatch_service.py", monkeypatch)
-    dispatch_service.SQS_AI_SUMMARY_QUEUE_URL = None
-
-    assert dispatch_service.push_summary_to_sqs("video-id") is False
+    # The API queues overviews when it stores the transcript.
+    assert [call["QueueUrl"] for call in calls] == ["note-queue"]
+    assert not hasattr(dispatch_service, "push_summary_to_sqs")
 
 
 def test_collect_pending_moments_uses_configured_request_timeout(monkeypatch):
@@ -150,7 +141,7 @@ def test_handler_delegates_s3_and_manual_video_ids(monkeypatch):
     monkeypatch.setattr(
         handler.dispatch_service,
         "dispatch_videos",
-        lambda video_ids, dispatch_summary: calls.append((video_ids, dispatch_summary)),
+        lambda video_ids: calls.append(video_ids),
     )
     event = {
         "Records": [{"s3": {"object": {"key": "transcripts/s3-video.json"}}}],
@@ -159,7 +150,7 @@ def test_handler_delegates_s3_and_manual_video_ids(monkeypatch):
 
     handler.lambda_handler(event, object())
 
-    assert calls == [(["s3-video", "manual-video"], True)]
+    assert calls == [["s3-video", "manual-video"]]
     assert FakeLogger.inject_options == {"log_event": False}
 
 

@@ -113,7 +113,6 @@ class VidwizStack(cdk.Stack):
                     settings.vidwiz_internal_api_admin_token.get_secret_value()
                 ),
                 "SQS_AI_NOTE_QUEUE_URL": ai_note_queue.queue_url,
-                "SQS_AI_SUMMARY_QUEUE_URL": ai_summary_queue.queue_url,
             },
         )
         note_worker = self._function(
@@ -154,10 +153,7 @@ class VidwizStack(cdk.Stack):
         dispatcher.add_to_role_policy(
             iam.PolicyStatement(
                 actions=["sqs:SendMessage"],
-                resources=[
-                    ai_note_queue.queue_arn,
-                    ai_summary_queue.queue_arn,
-                ],
+                resources=[ai_note_queue.queue_arn],
             )
         )
         transcript_objects = (
@@ -259,6 +255,8 @@ class VidwizStack(cdk.Stack):
             "OPENROUTER_API_KEY": api_key,
             "OPENROUTER_BASE_URL": str(settings.openrouter_base_url),
             "MAX_RETRIES": str(settings.max_retries),
+            # Workers record the failure themselves on the last delivery.
+            "JOB_MAX_ATTEMPTS": str(MAX_RECEIVE_COUNT),
             "REQUEST_TIMEOUT": str(settings.request_timeout),
             "TRANSCRIPT_FETCH_MAX_RETRIES": str(settings.transcript_fetch_max_retries),
             "TRANSCRIPT_FETCH_RETRY_DELAY": str(settings.transcript_fetch_retry_delay),

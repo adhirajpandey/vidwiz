@@ -8,7 +8,7 @@ from src.search import service as search_service
 from src.search.chunks import replace_chunks
 from src.search.models import TranscriptChunk
 from src.tests.test_moments import auth_headers
-from src.videos.models import Video
+from src.videos.models import TranscriptStatus, Video
 
 TRANSCRIPT = [
     {"text": "Today we talk about databases.", "offset": 0, "duration": 5},
@@ -175,9 +175,21 @@ def test_backfill_chunks_resumes_and_skips_missing(db_session, monkeypatch):
 
     db_session.add_all(
         [
-            Video(video_id="aaaaaaaaaaa", title="A", transcript_available=True),
-            Video(video_id="bbbbbbbbbbb", title="B", transcript_available=True),
-            Video(video_id="ccccccccccc", title="C", transcript_available=False),
+            Video(
+                video_id="aaaaaaaaaaa",
+                title="A",
+                transcript_status=TranscriptStatus.READY,
+            ),
+            Video(
+                video_id="bbbbbbbbbbb",
+                title="B",
+                transcript_status=TranscriptStatus.READY,
+            ),
+            Video(
+                video_id="ccccccccccc",
+                title="C",
+                transcript_status=TranscriptStatus.PENDING,
+            ),
         ]
     )
     db_session.flush()

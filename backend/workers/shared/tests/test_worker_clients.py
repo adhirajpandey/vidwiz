@@ -176,3 +176,30 @@ def test_openrouter_client_logs_safe_provider_error(settings):
         )
     ]
     assert "sensitive provider response" not in str(logger.records)
+
+
+def test_fail_overview_posts_to_the_internal_route():
+    from types import SimpleNamespace
+
+    from vidwiz_worker.clients import InternalApiClient
+
+    calls = []
+
+    class Session:
+        def post(self, url, **kwargs):
+            calls.append((url, kwargs["json"]))
+            return SimpleNamespace(status_code=200)
+
+    settings = SimpleNamespace(
+        internal_api_admin_token="token",
+        internal_api_base_url="https://api.example",
+        request_timeout=5,
+    )
+    client = InternalApiClient(
+        settings, SimpleNamespace(error=print), session=Session()
+    )
+
+    assert client.fail_overview("abc123DEF45") is True
+    assert calls == [
+        ("https://api.example/v2/internal/videos/abc123DEF45/overview/failed", {})
+    ]

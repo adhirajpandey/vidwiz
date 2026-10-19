@@ -5,7 +5,8 @@ from pydantic import ValidationError
 
 from vidwiz_worker.clients import InternalApiClient, OpenRouterClient
 from vidwiz_worker.config import WorkerSettings
-from vidwiz_worker.models import KeyPoint, SummaryArtifacts, SummaryRequest
+from vidwiz_worker.jobs import PermanentError, run_job
+from vidwiz_worker.models import KeyPoint, SummaryArtifacts
 from vidwiz_worker.transcript import S3TranscriptRepository, transcript_passages
 
 SUMMARY_PROMPT_TEMPLATE = """Generate an overview of the video based only on the following transcript passages: a summary, key points, and three suggested questions.
@@ -62,41 +63,39 @@ llm = OpenRouterClient(settings, logger, model=settings.summary_model)
 KEY_POINT_MAX_CHARS = 200
 
 
-def process_batch(requests: list[SummaryRequest]) -> None:
-    for request in requests:
-        process_summary(request.video_id, regenerate=request.regenerate)
-
-
-def process_summary(video_id: str, regenerate: bool = False) -> None:
-    logger.info(
-        "Processing AI summary",
+def process_job(video_id: str, attempt: int) -> None:
+    run_job(
+        lambda: process_summary(video_id),
+        lambda: api.fail_overview(video_id),
+        attempt=attempt,
+        max_attempts=settings.max_attempts,
+        logger=logger,
         extra={"video_id": video_id},
     )
+
+
+def process_summary(video_id: str) -> None:
+    """Write and save the overview while the video's overview is queued.
+
+    Any other state means the job is a duplicate delivery or was already
+    settled, so it is skipped.
+    """
+    logger.info("Processing AI summary", extra={"video_id": video_id})
     video = api.get_video(video_id)
     if not video:
-        logger.error("Failed to fetch video details", extra={"video_id": video_id})
-        return
-    # Older summaries have no key points; they are regenerated as overviews.
-    if video.get("summary") and video.get("key_points") and not regenerate:
+        raise RuntimeError("Could not fetch the video")
+    if video.get("overview_status") != "queued":
         logger.info(
-            "AI overview already exists; skipping",
-            extra={"video_id": video_id},
+            "Overview is not queued; skipping",
+            extra={"video_id": video_id, "status": video.get("overview_status")},
         )
         return
     transcript = transcripts.get(video_id)
     if not transcript:
-        logger.error(
-            "Transcript not available for AI summary",
-            extra={"video_id": video_id},
-        )
-        return
+        raise PermanentError("Transcript not available")
     passages = transcript_passages(transcript)
     if not passages:
-        logger.error(
-            "Transcript has no usable passages for AI overview",
-            extra={"video_id": video_id},
-        )
-        return
+        raise PermanentError("Transcript has no usable passages")
     artifacts, key_points = _valid_artifacts(video.get("title"), passages)
     if not api.update_summary(
         video_id,
@@ -105,12 +104,8 @@ def process_summary(video_id: str, regenerate: bool = False) -> None:
         [point.model_dump() for point in key_points],
         settings.summary_model,
     ):
-        logger.error("Failed to save AI summary", extra={"video_id": video_id})
         raise RuntimeError("Failed to persist AI summary")
-    logger.info(
-        "AI summary saved",
-        extra={"video_id": video_id},
-    )
+    logger.info("AI summary saved", extra={"video_id": video_id})
 
 
 def _valid_artifacts(
@@ -137,14 +132,16 @@ def _valid_artifacts(
             response_format=response_format,
             require_parameters=True,
         )
-        if generated is not None:
-            try:
-                artifacts = SummaryArtifacts.model_validate_json(generated)
-                key_points = _resolve_key_points(artifacts, by_id)
-                if _lengths_are_valid(artifacts) and key_points:
-                    return artifacts, key_points
-            except (ValidationError, ValueError):
-                pass
+        if generated is None:
+            # The request failed, not the output; SQS retries the job later.
+            raise RuntimeError("Model request failed")
+        try:
+            artifacts = SummaryArtifacts.model_validate_json(generated)
+            key_points = _resolve_key_points(artifacts, by_id)
+            if _lengths_are_valid(artifacts) and key_points:
+                return artifacts, key_points
+        except (ValidationError, ValueError):
+            pass
         logger.warning(
             "Generated structured summary is invalid",
             extra={
@@ -152,7 +149,7 @@ def _valid_artifacts(
                 "max_retries": settings.max_retries,
             },
         )
-    raise RuntimeError("Failed to generate a valid structured summary")
+    raise PermanentError("Failed to generate a valid structured summary")
 
 
 def _resolve_key_points(

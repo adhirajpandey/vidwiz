@@ -18,8 +18,6 @@ class Moment(BaseModel):
 
 class SummaryRequest(BaseModel):
     video_id: str
-    # Regenerate even when an overview exists, for example after a model change.
-    regenerate: bool = False
 
 
 class ModelKeyPoint(BaseModel):

@@ -160,6 +160,23 @@ def store_summary(
     return VideoRead.model_validate(video)
 
 
+@router.post(
+    "/videos/{video_id}/overview/failed",
+    response_model=VideoRead,
+    status_code=status.HTTP_200_OK,
+    description=(
+        "Mark a queued overview failed. Called by the worker when it gives up."
+    ),
+)
+@limiter.exempt
+def fail_overview(
+    path: VideoIdPath = Depends(),
+    db: Session = Depends(get_db),
+    _: None = Depends(require_admin_token),
+) -> VideoRead:
+    return VideoRead.model_validate(internal_service.fail_overview(db, path.video_id))
+
+
 @router.get(
     "/videos/{video_id}",
     response_model=VideoRead,

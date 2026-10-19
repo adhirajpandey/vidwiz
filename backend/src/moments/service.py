@@ -1,8 +1,8 @@
-import json
 import logging
+from datetime import timedelta
 
-import boto3
 from sqlalchemy import func, select
+from sqlalchemy import update as sql_update
 from sqlalchemy.orm import Session
 
 from src import transcripts
@@ -16,6 +16,7 @@ from src.internal.models import Task, TaskStatus
 from src.internal.scheduling import prepare_video
 from src.library import service as library_service
 from src.library.models import LibraryItem
+from src.shared.queues import send_job
 from src.moments.models import AiStatus, CaptureSource, Moment, ResolveStatus
 from src.moments.schemas import (
     CaptureCreate,
@@ -25,7 +26,7 @@ from src.moments.schemas import (
     PassageSave,
 )
 from src.videos import service as videos_service
-from src.videos.models import Video
+from src.videos.models import TranscriptStatus, Video
 
 logger = logging.getLogger(__name__)
 
@@ -173,7 +174,7 @@ def _merge(db: Session, moment: Moment, note: str | None, wants_ai: bool) -> boo
 def _attach_transcript_work(db: Session, moment: Moment, wants_ai: bool) -> bool:
     """Add the quote now if the transcript exists, and request AI if wanted."""
     video = videos_service.get_video_by_id(db, moment.video_id)
-    if video and video.transcript_available:
+    if video and video.has_transcript:
         transcript = transcripts.load_transcript(moment.video_id)
         if transcript:
             apply_quote(moment, transcript)
@@ -185,7 +186,10 @@ def _attach_transcript_work(db: Session, moment: Moment, wants_ai: bool) -> bool
 def _request_ai(db: Session, moment: Moment) -> bool:
     """Set the AI status for a request. Returns True when the job should be sent."""
     video = videos_service.get_video_by_id(db, moment.video_id)
-    if video is None or not video.transcript_available:
+    if video is not None and video.transcript_status == TranscriptStatus.UNAVAILABLE:
+        moment.ai_status = AiStatus.NO_TRANSCRIPT
+        return False
+    if video is None or not video.has_transcript:
         moment.ai_status = AiStatus.WAITING_TRANSCRIPT
         return False
     db.flush()
@@ -215,9 +219,7 @@ def save_passage(
         return existing, True
 
     transcript = (
-        transcripts.load_transcript(payload.video_id)
-        if video.transcript_available
-        else None
+        transcripts.load_transcript(payload.video_id) if video.has_transcript else None
     )
     moment = Moment(
         user_id=user_id,
@@ -260,17 +262,8 @@ def queue_payload(moment: Moment) -> dict:
 
 
 def push_moment_to_sqs(db: Session, moment: Moment) -> None:
-    payload = queue_payload(moment)
     try:
-        sqs = boto3.client(
-            "sqs",
-            region_name=settings.aws_region,
-            aws_access_key_id=settings.aws_access_key_id,
-            aws_secret_access_key=settings.aws_secret_access_key,
-        )
-        sqs.send_message(
-            QueueUrl=settings.sqs_ai_note_queue_url, MessageBody=json.dumps(payload)
-        )
+        send_job(settings.sqs_ai_note_queue_url, queue_payload(moment))
         logger.info("Queued AI moment", extra={"moment_id": moment.id})
     except Exception as exc:
         # The charge stays recorded once, so a retry does not charge again.
@@ -430,16 +423,34 @@ def collect_pending_ai(db: Session, video_id: str) -> list[Moment]:
 def save_ai_text(
     db: Session, moment: Moment, ai_text: str | None, ai_model: str | None = None
 ) -> Moment:
-    """Store the worker result; null marks the generation as failed."""
+    """Store the worker result; null marks a queued generation as failed."""
     if ai_text:
         moment.ai_text = ai_text
         moment.ai_model = ai_model
         moment.ai_status = AiStatus.READY
-    else:
+    elif moment.ai_status == AiStatus.QUEUED:
         moment.ai_status = AiStatus.FAILED
     db.commit()
     db.refresh(moment)
     return moment
+
+
+def sweep_stale_ai(db: Session, older_than: timedelta) -> int:
+    """Fail AI lines queued longer than any worker attempt can take.
+
+    The worker reports its own failures; this covers jobs whose report never
+    arrived. A failed line can be requested again without a new charge.
+    """
+    result = db.execute(
+        sql_update(Moment)
+        .where(
+            Moment.ai_status == AiStatus.QUEUED,
+            Moment.updated_at < func.now() - older_than,
+        )
+        .values(ai_status=AiStatus.FAILED)
+    )
+    db.commit()
+    return result.rowcount
 
 
 def list_for_video(db: Session, user_id: int, video_id: str) -> list[Moment]:

@@ -3,10 +3,16 @@
 Usage, from the backend directory with the deployment's environment:
 
     python -m src.management.backfill chunks [--missing-only]
+    python -m src.management.backfill overviews --limit N
 
 `chunks` reads each transcript-ready video's transcript from S3 and stores its
 searchable passages. With --missing-only, videos that already have passages
 are skipped, so an interrupted run can resume.
+
+`overviews` queues up to N overviews, most recently used videos first: those
+never written, failed, or written before key points existed. Videos whose
+transcript is not in the bucket yet are skipped. Each overview costs model
+usage, so batches stay small.
 """
 
 import argparse
@@ -18,7 +24,8 @@ from src import database, transcripts
 from src.model_registry import import_models
 from src.search.chunks import replace_chunks
 from src.search.models import TranscriptChunk
-from src.videos.models import Video
+from src.videos import overview
+from src.videos.models import OverviewStatus, TranscriptStatus, Video
 
 logger = logging.getLogger("vidwiz.backfill")
 
@@ -26,7 +33,9 @@ logger = logging.getLogger("vidwiz.backfill")
 def backfill_chunks(missing_only: bool) -> None:
     db = database.SessionLocal()
     try:
-        query = select(Video.video_id).where(Video.transcript_available.is_(True))
+        query = select(Video.video_id).where(
+            Video.transcript_status == TranscriptStatus.READY
+        )
         if missing_only:
             query = query.where(
                 ~exists().where(TranscriptChunk.video_id == Video.video_id)
@@ -53,17 +62,38 @@ def backfill_chunks(missing_only: bool) -> None:
         db.close()
 
 
+def backfill_overviews(limit: int) -> None:
+    db = database.SessionLocal()
+    try:
+        queued = missing = 0
+        for video in overview.backfill_candidates(db, limit):
+            if not transcripts.load_transcript(video.video_id):
+                missing += 1
+                continue
+            overview.queue(db, video)
+            queued += video.overview_status == OverviewStatus.QUEUED
+        logger.info(
+            "Overview backfill done: queued=%d missing_transcript=%d", queued, missing
+        )
+    finally:
+        db.close()
+
+
 def main() -> None:
     parser = argparse.ArgumentParser(description="VidWiz v3 backfills")
     commands = parser.add_subparsers(dest="command", required=True)
     chunks = commands.add_parser("chunks", help="Store transcript passages for search")
     chunks.add_argument("--missing-only", action="store_true")
+    overviews = commands.add_parser("overviews", help="Queue overviews in a batch")
+    overviews.add_argument("--limit", type=int, required=True)
     args = parser.parse_args()
 
     logging.basicConfig(level=logging.INFO, format="%(levelname)s %(message)s")
     import_models()
     if args.command == "chunks":
         backfill_chunks(args.missing_only)
+    elif args.command == "overviews":
+        backfill_overviews(args.limit)
 
 
 if __name__ == "__main__":

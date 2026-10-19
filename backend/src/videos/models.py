@@ -1,9 +1,27 @@
+import enum
 from datetime import datetime
 
-from sqlalchemy import Boolean, JSON, Text, func
+from sqlalchemy import JSON, Text, func
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from src.database import Base
+from src.shared.types import text_enum
+
+
+class TranscriptStatus(str, enum.Enum):
+    PENDING = "pending"
+    READY = "ready"
+    # Fetching failed for good; a new capture schedules another attempt.
+    UNAVAILABLE = "unavailable"
+
+
+class OverviewStatus(str, enum.Enum):
+    # Waiting for the transcript.
+    PENDING = "pending"
+    QUEUED = "queued"
+    READY = "ready"
+    FAILED = "failed"
+    NO_TRANSCRIPT = "no_transcript"
 
 
 class Video(Base):
@@ -13,8 +31,17 @@ class Video(Base):
     video_id: Mapped[str] = mapped_column(Text, unique=True, nullable=False)
     title: Mapped[str | None] = mapped_column(Text, nullable=True)
     video_metadata: Mapped[dict | None] = mapped_column(JSON, nullable=True)
-    transcript_available: Mapped[bool] = mapped_column(Boolean, default=False)
+    transcript_status: Mapped[TranscriptStatus] = mapped_column(
+        text_enum(TranscriptStatus), nullable=False, default=TranscriptStatus.PENDING
+    )
     summary: Mapped[str | None] = mapped_column(Text, nullable=True)
+    overview_status: Mapped[OverviewStatus] = mapped_column(
+        text_enum(OverviewStatus), nullable=False, default=OverviewStatus.PENDING
+    )
+    # When overview_status last changed; the sweep fails overviews queued too long.
+    overview_status_at: Mapped[datetime] = mapped_column(
+        default=func.now(), server_default=func.now()
+    )
     miscellaneous_data: Mapped[dict] = mapped_column(JSON, nullable=False, default=dict)
     created_at: Mapped[datetime] = mapped_column(
         default=func.now(), server_default=func.now()
@@ -24,6 +51,10 @@ class Video(Base):
     )
 
     moments = relationship("Moment", back_populates="video")
+
+    @property
+    def has_transcript(self) -> bool:
+        return self.transcript_status == TranscriptStatus.READY
 
     @property
     def overview_model(self) -> str | None:

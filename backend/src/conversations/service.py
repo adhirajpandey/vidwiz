@@ -279,7 +279,7 @@ def get_valid_transcript_or_raise(
     if not video:
         raise NotFoundError("Video not found")
 
-    if not video.transcript_available:
+    if not video.has_transcript:
         logger.debug("Transcript not available", extra={"video_id": video_id})
         return None
 

@@ -6,7 +6,7 @@ from src.internal import service as internal_service
 from src.internal import scheduling as internal_scheduling
 from src.internal import constants as internal_constants
 from src.internal.models import Task, TaskStatus
-from src.videos.models import Video
+from src.videos.models import TranscriptStatus, Video
 from src.internal.schemas import TaskResultRequest
 
 
@@ -234,7 +234,7 @@ def test_create_task_idempotent(db_session):
 
 
 def test_prepare_video_schedules_missing_tasks(db_session):
-    existing = Video(video_id="vidschedule2", transcript_available=True)
+    existing = Video(video_id="vidschedule2", transcript_status=TranscriptStatus.READY)
     db_session.add(existing)
     db_session.commit()
 
@@ -252,3 +252,127 @@ def test_prepare_video_schedules_missing_tasks(db_session):
         (internal_constants.FETCH_TRANSCRIPT_TASK_TYPE, "vidschedule1"),
         (internal_constants.FETCH_METADATA_TASK_TYPE, "vidschedule2"),
     }
+
+
+@pytest.fixture
+def overview_jobs(monkeypatch):
+    from src.videos import overview
+
+    sent = []
+    monkeypatch.setattr(
+        overview, "send_job", lambda _url, payload: sent.append(payload)
+    )
+    return sent
+
+
+def _claimed_transcript_task(db_session, video_id: str, retry_count: int = 1) -> Task:
+    task = Task(
+        task_type=internal_constants.FETCH_TRANSCRIPT_TASK_TYPE,
+        status=TaskStatus.IN_PROGRESS,
+        task_details={"video_id": video_id},
+        retry_count=retry_count,
+    )
+    db_session.add(task)
+    db_session.commit()
+    return task
+
+
+def test_transcript_task_success_queues_the_overview(
+    db_session, monkeypatch, overview_jobs
+):
+    from src.videos.models import OverviewStatus
+
+    monkeypatch.setattr(internal_service, "store_transcript_in_s3", lambda *_a: None)
+    video = Video(video_id="trsucc12345")
+    db_session.add(video)
+    task = _claimed_transcript_task(db_session, video.video_id)
+
+    internal_service.submit_task_result(
+        db_session,
+        task.id,
+        TaskResultRequest(
+            video_id=video.video_id,
+            success=True,
+            transcript=[{"text": "hi", "offset": 0, "duration": 1}],
+        ),
+    )
+
+    db_session.refresh(video)
+    assert video.transcript_status == TranscriptStatus.READY
+    assert video.overview_status == OverviewStatus.QUEUED
+    assert overview_jobs == [{"video_id": "trsucc12345"}]
+
+
+@pytest.mark.parametrize("final_failure", [True, False])
+def test_transcript_task_without_a_transcript_marks_it_unavailable(
+    db_session, overview_jobs, final_failure
+):
+    from src.videos.models import OverviewStatus
+
+    video = Video(video_id="trnone12345")
+    db_session.add(video)
+    task = _claimed_transcript_task(
+        db_session, video.video_id, retry_count=internal_constants.TASK_MAX_RETRIES
+    )
+    result = (
+        TaskResultRequest(video_id=video.video_id, success=False, error_message="none")
+        if final_failure
+        else TaskResultRequest(video_id=video.video_id, success=True, transcript=None)
+    )
+
+    internal_service.submit_task_result(db_session, task.id, result)
+
+    db_session.refresh(video)
+    assert video.transcript_status == TranscriptStatus.UNAVAILABLE
+    assert video.overview_status == OverviewStatus.NO_TRANSCRIPT
+    assert overview_jobs == []
+
+
+def test_saving_a_summary_marks_the_overview_ready(db_session):
+    from src.videos.models import OverviewStatus
+
+    video = Video(video_id="sumready123", overview_status=OverviewStatus.QUEUED)
+    db_session.add(video)
+    db_session.commit()
+
+    internal_service.store_summary(db_session, video.video_id, "Summary")
+
+    assert video.overview_status == OverviewStatus.READY
+
+
+def test_fail_overview_only_fails_a_queued_overview(db_session):
+    from src.exceptions import NotFoundError
+    from src.videos.models import OverviewStatus
+
+    queued = Video(video_id="failq123456", overview_status=OverviewStatus.QUEUED)
+    ready = Video(video_id="failr123456", overview_status=OverviewStatus.READY)
+    db_session.add_all([queued, ready])
+    db_session.commit()
+
+    assert (
+        internal_service.fail_overview(db_session, queued.video_id).overview_status
+        == OverviewStatus.FAILED
+    )
+    assert (
+        internal_service.fail_overview(db_session, ready.video_id).overview_status
+        == OverviewStatus.READY
+    )
+    with pytest.raises(NotFoundError):
+        internal_service.fail_overview(db_session, "missing1234")
+
+
+def test_new_capture_retries_an_unavailable_transcript(db_session):
+    from src.videos.models import OverviewStatus
+
+    video = Video(
+        video_id="retrytr1234",
+        transcript_status=TranscriptStatus.UNAVAILABLE,
+        overview_status=OverviewStatus.NO_TRANSCRIPT,
+    )
+    db_session.add(video)
+    db_session.commit()
+
+    internal_scheduling.schedule_video_tasks(db_session, video)
+
+    assert video.transcript_status == TranscriptStatus.PENDING
+    assert video.overview_status == OverviewStatus.PENDING

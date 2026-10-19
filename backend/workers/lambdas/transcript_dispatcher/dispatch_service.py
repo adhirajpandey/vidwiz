@@ -9,7 +9,6 @@ from aws_lambda_powertools import Logger
 VIDWIZ_INTERNAL_API_BASE_URL = os.getenv("VIDWIZ_INTERNAL_API_BASE_URL")
 VIDWIZ_INTERNAL_API_ADMIN_TOKEN = os.getenv("VIDWIZ_INTERNAL_API_ADMIN_TOKEN")
 SQS_AI_NOTE_QUEUE_URL = os.getenv("SQS_AI_NOTE_QUEUE_URL")
-SQS_AI_SUMMARY_QUEUE_URL = os.getenv("SQS_AI_SUMMARY_QUEUE_URL")
 REQUEST_TIMEOUT = int(os.getenv("REQUEST_TIMEOUT", "30"))
 
 assert VIDWIZ_INTERNAL_API_BASE_URL, "VIDWIZ_INTERNAL_API_BASE_URL is not set"
@@ -101,45 +100,16 @@ def push_moments_to_sqs_batch(moments: List[Dict[str, Any]]) -> Dict[str, Any]:
     return {"sent": total_sent, "failed": total_failed, "batches": len(results)}
 
 
-def push_summary_to_sqs(video_id: str) -> bool:
-    if not SQS_AI_SUMMARY_QUEUE_URL:
-        logger.error(
-            "Summary queue is not configured",
-            extra={"video_id": video_id},
-        )
-        return False
+def dispatch_videos(video_ids: List[str]) -> None:
+    """Queue the AI lines waiting for each video's transcript.
 
-    sqs = boto3.client("sqs")
-    try:
-        sqs.send_message(
-            QueueUrl=SQS_AI_SUMMARY_QUEUE_URL,
-            MessageBody=json.dumps({"video_id": video_id}),
-        )
-        logger.info(
-            "Sent AI summary request to SQS",
-            extra={"video_id": video_id},
-        )
-        return True
-    except Exception as error:
-        logger.error(
-            "Failed to send AI summary request to SQS",
-            extra={
-                "video_id": video_id,
-                "error_type": type(error).__name__,
-            },
-        )
-        return False
-
-
-def dispatch_videos(video_ids: List[str], dispatch_summary: bool) -> None:
+    The API queues the overview itself when it stores the transcript.
+    """
     for video_id in video_ids:
         logger.info(
             "Processing video dispatch",
             extra={"video_id": video_id},
         )
-
-        if dispatch_summary:
-            push_summary_to_sqs(video_id)
 
         moments = collect_pending_moments(video_id)
         if moments is None:

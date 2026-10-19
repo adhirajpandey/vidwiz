@@ -7,7 +7,7 @@ from src.conversations import service as conversations_service
 from src.config import settings
 from src.conversations.models import Conversation
 from src.exceptions import RateLimitError, NotFoundError, InternalServerError
-from src.videos.models import Video
+from src.videos.models import TranscriptStatus, Video
 
 
 def test_get_valid_transcript_or_raise_missing_video(db_session):
@@ -16,7 +16,11 @@ def test_get_valid_transcript_or_raise_missing_video(db_session):
 
 
 def test_get_valid_transcript_or_raise_returns_none_when_not_ready(db_session):
-    video = Video(video_id="abc123DEF45", title="Video", transcript_available=False)
+    video = Video(
+        video_id="abc123DEF45",
+        title="Video",
+        transcript_status=TranscriptStatus.PENDING,
+    )
     db_session.add(video)
     db_session.commit()
     assert (
@@ -58,7 +62,11 @@ def test_check_daily_quota_enforces_limit(db_session, monkeypatch, user):
 
 
 def test_prepare_chat_returns_processing_when_transcript_missing(db_session, user):
-    video = Video(video_id="abc123DEF45", title="Video", transcript_available=False)
+    video = Video(
+        video_id="abc123DEF45",
+        title="Video",
+        transcript_status=TranscriptStatus.PENDING,
+    )
     conversation = Conversation(video_id=video.video_id, user_id=user.id)
     db_session.add_all([video, conversation])
     db_session.commit()
@@ -124,7 +132,9 @@ def test_prepare_chat_returns_history_when_transcript_ready(
     monkeypatch.setattr(settings, "openrouter_api_key", "key", raising=False)
     monkeypatch.setattr(settings, "wiz_user_daily_quota", 99, raising=False)
 
-    video = Video(video_id="abc123DEF45", title="Video", transcript_available=True)
+    video = Video(
+        video_id="abc123DEF45", title="Video", transcript_status=TranscriptStatus.READY
+    )
     conversation = Conversation(video_id=video.video_id, user_id=user.id)
     db_session.add_all([video, conversation])
     db_session.commit()

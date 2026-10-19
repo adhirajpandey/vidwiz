@@ -43,11 +43,16 @@ def _install_powertools_stubs(monkeypatch):
     parser = ModuleType("aws_lambda_powertools.utilities.parser")
     parser.envelopes = SimpleNamespace(SqsEnvelope=object())
     parser.event_parser = lambda **_kwargs: lambda function: function
+    parser_models = ModuleType("aws_lambda_powertools.utilities.parser.models")
+    parser_models.SqsModel = object
     typing = ModuleType("aws_lambda_powertools.utilities.typing")
     typing.LambdaContext = object
     monkeypatch.setitem(sys.modules, "aws_lambda_powertools", powertools)
     monkeypatch.setitem(sys.modules, "aws_lambda_powertools.utilities", utilities)
     monkeypatch.setitem(sys.modules, "aws_lambda_powertools.utilities.parser", parser)
+    monkeypatch.setitem(
+        sys.modules, "aws_lambda_powertools.utilities.parser.models", parser_models
+    )
     monkeypatch.setitem(sys.modules, "aws_lambda_powertools.utilities.typing", typing)
 
 
@@ -118,26 +123,16 @@ def _settings(**overrides):
 
 
 @pytest.mark.parametrize(
-    ("video", "regenerate", "skips"),
-    [
-        ({"summary": "Existing", "key_points": [{"text": "x"}]}, False, True),
-        ({"summary": "Existing", "key_points": [{"text": "x"}]}, True, False),
-        (
-            {"summary": "Old summary without key points", "key_points": None},
-            False,
-            False,
-        ),
-    ],
+    ("status", "generates"),
+    [("queued", True), ("ready", False), ("failed", False), ("pending", False)],
 )
-def test_process_summary_skips_only_complete_overviews(
-    monkeypatch, video, regenerate, skips
-):
+def test_process_summary_generates_only_while_queued(monkeypatch, status, generates):
     summary_service = _load_module("summary_service.py", monkeypatch)
     saved = []
 
     class Api:
         def get_video(self, _video_id):
-            return {"title": "Video", **video}
+            return {"title": "Video", "summary": "Old", "overview_status": status}
 
         def update_summary(self, *args):
             saved.append(args)
@@ -156,26 +151,63 @@ def test_process_summary_skips_only_complete_overviews(
         ),
     )
 
-    summary_service.process_summary("video-id", regenerate=regenerate)
+    summary_service.process_summary("video-id")
 
-    assert (saved == []) is skips
+    assert bool(saved) is generates
 
 
-def test_process_batch_passes_regenerate_and_propagates_failure(monkeypatch):
+@pytest.mark.parametrize(
+    ("transcript", "reason"),
+    [(None, "Transcript not available"), ([{"text": ""}], "no usable passages")],
+)
+def test_process_summary_missing_transcript_is_permanent(
+    monkeypatch, transcript, reason
+):
     summary_service = _load_module("summary_service.py", monkeypatch)
-    calls = []
+    monkeypatch.setattr(
+        summary_service,
+        "api",
+        SimpleNamespace(get_video=lambda _id: {"overview_status": "queued"}),
+    )
+    monkeypatch.setattr(
+        summary_service, "transcripts", SimpleNamespace(get=lambda _id: transcript)
+    )
 
-    def fake(video_id, regenerate=False):
-        calls.append((video_id, regenerate))
-        raise RuntimeError("retry")
+    with pytest.raises(summary_service.PermanentError, match=reason):
+        summary_service.process_summary("video-id")
 
-    monkeypatch.setattr(summary_service, "process_summary", fake)
 
-    with pytest.raises(RuntimeError, match="retry"):
-        summary_service.process_batch(
-            [SimpleNamespace(video_id="video-id", regenerate=True)]
-        )
-    assert calls == [("video-id", True)]
+def test_process_summary_retries_when_the_api_is_unreachable(monkeypatch):
+    summary_service = _load_module("summary_service.py", monkeypatch)
+    monkeypatch.setattr(
+        summary_service, "api", SimpleNamespace(get_video=lambda _id: None)
+    )
+
+    with pytest.raises(RuntimeError, match="fetch the video"):
+        summary_service.process_summary("video-id")
+
+
+def test_process_job_records_the_failure_on_the_last_attempt(monkeypatch):
+    summary_service = _load_module("summary_service.py", monkeypatch)
+    failed = []
+
+    def broken(_video_id):
+        raise RuntimeError("API down")
+
+    monkeypatch.setattr(summary_service, "process_summary", broken)
+    monkeypatch.setattr(
+        summary_service,
+        "api",
+        SimpleNamespace(fail_overview=lambda video_id: failed.append(video_id) or True),
+    )
+    monkeypatch.setattr(summary_service, "settings", _settings(max_attempts=3))
+
+    with pytest.raises(RuntimeError, match="API down"):
+        summary_service.process_job("video-id", attempt=2)
+    assert failed == []
+
+    summary_service.process_job("video-id", attempt=3)
+    assert failed == ["video-id"]
 
 
 def test_valid_artifacts_resolve_key_points_to_passage_times(monkeypatch):
@@ -250,7 +282,7 @@ def test_valid_artifacts_raise_after_invalid_final_retry(monkeypatch):
         ),
     )
 
-    with pytest.raises(RuntimeError, match="structured summary"):
+    with pytest.raises(summary_service.PermanentError, match="structured summary"):
         summary_service._valid_artifacts(None, PASSAGES)
     assert len(prompts) == 2
     assert prompts[0] is prompts[1]
@@ -261,18 +293,37 @@ def test_valid_artifacts_raise_after_invalid_final_retry(monkeypatch):
     assert '{"summary":"bad"}' not in str(warnings)
 
 
-def test_handler_delegates_parsed_batch(monkeypatch):
+def test_valid_artifacts_retry_failed_requests_through_sqs(monkeypatch):
+    summary_service = _load_module("summary_service.py", monkeypatch)
+    monkeypatch.setattr(summary_service, "settings", _settings(max_retries=3))
+    calls = []
+    monkeypatch.setattr(
+        summary_service,
+        "llm",
+        SimpleNamespace(complete=lambda *_a, **_k: calls.append(1)),
+    )
+
+    with pytest.raises(RuntimeError, match="Model request failed"):
+        summary_service._valid_artifacts(None, PASSAGES)
+    assert len(calls) == 1
+
+
+def test_handler_passes_each_record_and_its_receive_count(monkeypatch):
     handler = _load_module("handler.py", monkeypatch)
     calls = []
     monkeypatch.setattr(
         handler.summary_service,
-        "process_batch",
-        lambda event: calls.append(event),
+        "process_job",
+        lambda video_id, attempt: calls.append((video_id, attempt)),
+    )
+    record = SimpleNamespace(
+        body='{"video_id": "abc123DEF45"}',
+        attributes=SimpleNamespace(ApproximateReceiveCount="2"),
     )
 
-    handler.lambda_handler(["summary"], object())
+    handler.lambda_handler(SimpleNamespace(Records=[record]), object())
 
-    assert calls == [["summary"]]
+    assert calls == [("abc123DEF45", 2)]
     assert FakeLogger.inject_options == {"log_event": False}
 
 
@@ -283,7 +334,7 @@ def test_process_summary_persists_overview(monkeypatch, persisted):
 
     class Api:
         def get_video(self, _video_id):
-            return {"title": "Video", "summary": None}
+            return {"title": "Video", "summary": None, "overview_status": "queued"}
 
         def update_summary(self, *args):
             saved.append(args)

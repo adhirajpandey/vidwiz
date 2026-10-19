@@ -3,10 +3,8 @@ import pytest
 from src import transcripts
 from src.conversations import service as conversations_service
 from src.conversations.models import Conversation, ConversationScope
-from src.internal import constants as internal_constants
-from src.internal.models import Task, TaskStatus
 from src.tests.test_moments import auth_headers
-from src.videos.models import Video
+from src.videos.models import TranscriptStatus, Video
 
 
 def add_chat(db_session, user, video_id, questions, scope=ConversationScope.VIDEO):
@@ -110,18 +108,18 @@ async def test_create_library_conversation_rules(client, user):
 async def test_transcript_endpoint_states(client, db_session, user, monkeypatch):
     db_session.add_all(
         [
-            Video(video_id="aaaaaaaaaaa", title="Ready", transcript_available=True),
+            Video(
+                video_id="aaaaaaaaaaa",
+                title="Ready",
+                transcript_status=TranscriptStatus.READY,
+            ),
             Video(video_id="bbbbbbbbbbb", title="Pending"),
-            Video(video_id="ccccccccccc", title="Failed"),
+            Video(
+                video_id="ccccccccccc",
+                title="Failed",
+                transcript_status=TranscriptStatus.UNAVAILABLE,
+            ),
         ]
-    )
-    db_session.add(
-        Task(
-            task_type=internal_constants.FETCH_TRANSCRIPT_TASK_TYPE,
-            status=TaskStatus.FAILED,
-            retry_count=internal_constants.TASK_MAX_RETRIES,
-            task_details={"video_id": "ccccccccccc"},
-        )
     )
     db_session.flush()
     monkeypatch.setattr(
@@ -155,7 +153,7 @@ async def test_transcript_endpoint_states(client, db_session, user, monkeypatch)
     ]
     assert pending == {
         "video_id": "bbbbbbbbbbb",
-        "status": "processing",
+        "status": "pending",
         "segments": [],
     }
     assert failed["status"] == "unavailable"

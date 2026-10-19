@@ -4,6 +4,7 @@ from typing import Literal
 from pydantic import Field, field_validator
 
 from src.models import ApiModel
+from src.videos.models import OverviewStatus, TranscriptStatus
 
 LibrarySort = Literal["activity_desc", "added_desc", "title_asc", "title_desc"]
 
@@ -25,7 +26,8 @@ class LibraryVideo(ApiModel):
     video_id: str
     title: str | None
     metadata: dict | None
-    transcript_available: bool
+    transcript_status: TranscriptStatus
+    overview_status: OverviewStatus
     moment_count: int
     added_at: datetime
     last_activity_at: datetime

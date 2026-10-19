@@ -35,6 +35,16 @@ class InternalApiClient:
             moment_id,
         )
 
+    def fail_overview(self, video_id: str) -> bool:
+        """Mark the video's queued overview failed."""
+        return self._request_success(
+            "post",
+            f"/v2/internal/videos/{video_id}/overview/failed",
+            {},
+            "video_id",
+            video_id,
+        )
+
     def update_summary(
         self,
         video_id: str,

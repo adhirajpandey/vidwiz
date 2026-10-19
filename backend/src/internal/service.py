@@ -14,6 +14,7 @@ from src.moments import service as moments_service
 from src.moments.models import Moment, ResolveStatus
 from src.search.chunks import replace_chunks
 from src.internal.schemas import TaskResultRequest
+from src.videos import overview
 from src.videos import service as videos_service
 from src.videos.models import Video
 from src import transcripts
@@ -125,6 +126,8 @@ def submit_task_result(
         }
 
     db.commit()
+    if result.success and task_type == internal_constants.FETCH_TRANSCRIPT_TASK_TYPE:
+        _apply_transcript_state(db, result)
     db.refresh(task)
     logger.debug("Task updated", extra={"task_id": task.id, "status": task.status})
     return task
@@ -173,16 +176,30 @@ def _apply_success(db: Session, task: Task, result: TaskResultRequest) -> None:
             )
         return
 
-    video = videos_service.get_video_by_id(db, result.video_id)
     if task.task_type == internal_constants.FETCH_TRANSCRIPT_TASK_TYPE:
+        # The transcript state changes after the commit, which also queues the
+        # overview.
         if result.transcript:
             store_transcript_in_s3(result.video_id, result.transcript)
             moments_service.on_transcript_stored(db, result.video_id, result.transcript)
             replace_chunks(db, result.video_id, result.transcript)
-        if video:
-            video.transcript_available = True
-    elif video and result.metadata:
+        return
+    video = videos_service.get_video_by_id(db, result.video_id)
+    if video and result.metadata:
         _apply_metadata(video, result.metadata)
+
+
+def _apply_transcript_state(db: Session, result: TaskResultRequest) -> None:
+    video = videos_service.get_video_by_id(db, result.video_id)
+    if video is None:
+        return
+    if result.transcript:
+        videos_service.mark_transcript_ready(db, video)
+        return
+    # A successful fetch with no segments means the video has no transcript.
+    moments_service.on_transcript_unavailable(db, result.video_id)
+    videos_service.mark_transcript_unavailable(video)
+    db.commit()
 
 
 def _apply_metadata(video: Video, metadata: dict) -> None:
@@ -201,6 +218,9 @@ def _apply_final_failure(db: Session, task: Task) -> None:
         video_id = (task.task_details or {}).get("video_id")
         if video_id:
             moments_service.on_transcript_unavailable(db, video_id)
+            video = videos_service.get_video_by_id(db, video_id)
+            if video and not video.has_transcript:
+                videos_service.mark_transcript_unavailable(video)
 
 
 store_transcript_in_s3 = transcripts.store_transcript
@@ -212,8 +232,7 @@ def store_transcript(db: Session, video_id: str, transcript: list[dict]) -> Vide
     store_transcript_in_s3(video_id, transcript)
     moments_service.on_transcript_stored(db, video_id, transcript)
     replace_chunks(db, video_id, transcript)
-    video.transcript_available = True
-    db.commit()
+    videos_service.mark_transcript_ready(db, video)
     db.refresh(video)
     return video
 
@@ -240,6 +259,7 @@ def store_summary(
     video = videos_service.get_or_create_video(db, video_id)
     if summary is not None:
         video.summary = summary
+        overview.complete(video)
     if miscellaneous_data:
         if miscellaneous_data.get("key_points"):
             miscellaneous_data["overview_generated_at"] = datetime.now(
@@ -251,6 +271,20 @@ def store_summary(
         }
     db.commit()
     db.refresh(video)
+    return video
+
+
+def fail_overview(db: Session, video_id: str) -> Video:
+    video = videos_service.get_video_by_id(db, video_id)
+    if not video:
+        raise NotFoundError("Video not found")
+    overview.fail(video)
+    db.commit()
+    db.refresh(video)
+    logger.info(
+        "Overview failed",
+        extra={"video_id": video_id, "status": video.overview_status.value},
+    )
     return video
 
 

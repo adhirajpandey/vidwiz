@@ -2,6 +2,7 @@ from aws_lambda_powertools import Logger
 
 from vidwiz_worker.clients import InternalApiClient, OpenRouterClient
 from vidwiz_worker.config import WorkerSettings
+from vidwiz_worker.jobs import PermanentError, run_job
 from vidwiz_worker.models import Moment
 from vidwiz_worker.transcript import (
     S3TranscriptRepository,
@@ -31,16 +32,22 @@ api = InternalApiClient(settings, logger)
 llm = OpenRouterClient(settings, logger, model=settings.ai_note_model)
 
 
-def process_batch(moments: list[Moment]) -> None:
-    for moment in moments:
-        process_moment(moment)
+def process_job(moment: Moment, attempt: int) -> None:
+    run_job(
+        lambda: process_moment(moment),
+        lambda: api.save_moment_ai(moment.id, None),
+        attempt=attempt,
+        max_attempts=settings.max_attempts,
+        logger=logger,
+        extra={"moment_id": moment.id, "video_id": moment.video_id},
+    )
 
 
 def process_moment(moment: Moment) -> None:
     """Generate and store one AI line.
 
-    A missing transcript or empty context is permanent, so the moment is marked
-    failed. Model and network errors raise, so SQS retries the record.
+    A missing transcript, empty context, or output that stays invalid is
+    permanent. Model and network errors raise, so SQS retries the record.
     """
     extra = {"moment_id": moment.id, "video_id": moment.video_id}
     logger.info("Processing AI moment", extra=extra)
@@ -51,24 +58,17 @@ def process_moment(moment: Moment) -> None:
         else None
     )
     if context is None:
-        logger.error("No transcript context for AI moment", extra=extra)
-        if not api.save_moment_ai(moment.id, None):
-            raise RuntimeError(f"Failed to mark AI moment {moment.id} as failed")
-        return
+        raise PermanentError("No transcript context for the moment")
 
     metadata = api.get_video(moment.video_id)
     title = metadata.get("title") if metadata else None
     ai_text = _valid_note(title, moment.at_seconds, format_context(context))
-    if not ai_text:
-        logger.error("Failed to generate AI moment", extra=extra)
-        raise RuntimeError(f"Failed to generate AI moment {moment.id}")
     if not api.save_moment_ai(moment.id, ai_text, settings.ai_note_model):
-        logger.error("Failed to save AI moment", extra=extra)
         raise RuntimeError(f"Failed to save AI moment {moment.id}")
     logger.info("AI moment saved", extra=extra)
 
 
-def _valid_note(title: str | None, at_seconds: int, transcript: str) -> str | None:
+def _valid_note(title: str | None, at_seconds: int, transcript: str) -> str:
     for attempt in range(1, settings.max_retries + 1):
         prompt = NOTE_PROMPT_TEMPLATE.format(
             max_length=settings.max_note_length,
@@ -79,7 +79,8 @@ def _valid_note(title: str | None, at_seconds: int, transcript: str) -> str | No
         )
         generated = llm.complete(prompt)
         if generated is None:
-            return None
+            # The request failed, not the output; SQS retries the job later.
+            raise RuntimeError("Model request failed")
         generated = generated.strip().replace("\n", " ")
         if settings.min_note_length <= len(generated) <= settings.max_note_length:
             return generated
@@ -91,4 +92,4 @@ def _valid_note(title: str | None, at_seconds: int, transcript: str) -> str | No
                 "generated_length": len(generated),
             },
         )
-    return None
+    raise PermanentError("Generated AI notes kept an invalid length")

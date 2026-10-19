@@ -18,9 +18,3 @@ def get_stream_video_or_404(
     if not video:
         raise NotFoundError("Video not found")
     return video
-
-
-def get_stream_video_id_or_404(
-    video=Depends(get_stream_video_or_404),
-) -> str:
-    return video.video_id

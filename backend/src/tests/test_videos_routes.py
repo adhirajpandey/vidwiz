@@ -66,3 +66,42 @@ async def test_ask_status_reflects_the_one_time_charge(client, db_session, user)
     assert before.json() == {"unlocked": False, "cost": 5}
     assert after.json() == {"unlocked": True, "cost": 5}
     assert guest.json() == {"unlocked": True, "cost": 0}
+
+
+@pytest.mark.asyncio
+async def test_retry_overview_requires_sign_in_and_a_failed_overview(
+    client, db_session, monkeypatch
+):
+    from src.videos import overview
+    from src.videos.models import OverviewStatus, TranscriptStatus
+
+    sent = []
+    monkeypatch.setattr(
+        overview, "send_job", lambda _url, payload: sent.append(payload)
+    )
+    user = auth_service.create_user(
+        db_session, "retry@example.com", "Retry User", "password123"
+    )
+    headers = {"Authorization": f"Bearer {make_token(user.id, user.email)}"}
+    db_session.add(
+        Video(
+            video_id="retryroute1",
+            transcript_status=TranscriptStatus.READY,
+            overview_status=OverviewStatus.FAILED,
+        )
+    )
+    db_session.commit()
+
+    guest = await client.post(
+        "/v2/videos/retryroute1/overview/retry", headers={"X-Guest-Session-ID": "g"}
+    )
+    retried = await client.post(
+        "/v2/videos/retryroute1/overview/retry", headers=headers
+    )
+    again = await client.post("/v2/videos/retryroute1/overview/retry", headers=headers)
+
+    assert guest.status_code == 401
+    assert retried.status_code == 200
+    assert retried.json()["overview_status"] == "queued"
+    assert sent == [{"video_id": "retryroute1"}]
+    assert again.status_code == 400

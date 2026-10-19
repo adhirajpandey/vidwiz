@@ -4,7 +4,7 @@ from sqlalchemy.orm import Session
 from src.internal import constants as internal_constants
 from src.internal.models import Task, TaskStatus
 from src.videos import service as videos_service
-from src.videos.models import Video
+from src.videos.models import TranscriptStatus, Video
 
 
 def create_task_idempotent(db: Session, task_type: str, video_id: str) -> Task:
@@ -42,10 +42,14 @@ def schedule_video_tasks(db: Session, video: Video) -> None:
         create_task_idempotent(
             db, internal_constants.FETCH_METADATA_TASK_TYPE, video.video_id
         )
-    if not video.transcript_available:
+    if not video.has_transcript:
         create_task_idempotent(
             db, internal_constants.FETCH_TRANSCRIPT_TASK_TYPE, video.video_id
         )
+        if video.transcript_status == TranscriptStatus.UNAVAILABLE:
+            # A new capture tries the transcript again.
+            videos_service.mark_transcript_pending(video)
+            db.commit()
 
 
 def prepare_video(db: Session, video_id: str, title: str | None = None) -> Video:

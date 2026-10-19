@@ -69,11 +69,16 @@ def _install_powertools_stubs(monkeypatch):
     parser = ModuleType("aws_lambda_powertools.utilities.parser")
     parser.envelopes = SimpleNamespace(SqsEnvelope=object())
     parser.event_parser = lambda **_kwargs: lambda function: function
+    parser_models = ModuleType("aws_lambda_powertools.utilities.parser.models")
+    parser_models.SqsModel = object
     typing = ModuleType("aws_lambda_powertools.utilities.typing")
     typing.LambdaContext = object
     monkeypatch.setitem(sys.modules, "aws_lambda_powertools", powertools)
     monkeypatch.setitem(sys.modules, "aws_lambda_powertools.utilities", utilities)
     monkeypatch.setitem(sys.modules, "aws_lambda_powertools.utilities.parser", parser)
+    monkeypatch.setitem(
+        sys.modules, "aws_lambda_powertools.utilities.parser.models", parser_models
+    )
     monkeypatch.setitem(sys.modules, "aws_lambda_powertools.utilities.typing", typing)
 
 
@@ -153,28 +158,20 @@ def test_process_moment_uses_video_title_and_persists(monkeypatch):
     ("transcript", "context"),
     [(None, None), ([{"offset": 60, "text": "Transcript context"}], None)],
 )
-def test_process_moment_marks_missing_context_failed(monkeypatch, transcript, context):
+def test_process_moment_missing_context_is_permanent(monkeypatch, transcript, context):
     note_service = _load_module("note_service.py", monkeypatch)
-    saved = []
 
     class Transcripts:
         def get(self, _video_id):
             return transcript
 
-    class Api:
-        def save_moment_ai(self, moment_id, ai_text):
-            saved.append((moment_id, ai_text))
-            return True
-
     monkeypatch.setattr(note_service, "transcripts", Transcripts())
-    monkeypatch.setattr(note_service, "api", Api())
     monkeypatch.setattr(note_service, "relevant_context", lambda *_args: context)
 
-    note_service.process_moment(
-        Moment(id=12, video_id="video-id", at_seconds=60, user_id=2)
-    )
-
-    assert saved == [(12, None)]
+    with pytest.raises(note_service.PermanentError):
+        note_service.process_moment(
+            Moment(id=12, video_id="video-id", at_seconds=60, user_id=2)
+        )
 
 
 def test_process_moment_retries_generation_failures(monkeypatch):
@@ -190,9 +187,13 @@ def test_process_moment_retries_generation_failures(monkeypatch):
 
     monkeypatch.setattr(note_service, "transcripts", Transcripts())
     monkeypatch.setattr(note_service, "api", Api())
-    monkeypatch.setattr(note_service, "_valid_note", lambda *_args: None)
 
-    with pytest.raises(RuntimeError):
+    def failed_request(*_args):
+        raise RuntimeError("Model request failed")
+
+    monkeypatch.setattr(note_service, "_valid_note", failed_request)
+
+    with pytest.raises(RuntimeError, match="Model request failed"):
         note_service.process_moment(
             Moment(id=12, video_id="video-id", at_seconds=60, user_id=2)
         )
@@ -222,7 +223,7 @@ def test_process_moment_raises_when_save_fails(monkeypatch):
         )
 
 
-def test_valid_note_returns_none_after_invalid_final_retry(monkeypatch):
+def test_valid_note_gives_up_after_invalid_final_retry(monkeypatch):
     note_service = _load_module("note_service.py", monkeypatch)
     monkeypatch.setattr(
         note_service,
@@ -235,7 +236,8 @@ def test_valid_note_returns_none_after_invalid_final_retry(monkeypatch):
         SimpleNamespace(complete=lambda _prompt: "too long for configured bounds"),
     )
 
-    assert note_service._valid_note(None, 1, "Transcript") is None
+    with pytest.raises(note_service.PermanentError):
+        note_service._valid_note(None, 1, "Transcript")
     warnings = [
         record for record in note_service.logger.records if record[0] == "warning"
     ]
@@ -249,30 +251,67 @@ def test_valid_note_returns_none_after_invalid_final_retry(monkeypatch):
     assert "too long for configured bounds" not in str(warnings)
 
 
-def test_process_batch_propagates_item_failure(monkeypatch):
+def test_valid_note_retries_failed_requests_through_sqs(monkeypatch):
     note_service = _load_module("note_service.py", monkeypatch)
+    monkeypatch.setattr(note_service, "llm", SimpleNamespace(complete=lambda _p: None))
+
+    with pytest.raises(RuntimeError, match="Model request failed"):
+        note_service._valid_note(None, 1, "Transcript")
+
+
+@pytest.mark.parametrize(
+    ("error", "attempt", "raises", "marked_failed"),
+    [
+        (RuntimeError("API down"), 1, True, False),
+        (RuntimeError("API down"), 3, False, True),
+        ("permanent", 1, False, True),
+    ],
+)
+def test_process_job_marks_the_line_failed_when_retrying_cannot_help(
+    monkeypatch, error, attempt, raises, marked_failed
+):
+    note_service = _load_module("note_service.py", monkeypatch)
+    saved = []
+    if error == "permanent":
+        error = note_service.PermanentError("No transcript context")
+
+    def broken(_moment):
+        raise error
+
+    monkeypatch.setattr(note_service, "process_moment", broken)
     monkeypatch.setattr(
         note_service,
-        "process_moment",
-        lambda _note: (_ for _ in ()).throw(RuntimeError("retry")),
+        "api",
+        SimpleNamespace(
+            save_moment_ai=lambda moment_id, ai_text: (
+                saved.append((moment_id, ai_text)) or True
+            )
+        ),
     )
+    moment = Moment(id=12, video_id="video-id", at_seconds=60, user_id=2)
 
-    with pytest.raises(RuntimeError, match="retry"):
-        note_service.process_batch(
-            [Moment(id=12, video_id="video-id", at_seconds=60, user_id=2)]
-        )
+    if raises:
+        with pytest.raises(RuntimeError, match="API down"):
+            note_service.process_job(moment, attempt)
+    else:
+        note_service.process_job(moment, attempt)
+    assert (saved == [(12, None)]) is marked_failed
 
 
-def test_handler_delegates_parsed_batch(monkeypatch):
+def test_handler_passes_each_record_and_its_receive_count(monkeypatch):
     handler = _load_module("handler.py", monkeypatch)
     calls = []
     monkeypatch.setattr(
         handler.note_service,
-        "process_batch",
-        lambda event: calls.append(event),
+        "process_job",
+        lambda moment, attempt: calls.append((moment.id, attempt)),
+    )
+    record = SimpleNamespace(
+        body='{"id": 12, "video_id": "video-id", "at_seconds": 60, "user_id": 2}',
+        attributes=SimpleNamespace(ApproximateReceiveCount="1"),
     )
 
-    handler.lambda_handler(["note"], object())
+    handler.lambda_handler(SimpleNamespace(Records=[record]), object())
 
-    assert calls == [["note"]]
+    assert calls == [(12, 1)]
     assert FakeLogger.inject_options == {"log_event": False}
