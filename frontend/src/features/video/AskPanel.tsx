@@ -71,7 +71,7 @@ export default function AskPanel({ video, seek, signedIn, resumeId, onConversati
   const unlocked = Boolean(status.data?.unlocked) || unlocking || resumeId !== null;
   const chat = useWizChat(
     unlocked ? { scope: 'video', videoId: video.video_id } : null,
-    video.transcript_available,
+    video.transcript_status === 'ready',
     {
       resumeId,
       onStarted: id => {
@@ -89,7 +89,7 @@ export default function AskPanel({ video, seek, signedIn, resumeId, onConversati
   return (
     <WizChat
       chat={chat}
-      isReady={video.transcript_available}
+      isReady={video.transcript_status === 'ready'}
       suggestedQuestions={video.suggested_questions}
       passages={passages}
       className="h-[min(70dvh,640px)] lg:h-[calc(100dvh-13rem)]"
@@ -101,8 +101,11 @@ export default function AskPanel({ video, seek, signedIn, resumeId, onConversati
       statusBanner={
         <>
           <ChatLimitNotice chat={chat} />
-          {!video.transcript_available && (
+          {video.transcript_status === 'pending' && (
             <div role="status" className="border-b border-border bg-accent-soft px-4 py-2.5 text-sm text-accent">Preparing the transcript…</div>
+          )}
+          {video.transcript_status === 'unavailable' && (
+            <div role="status" className="border-b border-border bg-muted px-4 py-2.5 text-sm text-muted-foreground">This video has no transcript, so Ask is not available.</div>
           )}
         </>
       }

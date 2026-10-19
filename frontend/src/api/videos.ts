@@ -13,6 +13,6 @@ export const videosApi = {
     apiRequest<AskStatus>('GET', `/videos/${videoId}/ask-status`),
   getTranscript: (videoId: string) =>
     apiRequest<TranscriptRead>('GET', `/videos/${videoId}/transcript`),
-  // Streaming responses are read with apiFetch directly.
-  getStreamUrl: (videoId: string) => `/videos/${videoId}/stream`,
+  retryOverview: (videoId: string) =>
+    apiRequest<VideoRead>('POST', `/videos/${videoId}/overview/retry`),
 };

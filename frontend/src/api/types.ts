@@ -87,9 +87,10 @@ export interface VideoRead {
   id: number;
   video_id: string;
   title: string | null;
-  transcript_available: boolean;
+  transcript_status: TranscriptStatus;
   metadata: VideoMetadata | null;
   summary: string | null;
+  overview_status: OverviewStatus;
   suggested_questions: string[] | null;
   key_points: KeyPoint[] | null;
   overview_model?: string | null;
@@ -103,7 +104,10 @@ export interface TranscriptSegment {
   text: string;
 }
 
-export type TranscriptStatus = 'ready' | 'processing' | 'unavailable';
+export type TranscriptStatus = 'pending' | 'ready' | 'unavailable';
+
+/** pending waits for the transcript; no_transcript means there will be none. */
+export type OverviewStatus = 'pending' | 'queued' | 'ready' | 'failed' | 'no_transcript';
 
 export interface TranscriptRead {
   video_id: string;
@@ -196,7 +200,8 @@ export interface LibraryVideo {
   video_id: string;
   title: string | null;
   metadata: VideoMetadata | null;
-  transcript_available: boolean;
+  transcript_status: TranscriptStatus;
+  overview_status: OverviewStatus;
   moment_count: number;
   added_at: string;
   last_activity_at: string;

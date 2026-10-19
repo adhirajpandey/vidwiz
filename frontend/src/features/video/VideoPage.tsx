@@ -145,7 +145,7 @@ function Workspace({ videoId }: { videoId: string }) {
             <TranscriptPanel videoId={videoId} playhead={playhead} onSeek={seek} signedIn={signedIn} />
           </TabsContent>
           <TabsContent value="overview" className="pt-4">
-            {data && <OverviewPanel video={data} onSeek={seek} onAsk={() => setTab('ask')} />}
+            {data && <OverviewPanel video={data} signedIn={signedIn} onSeek={seek} onAsk={() => setTab('ask')} />}
           </TabsContent>
         </Tabs>
       </div>

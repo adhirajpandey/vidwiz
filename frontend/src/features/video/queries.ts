@@ -1,11 +1,11 @@
-import { useQuery } from '@tanstack/react-query';
+import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { momentsApi, videosApi } from '../../api';
 import { hasPendingWork, momentKeys } from '../moments/queries';
+import { videoHasPendingWork } from './status';
 
-// Background work (metadata, transcript, overview) usually lands within a
-// couple of minutes; stop polling after that so a failed job does not poll forever.
+// Poll while the transcript or overview is still in progress. Every job ends
+// in an explicit state, so polling always stops.
 const POLL_MS = 5000;
-const MAX_POLLS = 40;
 
 export const videoKeys = {
   video: (videoId: string) => ['video', videoId] as const,
@@ -17,11 +17,15 @@ export function useVideo(videoId: string) {
   return useQuery({
     queryKey: videoKeys.video(videoId),
     queryFn: () => videosApi.getVideo(videoId),
-    refetchInterval: query => {
-      const video = query.state.data;
-      const done = video && video.metadata && video.transcript_available && video.key_points;
-      return done || query.state.dataUpdateCount > MAX_POLLS ? false : POLL_MS;
-    },
+    refetchInterval: query => (videoHasPendingWork(query.state.data) ? POLL_MS : false),
+  });
+}
+
+export function useRetryOverview(videoId: string) {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: () => videosApi.retryOverview(videoId),
+    onSuccess: video => queryClient.setQueryData(videoKeys.video(videoId), video),
   });
 }
 
@@ -39,8 +43,7 @@ export function useTranscript(videoId: string, enabled: boolean) {
     queryKey: videoKeys.transcript(videoId),
     queryFn: () => videosApi.getTranscript(videoId),
     enabled,
-    refetchInterval: query =>
-      query.state.data?.status === 'processing' && query.state.dataUpdateCount <= MAX_POLLS ? POLL_MS : false,
+    refetchInterval: query => (query.state.data?.status === 'pending' ? POLL_MS : false),
   });
 }
 

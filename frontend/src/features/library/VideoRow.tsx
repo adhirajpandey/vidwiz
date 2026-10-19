@@ -15,7 +15,8 @@ export default function VideoRow({ video }: { video: LibraryVideo }) {
             .filter(Boolean)
             .join(' · ')}
         </p>
-        {!video.transcript_available && <p className="mt-0.5 text-xs text-muted-foreground">Transcript pending</p>}
+        {video.transcript_status === 'pending' && <p className="mt-0.5 text-xs text-muted-foreground">Transcript pending</p>}
+        {video.transcript_status === 'unavailable' && <p className="mt-0.5 text-xs text-muted-foreground">No transcript</p>}
       </div>
     </Link>
   );

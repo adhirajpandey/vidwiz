@@ -95,7 +95,7 @@ export default function TranscriptPanel({ videoId, playhead, onSeek, signedIn }:
 
   if (transcript.isPending) return <div className="flex justify-center py-10"><Spinner /></div>;
   if (transcript.isError) return <ErrorState compact title="The transcript did not load" message="Check your connection and try again." onRetry={() => void transcript.refetch()} />;
-  if (transcript.data.status === 'processing') {
+  if (transcript.data.status === 'pending') {
     return <EmptyState icon={<Loader2 className="size-5 animate-spin" />} title="Fetching the transcript">This usually takes under a minute.</EmptyState>;
   }
   if (transcript.data.status === 'unavailable' || !segments.length) {
