@@ -1,6 +1,8 @@
 """Explicit transcript and overview states for videos.
 
 transcript_available becomes transcript_status (pending, ready, unavailable).
+Videos without a transcript and without an active transcript task become
+unavailable.
 Videos gain overview_status (pending, queued, ready, failed, no_transcript) and
 the time it last changed. Existing summaries count as ready, including older
 ones without key points; the overview backfill regenerates those.
@@ -34,19 +36,22 @@ def upgrade() -> None:
             ADD COLUMN overview_status_at timestamp without time zone
                 NOT NULL DEFAULT now();
 
-        -- A transcript is unavailable when the video's latest transcript task
-        -- failed for good.
+        -- A transcript is pending only while a transcript task is still active
+        -- or will be retried; otherwise nothing is fetching it, so it is
+        -- unavailable until a new capture schedules another attempt.
         UPDATE videos v SET transcript_status = CASE
             WHEN v.transcript_available THEN 'ready'
-            WHEN (
-                SELECT t.status = 'FAILED' AND t.retry_count >= 3
+            WHEN EXISTS (
+                SELECT 1
                 FROM tasks t
                 WHERE t.task_type = 'fetch_transcript'
                   AND t.task_details->>'video_id' = v.video_id
-                ORDER BY t.id DESC
-                LIMIT 1
-            ) THEN 'unavailable'
-            ELSE 'pending'
+                  AND (
+                      t.status IN ('PENDING', 'IN_PROGRESS')
+                      OR (t.status = 'FAILED' AND coalesce(t.retry_count, 0) < 3)
+                  )
+            ) THEN 'pending'
+            ELSE 'unavailable'
         END;
 
         UPDATE videos SET overview_status = CASE
