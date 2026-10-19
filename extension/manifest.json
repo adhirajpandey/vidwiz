@@ -1,8 +1,8 @@
 {
   "manifest_version": 3,
   "name": "VidWiz",
-  "version": "2.2",
-  "description": "Chat. Note. Master.",
+  "version": "3.0.0",
+  "description": "Capture moments on YouTube in one key and find them again in VidWiz.",
   "icons": {
     "16": "icons/icon16.png",
     "48": "icons/icon48.png",
@@ -16,10 +16,17 @@
       "128": "icons/icon128.png"
     }
   },
+  "commands": {
+    "capture-moment": {
+      "suggested_key": { "default": "Alt+S" },
+      "description": "Capture the current moment"
+    }
+  },
   "permissions": ["activeTab", "storage"],
   "host_permissions": ["https://*.youtube.com/*", "https://api.vidwiz.online/*"],
   "background": {
-    "service_worker": "background.js"
+    "service_worker": "background.js",
+    "type": "module"
   },
   "content_scripts": [
     {
@@ -28,8 +35,6 @@
     }
   ],
   "externally_connectable": {
-    "matches": [
-      "https://vidwiz.online/*"
-    ]
+    "matches": ["https://vidwiz.online/*"]
   }
 }

@@ -22,6 +22,8 @@ const envConfig = import.meta.env.DEV ? configs.development : configs.production
 const config = {
   ...envConfig,
   API_URL: (import.meta.env.VITE_API_URL || envConfig.API_URL).replace(/\/$/, ''),
+  // An unpacked development extension has its own ID; set it to test login sync.
+  EXTENSION_ID: import.meta.env.VITE_EXTENSION_ID || envConfig.EXTENSION_ID,
   CHROME_WEBSTORE_URL: 'https://chromewebstore.google.com/detail/vidwiz/bgiahikcnhdljbfeknfbfpdnbnkpjiop',
   SIGNUP_CREDITS: 100,
   NOTES_POLL_INTERVAL_MS: 4000,

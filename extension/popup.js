@@ -1,405 +1,138 @@
-// ── Config ───────────────────────────────────────────────────────────────────
-const CONSTANTS = {
-  API: {
-    BASE_URL: "https://vidwiz.online",
-    API_URL: "https://api.vidwiz.online/v2",
-    ENDPOINTS: {
-      NOTES: (videoId) => `/videos/${videoId}/notes`
-    }
-  },
-  STORAGE: {
-    TOKEN: "token"
-  },
-  SELECTORS: {
-    FEEDBACK: "feedback-message",
-    TOKEN_SETUP: "token-setup",
-    TOKEN_SUBTITLE: "token-subtitle",
-    NOTES_VIEW: "notes-view",
-    VIDEO_TITLE: "video-title",
-    TIMESTAMP_WRAPPER: "timestamp-wrapper",
-    NOTES_TEXTAREA: "notes-textarea",
-    SAVE_BTN: "saveNotesBtn",
-    OPEN_SMART_NOTES: "openSmartNotes",
-    OPEN_IN_WIZ: "openInWiz",
-    CURRENT_TIMESTAMP: "current-timestamp",
-    RESET_TIMESTAMP: "reset-timestamp",
-    GO_DASHBOARD: "goDashboard",
-    GO_LOGIN: "goLoginFromSetup"
-  },
-  CLASSES: {
-    HIDDEN: "hidden",
-    INVALID: "timestamp-invalid",
-    SUCCESS: "success",
-    ERROR: "error"
-  },
-  MESSAGES: {
-    NO_VIDEO: "No YouTube video found on this page.",
-    RELOAD: "Please reload this YouTube page to enable the extension.",
-    INVALID_URL: "Invalid YouTube URL.",
-    INVALID_TIMESTAMP: "Invalid timestamp format.",
-    SAVED: "Note saved successfully!",
-    CONN_LOST: "Connection lost. Please reload the YouTube page.",
-    SYNCED: "Synced with VidWiz!",
-    WELCOME: "Welcome to VidWiz!",
-    SESSION_EXPIRED: "Your session expired. Please log in again.",
-    RETRY: "Your login was refreshed. Please try again.",
-    NETWORK: "Can't reach VidWiz. Check your connection and try again.",
-    UNKNOWN: "Something went wrong. Please try again."
-  }
+import { ApiError, api, capture, formatClock, getToken, webUrl } from "./api.js";
+
+const $ = (id) => document.getElementById(id);
+const show = (id) => {
+  for (const view of ["login-view", "idle-view", "capture-view"]) $(view).classList.toggle("hidden", view !== id);
 };
+const openTab = (path) => chrome.tabs.create({ url: webUrl(path) });
 
-// ── DOM Helpers ──────────────────────────────────────────────────────────────
-const $ = (id) => document.getElementById(id)
-
-function setMessage(msg, type) {
-	const el = $(CONSTANTS.SELECTORS.FEEDBACK)
-	if (!el) return
-	el.textContent = msg
-	el.className = type || ""
+function feedback(text, kind = "") {
+  const element = $("feedback");
+  element.textContent = text;
+  element.className = `feedback ${kind}`;
 }
 
-function setVisible(id, visible) {
-	const el = $(id)
-	if (el) el.style.display = visible ? "" : "none"
+async function activeTab() {
+  const [tab] = await chrome.tabs.query({ active: true, currentWindow: true });
+  return tab;
 }
 
-function setButtonLoading(btn, loading) {
-	btn.disabled = loading
-	btn.dataset.originalText = btn.dataset.originalText || btn.textContent
-	btn.textContent = loading ? "Saving..." : btn.dataset.originalText
+async function currentVideo(tab) {
+  if (!tab?.id || !tab.url?.includes("youtube.com")) return null;
+  try {
+    return await chrome.tabs.sendMessage(tab.id, { action: "getVideo" });
+  } catch {
+    return null; // The page loaded before the extension; a reload fixes it.
+  }
 }
 
-// ── Token Storage ────────────────────────────────────────────────────────────
-// Reads `exp` from a JWT payload without verification; null when malformed.
-function decodeTokenExp(token) {
-	try {
-		const base64 = token.split(".")[1].replace(/-/g, "+").replace(/_/g, "/")
-		return JSON.parse(atob(base64)).exp || null
-	} catch {
-		return null
-	}
+function momentText(moment) {
+  if (moment.note) return { text: moment.note, pending: false };
+  if (moment.ai_text) return { text: moment.ai_text, pending: false };
+  if (moment.ai_status === "queued" || moment.ai_status === "waiting_transcript") return { text: "Writing the AI line…", pending: true };
+  if (moment.quote) return { text: moment.quote, pending: false };
+  return { text: "Saved moment", pending: true };
 }
 
-let sessionExpired = false
-
-// Removes the stored token only if it is still `token`, so a newer synced token survives.
-async function clearTokenIfCurrent(token) {
-	const current = (await chrome.storage.local.get(CONSTANTS.STORAGE.TOKEN))[CONSTANTS.STORAGE.TOKEN]
-	if (current !== token) return false
-	sessionExpired = true
-	await chrome.storage.local.remove(CONSTANTS.STORAGE.TOKEN)
-	return true
+async function renderMoments(tab, videoId) {
+  const list = $("moments");
+  let moments;
+  try {
+    moments = await api(`/videos/${videoId}/moments`);
+  } catch {
+    list.replaceChildren();
+    return;
+  }
+  list.replaceChildren(...moments.map((moment) => {
+    const start = moment.quote_start_seconds ?? moment.at_seconds;
+    const item = document.createElement("li");
+    const time = document.createElement("button");
+    time.className = "time";
+    time.textContent = formatClock(start);
+    time.setAttribute("aria-label", `Play from ${formatClock(start)}`);
+    time.addEventListener("click", () => chrome.tabs.sendMessage(tab.id, { action: "seek", seconds: start }).catch(() => {}));
+    const { text, pending } = momentText(moment);
+    const label = document.createElement("span");
+    label.className = `moment-text${pending ? " pending" : ""}`;
+    label.textContent = text;
+    item.append(time, label);
+    return item;
+  }));
+  if (!moments.length) {
+    const empty = document.createElement("li");
+    empty.className = "muted";
+    empty.textContent = "No moments yet.";
+    list.append(empty);
+  }
 }
 
-// Returns the stored token, removing it when it is expired or malformed.
-async function getAuthToken() {
-	const token = (await chrome.storage.local.get(CONSTANTS.STORAGE.TOKEN))[CONSTANTS.STORAGE.TOKEN]
-	if (!token) return null
-	const exp = decodeTokenExp(token)
-	// Allow 5 seconds of clock skew.
-	if (!exp || Date.now() >= exp * 1000 - 5000) {
-		await clearTokenIfCurrent(token)
-		return null
-	}
-	return token
+async function shortcutLabel() {
+  const commands = await chrome.commands.getAll();
+  return commands.find((command) => command.name === "capture-moment")?.shortcut || "Alt+S";
 }
 
-// ── API Client ───────────────────────────────────────────────────────────────
-async function apiRequest(path, options = {}) {
-	const token = await getAuthToken()
-	if (!token) {
-		showTokenSetup()
-		throw { status: 401, body: {} }
-	}
-	let res
-	try {
-		res = await fetch(`${CONSTANTS.API.API_URL}${path}`, {
-			...options,
-			headers: {
-				"Content-Type": "application/json",
-				Authorization: `Bearer ${token}`,
-				...options.headers,
-			},
-		})
-	} catch {
-		throw { status: 0, body: { error: { message: CONSTANTS.MESSAGES.NETWORK } } }
-	}
+async function init() {
+  $("open-app").addEventListener("click", (event) => { event.preventDefault(); openTab("/"); });
+  $("login").addEventListener("click", () => openTab("/login"));
+  $("shortcut").textContent = await shortcutLabel();
 
-	if (!res.ok) {
-		const body = await res.json().catch(() => ({}))
-		if (res.status === 401) {
-			if (!(await clearTokenIfCurrent(token))) {
-				throw { status: 0, body: { error: { message: CONSTANTS.MESSAGES.RETRY } } }
-			}
-			showTokenSetup()
-		}
-		throw { status: res.status, body }
-	}
-	return res.json()
+  if (!(await getToken())) {
+    show("login-view");
+    return;
+  }
+  const tab = await activeTab();
+  const video = await currentVideo(tab);
+  if (!video) {
+    show("idle-view");
+    return;
+  }
+
+  show("capture-view");
+  $("video-title").textContent = video.title;
+  $("capture-time").textContent = `at ${formatClock(video.seconds)}`;
+  $("open-video").addEventListener("click", (event) => { event.preventDefault(); openTab(`/v/${video.videoId}`); });
+
+  try {
+    const profile = await api("/users/me");
+    $("ai").checked = Boolean(profile.ai_moments_default);
+  } catch (error) {
+    if (error instanceof ApiError && error.status === 401) {
+      $("login-reason").textContent = error.message;
+      show("login-view");
+      return;
+    }
+  }
+  void renderMoments(tab, video.videoId);
+  $("note").focus();
+
+  $("capture-form").addEventListener("submit", async (event) => {
+    event.preventDefault();
+    const button = $("capture");
+    button.disabled = true;
+    // Capture where the video is now, not where it was when the popup opened.
+    const latest = (await currentVideo(tab)) || video;
+    try {
+      const result = await capture({ ...latest, note: $("note").value.trim(), ai: $("ai").checked });
+      $("note").value = "";
+      feedback(result.merged ? "Added to a nearby moment." : `Saved at ${formatClock(latest.seconds)}.`, "success");
+      void renderMoments(tab, video.videoId);
+    } catch (error) {
+      if (error instanceof ApiError && error.status === 401) {
+        $("login-reason").textContent = error.message;
+        show("login-view");
+      } else {
+        feedback(error.message, "error");
+      }
+    } finally {
+      button.disabled = false;
+    }
+  });
+  $("note").addEventListener("keydown", (event) => {
+    if (event.key === "Enter" && !event.shiftKey) {
+      event.preventDefault();
+      $("capture-form").requestSubmit();
+    }
+  });
 }
 
-// API errors have the shape { error: { code, message, details } }.
-function formatApiError(err) {
-	const messages = {
-		401: "Your session expired. Please log in again.",
-		403: "Access denied. Please check your permissions.",
-		404: "Resource not found.",
-		429: "Too many requests. Please wait a moment and try again.",
-		500: "Server error. Please try again later.",
-	}
-	const error = err?.body?.error
-	if (err?.status === 422) {
-		const details = error?.details
-		return Array.isArray(details) && details.length
-			? details.map((d) => d.message).join("; ")
-			: error?.message || "Invalid data. Please check your input."
-	}
-	return messages[err?.status] || error?.message || CONSTANTS.MESSAGES.UNKNOWN
-}
-
-// ── Content Script Communication ──────────────────────────────────────────────
-
-// ── Helpers ──────────────────────────────────────────────────────────────────
-function extractVideoId(url) {
-	try { return new URL(url).searchParams.get("v") } catch { return null }
-}
-
-
-
-function timestampToSeconds(ts) {
-	if (!isValidTimestamp(ts)) return NaN
-	const p = ts.split(":").map(Number)
-	return p.length === 3 ? p[0] * 3600 + p[1] * 60 + p[2] : p[0] * 60 + p[1]
-}
-
-function isValidTimestamp(ts) {
-	if (!ts || !/^\d{1,2}(:\d{2}){1,2}$/.test(ts)) return false
-	const p = ts.split(":").map(Number)
-	if (p.length === 2) return p[1] < 60
-	return p[0] < 100 && p[1] < 60 && p[2] < 60
-}
-
-function padTimestamp(ts) {
-	const p = ts.replace(/[^\d:]/g, "").split(":")
-	if (p.length === 1) return p[0].padStart(1, "0") + ":00"
-	if (p.length === 2) return p[0].padStart(1, "0") + ":" + p[1].padEnd(2, "0").slice(0, 2)
-	return p[0].padStart(1, "0") + ":" + p[1].padEnd(2, "0").slice(0, 2) + ":" + p[2].padEnd(2, "0").slice(0, 2)
-}
-
-function openTab(path) {
-	chrome.tabs.create({ url: `${CONSTANTS.API.BASE_URL}${path}` })
-}
-
-function openVideoTab(pathPrefix) {
-	chrome.tabs.query({ active: true, currentWindow: true }, (tabs) => {
-		const id = extractVideoId(tabs[0].url)
-		if (id) openTab(`${pathPrefix}/${id}`)
-	})
-}
-
-// ── Backend ──────────────────────────────────────────────────────────────────
-async function saveNote(url, text, videoTitle, videoTimestamp) {
-	if (videoTitle === CONSTANTS.MESSAGES.NO_VIDEO) {
-		setMessage(CONSTANTS.MESSAGES.NO_VIDEO, CONSTANTS.CLASSES.ERROR)
-		return false
-	}
-	const videoId = extractVideoId(url)
-	if (!videoId) {
-		setMessage(CONSTANTS.MESSAGES.INVALID_URL, CONSTANTS.CLASSES.ERROR)
-		return false
-	}
-	if (!isValidTimestamp(videoTimestamp)) {
-		setMessage(CONSTANTS.MESSAGES.INVALID_TIMESTAMP, CONSTANTS.CLASSES.ERROR)
-		return false
-	}
-	await apiRequest(CONSTANTS.API.ENDPOINTS.NOTES(videoId), {
-		method: "POST",
-		body: JSON.stringify({ video_title: videoTitle, timestamp: videoTimestamp, text: text || null }),
-	})
-	return true
-}
-
-// ── Views ────────────────────────────────────────────────────────────────────
-function showTokenSetup() {
-	if (sessionExpired) $(CONSTANTS.SELECTORS.TOKEN_SUBTITLE).textContent = CONSTANTS.MESSAGES.SESSION_EXPIRED
-	$(CONSTANTS.SELECTORS.TOKEN_SETUP).classList.remove(CONSTANTS.CLASSES.HIDDEN)
-	$(CONSTANTS.SELECTORS.NOTES_VIEW).classList.add(CONSTANTS.CLASSES.HIDDEN)
-}
-
-function showNotesView() {
-	$(CONSTANTS.SELECTORS.TOKEN_SETUP).classList.add(CONSTANTS.CLASSES.HIDDEN)
-	$(CONSTANTS.SELECTORS.NOTES_VIEW).classList.remove(CONSTANTS.CLASSES.HIDDEN)
-}
-
-// Track AbortController to prevent duplicate listeners on re-init
-let tsAbortController = null
-
-async function initNotesView() {
-	const [tab] = await chrome.tabs.query({ active: true, currentWindow: true })
-	const { id: tabId, url: tabURL } = tab
-
-	// The URL is undefined for tabs the extension cannot read, e.g. when the popup outlives a tab switch.
-	if (!tabURL?.includes("youtube.com/watch")) {
-		setMessage(CONSTANTS.MESSAGES.NO_VIDEO, CONSTANTS.CLASSES.ERROR)
-		;[CONSTANTS.SELECTORS.VIDEO_TITLE, CONSTANTS.SELECTORS.TIMESTAMP_WRAPPER, CONSTANTS.SELECTORS.NOTES_TEXTAREA, CONSTANTS.SELECTORS.SAVE_BTN, CONSTANTS.SELECTORS.OPEN_SMART_NOTES, CONSTANTS.SELECTORS.OPEN_IN_WIZ]
-			.forEach((id) => setVisible(id, false))
-		return
-	}
-
-	let videoData = { title: null, timestamp: null, duration: null }
-	try {
-		videoData = await chrome.tabs.sendMessage(tabId, { action: "getVideoData" })
-	} catch (e) {
-		setMessage(CONSTANTS.MESSAGES.RELOAD, CONSTANTS.CLASSES.ERROR)
-		setVisible(CONSTANTS.SELECTORS.VIDEO_TITLE, false)
-		setVisible(CONSTANTS.SELECTORS.TIMESTAMP_WRAPPER, false)
-		setVisible(CONSTANTS.SELECTORS.NOTES_TEXTAREA, false)
-		setVisible(CONSTANTS.SELECTORS.SAVE_BTN, false)
-		return
-	}
-	const { title, timestamp, duration } = videoData || {}
-
-	if (title) $(CONSTANTS.SELECTORS.VIDEO_TITLE).textContent = title
-	const tsInput = $(CONSTANTS.SELECTORS.CURRENT_TIMESTAMP)
-	const tsWrapper = $(CONSTANTS.SELECTORS.TIMESTAMP_WRAPPER)
-	const resetBtn = $(CONSTANTS.SELECTORS.RESET_TIMESTAMP)
-
-	const autoSize = () => { tsInput.size = Math.max(tsInput.value.length, 4) }
-	if (timestamp) tsInput.value = timestamp
-	autoSize()
-
-	const maxSeconds = duration ? timestampToSeconds(duration) : Infinity
-
-	// Abort previous listeners to prevent stacking on re-init
-	if (tsAbortController) tsAbortController.abort()
-	tsAbortController = new AbortController()
-	const { signal } = tsAbortController
-
-	const updateTimestampState = () => {
-		if (isValidTimestamp(tsInput.value)) {
-			tsWrapper.classList.remove(CONSTANTS.CLASSES.INVALID)
-		} else {
-			tsWrapper.classList.add(CONSTANTS.CLASSES.INVALID)
-		}
-	}
-
-	// Real-time timestamp enforcement
-	let lastValid = isValidTimestamp(tsInput.value) ? tsInput.value : "0:00"
-	tsInput.addEventListener("input", () => {
-		let v = tsInput.value.replace(/[^\d:]/g, "")
-		if ((v.match(/:/g) || []).length > 2) { tsInput.value = lastValid; updateTimestampState(); return }
-
-		const parts = v.split(":")
-		const valid = parts.every((p, i) => {
-			if (p === "") return true
-			if (p.length > 2) return false
-			const n = Number(p)
-			if (parts.length === 3 && i === 0) return n < 100
-			return i > 0 ? n < 60 : n < 100
-		})
-
-		const overMax = valid && isValidTimestamp(v) && timestampToSeconds(v) > maxSeconds
-
-		if (valid && !overMax) {
-			tsInput.value = v
-			if (isValidTimestamp(v)) lastValid = v
-		} else {
-			tsInput.value = lastValid
-		}
-
-		updateTimestampState()
-		autoSize()
-	}, { signal })
-
-	// Normalize partial input on blur
-	tsInput.addEventListener("blur", () => {
-		if (!isValidTimestamp(tsInput.value)) {
-			const padded = padTimestamp(tsInput.value)
-			if (isValidTimestamp(padded) && timestampToSeconds(padded) <= maxSeconds) {
-				tsInput.value = padded
-				lastValid = padded
-			} else {
-				tsInput.value = lastValid
-			}
-		}
-		updateTimestampState()
-		autoSize()
-	}, { signal })
-
-	// Reset to current video playback time
-	resetBtn.addEventListener("click", async () => {
-		try {
-			const current = await chrome.tabs.sendMessage(tabId, { action: "getVideoTimestamp" })
-			if (current) {
-				tsInput.value = current
-				lastValid = current
-				updateTimestampState()
-				autoSize()
-			}
-		} catch (error) {
-			console.error("Failed to fetch timestamp:", error)
-			setMessage(CONSTANTS.MESSAGES.CONN_LOST, CONSTANTS.CLASSES.ERROR)
-		}
-	}, { signal })
-
-	updateTimestampState()
-}
-
-// ── Event Handlers ───────────────────────────────────────────────────────────
-
-
-async function onSaveNote() {
-	const btn = $(CONSTANTS.SELECTORS.SAVE_BTN)
-	const textarea = $(CONSTANTS.SELECTORS.NOTES_TEXTAREA)
-	setButtonLoading(btn, true)
-	try {
-		const [tab] = await chrome.tabs.query({ active: true, currentWindow: true })
-		const data = await chrome.tabs.sendMessage(tab.id, { action: "getVideoData" })
-		const title = data?.title
-		const success = await saveNote(tab.url, textarea.value, title, $(CONSTANTS.SELECTORS.CURRENT_TIMESTAMP).value)
-		if (success) { setMessage(CONSTANTS.MESSAGES.SAVED, CONSTANTS.CLASSES.SUCCESS); textarea.value = "" }
-	} catch (err) {
-		console.error("Error saving note:", err)
-		if (err.message && (err.message.includes("Could not establish connection") || err.message.includes("measure to prevent"))) {
-			setMessage(CONSTANTS.MESSAGES.CONN_LOST, CONSTANTS.CLASSES.ERROR)
-		} else {
-			setMessage(formatApiError(err), CONSTANTS.CLASSES.ERROR)
-		}
-	} finally {
-		setButtonLoading(btn, false)
-	}
-}
-
-// ── Storage Listener ─────────────────────────────────────────────────────────
-chrome.storage.onChanged.addListener((changes, area) => {
-	if (area === "local" && changes[CONSTANTS.STORAGE.TOKEN]) {
-		const newToken = changes[CONSTANTS.STORAGE.TOKEN].newValue
-		if (newToken) {
-			sessionExpired = false
-			setMessage(CONSTANTS.MESSAGES.SYNCED, CONSTANTS.CLASSES.SUCCESS)
-			showNotesView()
-			initNotesView()
-		} else {
-			showTokenSetup()
-		}
-	}
-})
-
-// ── Init ─────────────────────────────────────────────────────────────────────
-document.addEventListener("DOMContentLoaded", async () => {
-	const token = await getAuthToken()
-	if (token) {
-		showNotesView()
-		setMessage(CONSTANTS.MESSAGES.WELCOME, CONSTANTS.CLASSES.SUCCESS)
-		await initNotesView()
-	} else {
-		// If not logged in, show setup screen immediately
-		showTokenSetup()
-	}
-
-	$(CONSTANTS.SELECTORS.SAVE_BTN).addEventListener("click", onSaveNote)
-	$(CONSTANTS.SELECTORS.OPEN_SMART_NOTES).addEventListener("click", (e) => { e.preventDefault(); openVideoTab("/dashboard") })
-	$(CONSTANTS.SELECTORS.OPEN_IN_WIZ).addEventListener("click", (e) => { e.preventDefault(); openVideoTab("/wiz") })
-	$(CONSTANTS.SELECTORS.GO_DASHBOARD).addEventListener("click", (e) => { e.preventDefault(); openTab("/dashboard") })
-	$(CONSTANTS.SELECTORS.GO_LOGIN).addEventListener("click", (e) => { e.preventDefault(); openTab("/dashboard") })
-})
+void init();

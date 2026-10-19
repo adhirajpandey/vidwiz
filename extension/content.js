@@ -1,83 +1,76 @@
-const CONSTANTS = {
-  SELECTORS: {
-    // Current watch-page title; YouTube updates it on in-page navigation.
-    TITLE_PRIMARY: "ytd-watch-metadata h1",
-    VIDEO: "video"
-  },
-  URL: {
-    HOSTNAME_PART: "youtube.com",
-    WATCH_PATH: "/watch"
-  },
-  STRINGS: {
-    TITLE_SUFFIX: /\s+-\s+YouTube$/,
-    // Unread notification count YouTube prepends to the tab title, e.g. "(3) ".
-    TITLE_COUNT_PREFIX: /^\(\d+\)\s*/,
-    NO_VIDEO_FOUND: "No YouTube video found."
+// Reads the current YouTube video and shows capture feedback on the page.
+(() => {
+  const VIDEO_ID = /^[a-zA-Z0-9_-]{11}$/;
+
+  function videoId() {
+    const url = new URL(window.location.href);
+    if (url.pathname === "/watch") return url.searchParams.get("v");
+    const shorts = url.pathname.match(/^\/shorts\/([^/?#]+)/);
+    return shorts ? shorts[1] : null;
   }
-};
 
-// Listen for messages from the popup
-chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
-  if (request.action === "getVideoData") {
-    sendResponse({
-      title: fetchVideoTitle(),
-      timestamp: fetchVideoTimestamp(),
-      duration: fetchVideoDuration()
-    });
-  } else if (request.action === "getVideoTimestamp") {
-    sendResponse(fetchVideoTimestamp());
+  function title() {
+    // The watch-page heading updates on in-page navigation; the meta title does not.
+    const heading = document.querySelector("ytd-watch-metadata h1, ytd-reel-video-renderer[is-active] h2")?.textContent?.trim();
+    if (heading) return heading;
+    return document.title.replace(/^\(\d+\)\s*/, "").replace(/\s+-\s+YouTube$/, "").trim();
   }
-});
 
-function isYouTubeWatchPage() {
-  return window.location.hostname.includes(CONSTANTS.URL.HOSTNAME_PART) && 
-         window.location.pathname === CONSTANTS.URL.WATCH_PATH;
-}
-
-function fetchVideoTitle() {
-  if (isYouTubeWatchPage()) {
-    // Try primary title element
-    const title = document.querySelector(CONSTANTS.SELECTORS.TITLE_PRIMARY)?.textContent.trim()
-    if (title) return title
-
-    // Fallback: document title, formatted as "(3) Video Title - YouTube".
-    // The meta title tag is not used because it keeps the first video's title after in-page navigation.
-    return document.title
-      .replace(CONSTANTS.STRINGS.TITLE_COUNT_PREFIX, "")
-      .replace(CONSTANTS.STRINGS.TITLE_SUFFIX, "")
-      .trim()
+  function player() {
+    // Shorts keep several players; the playing one is the visible, active one.
+    return document.querySelector("ytd-reel-video-renderer[is-active] video") || document.querySelector("video");
   }
-  return CONSTANTS.STRINGS.NO_VIDEO_FOUND
-}
 
-function fetchVideoTimestamp() {
-  if (isYouTubeWatchPage()) {
-    const video = document.querySelector(CONSTANTS.SELECTORS.VIDEO)
-    if (video) {
-        return formatTime(video.currentTime)
+  function currentVideo() {
+    const id = videoId();
+    const element = player();
+    if (!id || !VIDEO_ID.test(id) || !element) return null;
+    return { videoId: id, title: title(), seconds: element.currentTime || 0 };
+  }
+
+  let toastHost = null;
+  function showToast(text, kind) {
+    if (!toastHost) {
+      toastHost = document.createElement("div");
+      toastHost.attachShadow({ mode: "open" });
+      document.documentElement.appendChild(toastHost);
     }
+    const root = toastHost.shadowRoot;
+    root.innerHTML = "";
+    const style = document.createElement("style");
+    style.textContent = `
+      .toast { position: fixed; bottom: 24px; left: 50%; transform: translateX(-50%); z-index: 2147483647;
+        display: flex; align-items: center; gap: 8px; padding: 10px 14px; border-radius: 10px;
+        font: 500 13px/1.4 system-ui, -apple-system, sans-serif; color: #fff; background: #18181b;
+        box-shadow: 0 8px 24px rgb(0 0 0 / 30%); border: 1px solid rgb(255 255 255 / 10%); }
+      .dot { width: 8px; height: 8px; border-radius: 50%; background: #a78bfa; flex: none; }
+      .error .dot { background: #f87171; }`;
+    const toast = document.createElement("div");
+    toast.className = `toast ${kind === "error" ? "error" : ""}`;
+    toast.setAttribute("role", "status");
+    const dot = document.createElement("span");
+    dot.className = "dot";
+    const label = document.createElement("span");
+    label.textContent = text;
+    toast.append(dot, label);
+    root.append(style, toast);
+    clearTimeout(showToast.timer);
+    showToast.timer = setTimeout(() => { root.innerHTML = ""; }, 2600);
   }
-  return null
-}
 
-function fetchVideoDuration() {
-  if (isYouTubeWatchPage()) {
-    const video = document.querySelector(CONSTANTS.SELECTORS.VIDEO)
-    if (video) {
-        return formatTime(video.duration)
+  chrome.runtime.onMessage.addListener((request, _sender, sendResponse) => {
+    if (request.action === "getVideo") {
+      sendResponse(currentVideo());
+    } else if (request.action === "seek") {
+      const element = player();
+      if (element && Number.isFinite(request.seconds)) {
+        element.currentTime = Math.max(0, request.seconds - 2);
+        element.play().catch(() => {});
+      }
+      sendResponse(Boolean(element));
+    } else if (request.action === "toast") {
+      showToast(request.text, request.kind);
+      sendResponse(true);
     }
-  }
-  return null
-}
-
-function formatTime(seconds) {
-    if (isNaN(seconds)) return null
-    const h = Math.floor(seconds / 3600)
-    const m = Math.floor((seconds % 3600) / 60)
-    const s = Math.floor(seconds % 60)
-    
-    if (h > 0) {
-        return `${h}:${m.toString().padStart(2, '0')}:${s.toString().padStart(2, '0')}`
-    }
-    return `${m}:${s.toString().padStart(2, '0')}`
-}
+  });
+})();
