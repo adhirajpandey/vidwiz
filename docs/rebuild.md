@@ -142,6 +142,19 @@ v3 runs as a second, complete deployment beside the current one:
 4. Extension.
 5. Cutover.
 
+## Status
+- Phases 0–4 are built and running on the v3 deployment.
+- Still open before cutover:
+  - Overview backfill: copy existing transcripts to the v3 bucket (which
+    regenerates overviews) and run the chunk backfill. Waits for the overview
+    model choice and enough OpenRouter budget.
+  - Jev evaluation on about 20 real library questions, to set
+    `JEV_RELEVANCE_THRESHOLD` and confirm Jev improves Ask.
+  - Update `scripts/screenshot_pages.py` and the README screenshots for the v3
+    pages.
+  - Submit the 3.x extension to the store; remove the legacy notes route once
+    it is live.
+
 ## Out of scope
 Pricing changes, transcript fallback, folders and tags, teams, native apps, and
 sources other than YouTube.
