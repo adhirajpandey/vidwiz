@@ -2,11 +2,13 @@ import { forwardRef } from 'react';
 import type { ButtonHTMLAttributes } from 'react';
 import { cn } from '../../lib/utils';
 
-type Variant = 'primary' | 'secondary' | 'ghost' | 'danger';
+type Variant = 'primary' | 'save' | 'secondary' | 'ghost' | 'danger';
 type Size = 'sm' | 'md' | 'icon';
 
 const variants: Record<Variant, string> = {
   primary: 'bg-accent text-accent-foreground hover:opacity-90',
+  // Caption yellow: only for saving a moment.
+  save: 'bg-saved text-saved-foreground hover:brightness-105',
   secondary: 'border border-border bg-card text-foreground hover:bg-muted',
   ghost: 'text-muted-foreground hover:bg-muted hover:text-foreground',
   danger: 'text-destructive hover:bg-destructive/10',
@@ -32,7 +34,7 @@ const Button = forwardRef<HTMLButtonElement, ButtonProps>(function Button(
       ref={ref}
       type={type}
       className={cn(
-        'inline-flex shrink-0 items-center rounded-lg font-medium transition-colors disabled:pointer-events-none disabled:opacity-50',
+        'inline-flex shrink-0 items-center rounded-[9px] font-semibold transition-[color,background-color,filter,opacity] disabled:pointer-events-none disabled:opacity-50',
         variants[variant],
         sizes[size],
         className,

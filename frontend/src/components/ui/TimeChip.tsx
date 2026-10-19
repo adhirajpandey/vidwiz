@@ -1,4 +1,3 @@
-import { Play } from 'lucide-react';
 import { formatClock } from '../../lib/format';
 import { cn } from '../../lib/utils';
 
@@ -9,10 +8,10 @@ export default function TimeChip({ seconds, onClick, className }: {
   className?: string;
 }) {
   const label = formatClock(seconds);
-  const content = <><Play className="size-3 fill-current" aria-hidden="true" />{label}</>;
+  const content = label;
   const classes = cn(
-    'inline-flex shrink-0 items-center gap-1 rounded-md bg-accent-soft px-1.5 py-0.5 font-mono text-xs font-medium text-accent tabular',
-    onClick && 'hover:bg-accent/20',
+    'inline-flex shrink-0 items-center rounded-[5px] bg-saved px-1.5 py-px text-xs font-bold text-saved-foreground tabular',
+    onClick && 'hover:brightness-105',
     className,
   );
   return onClick

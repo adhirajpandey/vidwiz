@@ -20,8 +20,8 @@ const NAV = [
 
 function Logo() {
   return (
-    <Link to="/" className="flex items-center gap-2 font-semibold tracking-tight">
-      <img src="/icon-192.png" alt="" className="size-7 rounded-md" />
+    <Link to="/" className="flex items-center gap-2.5 text-lg font-bold tracking-tight">
+      <img src="/icon-192.png" alt="" className="size-7 rounded-[7px]" />
       <span>VidWiz</span>
     </Link>
   );
@@ -46,9 +46,9 @@ function HeaderSearch() {
         onChange={event => setValue(event.target.value)}
         aria-label="Search your moments and videos"
         placeholder="Search moments and transcripts"
-        className="h-9 w-full rounded-lg border border-input bg-surface pl-9 pr-14 text-sm placeholder:text-muted-foreground focus:border-accent focus:outline-none focus:ring-2 focus:ring-accent/20"
+        className="h-10 w-full rounded-[9px] border border-input bg-card pl-9 pr-14 text-sm placeholder:text-muted-foreground focus:border-foreground/60 focus:outline-none focus:ring-2 focus:ring-foreground/10"
       />
-      <kbd className="pointer-events-none absolute right-2.5 top-1/2 -translate-y-1/2 rounded border border-border px-1.5 font-mono text-[10px] text-muted-foreground">⌘K</kbd>
+      <kbd className="pointer-events-none absolute right-2.5 top-1/2 -translate-y-1/2 rounded-[5px] border border-border border-b-2 px-1.5 text-[11px] font-semibold text-muted-foreground">Ctrl K</kbd>
     </form>
   );
 }
@@ -71,7 +71,7 @@ function UserMenu() {
           {profile.data?.profile_image_url ? (
             <img src={profile.data.profile_image_url} alt="" className="size-7 rounded-full" referrerPolicy="no-referrer" />
           ) : (
-            <span className="flex size-7 items-center justify-center rounded-full bg-accent-soft text-xs font-semibold text-accent">
+            <span className="flex size-8 items-center justify-center rounded-full bg-foreground text-xs font-bold text-background">
               {name.slice(0, 1).toUpperCase()}
             </span>
           )}
@@ -104,8 +104,8 @@ function SignedOutActions() {
       <Button variant="ghost" size="icon" aria-label="Toggle theme" onClick={toggle}>
         {theme === 'dark' ? <Sun className="size-4" /> : <Moon className="size-4" />}
       </Button>
-      <Link to="/login" className="rounded-lg px-3 py-2 text-sm font-medium text-muted-foreground hover:text-foreground">Log in</Link>
-      <Link to="/signup" className="rounded-lg bg-accent px-3 py-2 text-sm font-medium text-accent-foreground hover:opacity-90">Sign up</Link>
+      <Link to="/login" className="rounded-[9px] px-3 py-2 text-sm font-semibold text-muted-foreground hover:text-foreground">Log in</Link>
+      <Link to="/signup" className="rounded-[9px] bg-accent px-3.5 py-2 text-sm font-semibold text-accent-foreground hover:opacity-90">Start free</Link>
     </div>
   );
 }
@@ -113,14 +113,14 @@ function SignedOutActions() {
 function MobileNav() {
   const items = [...NAV, { to: '/search', label: 'Search', icon: Search, end: false }, { to: '/settings', label: 'Settings', icon: Settings, end: false }];
   return (
-    <nav aria-label="Primary" className="safe-bottom fixed inset-x-0 bottom-0 z-40 border-t border-border bg-background/95 backdrop-blur md:hidden">
+    <nav aria-label="Primary" className="safe-bottom fixed inset-x-0 bottom-0 z-40 border-t border-border bg-surface md:hidden">
       <ul className="grid grid-cols-5">
         {items.map(({ to, label, icon: Icon, end }) => (
           <li key={to}>
             <NavLink
               to={to}
               end={end}
-              className={({ isActive }) => cn('flex flex-col items-center gap-0.5 py-2 text-[11px]', isActive ? 'text-accent' : 'text-muted-foreground')}
+              className={({ isActive }) => cn('relative flex flex-col items-center gap-0.5 py-2 text-[11px] font-semibold', isActive ? 'text-foreground before:absolute before:inset-x-5 before:top-0 before:h-0.5 before:rounded-full before:bg-foreground' : 'text-muted-foreground')}
             >
               <Icon className="size-5" />{label}
             </NavLink>
@@ -138,8 +138,8 @@ export default function AppShell({ children }: { children: ReactNode }) {
   if (!signedIn && pathname === '/') return children;
   return (
     <div className="min-h-dvh">
-      <header className="sticky top-0 z-40 border-b border-border bg-background/95 backdrop-blur">
-        <div className="mx-auto flex h-14 max-w-6xl items-center gap-4 px-4">
+      <header className="sticky top-0 z-40 bg-surface">
+        <div className="mx-auto flex h-16 max-w-6xl items-center gap-6 px-4">
           <Logo />
           {signedIn && (
             <nav aria-label="Main" className="hidden items-center gap-1 md:flex">
@@ -148,7 +148,7 @@ export default function AppShell({ children }: { children: ReactNode }) {
                   key={to}
                   to={to}
                   end={end}
-                  className={({ isActive }) => cn('rounded-lg px-3 py-1.5 text-sm font-medium', isActive ? 'bg-muted text-foreground' : 'text-muted-foreground hover:text-foreground')}
+                  className={({ isActive }) => cn('rounded-[9px] px-3 py-1.5 text-sm font-semibold', isActive ? 'bg-card text-foreground shadow-[inset_0_0_0_1px_hsl(var(--border))]' : 'text-muted-foreground hover:text-foreground')}
                 >
                   {label}
                 </NavLink>
@@ -161,7 +161,7 @@ export default function AppShell({ children }: { children: ReactNode }) {
           </div>
         </div>
       </header>
-      <main className={cn('mx-auto max-w-6xl px-4 py-6', signedIn && 'pb-24 md:pb-10')}>{children}</main>
+      <main className={cn('mx-auto max-w-6xl px-4 py-8', signedIn && 'pb-24 md:pb-12')}>{children}</main>
       {signedIn && <MobileNav />}
       {signedIn && <CommandPalette />}
     </div>

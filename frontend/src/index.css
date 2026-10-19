@@ -3,8 +3,8 @@
 @custom-variant dark (&:where(.dark, .dark *));
 
 @theme {
-  --font-sans: "Geist", ui-sans-serif, system-ui, -apple-system, sans-serif;
-  --font-mono: "Geist Mono", ui-monospace, SFMono-Regular, monospace;
+  --font-sans: "Bricolage Grotesque", ui-sans-serif, system-ui, -apple-system, sans-serif;
+  --font-mono: ui-monospace, SFMono-Regular, monospace;
 
   --color-background: hsl(var(--background));
   --color-foreground: hsl(var(--foreground));
@@ -20,7 +20,10 @@
   --color-ring: hsl(var(--accent));
   --color-accent: hsl(var(--accent));
   --color-accent-foreground: hsl(var(--accent-foreground));
-  --color-accent-soft: hsl(var(--accent) / 0.1);
+  --color-accent-soft: hsl(var(--accent) / 0.07);
+  --color-saved: hsl(var(--saved));
+  --color-saved-foreground: hsl(var(--saved-foreground));
+  --color-saved-soft: hsl(var(--saved) / 0.32);
   --color-destructive: hsl(var(--destructive));
   --color-destructive-foreground: hsl(0 0% 100%);
   --color-success: hsl(var(--success));
@@ -33,36 +36,41 @@
 }
 
 @layer base {
-  /* One accent, flat surfaces, thin borders. Both themes share every layout. */
+  /* Paper: blue-ink text on cool white. Ink carries actions; caption yellow
+     marks only what the user saved and is always a background, never text. */
   :root {
-    --background: 0 0% 100%;
-    --surface: 240 9% 98%;
+    --background: 240 33% 99%;
+    --surface: 227 31% 94%;
     --card: 0 0% 100%;
-    --foreground: 240 10% 8%;
-    --muted: 240 6% 95%;
-    --muted-foreground: 240 4% 42%;
-    --border: 240 6% 90%;
-    --accent: 262 70% 54%;
-    --accent-foreground: 0 0% 100%;
-    --destructive: 0 72% 48%;
-    --success: 142 64% 32%;
-    --warning: 32 92% 38%;
+    --foreground: 236 36% 17%;
+    --muted: 231 32% 95%;
+    --muted-foreground: 234 13% 44%;
+    --border: 236 25% 89%;
+    --accent: 236 36% 17%;
+    --accent-foreground: 240 33% 99%;
+    --saved: 50 100% 68%;
+    --saved-foreground: 236 36% 17%;
+    --destructive: 0 68% 48%;
+    --success: 152 55% 30%;
+    --warning: 32 92% 36%;
     color-scheme: light;
   }
 
   .dark {
-    --background: 240 8% 7%;
-    --surface: 240 7% 9%;
-    --card: 240 7% 10%;
-    --foreground: 0 0% 96%;
-    --muted: 240 5% 15%;
-    --muted-foreground: 240 5% 64%;
-    --border: 240 5% 18%;
-    --accent: 262 82% 70%;
-    --accent-foreground: 240 10% 8%;
-    --destructive: 0 72% 62%;
-    --success: 142 55% 55%;
-    --warning: 38 92% 60%;
+    --background: 234 33% 12%;
+    --surface: 232 31% 15%;
+    --card: 233 29% 18%;
+    --foreground: 233 31% 94%;
+    --muted: 233 27% 20%;
+    --muted-foreground: 233 16% 69%;
+    --border: 234 24% 23%;
+    --accent: 233 31% 94%;
+    --accent-foreground: 234 33% 12%;
+    --saved: 50 100% 68%;
+    --saved-foreground: 236 36% 17%;
+    --destructive: 0 75% 66%;
+    --success: 152 45% 58%;
+    --warning: 40 92% 62%;
     color-scheme: dark;
   }
 
@@ -76,11 +84,17 @@
 
   body {
     @apply bg-background text-foreground font-sans antialiased;
+    font-optical-sizing: auto;
     text-rendering: optimizeLegibility;
   }
 
+  h1, h2, h3 {
+    letter-spacing: -0.015em;
+  }
+
   ::selection {
-    background: hsl(var(--accent) / 0.25);
+    background: hsl(var(--saved) / 0.6);
+    color: hsl(var(--saved-foreground));
   }
 
   :focus-visible {
@@ -92,6 +106,13 @@
 @layer utilities {
   .tabular {
     font-variant-numeric: tabular-nums;
+  }
+  /* Page and section headings: condensed and heavy, like the landing page. */
+  .display {
+    font-weight: 720;
+    font-stretch: 90%;
+    letter-spacing: -0.025em;
+    line-height: 1.1;
   }
   .safe-bottom {
     padding-bottom: env(safe-area-inset-bottom);

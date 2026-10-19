@@ -1,17 +1,15 @@
 /* Landing page. The headline is set as subtitles, the product's own medium;
    caption yellow marks anything the visitor saved. Scoped to .landing. */
 .landing {
-  --field: #ECEEF5; --on-field: #1B1D3A; --screen: #12142F; --cap-bg: rgb(18 20 47 / 0.94);
-  --caption: #FFE45C; --saved-ink: #1B1D3A; --ink: #1B1D3A; --paper: #FAFAFC; --panel: #FFFFFF;
-  --mist: #E8E9F8; --grey: #62657E; --line: #DCDDEA;
+  /* Shared Paper tokens from index.css, plus a few landing-only surfaces. */
+  --field: hsl(var(--surface)); --on-field: hsl(var(--foreground)); --screen: #12142F; --cap-bg: rgb(18 20 47 / 0.94);
+  --caption: hsl(var(--saved)); --saved-ink: hsl(var(--saved-foreground)); --ink: hsl(var(--foreground));
+  --paper: hsl(var(--background)); --panel: hsl(var(--card)); --mist: #E8E9F8;
+  --grey: hsl(var(--muted-foreground)); --line: hsl(var(--border));
   background: var(--paper); color: var(--ink);
-  font-family: "Bricolage Grotesque", system-ui, sans-serif; font-optical-sizing: auto;
   font-size: 17px; line-height: 1.55; font-variant-numeric: tabular-nums;
 }
-.dark .landing {
-  --field: #272B46; --on-field: #FFFFFF; --screen: #0C0D1F; --paper: #15172A; --panel: #20233A;
-  --mist: #1C1F35; --ink: #ECEDF5; --grey: #A3A6BD; --line: #2D3049;
-}
+.dark .landing { --field: #272B46; --screen: #0C0D1F; --mist: #1C1F35; }
 .landing a { color: inherit; }
 .landing :focus-visible { outline: 3px solid var(--caption); outline-offset: 3px; border-radius: 4px; }
 .landing .wrap { max-width: 1180px; margin: 0 auto; padding: 0 32px; }

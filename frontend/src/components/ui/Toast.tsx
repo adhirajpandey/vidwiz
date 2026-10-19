@@ -55,21 +55,21 @@ export default function Toast({
   const typeConfig = {
     success: {
       icon: <Check className="w-4 h-4" strokeWidth={2.5} />,
-      iconBg: 'bg-emerald-500',
-      progressBar: 'bg-emerald-500',
-      border: 'border-emerald-500/20',
+      iconBg: 'bg-success',
+      progressBar: 'bg-success',
+      border: 'border-border',
     },
     error: {
       icon: <X className="w-4 h-4" strokeWidth={2.5} />,
-      iconBg: 'bg-red-500',
-      progressBar: 'bg-red-500',
-      border: 'border-red-500/20',
+      iconBg: 'bg-destructive',
+      progressBar: 'bg-destructive',
+      border: 'border-destructive/30',
     },
     info: {
       icon: <AlertCircle className="w-4 h-4" strokeWidth={2} />,
-      iconBg: 'bg-blue-500',
-      progressBar: 'bg-blue-500',
-      border: 'border-blue-500/20',
+      iconBg: 'bg-foreground',
+      progressBar: 'bg-foreground',
+      border: 'border-border',
     },
   };
 
@@ -79,7 +79,7 @@ export default function Toast({
     <div
       className={`
         relative w-full overflow-hidden rounded-xl 
-        bg-card/95 backdrop-blur-lg
+        bg-card
         border ${config.border}
         shadow-lg shadow-black/10
         transition-all duration-200 ease-out

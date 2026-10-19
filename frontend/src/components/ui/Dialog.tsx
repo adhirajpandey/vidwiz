@@ -15,7 +15,7 @@ export function DialogContent({ title, description, children, className }: {
 }) {
   return (
     <RadixDialog.Portal>
-      <RadixDialog.Overlay className="fixed inset-0 z-50 bg-black/40" />
+      <RadixDialog.Overlay className="fixed inset-0 z-50 bg-[hsl(236_36%_10%/0.45)]" />
       <RadixDialog.Content
         className={cn(
           'fixed left-1/2 top-1/2 z-50 w-[calc(100%-2rem)] max-w-md -translate-x-1/2 -translate-y-1/2 rounded-xl border border-border bg-card p-5 shadow-xl focus:outline-none',
@@ -24,7 +24,7 @@ export function DialogContent({ title, description, children, className }: {
       >
         <div className="mb-4 flex items-start justify-between gap-4">
           <div>
-            <RadixDialog.Title className="text-base font-semibold">{title}</RadixDialog.Title>
+            <RadixDialog.Title className="display text-xl">{title}</RadixDialog.Title>
             {description && <RadixDialog.Description className="mt-1 text-sm text-muted-foreground">{description}</RadixDialog.Description>}
           </div>
           <RadixDialog.Close aria-label="Close" className="rounded-md p-1 text-muted-foreground hover:bg-muted hover:text-foreground">

@@ -50,12 +50,12 @@ export function WatchPassage({ passage }: { passage: Passage }) {
     <span className="wiz-passage">
       <button
         type="button"
-        className="wiz-watch wiz-accent-text"
+        className="wiz-watch"
         aria-label={`Watch ${video ? `${video} ` : ''}from ${start} to ${end}`}
         title={`${video ? `${video}, ` : ''}${start} to ${end}. Playback starts 2 seconds earlier.`}
         onClick={() => watch(passage)}
       >
-        <span aria-hidden="true">▶</span> {video ? <span className="wiz-video">{video}</span> : 'Watch'} · {start}
+        <span className="wiz-time">{start}</span>{video ? <span className="wiz-video">{video}</span> : 'Watch'}
       </button>
       {save && <SavePassage passage={passage} save={save} />}
     </span>
@@ -71,7 +71,7 @@ export default function WizCitation({ data }: DataMessagePartProps<CitationPart>
       type="button"
       aria-label={`Seek video to ${label}`}
       onClick={() => watch({ chunk_ids: [data.chunk_id], start_seconds: data.start_seconds, end_seconds: data.end_seconds })}
-      className="mx-0.5 my-1 inline-flex items-center rounded-md border border-accent/20 bg-accent-soft px-1.5 font-mono text-xs text-accent hover:bg-accent/20"
+      className="mx-0.5 my-1 inline-flex items-center rounded-[5px] bg-saved px-1.5 text-xs font-bold text-saved-foreground tabular hover:brightness-105"
     >
       {label}
     </button>

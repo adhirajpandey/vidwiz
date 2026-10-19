@@ -34,7 +34,7 @@ export default function CommandPalette() {
     <RadixDialog.Root open={open} onOpenChange={setOpen}>
       <RadixDialog.Portal>
         <RadixDialog.Overlay className="fixed inset-0 z-50 bg-black/40" />
-        <RadixDialog.Content className="fixed left-1/2 top-[15vh] z-50 w-[calc(100%-2rem)] max-w-lg -translate-x-1/2 overflow-hidden rounded-xl border border-border bg-card shadow-2xl">
+        <RadixDialog.Content className="fixed left-1/2 top-[15vh] z-50 w-[calc(100%-2rem)] max-w-lg -translate-x-1/2 overflow-hidden rounded-2xl border border-border bg-card shadow-[0_30px_80px_rgb(0_0_0/0.25)]">
           <RadixDialog.Title className="sr-only">Command palette</RadixDialog.Title>
           <Command label="Command palette" shouldFilter={false}>
             <div className="flex items-center gap-2 border-b border-border px-3">
@@ -43,7 +43,7 @@ export default function CommandPalette() {
                 value={query}
                 onValueChange={setQuery}
                 placeholder="Search, paste a YouTube link, or go to…"
-                className="h-12 flex-1 bg-transparent text-sm outline-none placeholder:text-muted-foreground"
+                className="h-14 flex-1 bg-transparent text-base outline-none placeholder:text-muted-foreground"
               />
             </div>
             <Command.List className="max-h-80 overflow-y-auto p-2 text-sm">
