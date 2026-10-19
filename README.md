@@ -137,13 +137,21 @@ vidwiz/
 
 ## Screenshots
 
-### Smart Notes Feature
-![Smart Notes](frontend/src/public/smart-notes.png)
-*Rich note-taking with timestamp navigation and video metadata*
+### Video overview
 
-### Ask Wiz - AI Assistant
-![Ask Wiz](frontend/src/public/wiz.png)
-*AI-powered note generation and intelligent assistance for your learning journey*
+![A video overview with timestamped key points](docs/images/video-overview.png)
+
+### Library
+
+![Saved videos with their moments and transcript status](docs/images/library.png)
+
+### Ask your library
+
+![An answer with citations to saved videos](docs/images/ask-answer.png)
+
+### Home after a capture
+
+![Recent captures with AI lines on the home page](docs/images/home.png)
 
 ### Extension
 <img width="369" height="450" alt="Screenshot 2026-01-16 011711" src="https://github.com/user-attachments/assets/d52c10c5-fcaa-4d0b-8dae-e2f63b7c2f66" />
