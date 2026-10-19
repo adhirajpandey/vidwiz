@@ -306,7 +306,7 @@ class VidwizStack(cdk.Stack):
             tracing=lambda_.Tracing.DISABLED,
             log_group=log_group,
             bundling=(
-                shared_worker_bundling()
+                shared_worker_bundling(spec.source)
                 if spec.key in {"ai_note_worker", "ai_summary_worker"}
                 else lambda_bundling()
             ),
