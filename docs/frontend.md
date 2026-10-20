@@ -75,6 +75,9 @@ Workers.
   `queued`, and the transcript while it is `pending`. Every job ends in an
   explicit state, so polling always stops.
   Mutations invalidate moments, the library, and the profile (credit balance).
+- Moment timestamps and timeline marks use the saved capture time. Playing a
+  moment starts five seconds earlier (clamped at zero), including search and
+  exported links; the transcript quote has its own context window.
 - **Moments**: `MomentItem` shows the AI line, the user's note, the quote, and
   one explicit status line with its fix (retry without a new charge, get
   credits). While the AI line is being written, its status takes the AI line's

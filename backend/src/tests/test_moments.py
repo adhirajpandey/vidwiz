@@ -612,7 +612,7 @@ async def test_markdown_exports(client, db_session, user, transcript_ready):
     assert video.text.splitlines()[:5] == [
         f"# [Indexes](https://youtu.be/{VIDEO_ID})",
         "",
-        f"- [1:35](https://youtu.be/{VIDEO_ID}?t=95)",
+        f"- [1:40](https://youtu.be/{VIDEO_ID}?t=95)",
         "  - Order matters",
         "  - AI: Index order matters",
     ]

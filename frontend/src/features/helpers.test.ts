@@ -51,9 +51,9 @@ describe('resultLink', () => {
   const video = { video_id: 'aaaaaaaaaaa', title: null, thumbnail_url: '' };
   it('opens passages at their time and moments highlighted', () => {
     const passage: PassageResult = { kind: 'passage', video, chunk_id: 1, start_seconds: 42.7, end_seconds: 80, snippet: [], score: 1 };
-    const found = { kind: 'moment', video, start_seconds: 12, snippet: [], score: 1, moment: { id: 9 } } as unknown as MomentResult;
+    const found = { kind: 'moment', video, start_seconds: 12, snippet: [], score: 1, moment: { id: 9, at_seconds: 12, quote_start_seconds: 0 } } as unknown as MomentResult;
     expect(resultLink(passage)).toBe('/v/aaaaaaaaaaa?t=42');
-    expect(resultLink(found)).toBe('/v/aaaaaaaaaaa?t=12&m=9');
+    expect(resultLink(found)).toBe('/v/aaaaaaaaaaa?t=9&m=9');
   });
 });
 

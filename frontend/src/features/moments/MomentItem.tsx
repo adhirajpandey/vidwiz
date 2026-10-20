@@ -11,7 +11,7 @@ import { cn } from '../../lib/utils';
 import MomentQuote from './MomentQuote';
 import MomentStatus from './MomentStatus';
 import ResolvePicker from './ResolvePicker';
-import { startSeconds, useDeleteMoment, useRequestAi, useUpdateMoment } from './queries';
+import { playFrom, useDeleteMoment, useRequestAi, useUpdateMoment } from './queries';
 
 interface Props {
   moment: MomentRead;
@@ -28,7 +28,7 @@ export default function MomentItem({ moment, onSeek, highlighted, showQuote = tr
   const remove = useDeleteMoment();
   const requestAi = useRequestAi();
   const notify = useNotify();
-  const start = startSeconds(moment);
+  const at = moment.at_seconds;
 
   const fail = (error: unknown, fallback: string) => {
     notify.error(error, 'Moment not updated', fallback);
@@ -67,10 +67,10 @@ export default function MomentItem({ moment, onSeek, highlighted, showQuote = tr
   }
 
   const time = onSeek ? (
-    <TimeChip seconds={start} onClick={() => onSeek(start)} />
+    <TimeChip seconds={at} onClick={() => onSeek(playFrom(moment))} />
   ) : (
-    <Link to={`/v/${moment.video_id}?t=${start}&m=${moment.id}`} aria-label={`Open at ${formatAt(start)}`}>
-      <TimeChip seconds={start} />
+    <Link to={`/v/${moment.video_id}?t=${playFrom(moment)}&m=${moment.id}`} aria-label={`Open at ${formatAt(at)}`}>
+      <TimeChip seconds={at} />
     </Link>
   );
 

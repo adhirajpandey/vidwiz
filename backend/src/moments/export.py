@@ -22,8 +22,8 @@ def _video_section(video: Video, moments: list[Moment], level: int) -> list[str]
     title = video.title or video.video_id
     lines = [f"{'#' * level} [{title}](https://youtu.be/{video.video_id})", ""]
     for moment in moments:
-        start = moment.quote_start_seconds or moment.at_seconds
-        lines.append(f"- [{_clock(start)}]({_link(video.video_id, start)})")
+        start = moment.at_seconds
+        lines.append(f"- [{_clock(start)}]({_link(video.video_id, start - 5)})")
         if moment.note:
             lines.append(f"  - {moment.note.replace(chr(10), ' ')}")
         if moment.ai_text:

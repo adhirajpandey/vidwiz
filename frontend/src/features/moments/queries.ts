@@ -64,6 +64,13 @@ export function hasPendingWork(moments: MomentRead[] | undefined): boolean {
     moment.ai_status === 'waiting_transcript'));
 }
 
-export function startSeconds(moment: MomentRead): number {
-  return moment.quote_start_seconds ?? moment.at_seconds;
+/** Extra lead-in for moments, on top of the player's own 2 seconds. */
+const MOMENT_LEAD_SECONDS = 3;
+
+/**
+ * Where playing a moment starts: a few seconds before it was saved, so the
+ * sentence is heard coming in. The moment's time itself is `at_seconds`.
+ */
+export function playFrom(moment: MomentRead): number {
+  return Math.max(0, moment.at_seconds - MOMENT_LEAD_SECONDS);
 }

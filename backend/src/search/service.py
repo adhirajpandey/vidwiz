@@ -121,7 +121,7 @@ def _moment_hits(db, user_id, tsquery, limit, video_id) -> list[Hit]:
             result=MomentResult(
                 video=video_brief(moment.video_id, title),
                 moment=MomentRead.model_validate(moment),
-                start_seconds=moment.quote_start_seconds or moment.at_seconds,
+                start_seconds=moment.at_seconds,
                 snippet=split_snippet(snippet),
                 score=round(value, 6),
             ),
@@ -206,7 +206,7 @@ def _fuzzy_hits(db, user_id, query_text, limit, video_id) -> list[Hit]:
             result=MomentResult(
                 video=video_brief(moment.video_id, title),
                 moment=MomentRead.model_validate(moment),
-                start_seconds=moment.quote_start_seconds or moment.at_seconds,
+                start_seconds=moment.at_seconds,
                 snippet=[
                     SnippetPart(
                         text=_clip(moment.ai_text or moment.note or moment.quote or ""),

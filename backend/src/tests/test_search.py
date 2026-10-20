@@ -80,6 +80,7 @@ def library(db_session, user):
             video="aaaaaaaaaaa", at=25, note="Index column ordering", ai=False
         ),
     )
+    moment.quote_start_seconds = 10
     db_session.flush()
     return moment
 
@@ -101,6 +102,7 @@ async def test_search_ranks_moments_and_passages_with_highlights(
     assert kinds == ["moment", "passage"]
     moment, passage = payload["results"]
     assert moment["moment"]["id"] == library.id
+    assert moment["start_seconds"] == 25
     assert passage["video"]["video_id"] == "aaaaaaaaaaa"
     assert passage["start_seconds"] == 0
     assert passage["video"]["thumbnail_url"].endswith("/aaaaaaaaaaa/mqdefault.jpg")
