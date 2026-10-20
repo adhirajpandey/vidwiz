@@ -77,7 +77,11 @@ Workers.
   Mutations invalidate moments, the library, and the profile (credit balance).
 - **Moments**: `MomentItem` shows the AI line, the user's note, the quote, and
   one explicit status line with its fix (retry without a new charge, get
-  credits). Title captures still resolving show a placeholder; ambiguous ones
+  credits). While the AI line is being written, its status takes the AI line's
+  place. `MomentQuote` folds the quote behind "What was said" when the moment
+  has an AI line or note, and otherwise shows a three-line preview with "Show
+  all". The fold follows the content, so the quote folds away when the AI line
+  arrives. Title captures still resolving show a placeholder; ambiguous ones
   show the candidate videos to pick from.
 - **Overview**: rendered from `overview_status`: writing, failed with a free
   retry (signed in), no transcript, pending (transcript still loading), or

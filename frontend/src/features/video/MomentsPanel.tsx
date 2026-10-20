@@ -30,7 +30,7 @@ export default function MomentsPanel({ videoId, onSeek, highlightId }: {
   if (!moments.data.length) {
     return (
       <EmptyState icon={<BookmarkPlus className="size-5" />} title="No moments yet">
-        Press Capture while the video plays, or save a line from the transcript or an answer.
+        Press Save moment or S while the video plays, or save a line from the transcript or an answer.
       </EmptyState>
     );
   }

@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import { Link } from 'react-router-dom';
-import { Check, ChevronDown, Loader2, MoreHorizontal, Pencil, Sparkles, Trash2, X } from 'lucide-react';
+import { Check, Loader2, MoreHorizontal, Pencil, Sparkles, Trash2, X } from 'lucide-react';
 import type { MomentRead } from '../../api';
 import { useNotify } from '../../hooks/useNotify';
 import Button from '../../components/ui/Button';
@@ -8,6 +8,7 @@ import { TextArea } from '../../components/ui/Input';
 import { Menu, MenuContent, MenuItem, MenuTrigger } from '../../components/ui/Menu';
 import TimeChip from '../../components/ui/TimeChip';
 import { cn } from '../../lib/utils';
+import MomentQuote from './MomentQuote';
 import MomentStatus from './MomentStatus';
 import ResolvePicker from './ResolvePicker';
 import { startSeconds, useDeleteMoment, useRequestAi, useUpdateMoment } from './queries';
@@ -22,8 +23,6 @@ interface Props {
 
 export default function MomentItem({ moment, onSeek, highlighted, showQuote = true }: Props) {
   const [editing, setEditing] = useState(false);
-  // Without an AI line or note, the quote is the moment, so show it.
-  const [quoteOpen, setQuoteOpen] = useState(!moment.ai_text && !moment.note);
   const [draft, setDraft] = useState(moment.note ?? '');
   const update = useUpdateMoment();
   const remove = useDeleteMoment();
@@ -34,6 +33,16 @@ export default function MomentItem({ moment, onSeek, highlighted, showQuote = tr
   const fail = (error: unknown, fallback: string) => {
     notify.error(error, 'Moment not updated', fallback);
   };
+
+  // While the AI line is on its way, its status holds the AI line's place.
+  const writing = moment.ai_status === 'queued' || moment.ai_status === 'waiting_transcript';
+  const status = (
+    <MomentStatus
+      moment={moment}
+      requesting={requestAi.isPending}
+      onRequestAi={() => requestAi.mutate(moment.id, { onError: error => fail(error, 'The AI line could not be requested.') })}
+    />
+  );
 
   const saveNote = () => {
     update.mutate(
@@ -73,6 +82,7 @@ export default function MomentItem({ moment, onSeek, highlighted, showQuote = tr
       <div className="flex items-start gap-3">
         <div className="w-14 shrink-0 pt-0.5">{time}</div>
         <div className="min-w-0 flex-1 space-y-1.5">
+          {writing && status}
           {moment.ai_text && (
             <p className="flex gap-2 text-[15px] leading-6" title={moment.ai_model ? `AI line by ${moment.ai_model}` : 'AI line'}>
               <Sparkles className="mt-1 size-3.5 shrink-0 text-muted-foreground" aria-label="AI line" />
@@ -100,23 +110,11 @@ export default function MomentItem({ moment, onSeek, highlighted, showQuote = tr
           ) : (
             moment.note && <p className="whitespace-pre-wrap border-l-2 border-foreground/25 pl-3 text-sm leading-6">{moment.note}</p>
           )}
-          {showQuote && moment.quote && (quoteOpen ? (
-            <blockquote className="border-l-2 border-border pl-3 text-sm leading-6 text-muted-foreground">
-              {moment.quote}
-            </blockquote>
-          ) : (
-            <button type="button" onClick={() => setQuoteOpen(true)} className="inline-flex items-center gap-1 text-xs font-semibold text-muted-foreground hover:text-foreground">
-              <ChevronDown className="size-3.5" />What was said
-            </button>
-          ))}
+          {showQuote && moment.quote && <MomentQuote quote={moment.quote} folded={Boolean(moment.ai_text || moment.note)} />}
           {!moment.ai_text && !moment.note && !moment.quote && !editing && (
             <p className="text-sm text-muted-foreground">Saved moment</p>
           )}
-          <MomentStatus
-            moment={moment}
-            requesting={requestAi.isPending}
-            onRequestAi={() => requestAi.mutate(moment.id, { onError: error => fail(error, 'The AI line could not be requested.') })}
-          />
+          {!writing && status}
         </div>
         <Menu>
           <MenuTrigger asChild>
