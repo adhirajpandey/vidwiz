@@ -716,3 +716,64 @@ def test_sweep_fails_only_stale_queued_ai_lines(db_session, user):
     db_session.refresh(fresh)
     assert stale.ai_status == AiStatus.FAILED
     assert fresh.ai_status == AiStatus.QUEUED
+
+
+def test_backfill_quotes_fills_imported_moments(db_session, user, monkeypatch):
+    from src import database
+    from src.management import backfill
+
+    db_session.add_all(
+        [
+            Video(
+                video_id=VIDEO_ID, title="A", transcript_status=TranscriptStatus.READY
+            ),
+            Video(
+                video_id="bbbbbbbbbbb",
+                title="B",
+                transcript_status=TranscriptStatus.PENDING,
+            ),
+        ]
+    )
+    db_session.flush()
+    imported = Moment(
+        user_id=user.id, video_id=VIDEO_ID, at_seconds=100, source=CaptureSource.LEGACY
+    )
+    quoted = Moment(
+        user_id=user.id,
+        video_id=VIDEO_ID,
+        at_seconds=300,
+        source=CaptureSource.WEB,
+        quote="kept",
+        quote_start_seconds=300,
+    )
+    waiting = Moment(
+        user_id=user.id,
+        video_id="bbbbbbbbbbb",
+        at_seconds=5,
+        source=CaptureSource.LEGACY,
+    )
+    db_session.add_all([imported, quoted, waiting])
+    db_session.flush()
+
+    class Session:
+        def __getattr__(self, name):
+            return getattr(db_session, name)
+
+        def close(self):
+            pass
+
+    loads = []
+
+    def load(video_id):
+        loads.append(video_id)
+        return TRANSCRIPT
+
+    monkeypatch.setattr(database, "SessionLocal", Session)
+    monkeypatch.setattr(transcripts, "load_transcript", load)
+
+    backfill.backfill_quotes()
+
+    assert loads == [VIDEO_ID]
+    assert imported.quote and "leftmost column" in imported.quote
+    assert quoted.quote == "kept"
+    assert waiting.quote is None

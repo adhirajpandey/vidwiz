@@ -129,8 +129,9 @@ v3 runs as a second, complete deployment beside the current one:
 2. A separate API, database, and helpers, restored from a production dump and
    migrated.
 3. Testing on the v3 deployment with a dedicated email and password account.
-4. Cutover: re-sync the latest production data, move the public API and
-   frontend to v3, then delete the old stack.
+4. Cutover: re-sync the latest production data, fill quotes on the imported
+   moments (`backfill quotes`), move the public API and frontend to v3, then
+   delete the old stack.
 
 ## Phases
 0. v3 deployment running the current code against restored data.
