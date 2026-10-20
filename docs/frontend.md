@@ -90,8 +90,14 @@ Workers.
 - **Video workspace**: the player is sticky on desktop and above the tabs on
   mobile. Captures use the player's current time. Timestamps in moments,
   key points, transcript lines, and citations seek the same player. The
-  transcript highlights and follows the playing line, filters by text, and saves
-  any line as a moment.
+  transcript centers the playing line in its own scroll panel, with natural
+  clamping at the start and end. Line changes ease over 240 ms; initial entry,
+  large seeks, and reduced-motion preferences use immediate positioning.
+  Manual scrolling pauses follow; "Follow playback" or a transcript timestamp
+  resumes it. Searching suspends centering.
+  The panel recenters on seeks, tab entry, and size changes while following,
+  without scrolling the page. It also filters by text and saves any line as a
+  moment.
 - **Ask**: `useWizChat` takes a target (`{scope: 'video', videoId}` or
   `{scope: 'library'}`), optionally resumes a conversation by loading its
   messages, and reports new conversation ids so the URL can hold them. A video

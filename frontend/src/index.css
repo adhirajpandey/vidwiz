@@ -131,6 +131,36 @@
   scroll-margin-top: 96px;
 }
 
+.transcript-scrollbar {
+  scrollbar-width: thin;
+  scrollbar-color: hsl(var(--muted-foreground) / 0.35) transparent;
+}
+
+.transcript-scrollbar:hover,
+.transcript-scrollbar:focus-within {
+  scrollbar-color: hsl(var(--muted-foreground) / 0.6) transparent;
+}
+
+@supports not (scrollbar-width: thin) {
+  .transcript-scrollbar::-webkit-scrollbar {
+    width: 6px;
+  }
+
+  .transcript-scrollbar::-webkit-scrollbar-track {
+    background: transparent;
+  }
+
+  .transcript-scrollbar::-webkit-scrollbar-thumb {
+    border-radius: 999px;
+    background: hsl(var(--muted-foreground) / 0.35);
+  }
+
+  .transcript-scrollbar:hover::-webkit-scrollbar-thumb,
+  .transcript-scrollbar:focus-within::-webkit-scrollbar-thumb {
+    background: hsl(var(--muted-foreground) / 0.6);
+  }
+}
+
 @media (prefers-reduced-motion: reduce) {
   *,
   *::before,

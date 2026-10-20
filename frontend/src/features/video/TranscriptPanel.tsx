@@ -25,7 +25,7 @@ function Line({ segment, active, query, onSeek, signedIn, videoId }: {
   const [saved, setSaved] = useState(false);
   const text = useMemo(() => highlight(segment.text, query), [segment.text, query]);
   return (
-    <li data-active={active || undefined} className={cn('group flex items-start gap-2 rounded-md px-1.5 py-1', active && 'bg-accent-soft')}>
+    <li data-active={active || undefined} className={cn('group flex items-start gap-2 rounded-md px-1.5 py-1 transition-colors duration-200', active && 'bg-accent-soft')}>
       <button
         type="button"
         onClick={() => onSeek(segment.start_seconds)}
@@ -81,17 +81,56 @@ export default function TranscriptPanel({ videoId, playhead, onSeek, signedIn }:
 }) {
   const transcript = useTranscript(videoId, true);
   const [query, setQuery] = useState('');
+  const [following, setFollowing] = useState(true);
+  const scroller = useRef<HTMLDivElement>(null);
+  const followedTop = useRef(0);
+  const hasCentered = useRef(false);
   const list = useRef<HTMLOListElement>(null);
   const segments = useMemo(() => transcript.data?.segments ?? [], [transcript.data]);
   const needle = query.trim().toLowerCase();
   const visible = needle.length >= 2 ? segments.filter(segment => segment.text.toLowerCase().includes(needle)) : segments;
   const current = needle.length >= 2 ? -1 : activeSegment(segments, playhead);
 
-  // Keep the playing line in view, unless the user is searching.
+  // Scroll only the transcript, never its ancestors or the page.
   useEffect(() => {
-    if (current < 0) return;
-    list.current?.querySelector('[data-active]')?.scrollIntoView({ block: 'nearest' });
-  }, [current]);
+    const container = scroller.current;
+    const lines = list.current;
+    if (current < 0 || !following || !container || !lines) return;
+    let cancelled = false;
+    let frame = 0;
+    const center = () => {
+      if (cancelled) return;
+      const row = lines.querySelector<HTMLElement>('[data-active]');
+      if (!row || !container.clientHeight) return;
+      const offset = row.getBoundingClientRect().top - container.getBoundingClientRect().top - container.clientTop;
+      const top = container.scrollTop + offset + row.offsetHeight / 2 - container.clientHeight / 2;
+      const target = Math.max(0, Math.min(top, container.scrollHeight - container.clientHeight));
+      const start = container.scrollTop;
+      cancelAnimationFrame(frame);
+      const move = (position: number) => {
+        followedTop.current = position;
+        container.scrollTop = position;
+      };
+      // Snap on entry and large seeks; ease the short moves between lines.
+      const animate = hasCentered.current && Math.abs(target - start) < container.clientHeight
+        && !window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+      hasCentered.current = true;
+      if (!animate || Math.abs(target - start) < 1) { move(target); return; }
+      const started = performance.now();
+      const step = (now: number) => {
+        if (cancelled) return;
+        const progress = Math.min(1, (now - started) / 240);
+        move(start + (target - start) * (1 - (1 - progress) ** 3));
+        if (progress < 1) frame = requestAnimationFrame(step);
+      };
+      frame = requestAnimationFrame(step);
+    };
+    center();
+    const observer = new ResizeObserver(center);
+    observer.observe(container);
+    observer.observe(lines);
+    return () => { cancelled = true; cancelAnimationFrame(frame); observer.disconnect(); };
+  }, [current, following, segments]);
 
   if (transcript.isPending) return <div className="flex justify-center py-10"><Spinner /></div>;
   if (transcript.isError) return <ErrorState compact title="The transcript did not load" message="Check your connection and try again." onRetry={() => void transcript.refetch()} />;
@@ -104,21 +143,43 @@ export default function TranscriptPanel({ videoId, playhead, onSeek, signedIn }:
 
   return (
     <div className="space-y-2">
-      <Input value={query} onChange={event => setQuery(event.target.value)} placeholder="Find in transcript" aria-label="Find in transcript" className="h-9" />
+      <div className="flex items-center gap-2">
+        <Input value={query} onChange={event => setQuery(event.target.value)} placeholder="Find in transcript" aria-label="Find in transcript" className="h-9" />
+        {!following && <button type="button" onClick={() => setFollowing(true)} className="shrink-0 rounded-md px-2 py-1 text-xs font-semibold text-accent hover:bg-accent-soft">Follow playback</button>}
+      </div>
       {needle.length >= 2 && <p className="px-1 text-xs text-muted-foreground tabular">{visible.length} matching lines</p>}
-      <ol ref={list} className="space-y-0.5">
-        {visible.map(segment => (
-          <Line
-            key={`${segment.start_seconds}-${segment.text.slice(0, 12)}`}
-            segment={segment}
-            active={segments[current] === segment}
-            query={needle}
-            onSeek={onSeek}
-            signedIn={signedIn}
-            videoId={videoId}
-          />
-        ))}
-      </ol>
+      <div
+        ref={scroller}
+        role="region"
+        aria-label="Transcript lines"
+        tabIndex={0}
+        className="transcript-scrollbar h-[60dvh] min-h-48 overflow-y-auto overscroll-contain scroll-auto pr-1 lg:h-[calc(100dvh-15rem)]"
+        onWheel={() => setFollowing(false)}
+        onTouchMove={() => setFollowing(false)}
+        onPointerDown={event => {
+          if (event.target === event.currentTarget) setFollowing(false);
+        }}
+        onKeyDown={event => {
+          if (['ArrowUp', 'ArrowDown', 'PageUp', 'PageDown', 'Home', 'End', ' '].includes(event.key)) setFollowing(false);
+        }}
+        onScroll={event => {
+          if (Math.abs(event.currentTarget.scrollTop - followedTop.current) > 1) setFollowing(false);
+        }}
+      >
+        <ol ref={list} className="space-y-0.5">
+          {visible.map(segment => (
+            <Line
+              key={`${segment.start_seconds}-${segment.text.slice(0, 12)}`}
+              segment={segment}
+              active={segments[current] === segment}
+              query={needle}
+              onSeek={seconds => { setFollowing(true); onSeek(seconds); }}
+              signedIn={signedIn}
+              videoId={videoId}
+            />
+          ))}
+        </ol>
+      </div>
     </div>
   );
 }
