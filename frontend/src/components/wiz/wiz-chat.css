@@ -1,3 +1,4 @@
+.wiz-markdown { font-size: 0.97rem; line-height: 1.7; }
 .wiz-markdown > :first-child { margin-top: 0; }
 .wiz-markdown > :last-child { margin-bottom: 0; }
 .wiz-markdown + .wiz-markdown { margin-top: 0.65rem; }

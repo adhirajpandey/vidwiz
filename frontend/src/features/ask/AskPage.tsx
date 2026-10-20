@@ -107,7 +107,7 @@ export default function AskPage() {
         onPick={id => { setConversation(id); chat.resume(id); }}
         onNew={() => { setConversation(null); chat.newChat(); }}
       />
-      <div className="min-w-0 flex-1 overflow-hidden rounded-xl border border-border bg-card">
+      <div className="min-w-0 flex-1 overflow-hidden rounded-[14px] border border-border bg-card">
         <WizChat
           chat={chat}
           isReady
@@ -115,7 +115,7 @@ export default function AskPage() {
           suggestedQuestions={STARTERS}
           passages={passages}
           className="h-[calc(100dvh-11rem)] md:h-[calc(100dvh-8.5rem)]"
-          header={<div className="flex items-center gap-2"><Sparkles className="size-4 text-accent" /><h1 className="text-sm font-semibold">Ask your library</h1></div>}
+          header={<div className="flex items-center gap-2"><Sparkles className="size-4" /><h1 className="display text-lg">Ask your library</h1></div>}
           statusBanner={<ChatLimitNotice chat={chat} />}
         />
       </div>

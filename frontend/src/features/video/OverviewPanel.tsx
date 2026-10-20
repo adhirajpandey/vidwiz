@@ -17,7 +17,7 @@ function RetryButton({ videoId }: { videoId: string }) {
         onError: error => notify.error(error, 'Overview not retried', 'Try again in a moment.'),
       })}
     >
-      <RotateCw className="size-4" />Try again · free
+      <RotateCw className="size-4" />Try again, free
     </Button>
   );
 }
@@ -75,15 +75,15 @@ export default function OverviewPanel({ video, signedIn, onSeek, onAsk }: {
   return (
     <div className="space-y-5 px-1">
       <StatusLine video={video} signedIn={signedIn} />
-      {video.summary && <p className="text-sm leading-7">{video.summary}</p>}
+      {video.summary && <p className="text-base leading-7">{video.summary}</p>}
       {video.key_points && (
         <section aria-labelledby="key-points">
-          <h3 id="key-points" className="mb-2 text-xs font-medium uppercase tracking-wide text-muted-foreground">Key points</h3>
+          <h3 id="key-points" className="display mb-3 border-t-2 border-foreground pt-3 text-lg">Key points</h3>
           <ol className="space-y-2.5">
             {video.key_points.map(point => (
               <li key={`${point.start_seconds}-${point.text}`} className="flex items-start gap-3">
-                <TimeChip seconds={point.start_seconds} onClick={() => onSeek(point.start_seconds)} className="mt-0.5" />
-                <span className="text-sm leading-6">{point.text}</span>
+                <span className="w-14 shrink-0 pt-0.5"><TimeChip seconds={point.start_seconds} onClick={() => onSeek(point.start_seconds)} /></span>
+                <span className="text-[15px] leading-6">{point.text}</span>
               </li>
             ))}
           </ol>
@@ -94,11 +94,11 @@ export default function OverviewPanel({ video, signedIn, onSeek, onAsk }: {
       )}
       {video.suggested_questions && (
         <section aria-labelledby="questions">
-          <h3 id="questions" className="mb-2 text-xs font-medium uppercase tracking-wide text-muted-foreground">Questions to ask</h3>
+          <h3 id="questions" className="display mb-3 border-t-2 border-foreground pt-3 text-lg">Questions to ask</h3>
           <ul className="space-y-1.5">
             {video.suggested_questions.map(question => (
               <li key={question}>
-                <button type="button" onClick={onAsk} className="text-left text-sm text-accent hover:underline">{question}</button>
+                <button type="button" onClick={onAsk} className="text-left text-sm underline decoration-foreground/30 underline-offset-4 hover:decoration-foreground">{question}</button>
               </li>
             ))}
           </ul>

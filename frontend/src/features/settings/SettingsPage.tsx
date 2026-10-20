@@ -15,8 +15,8 @@ import TokensSection from './TokensSection';
 
 function Section({ id, title, children }: { id: string; title: string; children: ReactNode }) {
   return (
-    <section id={id} aria-labelledby={`${id}-title`} className="moment-anchor rounded-xl border border-border bg-card p-5">
-      <h2 id={`${id}-title`} className="mb-4 text-base font-semibold">{title}</h2>
+    <section id={id} aria-labelledby={`${id}-title`} className="moment-anchor rounded-[14px] border border-border bg-card p-6">
+      <h2 id={`${id}-title`} className="display mb-4 text-xl">{title}</h2>
       {children}
     </section>
   );
@@ -49,7 +49,7 @@ function AccountSection() {
       <label className="flex cursor-pointer items-start gap-3">
         <input
           type="checkbox"
-          className="mt-1 accent-[hsl(var(--accent))]"
+          className="mt-1 accent-[hsl(var(--foreground))]"
           checked={profile.data?.ai_moments_default ?? false}
           disabled={!profile.data || update.isPending}
           onChange={event => update.mutate({ ai_moments_default: event.target.checked })}
@@ -71,7 +71,7 @@ export default function SettingsPage() {
   return (
     <div className="mx-auto max-w-2xl space-y-5">
       <PageTitle title="Settings" />
-      <h1 className="text-2xl font-semibold tracking-tight">Settings</h1>
+      <h1 className="display text-4xl">Settings</h1>
       <Section id="account" title="Account"><AccountSection /></Section>
       <Section id="credits" title="Credits"><CreditsSection /></Section>
       <Section id="tokens" title="API tokens"><TokensSection /></Section>

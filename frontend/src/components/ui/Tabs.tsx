@@ -12,7 +12,7 @@ export function TabsTrigger({ className, ...props }: ComponentPropsWithoutRef<ty
   return (
     <RadixTabs.Trigger
       className={cn(
-        '-mb-px inline-flex shrink-0 items-center gap-1.5 whitespace-nowrap border-b-2 border-transparent px-3 py-2.5 text-sm font-semibold text-muted-foreground transition-colors hover:text-foreground data-[state=active]:border-foreground data-[state=active]:text-foreground',
+        '-mb-px inline-flex shrink-0 items-center gap-1.5 whitespace-nowrap border-b-2 border-transparent px-2.5 py-2.5 sm:px-3 [&>svg]:hidden sm:[&>svg]:block text-sm font-semibold text-muted-foreground transition-colors hover:text-foreground data-[state=active]:border-foreground data-[state=active]:text-foreground',
         className,
       )}
       {...props}

@@ -29,8 +29,9 @@ function convertMessage(message: WizMessage): ThreadMessageLike {
 }
 
 function UserMessage() {
-  return <MessagePrimitive.Root className="flex justify-end py-3">
-    <div className="max-w-[90%] rounded-2xl rounded-br-sm bg-accent px-4 py-2.5 text-sm leading-6 whitespace-pre-wrap break-words text-accent-foreground">
+  // The question reads as a heading for the answer below it.
+  return <MessagePrimitive.Root className="border-t-2 border-foreground pt-4 pb-1 mt-4 first:mt-0">
+    <div className="display text-[22px] leading-snug whitespace-pre-wrap break-words">
       <MessagePrimitive.Parts />
     </div>
   </MessagePrimitive.Root>;
@@ -43,7 +44,7 @@ function AssistantMessage() {
   const copied = useAuiState(s => s.message.isCopied);
   return <MessagePrimitive.Root className="py-3 min-w-0">
     <div className="flex items-center gap-2 mb-2 text-xs font-medium text-muted-foreground">
-      <Sparkles className="size-3.5 text-accent" />Wiz
+      <Sparkles className="size-3.5" />Wiz
       {running && <span role="status" className="font-normal motion-safe:animate-pulse">{hasText ? 'Answering…' : 'Thinking…'}</span>}
     </div>
     <MessagePrimitive.Parts components={{ Text: WizMarkdown, data: { by_name: { citation: WizCitation } } }} />
@@ -63,12 +64,12 @@ function AssistantMessage() {
 function StarterQuestions({ questions, intro }: { questions?: string[] | null; intro: string }) {
   const aui = useAui();
   return <div className="flex flex-col items-center justify-center text-center py-8 px-2">
-    <div className="size-11 rounded-xl bg-accent-soft flex items-center justify-center mb-3"><Sparkles className="size-5 text-accent" /></div>
+    <div className="size-11 rounded-xl bg-surface flex items-center justify-center mb-3"><Sparkles className="size-5" /></div>
     <p className="text-muted-foreground text-sm max-w-sm leading-6 mb-5">{intro}</p>
     {questions && questions.length > 0 && <div className="flex flex-col gap-2 w-full">
       {questions.map(question => <button key={question} type="button"
         onClick={() => { aui.composer.setText(question); }}
-        className="rounded-lg border border-border px-3.5 py-2.5 text-left text-sm text-foreground/85 hover:bg-muted transition-colors"
+        className="rounded-[10px] border border-border bg-card px-3.5 py-2.5 text-left text-sm font-medium text-foreground hover:border-foreground/40 transition-colors"
       >{question}</button>)}
     </div>}
   </div>;
@@ -113,7 +114,7 @@ export default function WizChat({ chat, isReady, suggestedQuestions, passages, s
     <WizPassageProvider value={passages}>
       <ThreadPrimitive.Root className={cn('flex min-h-0 flex-col overflow-hidden', className)}>
         <div className="flex items-center justify-between gap-2 px-4 py-2.5 border-b border-border">
-          {header ?? <div className="flex items-center gap-2"><Sparkles className="size-4 text-accent" /><h2 className="text-sm font-semibold">Ask</h2></div>}
+          {header ?? <div className="flex items-center gap-2"><Sparkles className="size-4" /><h2 className="text-sm font-bold">Ask</h2></div>}
           {chat.messages.length > 0 && <button type="button" onClick={chat.newChat} className="inline-flex items-center gap-1.5 rounded-lg px-2.5 py-1.5 text-xs text-muted-foreground hover:text-foreground hover:bg-muted"><RotateCcw className="size-3.5" />New chat</button>}
         </div>
         {statusBanner}
@@ -129,9 +130,9 @@ export default function WizChat({ chat, isReady, suggestedQuestions, passages, s
           </ThreadPrimitive.Viewport>
         </div>
         <div className="p-3 md:p-4 border-t border-border">
-          <ComposerPrimitive.Root className="flex items-end gap-2 rounded-xl border border-input bg-surface p-2 focus-within:border-accent focus-within:ring-2 focus-within:ring-accent/15">
+          <ComposerPrimitive.Root className="flex items-end gap-2 rounded-[12px] border border-input bg-card p-2 focus-within:border-foreground/60 focus-within:ring-2 focus-within:ring-foreground/10">
             <ComposerPrimitive.Input aria-label="Message Wiz" placeholder={isReady ? copy.placeholder : 'Waiting for the transcript…'} submitMode="enter" rows={1} className="flex-1 min-w-0 max-h-36 resize-none bg-transparent px-2 py-2 text-sm outline-none placeholder:text-muted-foreground" />
-            <ComposerPrimitive.Send aria-label="Send message" className="shrink-0 rounded-lg bg-accent text-accent-foreground p-2.5 hover:opacity-90 disabled:opacity-40 disabled:cursor-not-allowed"><ArrowUp className="size-4" /></ComposerPrimitive.Send>
+            <ComposerPrimitive.Send aria-label="Send message" className="shrink-0 rounded-[9px] bg-accent text-accent-foreground p-2.5 hover:opacity-90 disabled:opacity-40 disabled:cursor-not-allowed"><ArrowUp className="size-4" /></ComposerPrimitive.Send>
           </ComposerPrimitive.Root>
           <p className="mt-2 text-center text-[11px] text-muted-foreground">{copy.footer}</p>
         </div>

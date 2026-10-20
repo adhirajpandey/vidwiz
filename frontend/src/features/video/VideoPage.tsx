@@ -17,6 +17,7 @@ import { videoTitle, youtubeUrl } from '../../lib/format';
 import { isValidVideoId } from '../../lib/videoUtils';
 import AskPanel from './AskPanel';
 import CaptureBar from './CaptureBar';
+import MomentStrip from './MomentStrip';
 import MomentsPanel from './MomentsPanel';
 import OverviewPanel from './OverviewPanel';
 import TranscriptPanel from './TranscriptPanel';
@@ -87,7 +88,7 @@ function Workspace({ videoId }: { videoId: string }) {
             }
           }}><BookmarkPlus className="size-4" />Save to library</Button>
         ) : (
-          <Link to={`/?video=${videoId}`} className="text-sm font-medium text-accent hover:underline">Try it from the home page</Link>
+          <Link to={`/?video=${videoId}`} className="text-sm font-medium underline decoration-foreground/30 underline-offset-4 hover:decoration-foreground">Try it from the home page</Link>
         )
       }>Save it to fetch its transcript and start capturing moments.</EmptyState>
     ) : (
@@ -101,10 +102,13 @@ function Workspace({ videoId }: { videoId: string }) {
   return (
     <div className="grid gap-6 lg:grid-cols-[minmax(0,1fr)_minmax(0,26rem)] xl:grid-cols-[minmax(0,1fr)_minmax(0,30rem)]">
       <PageTitle title={title} />
-      <div className="min-w-0 space-y-4 lg:sticky lg:top-20 lg:self-start">
-        <YouTubePlayer ref={playerRef} videoId={videoId} onTimeUpdate={setPlayhead} className="overflow-hidden rounded-xl border border-border" />
+      <div className="min-w-0 space-y-4 lg:sticky lg:top-24 lg:self-start">
+        <YouTubePlayer ref={playerRef} videoId={videoId} onTimeUpdate={setPlayhead} className="overflow-hidden rounded-[14px] shadow-[0_24px_60px_rgb(10_12_40/0.18)]" />
+        {signedIn && data?.metadata?.duration ? (
+          <MomentStrip videoId={videoId} duration={data.metadata.duration} playhead={playhead} onSeek={seek} />
+        ) : null}
         <div className="space-y-1">
-          <h1 className="text-lg font-semibold leading-snug">{title}</h1>
+          <h1 className="display text-2xl">{title}</h1>
           <p className="flex flex-wrap items-center gap-x-3 text-sm text-muted-foreground">
             {data?.metadata?.uploader && <span>{data.metadata.uploader}</span>}
             <a href={youtubeUrl(videoId)} target="_blank" rel="noopener noreferrer" className="inline-flex items-center gap-1 hover:text-foreground">
@@ -116,6 +120,7 @@ function Workspace({ videoId }: { videoId: string }) {
           <CaptureBar
             videoId={videoId}
             currentTime={() => player.current?.currentTime() ?? null}
+            playhead={playhead}
             onCaptured={() => setTab('moments')}
           />
         )}
@@ -123,7 +128,7 @@ function Workspace({ videoId }: { videoId: string }) {
 
       <div className="min-w-0">
         <Tabs value={tab} onValueChange={setTab}>
-          <TabsList aria-label="Video panels" className="sticky top-14 z-10 bg-background">
+          <TabsList aria-label="Video panels" className="sticky top-16 z-10 bg-background">
             {signedIn && <TabsTrigger value="moments"><StickyNote className="size-4" />Moments</TabsTrigger>}
             <TabsTrigger value="ask"><Sparkles className="size-4" />Ask</TabsTrigger>
             <TabsTrigger value="transcript"><FileText className="size-4" />Transcript</TabsTrigger>
@@ -136,7 +141,7 @@ function Workspace({ videoId }: { videoId: string }) {
           )}
           <TabsContent value="ask" className="pt-3" forceMount hidden={tab !== 'ask'}>
             {data && (
-              <div className="overflow-hidden rounded-xl border border-border bg-card">
+              <div className="overflow-hidden rounded-[14px] border border-border bg-card">
                 <AskPanel video={data} seek={seek} signedIn={signedIn} resumeId={resumeId} onConversation={setConversation} />
               </div>
             )}

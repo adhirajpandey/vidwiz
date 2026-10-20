@@ -7,7 +7,7 @@ export default function Thumbnail({ videoId, className }: { videoId: string; cla
       src={thumbnailUrl(videoId)}
       alt=""
       loading="lazy"
-      className={cn('aspect-video shrink-0 rounded-md bg-muted object-cover', className)}
+      className={cn('aspect-video shrink-0 rounded-[8px] bg-muted object-cover', className)}
     />
   );
 }

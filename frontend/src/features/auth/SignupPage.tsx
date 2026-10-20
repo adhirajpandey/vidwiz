@@ -55,7 +55,7 @@ export default function SignupPage() {
       <AuthCard
         title="Create your account"
         subtitle={`Start with ${config.SIGNUP_CREDITS} free credits`}
-        footer={<>Already have an account? <Link to="/login" className="font-medium text-accent hover:underline">Log in</Link></>}
+        footer={<>Already have an account? <Link to="/login" className="font-medium underline decoration-foreground/30 underline-offset-4 hover:decoration-foreground">Log in</Link></>}
       >
         <form onSubmit={submit} className="space-y-3" noValidate>
           {field('name', 'Name', 'text', 'name')}

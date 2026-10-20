@@ -26,7 +26,7 @@ function Unlock({ cost, onUnlock }: { cost: number; onUnlock: () => void }) {
         Unlocking costs {cost} credits once for this video. Every later question about it is free within your daily limit.
       </p>
       <Button variant="primary" className="mt-5" disabled={short} onClick={onUnlock}>
-        <Sparkles className="size-4" />Unlock · {cost} credits
+        <Sparkles className="size-4" />Unlock for {cost} credits
       </Button>
       <p className="mt-2 text-xs text-muted-foreground tabular">
         {balance === undefined ? '' : short ? `You have ${balance} credits. Get more in Settings.` : `You have ${balance} credits.`}
@@ -102,7 +102,7 @@ export default function AskPanel({ video, seek, signedIn, resumeId, onConversati
         <>
           <ChatLimitNotice chat={chat} />
           {video.transcript_status === 'pending' && (
-            <div role="status" className="border-b border-border bg-accent-soft px-4 py-2.5 text-sm text-accent">Preparing the transcript…</div>
+            <div role="status" className="border-b border-border bg-surface px-4 py-2.5 text-sm font-medium text-foreground">Preparing the transcript…</div>
           )}
           {video.transcript_status === 'unavailable' && (
             <div role="status" className="border-b border-border bg-muted px-4 py-2.5 text-sm text-muted-foreground">This video has no transcript, so Ask is not available.</div>

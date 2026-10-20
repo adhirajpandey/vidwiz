@@ -29,7 +29,7 @@ function Line({ segment, active, query, onSeek, signedIn, videoId }: {
       <button
         type="button"
         onClick={() => onSeek(segment.start_seconds)}
-        className="w-12 shrink-0 pt-0.5 text-left font-mono text-xs text-muted-foreground tabular hover:text-accent"
+        className="w-12 shrink-0 pt-0.5 text-left text-xs font-semibold text-muted-foreground tabular hover:text-foreground"
         aria-label={`Play from ${formatClock(segment.start_seconds)}`}
       >
         {formatClock(segment.start_seconds)}
@@ -65,7 +65,7 @@ function highlight(text: string, query: string) {
   let index = lower.indexOf(query);
   while (index !== -1) {
     parts.push(text.slice(cursor, index));
-    parts.push(<mark key={index} className="rounded-sm bg-accent/20 text-foreground">{text.slice(index, index + query.length)}</mark>);
+    parts.push(<mark key={index} className="rounded-sm bg-saved text-saved-foreground">{text.slice(index, index + query.length)}</mark>);
     cursor = index + query.length;
     index = lower.indexOf(query, cursor);
   }

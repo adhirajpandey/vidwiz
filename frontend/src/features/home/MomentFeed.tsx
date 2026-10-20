@@ -31,18 +31,18 @@ export default function MomentFeed() {
 
   return (
     <section aria-labelledby="recent-moments">
-      <h2 id="recent-moments" className="mb-3 text-sm font-semibold text-muted-foreground">Recent moments</h2>
+      <h2 id="recent-moments" className="display mb-4 border-t-2 border-foreground pt-4 text-xl">Recent moments</h2>
       <div className="space-y-6">
         {groups.map((group, index) => (
           <Fragment key={group.key}>
             {(index === 0 || groups[index - 1].day !== group.day) && (
-              <h3 className="text-xs font-medium uppercase tracking-wide text-muted-foreground">{group.day}</h3>
+              <h3 className="text-sm font-semibold text-muted-foreground">{group.day}</h3>
             )}
-            <div className="rounded-xl border border-border bg-card p-3">
+            <div className="rounded-[14px] border border-border bg-card px-4 py-3">
               {group.videoId && (
-                <Link to={`/v/${group.videoId}`} className="mb-1 flex items-center gap-3 rounded-lg p-1 hover:bg-muted">
+                <Link to={`/v/${group.videoId}`} className="-mx-1 mb-1 flex items-center gap-3 rounded-[10px] p-1 hover:bg-muted">
                   <Thumbnail videoId={group.videoId} className="w-20" />
-                  <span className="line-clamp-2 text-sm font-medium">{videoTitle(group.title, group.videoId)}</span>
+                  <span className="line-clamp-2 text-[15px] font-semibold leading-snug">{videoTitle(group.title, group.videoId)}</span>
                 </Link>
               )}
               <ul className="divide-y divide-border">

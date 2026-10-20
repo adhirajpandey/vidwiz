@@ -21,7 +21,7 @@ export default function MomentStatus({ moment, onRequestAi, requesting }: {
       return (
         <p className={line}>
           <Coins className="size-3.5 text-warning" />Not enough credits for the AI line.
-          <Link to="/settings#credits" className="font-medium text-accent hover:underline">Get credits</Link>
+          <Link to="/settings#credits" className="font-medium underline decoration-foreground/30 underline-offset-4 hover:decoration-foreground">Get credits</Link>
           {onRequestAi && <Button variant="ghost" size="sm" onClick={onRequestAi} disabled={requesting}>Try again</Button>}
         </p>
       );
@@ -39,7 +39,7 @@ export default function MomentStatus({ moment, onRequestAi, requesting }: {
     case 'not_requested':
       return onRequestAi && moment.video_id && !moment.ai_text ? (
         <Button variant="ghost" size="sm" onClick={onRequestAi} disabled={requesting} className="-ml-2.5">
-          <Wand2 className="size-3.5" />Add AI line · 1 credit
+          <Wand2 className="size-3.5" />Add AI line, 1 credit
         </Button>
       ) : null;
     case 'ready':

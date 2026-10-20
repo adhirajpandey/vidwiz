@@ -82,6 +82,10 @@
     -webkit-text-size-adjust: 100%;
   }
 
+  kbd {
+    font-family: inherit;
+  }
+
   body {
     @apply bg-background text-foreground font-sans antialiased;
     font-optical-sizing: auto;

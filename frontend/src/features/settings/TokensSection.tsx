@@ -56,7 +56,7 @@ export default function TokensSection() {
         Tokens let capture clients, such as a phone automation, save moments for you. They can only capture; they cannot read your library.
       </p>
       {created && (
-        <div role="status" className="space-y-2 rounded-lg border border-accent/40 bg-accent-soft p-3">
+        <div role="status" className="space-y-2 rounded-[10px] bg-saved-soft p-3">
           <p className="text-sm font-medium">Copy “{created.name}” now. It is not shown again.</p>
           <div className="flex gap-2">
             <code className="min-w-0 flex-1 truncate rounded-md bg-card px-2 py-1.5 font-mono text-xs">{created.token}</code>
@@ -75,7 +75,7 @@ export default function TokensSection() {
               <div className="min-w-0">
                 <p className="truncate text-sm font-medium">{token.name} <span className="font-mono text-xs text-muted-foreground">…{token.token_hint}</span></p>
                 <p className="text-xs text-muted-foreground">
-                  Created {formatRelative(token.created_at)} · {token.last_used_at ? `last used ${formatRelative(token.last_used_at)}` : 'never used'}
+                  Created {formatRelative(token.created_at)}, {token.last_used_at ? `last used ${formatRelative(token.last_used_at)}` : 'never used'}
                 </p>
               </div>
               <Button variant="danger" size="sm" onClick={() => revoke.mutate(token.id)} disabled={revoke.isPending}>

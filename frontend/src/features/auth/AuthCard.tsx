@@ -31,10 +31,10 @@ export default function AuthCard({ title, subtitle, children, footer }: {
     <div className="mx-auto flex max-w-sm flex-col gap-6 py-10">
       <div className="text-center">
         <Link to="/" className="mx-auto mb-5 block w-fit"><img src="/icon-192.png" alt="VidWiz" className="size-10 rounded-lg" /></Link>
-        <h1 className="text-xl font-semibold tracking-tight">{title}</h1>
+        <h1 className="display text-3xl">{title}</h1>
         <p className="mt-1 text-sm text-muted-foreground">{subtitle}</p>
       </div>
-      <div className="space-y-4 rounded-xl border border-border bg-card p-5">
+      <div className="space-y-4 rounded-[14px] border border-border bg-card p-6">
         {config.GOOGLE_CLIENT_ID && (
           <>
             <GoogleSignInButton onSuccess={google} onError={googleError} />

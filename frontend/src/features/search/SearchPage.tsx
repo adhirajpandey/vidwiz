@@ -1,6 +1,6 @@
 import { Link, useSearchParams } from 'react-router-dom';
 import { useInfiniteQuery } from '@tanstack/react-query';
-import { Search, Sparkles, StickyNote } from 'lucide-react';
+import { Search, Sparkles } from 'lucide-react';
 import { searchApi } from '../../api';
 import type { SearchResult } from '../../api';
 import PageTitle from '../../components/PageTitle';
@@ -17,18 +17,16 @@ import { resultLink } from './resultLink';
 function ResultRow({ result }: { result: SearchResult }) {
   return (
     <li>
-      <Link to={resultLink(result)} className="flex gap-3 rounded-lg p-2.5 hover:bg-muted">
-        <Thumbnail videoId={result.video.video_id} className="hidden w-32 sm:block" />
-        <div className="min-w-0 flex-1 space-y-1">
-          <div className="flex items-center gap-2">
+      <Link to={resultLink(result)} className="-mx-2 flex gap-4 rounded-[12px] px-2 py-4 hover:bg-muted">
+        <Thumbnail videoId={result.video.video_id} className="hidden w-28 self-start sm:block" />
+        <div className="min-w-0 flex-1 space-y-1.5">
+          <div className="flex items-start justify-between gap-3">
+            <p className="min-w-0 truncate text-sm text-muted-foreground">
+              {result.kind === 'moment' ? 'Your moment in ' : 'Transcript of '}
+              <span className="font-semibold text-foreground">{videoTitle(result.video.title, result.video.video_id)}</span>
+            </p>
             <TimeChip seconds={result.start_seconds} />
-            <span className="inline-flex items-center gap-1 text-xs text-muted-foreground">
-              {result.kind === 'moment'
-                ? <><StickyNote className="size-3.5" />Your moment</>
-                : 'Transcript'}
-            </span>
           </div>
-          <p className="truncate text-sm font-medium">{videoTitle(result.video.title, result.video.video_id)}</p>
           <Snippet parts={result.snippet} />
         </div>
       </Link>
@@ -48,7 +46,7 @@ export default function SearchPage() {
   });
 
   const askLink = (
-    <Link to={`/ask?q=${encodeURIComponent(q)}`} className="inline-flex items-center gap-1.5 text-sm font-medium text-accent hover:underline">
+    <Link to={`/ask?q=${encodeURIComponent(q)}`} className="inline-flex items-center gap-1.5 text-sm font-medium underline decoration-foreground/30 underline-offset-4 hover:decoration-foreground">
       <Sparkles className="size-4" />Ask your library instead
     </Link>
   );
@@ -71,13 +69,13 @@ export default function SearchPage() {
     <div className="mx-auto max-w-3xl space-y-4">
       <PageTitle title={`Search: ${q}`} />
       <div className="flex flex-wrap items-baseline justify-between gap-2">
-        <h1 className="text-xl font-semibold tracking-tight">Results for “{q}”</h1>
+        <h1 className="display text-3xl">Results for “{q}”</h1>
         {askLink}
       </div>
       {search.isPending && <div className="flex justify-center py-10"><Spinner /></div>}
       {search.isError && <ErrorState title="Search failed" message="Check your connection and try again." onRetry={() => void search.refetch()} />}
       {first?.match === 'fuzzy' && (
-        <p className="rounded-lg bg-muted px-3 py-2 text-sm text-muted-foreground">No exact matches, so these are close spellings.</p>
+        <p className="rounded-[10px] bg-surface px-3 py-2 text-sm text-muted-foreground">No exact matches, so these are close spellings.</p>
       )}
       {first?.match === 'none' && (
         <EmptyState icon={<Search className="size-5" />} title="Nothing found">
@@ -85,7 +83,7 @@ export default function SearchPage() {
         </EmptyState>
       )}
       {results.length > 0 && (
-        <ul className="divide-y divide-border rounded-xl border border-border bg-card p-1">
+        <ul className="divide-y divide-border border-t-2 border-foreground">
           {results.map(result => (
             <ResultRow key={result.kind === 'moment' ? `m${result.moment.id}` : `c${result.chunk_id}`} result={result} />
           ))}

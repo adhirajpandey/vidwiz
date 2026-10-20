@@ -67,7 +67,7 @@ export default function LibraryPage() {
     <div className="mx-auto max-w-3xl space-y-6">
       <PageTitle title="Library" />
       <div className="flex flex-wrap items-center justify-between gap-3">
-        <h1 className="text-2xl font-semibold tracking-tight">Library</h1>
+        <h1 className="display text-4xl">Library</h1>
         <Button size="sm" onClick={() => void exportAll()} disabled={exporting}>
           <Download className="size-3.5" />Export Markdown
         </Button>
@@ -79,7 +79,7 @@ export default function LibraryPage() {
           value={sort}
           onChange={event => update('sort', event.target.value === 'activity_desc' ? null : event.target.value)}
           aria-label="Sort videos"
-          className="h-10 rounded-lg border border-input bg-card px-3 text-sm"
+          className="h-10 rounded-[9px] border border-input bg-card px-3 text-sm font-medium"
         >
           {SORTS.map(option => <option key={option.value} value={option.value}>{option.label}</option>)}
         </select>
@@ -94,8 +94,8 @@ export default function LibraryPage() {
       )}
       {library.data && library.data.videos.length > 0 && (
         <>
-          <p className="text-xs text-muted-foreground tabular">{library.data.total} videos</p>
-          <div className="divide-y divide-border rounded-xl border border-border bg-card p-1">
+          <div className="divide-y divide-border border-t-2 border-foreground">
+            <p className="py-2 text-sm text-muted-foreground tabular">{library.data.total} videos</p>
             {library.data.videos.map(video => <VideoRow key={video.video_id} video={video} />)}
           </div>
           {library.data.total_pages > 1 && (

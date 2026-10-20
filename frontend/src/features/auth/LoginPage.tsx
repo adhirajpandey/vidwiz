@@ -41,7 +41,7 @@ export default function LoginPage() {
       <AuthCard
         title="Welcome back"
         subtitle="Log in to your library"
-        footer={<>New to VidWiz? <Link to="/signup" className="font-medium text-accent hover:underline">Create an account</Link></>}
+        footer={<>New to VidWiz? <Link to="/signup" className="font-medium underline decoration-foreground/30 underline-offset-4 hover:decoration-foreground">Create an account</Link></>}
       >
         <form onSubmit={submit} className="space-y-3" noValidate>
           <div className="space-y-1">

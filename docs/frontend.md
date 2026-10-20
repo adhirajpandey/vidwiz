@@ -47,12 +47,18 @@ Workers.
   `/settings`.
 
 ## Design
-- Tokens in `src/index.css`: one accent (violet), flat surfaces, thin borders,
-  and identical layouts in light and dark themes (`.dark` on `<html>`, chosen
-  in `localStorage.theme` or from the OS).
-- Geist for text and Geist Mono for times.
-- Every paid action shows its cost: "AI line · 1 credit" when capturing,
-  "Unlock · 5 credits" before the first question about a video.
+- Paper theme, tokens in `src/index.css`: blue-ink text on cool white, flat
+  surfaces, thin borders, and identical layouts in light and dark themes
+  (`.dark` on `<html>`, chosen in `localStorage.theme` or from the OS).
+- Ink (`accent`) carries actions: primary buttons, links, the active tab, focus.
+- Caption yellow (`saved`) marks only what the user saved: timestamps, the Save
+  moment button (`Button variant="save"`), the moment strip under the player,
+  search matches, and citations. It is always a background behind ink text.
+- AI text has no colour of its own; a small sparkle icon marks it.
+- Bricolage Grotesque everywhere, with tabular digits for times. Headings use
+  the `display` utility (condensed and heavy).
+- Every paid action shows its cost: "AI line, 1 credit" when capturing,
+  "Unlock for 5 credits" before the first question about a video.
 
 ## Key Behavior
 - **Auth**: the JWT is stored in `localStorage`, validated on read, and sent by

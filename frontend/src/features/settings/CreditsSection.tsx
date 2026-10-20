@@ -28,7 +28,7 @@ export default function CreditsSection() {
       <div className="flex items-center gap-3">
         <div className="flex size-10 items-center justify-center rounded-lg bg-accent-soft text-accent"><Coins className="size-5" /></div>
         <div>
-          <p className="text-2xl font-semibold tabular">{profile.data?.credits_balance ?? '—'}</p>
+          <p className="display text-4xl tabular">{profile.data?.credits_balance ?? '—'}</p>
           <p className="text-xs text-muted-foreground">credits</p>
         </div>
       </div>
@@ -45,7 +45,7 @@ export default function CreditsSection() {
               type="button"
               disabled={buying !== null}
               onClick={() => void buy(product.product_id)}
-              className="rounded-lg border border-border p-3 text-left hover:border-accent hover:bg-accent-soft disabled:opacity-60"
+              className="rounded-[10px] border border-border p-3 text-left hover:border-foreground/50 disabled:opacity-60"
             >
               <p className="font-semibold tabular">{product.credits} credits</p>
               <p className="text-sm text-muted-foreground tabular">₹{product.price_inr}</p>

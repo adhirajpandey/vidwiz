@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import { Link } from 'react-router-dom';
-import { Check, Loader2, MoreHorizontal, Pencil, Sparkles, Trash2, X } from 'lucide-react';
+import { Check, ChevronDown, Loader2, MoreHorizontal, Pencil, Sparkles, Trash2, X } from 'lucide-react';
 import type { MomentRead } from '../../api';
 import { useNotify } from '../../hooks/useNotify';
 import Button from '../../components/ui/Button';
@@ -22,6 +22,8 @@ interface Props {
 
 export default function MomentItem({ moment, onSeek, highlighted, showQuote = true }: Props) {
   const [editing, setEditing] = useState(false);
+  // Without an AI line or note, the quote is the moment, so show it.
+  const [quoteOpen, setQuoteOpen] = useState(!moment.ai_text && !moment.note);
   const [draft, setDraft] = useState(moment.note ?? '');
   const update = useUpdateMoment();
   const remove = useDeleteMoment();
@@ -66,14 +68,14 @@ export default function MomentItem({ moment, onSeek, highlighted, showQuote = tr
   return (
     <li
       id={`moment-${moment.id}`}
-      className={cn('moment-anchor group rounded-lg border border-transparent px-1 py-3', highlighted && 'border-accent/40 bg-accent-soft')}
+      className={cn('moment-anchor group -mx-2 rounded-[10px] px-2 py-3.5', highlighted && 'bg-saved-soft')}
     >
       <div className="flex items-start gap-3">
-        <div className="pt-0.5">{time}</div>
+        <div className="w-14 shrink-0 pt-0.5">{time}</div>
         <div className="min-w-0 flex-1 space-y-1.5">
           {moment.ai_text && (
-            <p className="flex gap-1.5 text-sm leading-6" title={moment.ai_model ? `AI line by ${moment.ai_model}` : 'AI line'}>
-              <Sparkles className="mt-1 size-3.5 shrink-0 text-accent" aria-label="AI line" />
+            <p className="flex gap-2 text-[15px] leading-6" title={moment.ai_model ? `AI line by ${moment.ai_model}` : 'AI line'}>
+              <Sparkles className="mt-1 size-3.5 shrink-0 text-muted-foreground" aria-label="AI line" />
               <span>{moment.ai_text}</span>
             </p>
           )}
@@ -96,13 +98,17 @@ export default function MomentItem({ moment, onSeek, highlighted, showQuote = tr
               </div>
             </div>
           ) : (
-            moment.note && <p className="whitespace-pre-wrap text-sm leading-6">{moment.note}</p>
+            moment.note && <p className="whitespace-pre-wrap border-l-2 border-foreground/25 pl-3 text-sm leading-6">{moment.note}</p>
           )}
-          {showQuote && moment.quote && (
+          {showQuote && moment.quote && (quoteOpen ? (
             <blockquote className="border-l-2 border-border pl-3 text-sm leading-6 text-muted-foreground">
               {moment.quote}
             </blockquote>
-          )}
+          ) : (
+            <button type="button" onClick={() => setQuoteOpen(true)} className="inline-flex items-center gap-1 text-xs font-semibold text-muted-foreground hover:text-foreground">
+              <ChevronDown className="size-3.5" />What was said
+            </button>
+          ))}
           {!moment.ai_text && !moment.note && !moment.quote && !editing && (
             <p className="text-sm text-muted-foreground">Saved moment</p>
           )}
