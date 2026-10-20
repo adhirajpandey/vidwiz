@@ -101,6 +101,9 @@ Workers.
   The panel recenters on seeks, tab entry, and size changes while following,
   without scrolling the page. It also filters by text and saves any line as a
   moment.
+- Ask initializes only when its tab is first opened. It stays mounted after
+  that so switching panels preserves the chat. Creating a conversation updates
+  its URL parameter without changing the selected panel.
 - **Ask**: `useWizChat` takes a target (`{scope: 'video', videoId}` or
   `{scope: 'library'}`), optionally resumes a conversation by loading its
   messages, and reports new conversation ids so the URL can hold them. A video

@@ -1,4 +1,4 @@
-import { useCallback, useRef, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import { Link, useParams, useSearchParams } from 'react-router-dom';
 import { useQueryClient } from '@tanstack/react-query';
 import { BookmarkPlus, ExternalLink, FileText, Sparkles, StickyNote } from 'lucide-react';
@@ -46,6 +46,8 @@ function Workspace({ videoId }: { videoId: string }) {
   const requested = params.get('tab') as Tab | null;
   const defaultTab: Tab = resumeId !== null ? 'ask' : !signedIn ? 'ask' : 'moments';
   const tab: Tab = requested && TABS.includes(requested) ? requested : defaultTab;
+  const [askOpened, setAskOpened] = useState(tab === 'ask');
+  useEffect(() => { if (tab === 'ask') setAskOpened(true); }, [tab]);
   const startedRef = useRef(false);
 
   const setTab = (next: string) => {
@@ -57,10 +59,10 @@ function Workspace({ videoId }: { videoId: string }) {
     setParams(previous => {
       const next = new URLSearchParams(previous);
       if (id === null) next.delete('c'); else next.set('c', String(id));
-      next.set('tab', 'ask');
+      next.set('tab', tab);
       return next;
     }, { replace: true });
-  }, [setParams]);
+  }, [setParams, tab]);
 
   const seek = useCallback((seconds: number) => player.current?.watch(seconds), []);
 
@@ -140,7 +142,7 @@ function Workspace({ videoId }: { videoId: string }) {
             </TabsContent>
           )}
           <TabsContent value="ask" className="pt-3" forceMount hidden={tab !== 'ask'}>
-            {data && (
+            {data && (tab === 'ask' || askOpened) && (
               <div className="overflow-hidden rounded-[14px] border border-border bg-card">
                 <AskPanel video={data} seek={seek} signedIn={signedIn} resumeId={resumeId} onConversation={setConversation} />
               </div>
