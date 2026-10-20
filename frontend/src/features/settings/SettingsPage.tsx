@@ -56,7 +56,7 @@ function AccountSection() {
         />
         <span>
           <span className="block text-sm font-medium">Add an AI line to new moments</span>
-          <span className="block text-xs text-muted-foreground">1 credit per moment. Phone and extension captures use this unless they say otherwise.</span>
+          <span className="block text-xs text-muted-foreground">1 credit per moment. Save moment on the web, the extension and phone captures follow this. For a single moment, use the arrow next to Save moment.</span>
         </span>
       </label>
     </div>

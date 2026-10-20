@@ -57,8 +57,11 @@ Workers.
 - AI text has no colour of its own; a small sparkle icon marks it.
 - Bricolage Grotesque everywhere, with tabular digits for times. Headings use
   the `display` utility (condensed and heavy).
-- Every paid action shows its cost: "AI line, 1 credit" when capturing,
-  "Unlock for 5 credits" before the first question about a video.
+- Every paid action shows its cost: "Unlock for 5 credits" before the first
+  question about a video, and "Save with AI line, 1 credit" in the save menu.
+- Save moment is a split button. The main part follows the AI line default from
+  Settings (stated there with its cost, and in the button's tooltip); the arrow
+  opens a menu that saves one moment the other way. S and Shift S do the same.
 
 ## Key Behavior
 - **Auth**: the JWT is stored in `localStorage`, validated on read, and sent by
