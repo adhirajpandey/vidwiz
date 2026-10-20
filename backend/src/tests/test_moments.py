@@ -1,3 +1,5 @@
+from datetime import datetime, timezone
+
 import jwt
 import pytest
 
@@ -752,6 +754,7 @@ def test_backfill_quotes_fills_imported_moments(db_session, user, monkeypatch):
         at_seconds=5,
         source=CaptureSource.LEGACY,
     )
+    imported.updated_at = datetime(2026, 1, 2, tzinfo=timezone.utc)
     db_session.add_all([imported, quoted, waiting])
     db_session.flush()
 
@@ -775,5 +778,8 @@ def test_backfill_quotes_fills_imported_moments(db_session, user, monkeypatch):
 
     assert loads == [VIDEO_ID]
     assert imported.quote and "leftmost column" in imported.quote
+    # Filling a quote is not activity, so the library order stays put.
+    db_session.expire(imported)
+    assert imported.updated_at == datetime(2026, 1, 2, tzinfo=timezone.utc)
     assert quoted.quote == "kept"
     assert waiting.quote is None

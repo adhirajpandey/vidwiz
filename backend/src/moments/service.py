@@ -4,6 +4,7 @@ from datetime import timedelta
 from sqlalchemy import func, select
 from sqlalchemy import update as sql_update
 from sqlalchemy.orm import Session
+from sqlalchemy.orm.attributes import flag_modified
 
 from src import transcripts
 from src.auth import service as auth_service
@@ -360,7 +361,11 @@ def fail_resolution(db: Session, moment: Moment) -> None:
 
 
 def on_transcript_stored(db: Session, video_id: str, transcript: list) -> None:
-    """Fill quotes for the video's moments once its transcript arrives."""
+    """Fill quotes for the video's moments once its transcript arrives.
+
+    A filled quote is not the user's activity, so `updated_at` (which orders the
+    library) keeps its value.
+    """
     moments = (
         db.execute(
             select(Moment).where(Moment.video_id == video_id, Moment.quote.is_(None))
@@ -369,7 +374,12 @@ def on_transcript_stored(db: Session, video_id: str, transcript: list) -> None:
         .all()
     )
     for moment in moments:
+        updated_at = moment.updated_at
         apply_quote(moment, transcript)
+        moment.updated_at = updated_at
+        # Setting the same value is not a change on its own; without this flag
+        # the column's onupdate would stamp the current time.
+        flag_modified(moment, "updated_at")
     logger.debug(
         "Filled moment quotes", extra={"video_id": video_id, "count": len(moments)}
     )
