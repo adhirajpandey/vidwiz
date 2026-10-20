@@ -57,3 +57,11 @@ Plain JavaScript modules, no bundler.
   before the popup or Alt+S can read the video.
 - The 2.x extension still posts to `POST /v2/videos/{video_id}/notes`; the API
   keeps that route until 3.x is live in the store.
+
+## Branding
+
+The 16, 48, and 128 px icons are generated from the same SVG as the web app.
+The popup selects an outlined Bricolage wordmark for the OS light or dark
+scheme. All artwork is local, so popup branding requires no font request.
+`build.mjs` copies these SVGs with the existing `icons/` directory.
+See [Brand assets](branding.md) for regeneration.

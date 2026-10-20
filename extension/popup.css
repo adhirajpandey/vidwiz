@@ -35,8 +35,8 @@ body {
 }
 
 .header { display: flex; align-items: center; gap: 8px; padding: 12px 14px; border-bottom: 1px solid var(--border); }
-.logo { width: 22px; height: 22px; border-radius: 6px; }
-.brand { font-weight: 600; }
+.brand { display: block; flex-shrink: 0; }
+.brand img { display: block; width: 112px; height: 34px; object-fit: contain; }
 .header-link { margin-left: auto; color: var(--accent); font-size: 12px; font-weight: 500; text-decoration: none; }
 .header-link:hover { text-decoration: underline; }
 .moments-head .header-link { margin-left: 0; }

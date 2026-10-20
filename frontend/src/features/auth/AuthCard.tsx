@@ -30,7 +30,7 @@ export default function AuthCard({ title, subtitle, children, footer }: {
   return (
     <div className="mx-auto flex max-w-sm flex-col gap-6 py-10">
       <div className="text-center">
-        <Link to="/" className="mx-auto mb-5 block w-fit"><img src="/icon-192.png" alt="VidWiz" className="size-10 rounded-lg" /></Link>
+        <Link to="/" className="mx-auto mb-5 block w-fit"><img src="/brand/vidwiz-mark-color.svg" alt="VidWiz" className="size-10 rounded-lg" /></Link>
         <h1 className="display text-3xl">{title}</h1>
         <p className="mt-1 text-sm text-muted-foreground">{subtitle}</p>
       </div>

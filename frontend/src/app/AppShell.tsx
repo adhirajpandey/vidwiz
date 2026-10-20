@@ -21,7 +21,7 @@ const NAV = [
 function Logo() {
   return (
     <Link to="/" className="flex items-center gap-2.5 text-lg font-bold tracking-tight">
-      <img src="/icon-192.png" alt="" className="size-7 rounded-[7px]" />
+      <img src="/brand/vidwiz-mark-color.svg" alt="" className="size-7 rounded-[7px]" />
       <span>VidWiz</span>
     </Link>
   );

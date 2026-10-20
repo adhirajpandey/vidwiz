@@ -142,7 +142,7 @@ export default function LandingPage() {
       <header className="hero">
         <div className="wrap">
           <nav className="nav" aria-label="Main">
-            <Link className="logo" to="/"><img src="/icon-192.png" alt="" />VidWiz</Link>
+            <Link className="logo" to="/"><img src="/brand/vidwiz-mark-color.svg" alt="" />VidWiz</Link>
             <div className="links">
               <a href="#search">How it works</a>
               <a href="#pricing">Pricing</a>

@@ -127,3 +127,11 @@ Workers.
 ## UI Screenshot Workflow
 `scripts/screenshot_pages.py` captures the 2.x pages and still needs updating
 for the v3 routes and states.
+
+## Brand assets
+
+Navigation, landing, and authentication pages use the primary SVG mark.
+`index.html` declares the favicon and Apple icon; the manifest keeps standard
+and maskable icons separate. The default social card is shared by Open Graph
+and Twitter metadata, including page-specific titles from `Seo`.
+See [Brand assets](branding.md) for the files, font provenance, and regeneration.

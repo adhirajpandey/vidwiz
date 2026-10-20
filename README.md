@@ -1,5 +1,12 @@
 # VidWiz
 
+<picture>
+  <source media="(prefers-color-scheme: dark)" srcset="frontend/public/brand/vidwiz-wordmark-on-dark.svg">
+  <img src="frontend/public/brand/vidwiz-wordmark-on-light.svg" alt="VidWiz" width="280">
+</picture>
+
+Brand assets and regeneration instructions are in [docs/branding.md](docs/branding.md).
+
 ## Description
 VidWiz helps you keep what you learn from YouTube. Tap while watching, and
 VidWiz saves the moment: the exact words from the transcript, an optional AI
