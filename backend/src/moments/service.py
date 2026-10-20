@@ -360,21 +360,22 @@ def fail_resolution(db: Session, moment: Moment) -> None:
     db.commit()
 
 
-def on_transcript_stored(db: Session, video_id: str, transcript: list) -> None:
-    """Fill quotes for the video's moments once its transcript arrives.
+def on_transcript_stored(
+    db: Session, video_id: str, transcript: list, *, recompute_all: bool = False
+) -> None:
+    """Fill missing quotes, or recompute all quotes when explicitly requested.
 
     A filled quote is not the user's activity, so `updated_at` (which orders the
     library) keeps its value.
     """
-    moments = (
-        db.execute(
-            select(Moment).where(Moment.video_id == video_id, Moment.quote.is_(None))
-        )
-        .scalars()
-        .all()
-    )
+    query = select(Moment).where(Moment.video_id == video_id)
+    if not recompute_all:
+        query = query.where(Moment.quote.is_(None))
+    moments = db.execute(query).scalars().all()
     for moment in moments:
         updated_at = moment.updated_at
+        if recompute_all:
+            moment.quote = moment.quote_start_seconds = None
         apply_quote(moment, transcript)
         moment.updated_at = updated_at
         # Setting the same value is not a change on its own; without this flag

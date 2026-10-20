@@ -12,9 +12,10 @@ logger = logging.getLogger(__name__)
 
 # A moment's quote covers what was said just before the capture, since people
 # capture after hearing something, plus a little after.
-QUOTE_SECONDS_BEFORE = 30
-QUOTE_SECONDS_AFTER = 3
-QUOTE_MAX_CHARS = 700
+QUOTE_SECONDS_BEFORE = 10
+QUOTE_SECONDS_AFTER = 5
+QUOTE_MAX_CHARS = 350
+PASSAGE_MAX_CHARS = 1400
 
 # Searchable passages: long enough to hold an idea, short enough to cite.
 CHUNK_TARGET_SECONDS = 45
@@ -99,7 +100,7 @@ def quote_for(transcript: list, at_seconds: int) -> tuple[str, int] | None:
     quote = " ".join(text for _, text in pieces)
     if len(quote) > QUOTE_MAX_CHARS:
         # Keep the end: it is closest to the moment of capture.
-        quote = "…" + quote[-QUOTE_MAX_CHARS:].split(" ", 1)[-1]
+        quote = "…" + quote[-(QUOTE_MAX_CHARS - 1) :].split(" ", 1)[-1]
     return quote, int(pieces[0][0])
 
 
@@ -152,4 +153,4 @@ def text_between(
     if not pieces:
         return None
     pieces.sort(key=lambda piece: piece[0])
-    return " ".join(text for _, text in pieces)[: QUOTE_MAX_CHARS * 2]
+    return " ".join(text for _, text in pieces)[:PASSAGE_MAX_CHARS]

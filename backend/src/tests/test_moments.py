@@ -19,6 +19,7 @@ from src.videos.models import TranscriptStatus, Video
 VIDEO_ID = "abc123DEF45"
 TRANSCRIPT = [
     {"text": "earlier point", "offset": 10, "duration": 4},
+    {"text": "thirty seconds ago", "offset": 70, "duration": 4},
     {"text": "composite index order matters", "offset": 95, "duration": 5},
     {"text": "the leftmost column comes first", "offset": 100, "duration": 5},
     {"text": "much later", "offset": 300, "duration": 5},
@@ -783,3 +784,61 @@ def test_backfill_quotes_fills_imported_moments(db_session, user, monkeypatch):
     assert imported.updated_at == datetime(2026, 1, 2, tzinfo=timezone.utc)
     assert quoted.quote == "kept"
     assert waiting.quote is None
+
+
+@pytest.mark.parametrize("recompute_all", [False, True])
+def test_backfill_existing_quotes_preserves_activity(
+    db_session, user, monkeypatch, recompute_all
+):
+    from src import database
+    from src.management import backfill
+
+    db_session.add(
+        Video(video_id=VIDEO_ID, title="A", transcript_status=TranscriptStatus.READY)
+    )
+    db_session.flush()
+    original_time = datetime(2026, 1, 2, tzinfo=timezone.utc)
+    moments = [
+        Moment(
+            user_id=user.id,
+            video_id=VIDEO_ID,
+            at_seconds=at,
+            source=CaptureSource.LEGACY,
+            quote="old long quote",
+            quote_start_seconds=70,
+            updated_at=original_time,
+        )
+        for at in [100, 200]
+    ]
+    db_session.add_all(moments)
+    db_session.commit()
+
+    class Session:
+        def __getattr__(self, name):
+            return getattr(db_session, name)
+
+        def close(self):
+            pass
+
+    loads = []
+
+    def load(video_id):
+        loads.append(video_id)
+        return TRANSCRIPT
+
+    monkeypatch.setattr(database, "SessionLocal", Session)
+    monkeypatch.setattr(transcripts, "load_transcript", load)
+    backfill.backfill_quotes(recompute_all=recompute_all)
+    db_session.expire_all()
+
+    assert loads == ([VIDEO_ID] if recompute_all else [])
+    assert all(moment.updated_at == original_time for moment in moments)
+    if recompute_all:
+        assert moments[0].quote == (
+            "composite index order matters the leftmost column comes first"
+        )
+        assert moments[0].quote_start_seconds == 95
+        assert moments[1].quote is None
+        assert moments[1].quote_start_seconds is None
+    else:
+        assert all(moment.quote == "old long quote" for moment in moments)

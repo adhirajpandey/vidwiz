@@ -130,7 +130,8 @@ v3 runs as a second, complete deployment beside the current one:
    migrated.
 3. Testing on the v3 deployment with a dedicated email and password account.
 4. Cutover: re-sync the latest production data, fill quotes on the imported
-   moments (`backfill quotes`), move the public API and frontend to v3, then
+   moments (`python -m src.management.backfill quotes --all`, preserving
+   moment activity timestamps), move the public API and frontend to v3, then
    delete the old stack.
 
 ## Phases

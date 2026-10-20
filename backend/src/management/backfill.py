@@ -4,7 +4,7 @@ Usage, from the backend directory with the deployment's environment:
 
     python -m src.management.backfill chunks [--missing-only]
     python -m src.management.backfill overviews --limit N
-    python -m src.management.backfill quotes
+    python -m src.management.backfill quotes [--all]
 
 `chunks` reads each transcript-ready video's transcript from S3 and stores its
 searchable passages. With --missing-only, videos that already have passages
@@ -18,6 +18,7 @@ usage, so batches stay small.
 `quotes` fills the quote of every moment that has none on a transcript-ready
 video. Moments imported from v2 arrive after their transcripts, so the
 transcript-stored hook never filled them. Run it after each data import.
+With --all, recompute existing quotes too. Neither mode changes updated_at.
 """
 
 import argparse
@@ -86,22 +87,18 @@ def backfill_overviews(limit: int) -> None:
         db.close()
 
 
-def backfill_quotes() -> None:
+def backfill_quotes(recompute_all: bool = False) -> None:
     db = database.SessionLocal()
     try:
+        query = (
+            select(Moment.video_id)
+            .join(Video, Video.video_id == Moment.video_id)
+            .where(Video.transcript_status == TranscriptStatus.READY)
+        )
+        if not recompute_all:
+            query = query.where(Moment.quote.is_(None))
         video_ids = (
-            db.execute(
-                select(Moment.video_id)
-                .join(Video, Video.video_id == Moment.video_id)
-                .where(
-                    Moment.quote.is_(None),
-                    Video.transcript_status == TranscriptStatus.READY,
-                )
-                .distinct()
-                .order_by(Moment.video_id)
-            )
-            .scalars()
-            .all()
+            db.execute(query.distinct().order_by(Moment.video_id)).scalars().all()
         )
         filled = missing = 0
         for index, video_id in enumerate(video_ids, start=1):
@@ -109,7 +106,9 @@ def backfill_quotes() -> None:
             if not transcript:
                 missing += 1
                 continue
-            moments_service.on_transcript_stored(db, video_id, transcript)
+            moments_service.on_transcript_stored(
+                db, video_id, transcript, recompute_all=recompute_all
+            )
             db.commit()
             filled += 1
             if index % 25 == 0:
@@ -131,7 +130,10 @@ def main() -> None:
     chunks.add_argument("--missing-only", action="store_true")
     overviews = commands.add_parser("overviews", help="Queue overviews in a batch")
     overviews.add_argument("--limit", type=int, required=True)
-    commands.add_parser("quotes", help="Fill missing moment quotes")
+    quotes = commands.add_parser("quotes", help="Fill missing moment quotes")
+    quotes.add_argument(
+        "--all", action="store_true", help="Recompute existing quotes too"
+    )
     args = parser.parse_args()
 
     logging.basicConfig(level=logging.INFO, format="%(levelname)s %(message)s")
@@ -141,7 +143,7 @@ def main() -> None:
     elif args.command == "overviews":
         backfill_overviews(args.limit)
     elif args.command == "quotes":
-        backfill_quotes()
+        backfill_quotes(recompute_all=args.all)
 
 
 if __name__ == "__main__":
