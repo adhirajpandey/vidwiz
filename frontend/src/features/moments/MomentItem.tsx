@@ -77,7 +77,8 @@ export default function MomentItem({ moment, onSeek, highlighted, showQuote = tr
   return (
     <li
       id={`moment-${moment.id}`}
-      className={cn('moment-anchor group -mx-2 rounded-[10px] px-2 py-3.5', highlighted && 'bg-saved-soft')}
+      // Only a highlighted row reaches past the column, so its tint has room around the text.
+      className={cn('moment-anchor group py-3.5', highlighted && '-mx-2 rounded-[10px] border-transparent bg-saved-soft px-2')}
     >
       <div className="flex items-start gap-3">
         <div className="w-14 shrink-0 pt-0.5">{time}</div>
