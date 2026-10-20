@@ -51,7 +51,7 @@ function loadYouTubeAPI(): Promise<YouTubeAPI> {
 
 interface PlayerProps {
   videoId: string;
-  /** Called about once a second with the playback position while playing. */
+  /** Called with the whole-second playback position whenever it changes, including seeks while paused. */
   onTimeUpdate?: (seconds: number) => void;
   className?: string;
 }
@@ -78,12 +78,20 @@ const YouTubePlayer = forwardRef<YouTubePlayerHandle, PlayerProps>(function YouT
     let pending: number | null = null;
     let lastSeconds = 0;
     let timer: ReturnType<typeof setTimeout> | undefined;
-    const ticker = setInterval(() => {
+    // The embed has no time event, so poll it, also while paused or buffering so
+    // a seek shows up straight away. Only a new whole second is reported, which
+    // keeps re-renders to about one a second during playback.
+    let reported: number | null = null;
+    const reportTime = () => {
       if (!ready || !player?.getCurrentTime) return;
       try {
-        if (player.getPlayerState() === 1) onTime.current?.(player.getCurrentTime());
+        const second = Math.floor(player.getCurrentTime());
+        if (second === reported) return;
+        reported = second;
+        onTime.current?.(second);
       } catch { /* player not ready */ }
-    }, 1000);
+    };
+    const ticker = setInterval(reportTime, 250);
     currentTime.current = () => {
       if (!ready || !player?.getCurrentTime) return null;
       try { return player.getCurrentTime(); } catch { return null; }
@@ -132,7 +140,9 @@ const YouTubePlayer = forwardRef<YouTubePlayerHandle, PlayerProps>(function YouT
         events: {
           onReady: () => { if (!disposed) { ready = true; play(); } },
           onStateChange: event => {
-            if (!disposed && event.data === 1) { clearTimer(); setNotice(null); }
+            if (disposed) return;
+            reportTime();
+            if (event.data === 1) { clearTimer(); setNotice(null); }
           },
           onError: () => { failed = true; showFailure('The video player is unavailable. Watch this passage on YouTube.'); },
           onAutoplayBlocked: () => showFailure('Press Play in the video to watch this passage, or open YouTube.'),
