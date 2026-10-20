@@ -58,10 +58,10 @@ Workers.
 - Bricolage Grotesque everywhere, with tabular digits for times. Headings use
   the `display` utility (condensed and heavy).
 - Every paid action shows its cost: "Unlock for 5 credits" before the first
-  question about a video, and "Save with AI line, 1 credit" in the save menu.
+  question about a video, and the cost of each way to save in the save menu.
 - Save moment is a split button. The main part follows the AI line default from
-  Settings (stated there with its cost, and in the button's tooltip); the arrow
-  opens a menu that saves one moment the other way. S and Shift S do the same.
+  Settings. The arrow opens a menu listing both ways with their cost and key,
+  the default checked (S); the other is Shift S. Choosing one saves.
 
 ## Key Behavior
 - **Auth**: the JWT is stored in `localStorage`, validated on read, and sent by

@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState } from 'react';
 import { Link } from 'react-router-dom';
 import { useQueryClient } from '@tanstack/react-query';
-import { ChevronDown, Settings } from 'lucide-react';
+import { Check, ChevronDown, Settings } from 'lucide-react';
 import { momentsApi } from '../../api';
 import { useNotify } from '../../hooks/useNotify';
 import { PROFILE_KEY, useProfile } from '../../hooks/useProfile';
@@ -9,15 +9,35 @@ import Button from '../../components/ui/Button';
 import { Input } from '../../components/ui/Input';
 import { Menu, MenuContent, MenuItem, MenuSeparator, MenuTrigger } from '../../components/ui/Menu';
 import { formatClock } from '../../lib/format';
+import { cn } from '../../lib/utils';
 import { momentKeys } from '../moments/queries';
 
 const kbd = 'rounded-[5px] border-[1.5px] px-1.5 text-xs font-semibold';
 
 /**
  * Capture the current playback position with an optional note. Save follows the
- * AI line default from Settings; the arrow saves one moment the other way.
+ * AI line default from Settings; the arrow offers both ways, default checked.
  * S saves from anywhere on the page, Shift S the other way.
  */
+/** One way to save. The default is checked and has the plain S key; the other uses Shift S. */
+function SaveOption({ label, cost, isDefault, onSelect }: {
+  label: string;
+  cost: string;
+  isDefault: boolean;
+  onSelect: () => void;
+}) {
+  return (
+    <MenuItem onSelect={onSelect}>
+      <Check className={cn('size-4 shrink-0', !isDefault && 'invisible')} aria-hidden="true" />
+      <span className="flex-1 font-medium">{label}{isDefault && <span className="sr-only">, default</span>}</span>
+      <span className="text-xs text-muted-foreground">{cost}</span>
+      <span className="hidden w-14 justify-end sm:flex">
+        <kbd className={`${kbd} border-border text-muted-foreground`}>{isDefault ? 'S' : 'Shift S'}</kbd>
+      </span>
+    </MenuItem>
+  );
+}
+
 export default function CaptureBar({ videoId, currentTime, playhead, onCaptured }: {
   videoId: string;
   currentTime: () => number | null;
@@ -28,6 +48,8 @@ export default function CaptureBar({ videoId, currentTime, playhead, onCaptured 
   const profile = useProfile();
   const [note, setNote] = useState('');
   const [saving, setSaving] = useState(false);
+  const [menuWidth, setMenuWidth] = useState<number>();
+  const group = useRef<HTMLDivElement>(null);
   const queryClient = useQueryClient();
   const notify = useNotify();
   // Saving waits for the profile, so a save never guesses the AI line default.
@@ -82,39 +104,35 @@ export default function CaptureBar({ videoId, currentTime, playhead, onCaptured 
         aria-label="Note for this moment"
         className="sm:flex-1"
       />
-      <div className="flex">
+      <div ref={group} className="flex">
         <Button
           type="submit"
           variant="save"
           disabled={!ready}
           title={aiDefault ? 'Saves with an AI line, 1 credit' : 'Saves without an AI line'}
-          className="h-11 flex-1 rounded-r-none px-5 text-[15px] sm:flex-none"
+          className="h-11 flex-1 justify-center rounded-r-none px-5 text-[15px] sm:min-w-[14.5rem] sm:flex-none"
         >
           Save moment{playhead !== null && <> at <span className="tabular">{formatClock(playhead)}</span></>}
           <kbd className={`${kbd} hidden border-saved-foreground/35 sm:inline`}>S</kbd>
         </Button>
-        <Menu>
+        <Menu onOpenChange={open => { if (open) setMenuWidth(group.current?.offsetWidth); }}>
           <MenuTrigger asChild>
             <Button
               variant="save"
               disabled={!ready}
-              aria-label="More ways to save"
+              aria-label="Choose how to save"
               className="h-11 rounded-l-none border-l border-saved-foreground/20 px-2.5"
             >
               <ChevronDown className="size-4" />
             </Button>
           </MenuTrigger>
-          <MenuContent className="w-64">
-            <MenuItem onSelect={() => void capture(!aiDefault)}>
-              {aiDefault ? 'Save without AI line' : <span>Save with AI line<span className="text-muted-foreground">, 1 credit</span></span>}
-              <kbd className={`${kbd} ml-auto hidden border-border text-muted-foreground sm:inline`}>Shift S</kbd>
-            </MenuItem>
+          {/* As wide as the whole button, so the menu reads as part of it. */}
+          <MenuContent className="min-w-64" style={{ width: menuWidth }}>
+            <SaveOption label="With AI line" cost="1 credit" isDefault={aiDefault} onSelect={() => void capture(true)} />
+            <SaveOption label="Without AI line" cost="Free" isDefault={!aiDefault} onSelect={() => void capture(false)} />
             <MenuSeparator />
             <MenuItem asChild className="text-xs text-muted-foreground">
-              <Link to="/settings#account">
-                <Settings className="size-3.5" />AI line {aiDefault ? 'on' : 'off'} by default
-                <span className="ml-auto font-semibold text-foreground">Change</span>
-              </Link>
+              <Link to="/settings#account"><Settings className="size-4" />Change default in Settings</Link>
             </MenuItem>
           </MenuContent>
         </Menu>
