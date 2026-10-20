@@ -80,8 +80,8 @@ def list_library(db: Session, user_id: int, params: LibraryParams) -> LibraryRes
     order = {
         "activity_desc": activity.desc(),
         "added_desc": LibraryItem.added_at.desc(),
-        "title_asc": Video.title.asc(),
-        "title_desc": Video.title.desc(),
+        "title_asc": Video.title.asc().nulls_last(),
+        "title_desc": Video.title.desc().nulls_last(),
     }[params.sort]
     rows = db.execute(
         query.order_by(order, Video.id.desc())

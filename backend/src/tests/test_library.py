@@ -57,6 +57,23 @@ async def test_library_lists_counts_sorts_and_searches(client, db_session, user)
     assert len(paged["videos"]) == 1
 
 
+def test_title_sorts_put_untitled_videos_last(db_session, user):
+    from src.library.schemas import LibraryParams
+
+    add_video(db_session, user, "aaaaaaaaaaa", "Alpha")
+    add_video(db_session, user, "bbbbbbbbbbb", None)
+    add_video(db_session, user, "ccccccccccc", "Gamma")
+
+    for sort, expected in [
+        ("title_asc", ["aaaaaaaaaaa", "ccccccccccc", "bbbbbbbbbbb"]),
+        ("title_desc", ["ccccccccccc", "aaaaaaaaaaa", "bbbbbbbbbbb"]),
+    ]:
+        response = library_service.list_library(
+            db_session, user.id, LibraryParams(sort=sort)
+        )
+        assert [video.video_id for video in response.videos] == expected
+
+
 @pytest.mark.asyncio
 async def test_library_save_and_remove(client, db_session, user):
     headers = auth_headers(user)
