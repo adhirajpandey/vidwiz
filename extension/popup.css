@@ -56,8 +56,10 @@ textarea {
 }
 textarea:focus { outline: none; border-color: var(--accent); box-shadow: 0 0 0 2px var(--accent-soft); }
 .row { display: flex; align-items: center; justify-content: space-between; gap: 8px; }
-.toggle { display: inline-flex; align-items: center; gap: 6px; color: var(--muted); font-size: 12px; cursor: pointer; }
-.toggle input { accent-color: var(--accent); }
+.row .primary { margin-left: auto; }
+button.other { border: 0; background: none; padding: 0; color: var(--muted); font: 12px system-ui, sans-serif; cursor: pointer; }
+button.other:hover { color: var(--fg); text-decoration: underline; }
+button.other:disabled { opacity: 0.5; cursor: default; }
 
 button.primary {
   border: 0; border-radius: 8px; padding: 8px 14px; background: var(--accent); color: var(--accent-fg);

@@ -87,32 +87,15 @@ async function init() {
     return;
   }
 
-  show("capture-view");
-  $("video-title").textContent = video.title;
-  $("capture-time").textContent = `at ${formatClock(video.seconds)}`;
-  $("open-video").addEventListener("click", (event) => { event.preventDefault(); openTab(`/v/${video.videoId}`); });
-
-  try {
-    const profile = await api("/users/me");
-    $("ai").checked = Boolean(profile.ai_moments_default);
-  } catch (error) {
-    if (error instanceof ApiError && error.status === 401) {
-      $("login-reason").textContent = error.message;
-      show("login-view");
-      return;
-    }
-  }
-  void renderMoments(tab, video.videoId);
-  $("note").focus();
-
-  $("capture-form").addEventListener("submit", async (event) => {
-    event.preventDefault();
-    const button = $("capture");
-    button.disabled = true;
+  /** `ai` undefined lets the server apply the user's default. */
+  async function save(ai) {
+    const buttons = [$("capture"), $("capture-other")];
+    if (buttons[0].disabled) return;
+    for (const button of buttons) button.disabled = true;
     // Capture where the video is now, not where it was when the popup opened.
     const latest = (await currentVideo(tab)) || video;
     try {
-      const result = await capture({ ...latest, note: $("note").value.trim(), ai: $("ai").checked });
+      const result = await capture({ ...latest, note: $("note").value.trim(), ai });
       $("note").value = "";
       feedback(result.merged ? "Added to a nearby moment." : `Saved at ${formatClock(latest.seconds)}.`, "success");
       void renderMoments(tab, video.videoId);
@@ -124,8 +107,37 @@ async function init() {
         feedback(error.message, "error");
       }
     } finally {
-      button.disabled = false;
+      for (const button of buttons) button.disabled = false;
     }
+  }
+
+  show("capture-view");
+  $("video-title").textContent = video.title;
+  $("capture-time").textContent = `at ${formatClock(video.seconds)}`;
+  $("open-video").addEventListener("click", (event) => { event.preventDefault(); openTab(`/v/${video.videoId}`); });
+
+  try {
+    // Capture follows the user's AI line default; this button saves one moment the other way.
+    const profile = await api("/users/me");
+    const aiDefault = Boolean(profile.ai_moments_default);
+    const other = $("capture-other");
+    other.textContent = aiDefault ? "Save without AI line" : "Save with AI line, 1 credit";
+    other.addEventListener("click", () => save(!aiDefault));
+    other.classList.remove("hidden");
+    $("capture").title = aiDefault ? "Saves with an AI line, 1 credit" : "Saves without an AI line";
+  } catch (error) {
+    if (error instanceof ApiError && error.status === 401) {
+      $("login-reason").textContent = error.message;
+      show("login-view");
+      return;
+    }
+  }
+  void renderMoments(tab, video.videoId);
+  $("note").focus();
+
+  $("capture-form").addEventListener("submit", (event) => {
+    event.preventDefault();
+    void save(undefined);
   });
   $("note").addEventListener("keydown", (event) => {
     if (event.key === "Enter" && !event.shiftKey) {

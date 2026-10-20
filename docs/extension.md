@@ -37,8 +37,9 @@ Plain JavaScript modules, no bundler.
   opens the web login page.
 - **Popup**: shows the login view, an idle view off YouTube videos, or the
   capture view. A capture uses the video's time at the moment of submitting.
-  The AI toggle starts from the user's default. Enter submits; Shift+Enter adds
-  a line. The list shows the note, AI line, pending status, or quote for each
+  Capture follows the user's AI line default; a small button beside it saves
+  one moment the other way ("Save without AI line" or "Save with AI line, 1
+  credit"). Enter submits; Shift+Enter adds a line. The list shows the note, AI line, pending status, or quote for each
   moment, and its time button seeks the page's player.
 - **First install**: opens the web app, which syncs an existing login.
 
