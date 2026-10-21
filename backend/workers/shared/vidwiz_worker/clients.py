@@ -23,13 +23,26 @@ class InternalApiClient:
     def get_video(self, video_id: str) -> dict[str, Any] | None:
         return self._request_json("get", f"/v2/internal/videos/{video_id}", video_id)
 
-    def update_note(self, note_id: int, text: str) -> bool:
+    def save_moment_ai(
+        self, moment_id: int, ai_text: str | None, ai_model: str | None = None
+    ) -> bool:
+        """Store the AI line and its model, or null to mark the generation failed."""
         return self._request_success(
-            "patch",
-            f"/v2/internal/notes/{note_id}",
-            {"text": text, "generated_by_ai": True},
-            "note_id",
-            note_id,
+            "put",
+            f"/v2/internal/moments/{moment_id}/ai",
+            {"ai_text": ai_text, "ai_model": ai_model},
+            "moment_id",
+            moment_id,
+        )
+
+    def fail_overview(self, video_id: str) -> bool:
+        """Mark the video's queued overview failed."""
+        return self._request_success(
+            "post",
+            f"/v2/internal/videos/{video_id}/overview/failed",
+            {},
+            "video_id",
+            video_id,
         )
 
     def update_summary(
@@ -37,6 +50,8 @@ class InternalApiClient:
         video_id: str,
         summary: str,
         suggested_questions: list[str],
+        key_points: list[dict[str, Any]],
+        overview_model: str,
     ) -> bool:
         return self._request_success(
             "post",
@@ -45,6 +60,8 @@ class InternalApiClient:
                 "summary": summary,
                 "miscellaneous_data": {
                     "suggested_questions": suggested_questions,
+                    "key_points": key_points,
+                    "overview_model": overview_model,
                 },
             },
             "video_id",

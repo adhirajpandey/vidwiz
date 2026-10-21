@@ -251,8 +251,8 @@ def test_persistence_failure_never_emits_done(db_session, monkeypatch):
     assert messages == []
 
 
-def test_legacy_message_remains_text(db_session):
-    conversation = Conversation(video_id="abc123DEF45", user_id=1)
+def test_legacy_message_remains_text(db_session, user):
+    conversation = Conversation(video_id="abc123DEF45", user_id=user.id)
     db_session.add(conversation)
     db_session.commit()
     message = service.save_chat_message(
@@ -350,7 +350,12 @@ def test_stream_persistence_and_history(db_session, monkeypatch, fail):
     events, messages = run_stream(db_session)
     assert events[0]["type"] == "block"
     assert events[0]["citations"][0]["passages"] == [
-        {"chunk_ids": [key], "start_seconds": 763.5, "end_seconds": 790.0}
+        {
+            "chunk_ids": [key],
+            "start_seconds": 763.5,
+            "end_seconds": 790.0,
+            "video_id": None,
+        }
     ]
     assert closed == [True]
     if fail:
@@ -387,9 +392,11 @@ def test_decoder_atomic_and_model_cannot_supply_times():
 
 @pytest.mark.asyncio
 async def test_route_stream_and_history_contract(client, db_session, monkeypatch):
-    from src.videos.models import Video
+    from src.videos.models import TranscriptStatus, Video
 
-    video = Video(video_id="abc123DEF45", transcript_available=True, title="Video")
+    video = Video(
+        video_id="abc123DEF45", transcript_status=TranscriptStatus.READY, title="Video"
+    )
     conversation = Conversation(video_id=video.video_id, guest_session_id="v2-guest")
     db_session.add_all([video, conversation])
     db_session.commit()
@@ -607,7 +614,12 @@ def test_stream_splits_a_multi_element_block(db_session, monkeypatch, caplog):
         events, messages = run_stream(db_session)
     assert [e["type"] for e in events] == ["block"] * 3 + ["done"]
     assert [e["text"] for e in events[:3]] == ["Lead", "- One\n- Two", "Closing"]
-    passage = {"chunk_ids": [key], "start_seconds": 763.5, "end_seconds": 790.0}
+    passage = {
+        "chunk_ids": [key],
+        "start_seconds": 763.5,
+        "end_seconds": 790.0,
+        "video_id": None,
+    }
     assert [e["citations"] for e in events[:3]] == [
         [],
         [

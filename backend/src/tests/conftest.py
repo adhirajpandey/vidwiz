@@ -1,12 +1,15 @@
 from collections.abc import Generator
 import os
+from pathlib import Path
 
+import boto3
 import pytest
 import pytest_asyncio
 from httpx import ASGITransport, AsyncClient
-from sqlalchemy import create_engine
+from alembic import command
+from alembic.config import Config
+from sqlalchemy import create_engine, text
 from sqlalchemy.orm import sessionmaker
-from sqlalchemy.pool import StaticPool
 
 TEST_CREDIT_PRODUCTS = (
     '[{"product_id":"pdt_test","credits":200,"price_inr":20,"name":"200 Credits"}]'
@@ -19,8 +22,8 @@ os.environ.setdefault(
     "test-admin-token",
 )
 os.environ.setdefault("GOOGLE_CLIENT_ID", "test-google-client-id")
-os.environ.setdefault("YOUTUBE_DATA_API_KEY", "test-youtube-data-api-key")
 os.environ.setdefault("SQS_AI_NOTE_QUEUE_URL", "test-queue-url")
+os.environ.setdefault("SQS_AI_SUMMARY_QUEUE_URL", "test-summary-queue-url")
 os.environ.setdefault("AWS_ACCESS_KEY_ID", "test-aws-key")
 os.environ.setdefault("AWS_SECRET_ACCESS_KEY", "test-aws-secret")
 os.environ.setdefault("DODO_PAYMENTS_API_KEY", "test-dodo-key")
@@ -35,29 +38,35 @@ from src.conversations import models as conversation_models  # noqa: E402,F401
 from src.conversations import service as conversations_service  # noqa: E402
 from src.credits import models as credits_models  # noqa: E402,F401
 from src.internal import models as internal_models  # noqa: E402,F401
-from src.internal import service as internal_service  # noqa: E402
-from src.notes import models as notes_models  # noqa: E402,F401
-from src.notes import service as notes_service  # noqa: E402
+from src.moments import models as moments_models  # noqa: E402,F401
+from src.library import models as library_models  # noqa: E402,F401
 from src.payments import models as payments_models  # noqa: E402,F401
 from src.videos import models as video_models  # noqa: E402,F401
 from src import database  # noqa: E402
-from src.database import Base, get_db  # noqa: E402
+from src.database import get_db  # noqa: E402
 from src.main import create_app  # noqa: E402
 from src.config import CreditProductConfig, settings  # noqa: E402
 
 
-TEST_DATABASE_URL = "sqlite+pysqlite:///:memory:"
+# Tests need PostgreSQL with pgvector, because search and embeddings use
+# PostgreSQL features. The database is wiped and migrated at session start.
+TEST_DATABASE_URL = os.environ.get("TEST_DB_URL")
+if not TEST_DATABASE_URL:
+    raise RuntimeError(
+        "TEST_DB_URL must point to a disposable PostgreSQL database with pgvector"
+    )
+BACKEND_DIR = Path(__file__).resolve().parents[2]
 
 
 def setup_settings() -> None:
     settings.secret_key = "test-secret"
     settings.jwt_expiry_hours = 1
     settings.google_client_id = "test-google-client-id"
-    settings.youtube_data_api_key = "test-youtube-data-api-key"
     settings.internal_api_admin_token = "test-admin-token"
     settings.db_url = TEST_DATABASE_URL
     settings.rate_limit_enabled = False
     settings.sqs_ai_note_queue_url = "test-queue-url"
+    settings.sqs_ai_summary_queue_url = "test-summary-queue-url"
     settings.aws_access_key_id = "test-aws-key"
     settings.aws_secret_access_key = "test-aws-secret"
     settings.dodo_payments_api_key = "test-dodo-key"
@@ -107,21 +116,20 @@ def mock_external_services(monkeypatch):
     def blocked_client(*_args, **_kwargs):
         raise AssertionError("External service calls are blocked in tests.")
 
-    monkeypatch.setattr(conversations_service.boto3, "client", fake_boto3_client)
-    monkeypatch.setattr(internal_service.boto3, "client", fake_boto3_client)
-    monkeypatch.setattr(notes_service.boto3, "client", fake_boto3_client)
+    monkeypatch.setattr(boto3, "client", fake_boto3_client)
     monkeypatch.setattr(conversations_service, "OpenAI", blocked_client)
     monkeypatch.setattr(auth_service, "verify_google_token", blocked_client)
 
 
 @pytest.fixture(scope="session")
 def engine():
-    engine = create_engine(
-        TEST_DATABASE_URL,
-        connect_args={"check_same_thread": False},
-        poolclass=StaticPool,
-    )
-    Base.metadata.create_all(engine)
+    engine = create_engine(TEST_DATABASE_URL)
+    with engine.begin() as connection:
+        connection.execute(text("DROP SCHEMA public CASCADE"))
+        connection.execute(text("CREATE SCHEMA public"))
+        config = Config(str(BACKEND_DIR / "alembic.ini"))
+        config.attributes["connection"] = connection
+        command.upgrade(config, "head")
     database.engine = engine
     database.SessionLocal = sessionmaker(
         bind=engine,
@@ -138,10 +146,12 @@ def engine():
 def db_session(engine) -> Generator:
     connection = engine.connect()
     transaction = connection.begin()
+    # Service commits become savepoints, so each test rolls back cleanly.
     TestingSessionLocal = sessionmaker(
         bind=connection,
         autocommit=False,
         autoflush=False,
+        join_transaction_mode="create_savepoint",
     )
     db = TestingSessionLocal()
     try:
@@ -177,3 +187,14 @@ async def client(app):
         base_url="http://test",
     ) as client:
         yield client
+
+
+@pytest.fixture
+def user(db_session):
+    """A persisted user; PostgreSQL enforces user foreign keys."""
+    from src.auth.models import User
+
+    user = User(email="user@example.com", name="Test User", credits_balance=100)
+    db_session.add(user)
+    db_session.flush()
+    return user

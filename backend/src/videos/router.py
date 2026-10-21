@@ -1,38 +1,20 @@
 from fastapi import APIRouter, Depends, Request, Response, status
-from fastapi.responses import StreamingResponse
 from sqlalchemy.orm import Session
 
-from src.auth.dependencies import get_current_user_id
 from src.config import settings
 from src.database import get_db
+from src.videos import overview
 from src.videos import service as videos_service
-from src.videos.dependencies import (
-    get_user_video_or_404,
-    get_video_list_params,
-    get_stream_video_id_or_404,
-)
+from src.videos.dependencies import get_stream_video_or_404
 
-from src.videos.schemas import (
-    LibrarySummary,
-    VideoListParams,
-    VideoListResponse,
-    VideoRead,
-)
+from src.auth.dependencies import get_current_user_id, get_viewer_context
+from src.auth.schemas import ViewerContext
+from src.credits import service as credits_service
+from src.videos.schemas import AskStatus, TranscriptRead, VideoRead
 from src.shared.ratelimit import limiter
 
 
 router = APIRouter(prefix="/v2/videos", tags=["Videos"])
-
-
-@router.get("/library-summary", response_model=LibrarySummary)
-@limiter.limit(settings.rate_limit_videos)
-def library_summary(
-    request: Request,
-    response: Response,
-    db: Session = Depends(get_db),
-    user_id: int = Depends(get_current_user_id),
-) -> LibrarySummary:
-    return videos_service.get_library_summary(db, user_id)
 
 
 @router.get(
@@ -40,52 +22,69 @@ def library_summary(
     response_model=VideoRead,
     status_code=status.HTTP_200_OK,
     description=(
-        "Fetch current video state (metadata, transcript availability, summary) "
-        "for the authenticated user."
+        "Fetch current video state: metadata, transcript_status, the overview, "
+        "and overview_status. JWT or guest session."
     ),
 )
 @limiter.limit(settings.rate_limit_videos)
 def get_video(
     request: Request,
     response: Response,
-    video=Depends(get_user_video_or_404),
+    video=Depends(get_stream_video_or_404),
 ) -> VideoRead:
     return VideoRead.model_validate(video)
 
 
 @router.get(
-    "",
-    response_model=VideoListResponse,
-    status_code=status.HTTP_200_OK,
+    "/{video_id}/ask-status",
+    response_model=AskStatus,
     description=(
-        "Search/filter videos (q, pagination, sort). "
-        "Sort options: created_at_desc, created_at_asc, title_asc, title_desc, activity_desc."
+        "Whether Ask is unlocked for this video. Signed-in users pay once per "
+        "video when they start their first conversation; guests use a daily quota."
+    ),
+)
+def get_ask_status(
+    video=Depends(get_stream_video_or_404),
+    db: Session = Depends(get_db),
+    viewer: ViewerContext = Depends(get_viewer_context),
+) -> AskStatus:
+    if viewer.user_id is None:
+        return AskStatus(unlocked=True, cost=0)
+    return AskStatus(
+        unlocked=credits_service.wiz_chat_unlocked(db, viewer.user_id, video.video_id),
+        cost=settings.wiz_chat_cost,
+    )
+
+
+@router.get(
+    "/{video_id}/transcript",
+    response_model=TranscriptRead,
+    description=(
+        "The video's transcript segments, present when status is ready. pending "
+        "while the transcript is fetched; unavailable when fetching failed."
     ),
 )
 @limiter.limit(settings.rate_limit_videos)
-def list_videos(
+def get_transcript(
     request: Request,
     response: Response,
-    params: VideoListParams = Depends(get_video_list_params),
-    db: Session = Depends(get_db),
-    user_id: int = Depends(get_current_user_id),
-) -> VideoListResponse:
-    return videos_service.list_videos_for_user(db, user_id, params)
+    video=Depends(get_stream_video_or_404),
+) -> TranscriptRead:
+    return videos_service.get_transcript(video)
 
 
-@router.get("/{video_id}/stream", status_code=status.HTTP_200_OK)
+@router.post(
+    "/{video_id}/overview/retry",
+    response_model=VideoRead,
+    description="Queue a failed overview again. Free.",
+)
 @limiter.limit(settings.rate_limit_videos)
-async def stream_video(
+def retry_overview(
     request: Request,
     response: Response,
-    video_id: str = Depends(get_stream_video_id_or_404),
-):
-    """
-    SSE stream of video state; emits snapshot/update/done when metadata + transcript
-    + summary are all ready (timeout 60s).
-    """
-    return StreamingResponse(
-        videos_service.stream_video_events(video_id),
-        media_type="text/event-stream",
-        headers={"Cache-Control": "no-cache"},
-    )
+    _: int = Depends(get_current_user_id),
+    video=Depends(get_stream_video_or_404),
+    db: Session = Depends(get_db),
+) -> VideoRead:
+    overview.retry(db, video)
+    return VideoRead.model_validate(video)

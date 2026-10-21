@@ -28,10 +28,15 @@ from vidwiz_infra.bundling import lambda_bundling, shared_worker_bundling
 from vidwiz_infra.lambda_specs import LAMBDA_SPECS_BY_KEY, LambdaSpec
 from vidwiz_infra.settings import ProductionDeploymentConfig
 
-STACK_NAME = "vidwiz-stack"
-TRANSCRIPT_BUCKET_NAME = "vidwiz-prod"
-AI_NOTE_QUEUE_NAME = "vidwiz-prod-ai-note-jobs"
-AI_SUMMARY_QUEUE_NAME = "vidwiz-prod-ai-summary-jobs"
+STACK_NAME = "vidwiz-v3-stack"
+TRANSCRIPT_BUCKET_NAME = "vidwiz-v3-transcripts"
+AI_NOTE_QUEUE_NAME = "vidwiz-v3-ai-note-jobs"
+AI_SUMMARY_QUEUE_NAME = "vidwiz-v3-ai-summary-jobs"
+AI_NOTE_DLQ_NAME = "vidwiz-v3-ai-note-dlq"
+AI_SUMMARY_DLQ_NAME = "vidwiz-v3-ai-summary-dlq"
+# A job that fails this many times moves to its dead-letter queue, where it can
+# be inspected and redriven instead of disappearing.
+MAX_RECEIVE_COUNT = 3
 
 
 class VidwizStack(cdk.Stack):
@@ -67,6 +72,8 @@ class VidwizStack(cdk.Stack):
         )
         bucket.apply_removal_policy(cdk.RemovalPolicy.RETAIN)
 
+        ai_note_dlq = self._dead_letter_queue("AiNoteDlq", AI_NOTE_DLQ_NAME)
+        ai_summary_dlq = self._dead_letter_queue("AiSummaryDlq", AI_SUMMARY_DLQ_NAME)
         ai_note_queue = sqs.Queue(
             self,
             "AiNoteQueue",
@@ -75,6 +82,9 @@ class VidwizStack(cdk.Stack):
             retention_period=cdk.Duration.days(4),
             visibility_timeout=cdk.Duration.seconds(
                 settings.ai_note_timeout_seconds * 6
+            ),
+            dead_letter_queue=sqs.DeadLetterQueue(
+                queue=ai_note_dlq, max_receive_count=MAX_RECEIVE_COUNT
             ),
         )
         ai_summary_queue = sqs.Queue(
@@ -85,6 +95,9 @@ class VidwizStack(cdk.Stack):
             retention_period=cdk.Duration.days(4),
             visibility_timeout=cdk.Duration.seconds(
                 settings.ai_summary_timeout_seconds * 6
+            ),
+            dead_letter_queue=sqs.DeadLetterQueue(
+                queue=ai_summary_dlq, max_receive_count=MAX_RECEIVE_COUNT
             ),
         )
 
@@ -100,7 +113,6 @@ class VidwizStack(cdk.Stack):
                     settings.vidwiz_internal_api_admin_token.get_secret_value()
                 ),
                 "SQS_AI_NOTE_QUEUE_URL": ai_note_queue.queue_url,
-                "SQS_AI_SUMMARY_QUEUE_URL": ai_summary_queue.queue_url,
             },
         )
         note_worker = self._function(
@@ -141,10 +153,7 @@ class VidwizStack(cdk.Stack):
         dispatcher.add_to_role_policy(
             iam.PolicyStatement(
                 actions=["sqs:SendMessage"],
-                resources=[
-                    ai_note_queue.queue_arn,
-                    ai_summary_queue.queue_arn,
-                ],
+                resources=[ai_note_queue.queue_arn],
             )
         )
         transcript_objects = (
@@ -209,6 +218,8 @@ class VidwizStack(cdk.Stack):
         )
         cfn_bucket.add_resource_dependency(invoke_permission)
 
+        cdk.CfnOutput(self, "AiNoteDlqUrl", value=ai_note_dlq.queue_url)
+        cdk.CfnOutput(self, "AiSummaryDlqUrl", value=ai_summary_dlq.queue_url)
         self._outputs(
             bucket,
             ai_note_queue,
@@ -216,6 +227,15 @@ class VidwizStack(cdk.Stack):
             dispatcher,
             note_worker,
             summary_worker,
+        )
+
+    def _dead_letter_queue(self, construct_id: str, name: str) -> sqs.Queue:
+        return sqs.Queue(
+            self,
+            construct_id,
+            queue_name=name,
+            encryption=sqs.QueueEncryption.SQS_MANAGED,
+            retention_period=cdk.Duration.days(14),
         )
 
     def _worker_environment(
@@ -235,6 +255,8 @@ class VidwizStack(cdk.Stack):
             "OPENROUTER_API_KEY": api_key,
             "OPENROUTER_BASE_URL": str(settings.openrouter_base_url),
             "MAX_RETRIES": str(settings.max_retries),
+            # Workers record the failure themselves on the last delivery.
+            "JOB_MAX_ATTEMPTS": str(MAX_RECEIVE_COUNT),
             "REQUEST_TIMEOUT": str(settings.request_timeout),
             "TRANSCRIPT_FETCH_MAX_RETRIES": str(settings.transcript_fetch_max_retries),
             "TRANSCRIPT_FETCH_RETRY_DELAY": str(settings.transcript_fetch_retry_delay),
@@ -282,7 +304,7 @@ class VidwizStack(cdk.Stack):
             tracing=lambda_.Tracing.DISABLED,
             log_group=log_group,
             bundling=(
-                shared_worker_bundling()
+                shared_worker_bundling(spec.source)
                 if spec.key in {"ai_note_worker", "ai_summary_worker"}
                 else lambda_bundling()
             ),

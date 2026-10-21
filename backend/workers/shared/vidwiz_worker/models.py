@@ -1,5 +1,3 @@
-from typing import Any
-
 from pydantic import (
     BaseModel,
     ConfigDict,
@@ -9,35 +7,45 @@ from pydantic import (
 )
 
 
-class Video(BaseModel):
-    created_at: str
+class Moment(BaseModel):
+    """An AI moment job, as queued by the API and the dispatcher."""
+
     id: int
-    title: str | None = None
-    transcript_available: bool
-    updated_at: str
     video_id: str
-
-
-class Note(BaseModel):
-    created_at: str | None = None
-    generated_by_ai: bool | None = None
-    id: int
-    text: Any = None
-    timestamp: str
-    updated_at: str | None = None
+    at_seconds: int = Field(ge=0)
     user_id: int
-    video: Video | None = None
-    video_id: str
 
 
 class SummaryRequest(BaseModel):
     video_id: str
 
 
+class ModelKeyPoint(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    text: str
+    passage_ids: list[str] = Field(min_length=1, max_length=4)
+
+    @field_validator("text")
+    @classmethod
+    def normalize_text(cls, value: str) -> str:
+        normalized = " ".join(value.split())
+        if not normalized:
+            raise ValueError("key point must not be blank")
+        return normalized
+
+
+class KeyPoint(BaseModel):
+    text: str
+    start_seconds: float
+    end_seconds: float
+
+
 class SummaryArtifacts(BaseModel):
     model_config = ConfigDict(extra="forbid")
 
     summary: str
+    key_points: list[ModelKeyPoint] = Field(min_length=3, max_length=8)
     suggested_questions: list[str] = Field(min_length=3, max_length=3)
 
     @field_validator("summary")

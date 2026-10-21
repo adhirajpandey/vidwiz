@@ -108,13 +108,14 @@ After the copy:
 3. Keep exactly one active key except briefly during rotation.
 4. Configure `AWS_ACCESS_KEY_ID` and `AWS_SECRET_ACCESS_KEY` from the
    application user, `S3_TRANSCRIPT_BUCKET_NAME=vidwiz-prod`,
-   `SQS_AI_NOTE_QUEUE_URL` from the stack output, and `AWS_REGION=ap-south-1`.
+   `SQS_AI_NOTE_QUEUE_URL` and `SQS_AI_SUMMARY_QUEUE_URL` from the stack
+   outputs, and `AWS_REGION=ap-south-1`.
 5. Restart and verify transcript reads/uploads, dispatch, both queues and
    workers, internal API updates, and logs.
 
 The application user has only `GetObject`/`PutObject` on `transcripts/*` and
-`SendMessage` on the AI-note queue. It cannot list the bucket, use the summary
-queue, call Lambda or infrastructure APIs, manage IAM, or manage its own key.
+`SendMessage` on the AI-note and overview queues. It cannot list the bucket,
+call Lambda or infrastructure APIs, manage IAM, or manage its own key.
 
 ## Manual Deployment
 

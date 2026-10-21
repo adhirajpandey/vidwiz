@@ -1,48 +1,56 @@
-const CONSTANTS = {
-  STORAGE: {
-    TOKEN: "token"
-  },
-  MESSAGES: {
-    SYNC_TOKEN: "SYNC_TOKEN",
-    LOGOUT: "LOGOUT"
-  },
-  ORIGINS: {
-    PROD: "https://vidwiz.online"
-  }
-};
+import { CONFIG } from "./config.js";
+import { capture, formatClock, removeToken, setToken, webUrl } from "./api.js";
 
-// Open the web app on first install so it syncs an existing login to the extension.
+// Open the web app on first install so it syncs an existing login.
 chrome.runtime.onInstalled.addListener(({ reason }) => {
   if (reason === chrome.runtime.OnInstalledReason.INSTALL) {
-    chrome.tabs.create({ url: `${CONSTANTS.ORIGINS.PROD}/dashboard` });
+    chrome.tabs.create({ url: webUrl("/") });
   }
 });
 
-// Listen for messages from the web app (externally_connectable)
+// Login and logout from the web app (externally_connectable).
 chrome.runtime.onMessageExternal.addListener((message, sender, sendResponse) => {
-  // externally_connectable already restricts senders; also require an exact origin match.
-  if (sender.origin === CONSTANTS.ORIGINS.PROD) {
-    
-    if (message.type === CONSTANTS.MESSAGES.SYNC_TOKEN) {
-      const { token } = message;
-      if (token) {
-        chrome.storage.local.set({ [CONSTANTS.STORAGE.TOKEN]: token }, () => {
-          console.log('Token synced from web app');
-          sendResponse({ success: true });
-        });
-      } else {
-        sendResponse({ success: false, error: 'No token provided' });
-      }
-    } else if (message.type === CONSTANTS.MESSAGES.LOGOUT) {
-      chrome.storage.local.remove(CONSTANTS.STORAGE.TOKEN, () => {
-        console.log('Token removed (logout)');
-        sendResponse({ success: true });
-      });
+  // externally_connectable already restricts senders; also require an exact origin.
+  if (sender.origin !== CONFIG.WEB_URL) return false;
+  if (message.type === "SYNC_TOKEN" && message.token) {
+    setToken(message.token).then(() => sendResponse({ success: true }));
+  } else if (message.type === "LOGOUT") {
+    removeToken().then(() => sendResponse({ success: true }));
+  } else {
+    sendResponse({ success: false, error: "Unknown message type" });
+  }
+  return true;
+});
+
+function toast(tabId, text, kind) {
+  chrome.tabs.sendMessage(tabId, { action: "toast", text, kind }).catch(() => {});
+}
+
+// Alt+S: capture the current moment without opening the popup.
+chrome.commands.onCommand.addListener(async (command) => {
+  if (command !== "capture-moment") return;
+  const [tab] = await chrome.tabs.query({ active: true, currentWindow: true });
+  if (!tab?.id) return;
+  let video;
+  try {
+    video = await chrome.tabs.sendMessage(tab.id, { action: "getVideo" });
+  } catch {
+    return; // Not a YouTube page with the content script.
+  }
+  if (!video?.videoId) {
+    toast(tab.id, "Open a YouTube video to capture a moment.", "error");
+    return;
+  }
+  try {
+    const result = await capture(video);
+    const at = formatClock(video.seconds);
+    toast(tab.id, result.merged ? `Added to your moment near ${at}` : `Moment saved at ${at}`, "success");
+  } catch (error) {
+    if (error.status === 401) {
+      toast(tab.id, "Log in to VidWiz to capture moments.", "error");
+      chrome.tabs.create({ url: webUrl("/login") });
     } else {
-      sendResponse({ success: false, error: 'Unknown message type' });
+      toast(tab.id, error.message, "error");
     }
-    
-    // Return true to indicate we wish to send a response asynchronously
-    return true; 
   }
 });

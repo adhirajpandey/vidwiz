@@ -1,45 +1,38 @@
 # VidWiz
 
+<picture>
+  <source media="(prefers-color-scheme: dark)" srcset="frontend/public/brand/vidwiz-wordmark-on-dark.svg">
+  <img src="frontend/public/brand/vidwiz-wordmark-on-light.svg" alt="VidWiz" width="280">
+</picture>
+
+Brand assets and regeneration instructions are in [docs/branding.md](docs/branding.md).
+
 ## Description
-VidWiz transforms how you learn from YouTube videos by combining two powerful AI-driven features:
+VidWiz helps you keep what you learn from YouTube. Tap while watching, and
+VidWiz saves the moment: the exact words from the transcript, an optional AI
+line, and your note. Later, search everything you saved and everything said in
+your saved videos, or ask a question across your whole library and get an answer
+with citations that play the source.
 
-**Smart Notes** - Stop pausing to type. VidWiz automatically extracts insights and creates timestamp-linked notes, building your personal knowledge vault. AI captures the core concepts while you stay focused on learning.
-
-**Wiz** - Ask questions instead of scrubbing through timelines. This conversational AI assistant answers based on the video transcript, providing context-aware responses with precise jump-links to relevant moments.
+- **Capture**: one tap on a phone automation, Alt+S in the browser extension,
+  or one button in the web player. Captures close together merge, and
+  title-only captures from a phone resolve to the right video in the background.
+- **Revisit**: ranked full-text search over moments and transcripts, with
+  typo tolerance, highlighted excerpts, and links that open the video at the
+  second it was said. Each video has an overview with timestamped key points.
+- **Ask**: ask about one video or the whole library. Answers are grounded in
+  transcripts and moments, and every citation can be played or saved as a
+  moment.
 
 The platform is built with:
-- **Frontend**: React (Vite) with TypeScript and Tailwind CSS
-- **Backend**: FastAPI (Python) REST API
-- **Database**: PostgreSQL for data persistence
-- **AI/LLM**: OpenRouter for summaries, intelligent note generation, and Wiz chat, with a separate model setting for each workload
-- **Cloud**: AWS (SQS for async processing, S3 for storage)
-
-[Check Screenshots](#screenshots)
-
-## Features
-
-### Two Powerful Learning Tools
-
-**1. Smart Notes - Automatic Knowledge Capture**
-   - **Auto-Extraction**: AI automatically captures core insights from any timestamp
-   - **Precision Timestamps**: Click any note to jump directly to that moment in the video
-   - **Rich Metadata**: Thumbnails, channel info, view counts, and duration tracking
-
-**2. Wiz - Conversational Video Intelligence**
-   - **Ask in plain English**: Ask questions in plain English, get expert answers
-   - **Context-Aware**: Wiz understands the video content and watches alongside you
-   - **Deep Jump-Links**: Click on answers to play the exact video moment
-
-### Multi-Platform Access
-   - **Browser Extension**: Works with any Chromium-based browser (Chrome, Edge, Brave, etc.)
-   - **Web Dashboard**: Modern UI for managing notes and videos
-   - **Android**: Integration via Macrodroid macros
-   - **iOS**: Integration via Shortcuts automation
-
-### Privacy & Control
-   - **Self-Hosted Deployments**: Run VidWiz on your infrastructure and control where data lives.
-   - **Pluggable AI**: Use OpenRouter as the provider layer and configure summary, AI note, and Wiz models independently.
-   - **Token-Based Access**: Extension login syncs from the web app; long-term tokens support mobile automations.
+- **Frontend**: React (Vite), TypeScript, Tailwind CSS, TanStack Query
+- **Backend**: FastAPI with SQLAlchemy and Alembic
+- **Database**: PostgreSQL, including full-text search
+- **Workers**: long-running helpers for transcripts, metadata, and title
+  resolution; AWS Lambda for AI moments and overviews
+- **Cloud**: AWS S3, SQS with dead-letter queues, and Lambda, defined with CDK
+- **AI**: OpenRouter, with a separate model for each workload, and the Jev
+  decision model for relevance scoring
 
 ## Architecture
 
@@ -53,9 +46,9 @@ FastAPI REST API (routers/controllers)
 Service layer (domain logic)
     ↓
 PostgreSQL ←→ Workers + AWS Services
-      │           ├─ Task queue (DB) -> Helpers (transcript/metadata)
-      │           ├─ SQS (Async task queues) -> Lambdas (AI notes/summary)
-      │           └─ S3 (Transcripts)
+      │           ├─ Task queue (DB) -> Helpers (transcript/metadata/title)
+      │           ├─ SQS (+ dead-letter queues) -> Lambdas (AI moments/overviews)
+      │           └─ S3 (Transcripts) -> dispatcher Lambda
 ```
 
 Quick start
@@ -67,13 +60,13 @@ Prereqs: Python 3.13, uv 0.8.22, Node.js, running PostgreSQL
 3. Copy the root environment template: `cp ../.env.example .env`.
 4. When running the API outside Compose against the Compose PostgreSQL container, change the `DB_URL` host and port from `database:5432` to `localhost:5433`.
 5. Fill the required values documented in `docs/backend.md`.
-6. Start server: `uv run --locked uvicorn src.main:app --host 0.0.0.0 --port 5000`
-7. Open Swagger UI at `http://localhost:5000/docs` or fetch the generated
+6. Apply migrations: `uv run --locked alembic upgrade head`
+7. Start server: `uv run --locked uvicorn src.main:app --host 0.0.0.0 --port 5000`
+8. Open Swagger UI at `http://localhost:5000/docs` or fetch the generated
    OpenAPI schema from `http://localhost:5000/openapi.json`.
 
-Backend note creation supports:
-- `POST /v2/videos/{video_id}/notes` for known video IDs/URLs
-- `POST /v2/notes/by-title` to resolve a YouTube video from `video_title` and save against the top result
+Every client captures moments through `POST /v2/captures`, with a video URL or
+ID, or a title when the client cannot see the ID. See `docs/backend.md`.
 
 ### Frontend
 1. `cd frontend`
@@ -96,7 +89,9 @@ Backend note creation supports:
 The extension note UI appears on supported YouTube watch pages after sync.
 
 ## Running tests
-- Backend: `cd backend && uv sync --locked && uv run --locked ruff format --check src workers && uv run --locked ruff check src workers && uv run --locked pytest`
+- Backend: `cd backend && uv sync --locked && uv run --locked ruff format --check src workers && uv run --locked ruff check src workers && TEST_DB_URL=postgresql://user:password@localhost:5432/vidwiz_test uv run --locked pytest`
+  - Tests need a disposable PostgreSQL database with pgvector, such as the
+    `pgvector/pgvector:pg17` image. Each run wipes and migrates it.
 - Frontend: `cd frontend && pnpm install --frozen-lockfile && pnpm lint && pnpm test && pnpm build`
 - AWS infrastructure: `cd infra && uv sync --locked && npm ci --ignore-scripts && uv run --locked python scripts/validate.py`
 
@@ -109,42 +104,38 @@ earlier image stays available for rollback. When a push to `main` changes
 to Cloudflare Workers.
 
 Production AWS serverless resources are defined in `infra/` as
-`vidwiz-stack`. See `docs/aws-infrastructure.md` before any bootstrap,
+`vidwiz-v3-stack`. See `docs/aws-infrastructure.md` before any bootstrap,
 deployment, transcript migration, or cutover operation.
 
 ## Project Structure
 ```
 vidwiz/
 ├── backend/              # FastAPI backend
-│   ├── src/              # App modules (routers, services, schemas, models)
+│   ├── src/              # Domains: auth, moments, library, search, conversations, ...
+│   ├── migrations/       # Alembic migrations
 │   └── workers/          # Background helpers and Lambdas
-├── frontend/            # React + Vite web app
+├── frontend/             # React + Vite web app
 │   └── src/
-│       ├── pages/       # Route-level views
-│       ├── components/  # Reusable UI components
-│       └── public/      # Static assets
-├── infra/               # Production AWS CDK app and assertions
-└── extension/           # Chromium browser extension
-    ├── manifest.json
-    ├── popup.*
-    └── icons/
+│       ├── app/          # Shell, command palette, query client
+│       ├── features/     # Pages by area: home, video, search, ask, settings, ...
+│       ├── components/   # UI primitives and the chat thread
+│       └── api/          # API client and types
+├── infra/                # AWS CDK app and assertions
+└── extension/            # Chromium extension (MV3, plain JavaScript)
 ```
 
 ## Roadmap
-- [x] Smart Notes feature with AI auto-extraction
-- [x] Wiz conversational AI assistant
-- [x] Lambda workflow optimization
-- [x] SQS async task processing
-- [x] Glassmorphic UI/UX redesign
-- [x] Multi-platform support (Extension, Web, iOS, Android)
-- [x] Move backend from Flask to FastAPI
-- [x] Proper CI/CD workflows for backend and frontend
-- [x] Cloud-hosted SaaS offering with credits model
-- [ ] Semantic search across notes and videos
-- [ ] Universal export (Markdown, PDF)
-- [ ] Bring-your-own AI key(BYOK) support
-
-
+- [x] Timestamped capture from the extension, web, and phone automations
+- [x] Transcript-grounded chat with server-resolved citations
+- [x] Async AI work on SQS and Lambda, with dead-letter queues
+- [x] Credits and payments
+- [x] Moments with quotes, explicit AI states, and merge of nearby captures
+- [x] Full-text search across moments and transcripts
+- [x] Library-wide questions with cited sources
+- [x] Overviews with timestamped key points
+- [x] Markdown export
+- [ ] Embedding-based search, if full-text search misses too often
+- [ ] Bring-your-own AI key (BYOK) support
 
 ## Demo
 
@@ -153,13 +144,21 @@ vidwiz/
 
 ## Screenshots
 
-### Smart Notes Feature
-![Smart Notes](frontend/src/public/smart-notes.png)
-*Rich note-taking with timestamp navigation and video metadata*
+### Video overview
 
-### Ask Wiz - AI Assistant
-![Ask Wiz](frontend/src/public/wiz.png)
-*AI-powered note generation and intelligent assistance for your learning journey*
+![A video overview with timestamped key points](docs/images/video-overview.png)
+
+### Library
+
+![Saved videos with their moments and transcript status](docs/images/library.png)
+
+### Ask your library
+
+![An answer with citations to saved videos](docs/images/ask-answer.png)
+
+### Home after a capture
+
+![Recent captures with AI lines on the home page](docs/images/home.png)
 
 ### Extension
 <img width="369" height="450" alt="Screenshot 2026-01-16 011711" src="https://github.com/user-attachments/assets/d52c10c5-fcaa-4d0b-8dae-e2f63b7c2f66" />

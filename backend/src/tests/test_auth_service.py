@@ -16,7 +16,7 @@ def test_create_and_find_user(db_session):
     assert user.email == "create@example.com"
     assert user.password_hash is not None
     assert user.password_hash != "password123"
-    assert user.profile_data == {"ai_notes_enabled": True}
+    assert user.profile_data == {"ai_moments_default": True}
 
     found = auth_service.find_user_by_email(db_session, "create@example.com")
     assert found is not None
@@ -67,62 +67,18 @@ def test_generate_jwt_token_payload(db_session):
     assert payload["profile_image_url"] == "https://example.com/avatar.png"
 
 
-def test_get_user_by_long_term_token(db_session):
-    user = auth_service.create_user(
-        db_session,
-        "lookup@example.com",
-        "Lookup User",
-        "password123",
-    )
-    token = auth_service.create_long_term_token(db_session, user, settings.secret_key)
-    found = auth_service.get_user_by_long_term_token(db_session, token)
-    assert found is not None
-    assert found.id == user.id
-
-
-def test_long_term_token_create_and_revoke(db_session):
-    user = auth_service.create_user(
-        db_session,
-        "longterm@example.com",
-        "Long Term",
-        "password123",
-    )
-    token = auth_service.create_long_term_token(db_session, user, settings.secret_key)
-    assert token
-    refreshed = auth_service.get_user_by_id(db_session, user.id)
-    assert refreshed.long_term_token == token
-
-    auth_service.revoke_long_term_token(db_session, refreshed)
-    revoked = auth_service.get_user_by_id(db_session, user.id)
-    assert revoked.long_term_token is None
-
-
-def test_build_profile_data_includes_long_term_token(db_session):
-    user = auth_service.create_user(
-        db_session,
-        "token-profile@example.com",
-        "Token Profile",
-        "password123",
-    )
-    token = auth_service.create_long_term_token(db_session, user, settings.secret_key)
-    data = auth_service.build_profile_data(user, include_long_term_token=True)
-    assert data["token_exists"] is True
-    assert data["long_term_token"] == token
-
-
 def test_build_profile_data_flags(db_session):
     user = User(
         email="profile@example.com",
         name="Profile",
-        profile_data={"ai_notes_enabled": True},
+        profile_data={"ai_moments_default": True},
     )
     db_session.add(user)
     db_session.commit()
     db_session.refresh(user)
 
-    data = auth_service.build_profile_data(user, include_long_term_token=False)
-    assert data["ai_notes_enabled"] is True
-    assert data["token_exists"] is False
+    data = auth_service.build_profile_data(user)
+    assert data["ai_moments_default"] is True
     assert "long_term_token" not in data
 
 
@@ -139,10 +95,10 @@ def test_update_profile_updates_fields(db_session):
         db_session,
         user,
         name="After",
-        ai_notes_enabled=True,
+        ai_moments_default=True,
     )
     assert updated.name == "After"
-    assert updated.profile_data["ai_notes_enabled"] is True
+    assert updated.profile_data["ai_moments_default"] is True
 
 
 def test_upsert_google_user_links_existing_by_email(db_session):
@@ -173,4 +129,4 @@ def test_upsert_google_user_updates_missing_name(db_session):
         None,
     )
     assert user.name == "Google Name"
-    assert user.profile_data == {"ai_notes_enabled": True}
+    assert user.profile_data == {"ai_moments_default": True}

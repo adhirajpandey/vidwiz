@@ -1,37 +1,79 @@
-import { createContext, useContext } from 'react';
+import { createContext, useContext, useState } from 'react';
 import type { DataMessagePartProps } from '@assistant-ui/react';
+import { Bookmark, BookmarkCheck } from 'lucide-react';
 import type { CitationPart, Passage } from '../../api/messageParts';
+import { formatClock } from '../../lib/format';
 
-const SeekContext = createContext<(seconds: number) => void>(() => undefined);
-export const WizSeekProvider = SeekContext.Provider;
+export interface PassageActions {
+  /** Play the passage: seek the on-page player, or open its video. */
+  watch: (passage: Passage) => void;
+  /** Keep the passage as a moment; absent for guests. */
+  save?: (passage: Passage) => Promise<void>;
+  /** Library answers name the video each passage comes from. */
+  videoLabel?: (videoId: string) => string | undefined;
+}
 
-function formatCitationTime(seconds: number): string {
-  const whole = Math.floor(seconds);
-  const hours = Math.floor(whole / 3600);
-  const minutes = Math.floor(whole / 60) % 60;
-  const remainder = String(whole % 60).padStart(2, '0');
-  return hours ? `${hours}:${String(minutes).padStart(2, '0')}:${remainder}` : `${minutes}:${remainder}`;
+const PassageContext = createContext<PassageActions>({ watch: () => undefined });
+export const WizPassageProvider = PassageContext.Provider;
+
+function SavePassage({ passage, save }: { passage: Passage; save: (passage: Passage) => Promise<void> }) {
+  const [state, setState] = useState<'idle' | 'saving' | 'saved'>('idle');
+  const saved = state === 'saved';
+  return (
+    <button
+      type="button"
+      className="wiz-save"
+      disabled={state !== 'idle'}
+      aria-label={saved ? 'Saved as a moment' : 'Save passage as a moment'}
+      title={saved ? 'Saved as a moment' : 'Save as a moment (free)'}
+      onClick={async () => {
+        setState('saving');
+        try {
+          await save(passage);
+          setState('saved');
+        } catch {
+          setState('idle');
+        }
+      }}
+    >
+      {saved ? <BookmarkCheck className="size-3.5" /> : <Bookmark className="size-3.5" />}
+    </button>
+  );
 }
 
 export function WatchPassage({ passage }: { passage: Passage }) {
-  const seek = useContext(SeekContext);
-  const start = formatCitationTime(passage.start_seconds);
-  const end = formatCitationTime(passage.end_seconds);
-  return <button type="button" className="wiz-watch wiz-accent-text"
-    aria-label={`Watch passage from ${start} to ${end}`}
-    title={`Watch passage ${start} to ${end}. Playback starts 2 seconds earlier.`}
-    onClick={() => seek(passage.start_seconds)}>
-    <span aria-hidden="true">▶</span> Watch · {start}
-  </button>;
+  const { watch, save, videoLabel } = useContext(PassageContext);
+  const start = formatClock(passage.start_seconds);
+  const end = formatClock(passage.end_seconds);
+  const video = passage.video_id ? videoLabel?.(passage.video_id) : undefined;
+  return (
+    <span className="wiz-passage">
+      <button
+        type="button"
+        className="wiz-watch"
+        aria-label={`Watch ${video ? `${video} ` : ''}from ${start} to ${end}`}
+        title={`${video ? `${video}, ` : ''}${start} to ${end}. Playback starts 2 seconds earlier.`}
+        onClick={() => watch(passage)}
+      >
+        <span className="wiz-time">{start}</span>{video ? <span className="wiz-video">{video}</span> : 'Watch'}
+      </button>
+      {save && <SavePassage passage={passage} save={save} />}
+    </span>
+  );
 }
 
+/** Standalone citations from messages saved before block answers. */
 export default function WizCitation({ data }: DataMessagePartProps<CitationPart>) {
-  const seek = useContext(SeekContext);
-  const label = formatCitationTime(data.start_seconds);
-  return <button
-    type="button"
-    aria-label={`Seek video to ${label}`}
-    onClick={() => seek(data.start_seconds)}
-    className="inline-flex items-center px-1.5 mx-0.5 my-1 rounded-md bg-violet-500/10 wiz-accent-text hover:bg-violet-500/20 text-xs font-mono border border-violet-500/20 cursor-pointer focus-visible:outline-2 focus-visible:outline-violet-500"
-  >{label}</button>;
+  const { watch } = useContext(PassageContext);
+  const label = formatClock(data.start_seconds);
+  return (
+    <button
+      type="button"
+      aria-label={`Seek video to ${label}`}
+      onClick={() => watch({ chunk_ids: [data.chunk_id], start_seconds: data.start_seconds, end_seconds: data.end_seconds })}
+      className="mx-0.5 my-1 inline-flex items-center rounded-[5px] bg-saved px-1.5 text-xs font-bold text-saved-foreground tabular hover:brightness-105"
+    >
+      {label}
+    </button>
+  );
 }

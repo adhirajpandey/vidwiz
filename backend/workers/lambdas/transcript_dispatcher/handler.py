@@ -23,13 +23,11 @@ def lambda_handler(event: Dict[str, Any], context: Any) -> None:
     del context
     try:
         video_ids: List[str] = []
-        is_s3_event = False
 
         records = event.get("Records", [])
         if records and isinstance(records, list):
             first = records[0]
             if "s3" in first and "object" in first["s3"]:
-                is_s3_event = True
                 key = first["s3"]["object"]["key"]
                 video_id = extract_valid_video_id(key)
                 if video_id:
@@ -48,7 +46,7 @@ def lambda_handler(event: Dict[str, Any], context: Any) -> None:
             logger.error("No video IDs found in dispatcher event")
             return
 
-        dispatch_service.dispatch_videos(video_ids, is_s3_event)
+        dispatch_service.dispatch_videos(video_ids)
     except Exception:
         logger.exception("Unhandled dispatcher error")
         raise

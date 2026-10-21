@@ -4,9 +4,7 @@ from src.config import settings
 from src.internal import constants as internal_constants
 from src.internal.models import Task, TaskStatus
 from src.internal import service as internal_service
-from src.auth.models import User
-from src.notes.models import Note
-from src.videos.models import Video
+from src.videos.models import TranscriptStatus, Video
 
 
 def admin_headers() -> dict[str, str]:
@@ -80,87 +78,7 @@ async def test_internal_task_submit_transcript_success(client, db_session, monke
     assert payload["status"] == "completed"
 
     updated_video = db_session.get(Video, video.id)
-    assert updated_video.transcript_available is True
-
-
-@pytest.mark.asyncio
-async def test_internal_ai_notes(client, db_session):
-    video_id = "abc123DEF45"
-    user = User(
-        email="ai-notes@example.com",
-        name="AI Notes User",
-        profile_data={"ai_notes_enabled": True},
-        credits_balance=1,
-    )
-    video = Video(video_id=video_id, title="AI Notes Video")
-    db_session.add_all([user, video])
-    db_session.commit()
-
-    note = Note(
-        video_id=video_id,
-        timestamp="00:01",
-        text=None,
-        generated_by_ai=False,
-        user_id=user.id,
-    )
-    db_session.add(note)
-    db_session.commit()
-
-    response = await client.get(
-        f"/v2/internal/videos/{video_id}/ai-notes",
-        headers=admin_headers(),
-    )
-
-    assert response.status_code == 200
-    payload = response.json()
-    assert payload["video_id"] == video_id
-    assert len(payload["notes"]) == 1
-    db_session.refresh(user)
-    assert user.credits_balance == 0
-
-
-@pytest.mark.asyncio
-async def test_internal_ai_notes_skips_users_without_credits(client, db_session):
-    video_id = "abc123DEF45"
-    user = User(
-        email="no-credits@example.com",
-        profile_data={"ai_notes_enabled": True},
-        credits_balance=0,
-    )
-    db_session.add_all([user, Video(video_id=video_id, title="AI Notes Video")])
-    db_session.commit()
-    db_session.add(Note(video_id=video_id, timestamp="00:01", user_id=user.id))
-    db_session.commit()
-
-    response = await client.get(
-        f"/v2/internal/videos/{video_id}/ai-notes",
-        headers=admin_headers(),
-    )
-
-    assert response.status_code == 404
-
-
-@pytest.mark.asyncio
-async def test_internal_ai_notes_not_found(client, db_session):
-    video_id = "abc123DEF45"
-    video = Video(video_id=video_id, title="AI Notes Video")
-    db_session.add(video)
-    db_session.commit()
-
-    response = await client.get(
-        f"/v2/internal/videos/{video_id}/ai-notes",
-        headers=admin_headers(),
-    )
-    assert response.status_code == 404
-
-
-@pytest.mark.asyncio
-async def test_internal_ai_notes_video_missing(client):
-    response = await client.get(
-        "/v2/internal/videos/abc123DEF45/ai-notes",
-        headers=admin_headers(),
-    )
-    assert response.status_code == 404
+    assert updated_video.transcript_status == TranscriptStatus.READY
 
 
 @pytest.mark.asyncio
@@ -234,33 +152,6 @@ async def test_internal_get_video_success(client):
 
 
 @pytest.mark.asyncio
-async def test_internal_update_note_not_found(client):
-    response = await client.patch(
-        "/v2/internal/notes/9999",
-        headers=admin_headers(),
-        json={"text": "updated"},
-    )
-    assert response.status_code == 404
-
-
-@pytest.mark.asyncio
-async def test_internal_update_note_success(client, db_session):
-    video = Video(video_id="abc123DEF45", title="Video")
-    note = Note(video_id=video.video_id, timestamp="00:01", text="hi", user_id=1)
-    db_session.add_all([video, note])
-    db_session.commit()
-
-    response = await client.patch(
-        f"/v2/internal/notes/{note.id}",
-        headers=admin_headers(),
-        json={"text": "updated"},
-    )
-    assert response.status_code == 200
-    payload = response.json()
-    assert payload["text"] == "updated"
-
-
-@pytest.mark.asyncio
 async def test_internal_metrics_requires_admin_token(client):
     response = await client.get("/v2/internal/metrics")
     assert response.status_code in {401, 403}
@@ -275,3 +166,72 @@ async def test_internal_metrics_success(client):
     assert response.status_code == 200
     body = response.text
     assert "http_requests_total" in body or "http_request_duration_seconds" in body
+
+
+@pytest.mark.asyncio
+async def test_internal_summary_stores_key_points_without_dropping_them(
+    client, db_session
+):
+    from src.videos.models import Video
+
+    db_session.add(Video(video_id="kp123456789", title="Key points"))
+    db_session.flush()
+    questions = ["Question one here?", "Question two here?", "Question three here?"]
+    points = [{"text": "Point", "start_seconds": 10, "end_seconds": 55.5}]
+
+    stored = await client.post(
+        "/v2/internal/videos/kp123456789/summary",
+        headers=admin_headers(),
+        json={
+            "summary": "Summary",
+            "miscellaneous_data": {
+                "suggested_questions": questions,
+                "key_points": points,
+                "overview_model": "qwen/test",
+            },
+        },
+    )
+    assert stored.status_code == 200
+    assert stored.json()["overview_model"] == "qwen/test"
+    video = db_session.query(Video).filter_by(video_id="kp123456789").one()
+    assert video.miscellaneous_data["overview_generated_at"]
+    assert stored.json()["key_points"] == [
+        {"text": "Point", "start_seconds": 10.0, "end_seconds": 55.5}
+    ]
+
+    # A later write with questions only keeps the existing key points.
+    again = await client.post(
+        "/v2/internal/videos/kp123456789/summary",
+        headers=admin_headers(),
+        json={"miscellaneous_data": {"suggested_questions": questions}},
+    )
+    assert again.json()["key_points"][0]["text"] == "Point"
+
+    bad = await client.post(
+        "/v2/internal/videos/kp123456789/summary",
+        headers=admin_headers(),
+        json={
+            "miscellaneous_data": {
+                "suggested_questions": questions,
+                "key_points": [{"text": "x", "start_seconds": 9, "end_seconds": 1}],
+            }
+        },
+    )
+    assert bad.status_code == 422
+
+
+@pytest.mark.asyncio
+async def test_internal_overview_failed_route(client, db_session):
+    from src.videos.models import OverviewStatus
+
+    db_session.add(Video(video_id="routefail12", overview_status=OverviewStatus.QUEUED))
+    db_session.commit()
+
+    response = await client.post(
+        "/v2/internal/videos/routefail12/overview/failed", headers=admin_headers()
+    )
+    unauthorized = await client.post("/v2/internal/videos/routefail12/overview/failed")
+
+    assert response.status_code == 200
+    assert response.json()["overview_status"] == "failed"
+    assert unauthorized.status_code in (401, 403)

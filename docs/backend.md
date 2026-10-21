@@ -6,52 +6,182 @@ Describe the FastAPI backend: structure, auth rules, and the request/worker life
 ## Structure
 - **App factory**: `backend/src/main.py` configures the FastAPI app and routers.
 - **Settings**: `backend/src/config.py` (DB, JWT, OAuth, AWS, queues, S3, OpenRouter, Wiz quotas).
-- **Domains**: `auth`, `videos`, `notes`, `conversations`, `internal` follow `models/schemas/service/router/dependencies`.
+- **Domains**: `auth`, `videos`, `moments`, `library`, `conversations`, `internal` follow `models/schemas/service/router/dependencies`.
+- **Transcripts**: `backend/src/transcripts.py` stores and loads transcript JSON in S3 and extracts moment quotes.
+- **Migrations**: Alembic in `backend/migrations`. Revision `0001` reproduces the
+  pre-v3 production schema; existing databases are stamped at `0001` once, then
+  upgraded. The Compose `migrate` service runs `alembic upgrade head` before the API starts.
 
 ## Auth & Access
 - **JWT**: Required for most `/v2` endpoints.
-- **Long-term tokens**: Only allowed for `POST /v2/videos/{video_id}/notes`.
+- **Personal API tokens**: Accepted only by capture endpoints (`POST /v2/captures` and the legacy extension route). Tokens are opaque `vw_…` strings stored as SHA-256 hashes in `api_tokens`, with a name, hint, last-used time, and revocation. Long-term JWTs from before v3 were hashed into the same table and keep working.
 - **Guest sessions**: `X-Guest-Session-ID` enables Wiz chat without a JWT.
 - **Admin token**: Required for `/v2/internal/*` endpoints.
-- **Signup defaults**: New users created via `POST /v2/auth/register` and first-time `POST /v2/auth/google` start with `profile_data.ai_notes_enabled = true`.
+- **Signup defaults**: New users created via `POST /v2/auth/register` start with `profile_data.ai_moments_default = true`. Captures without an explicit `ai` flag use this setting.
 - **Secrets**: `SECRET_KEY` is required for JWT issuance and verification; the server does not start when it is missing or empty.
 - **JWT expiry**: `JWT_EXPIRY_HOURS` controls JWT lifetime (default 168 hours, or 7 days).
-- **Token payloads**: JWTs include `user_id`, `email`, `name`, `profile_image_url`, `exp`. Long-term tokens include `user_id`, `email`, `type=long_term`, and `iat` (no expiry).
+- **Token payloads**: JWTs include `user_id`, `email`, `name`, `profile_image_url`, `exp`. A JWT with `type=long_term` is never accepted as a session; it is checked by hash like any API token.
 
 ## Validation Rules (Selected)
 - **video_id**: Normalized from YouTube IDs or URLs; supports `youtube.com/watch`, `/shorts/`, `/live/`, `/embed/`, and `youtu.be`. Playlist URLs are rejected.
-- **timestamp**: Must include `:` and at least two digits.
-- **Note text**: Empty/whitespace text is normalized to `null`.
+- **Capture time (`at`)**: Seconds, `m:ss`, or `h:mm:ss`; never negative.
+- **Moment text**: Empty/whitespace notes are normalized to `null`.
 - **Chat message**: Must be non-empty after trimming.
 - **Transcript payload**: Items must be dicts containing at least `text`.
 
 ## Key Behavior
 - **Video lookup**: `GET /v2/videos/{video_id}` is JWT-only but is not scoped to the user; it returns the video if it exists.
-- **Video list**: `GET /v2/videos` returns only videos that have notes for the authenticated user (join on notes).
-- **Video search**: `q` is trimmed; queries shorter than 2 chars are treated as empty. Sort keys: `created_at_desc|created_at_asc|title_asc|title_desc|activity_desc`. `per_page` defaults to 10, max 50.
-- **Video stream**: `GET /v2/videos/{video_id}/stream` requires JWT or guest session. The video is not user-scoped for either viewers or guests.
-- **Notes**: List/edit/delete require JWT; create accepts JWT or long-term token.
-- **Create note by title**: `POST /v2/notes/by-title` resolves the provided title against YouTube Data API v3, picks the top video result, then reuses normal note creation.
-  - Requires `YOUTUBE_DATA_API_KEY` only when this endpoint is used.
-- **Task scheduling**: Creating a note or conversation upserts the video and schedules transcript/metadata tasks when missing.
-- **AI notes**: Enqueued only when note text is empty, AI notes are enabled, and the transcript is already available.
-  - Enqueue uses the required `SQS_AI_NOTE_QUEUE_URL`.
-  - Each AI note costs `AI_NOTE_COST` credits once, charged when it is queued. Notes
-    created before their transcript are charged when the dispatcher collects them
-    through `GET /v2/internal/videos/{video_id}/ai-notes`. That endpoint omits notes
-    whose owner lacks enough credits, and the ledger prevents charging a note twice.
+- **Task scheduling**: Capturing, saving, or starting a conversation upserts the video and schedules transcript/metadata tasks when missing.
 - **Wiz quotas**: Daily message limits enforced separately for users and guests via `WIZ_USER_DAILY_QUOTA` and `WIZ_GUEST_DAILY_QUOTA`.
 - **Wiz token budget**: `WIZ_MAX_TOKENS` (default 8192) controls the max completion tokens per Wiz response, including model reasoning. The larger ceiling accommodates structured evidence on long transcripts; explicit environment overrides remain authoritative.
 
+### Moments and captures
+- A moment is a capture on a video: `at_seconds`, a `quote` (transcript lines
+  overlapping 10 seconds before to 5 seconds after the capture, capped at
+  350 characters, with
+  `quote_start_seconds`), an optional `ai_text`, and an optional user `note`.
+- **`POST /v2/captures`** accepts `video` (URL or ID) or `title` (+ optional
+  `channel`), `at`, `note`, `ai`, and `source` (`phone`, `extension`, `web`,
+  `api`). It returns `{moment, merged}` with `201`, or `200` when merged.
+- **Dedupe**: a capture within 10 seconds of the user's existing moment on the
+  same video merges into it. A new note is appended on a new line. Merging is
+  never charged again.
+- **Title captures**: a title matching a video already in the user's library
+  (case-insensitive) resolves immediately. Otherwise the moment is saved with
+  `video_id = null`, `resolve_status = resolving`, and a `resolve_title` task.
+  The title helper searches YouTube with yt-dlp, preferring a matching channel,
+  then an exact title. On success the moment gets its video (or merges into a
+  nearby moment); after the final failed retry it becomes `unresolved`.
+- **AI status** is explicit: `not_requested`, `waiting_transcript`, `queued`,
+  `ready`, `failed`, `no_transcript`, or `insufficient_credits`.
+  - With a transcript, a request charges `AI_MOMENT_COST` once per moment and
+    queues the job (`queued`). Without credits the moment is kept as
+    `insufficient_credits`.
+  - Without a transcript the moment waits (`waiting_transcript`). After the
+    transcript upload the dispatcher calls
+    `POST /v2/internal/videos/{video_id}/pending-moments`, which charges and
+    queues those moments. A transcript task that fails for the last time marks
+    them `no_transcript`.
+  - If sending the job to SQS fails, the moment becomes `failed`. Requesting AI
+    again (`POST /v2/moments/{id}/ai`) does not charge again.
+  - The worker stores its result through `PUT /v2/internal/moments/{id}/ai`;
+    `ai_text: null` marks a queued generation `failed` and leaves a ready line
+    alone.
+  - The sweep marks lines queued for over 30 minutes `failed`, for jobs whose
+    result never arrived.
+- **Quotes** are filled at capture when the transcript exists, and for all of a
+  video's moments without quotes when its transcript arrives. Filling or
+  recomputing quotes preserves `updated_at` and the library order.
+- **Saved passages**: `POST /v2/moments/passages` keeps a cited range as a
+  moment whose quote is the transcript text in that range. No AI, no credits;
+  merges like a capture.
+- **Ambiguous titles**: when the title helper cannot pick one video
+  confidently, the moment becomes `unresolved` with `resolve_candidates`;
+  `POST /v2/moments/{id}/resolve` with one of their ids completes it (or merges
+  it into a nearby moment), keeping any pending AI request.
+- **Export**: `GET /v2/videos/{video_id}/export.md` and
+  `GET /v2/library/export.md` return Markdown with timestamped YouTube links.
+- **Legacy route**: `POST /v2/videos/{video_id}/notes` keeps the published 2.x
+  extension working (`timestamp`, `text`, `video_title`). An empty `text`
+  requests AI if the user setting allows it. Remove it once the 3.x extension
+  is live.
+
+### Search
+- Stored transcripts are split into ~45-second passages in `transcript_chunks`
+  (written whenever a transcript is stored; `python -m src.management.backfill
+  chunks [--missing-only]` fills existing videos from S3).
+- Moments and passages have generated `tsvector` columns (English stemming) with
+  GIN indexes. The user's note and AI line weigh more than the quote.
+- `GET /v2/search?q=` requires every term as a word prefix and ranks moments
+  (boosted ×1.5) and passages from saved videos together. Results carry a `kind`
+  discriminator (`moment` or `passage`), the video, a start time, and a snippet
+  split into highlighted and plain parts. With no full-text match, trigram word
+  similarity (threshold 0.45) tolerates typos and the response says
+  `match: fuzzy`; `none` means nothing matched. `video_id` limits the search to
+  one video.
+
+### Library Ask
+- `POST /v2/conversations` with `{"scope": "library"}` (no `video_id`) starts a
+  library conversation for a signed-in user. It is free within the daily
+  message quota.
+- Each question: `ASK_QUERY_MODEL` (default `z-ai/glm-5.3-flash`) turns it into
+  search terms and synonyms; full-text search in any-term mode gathers up to
+  `ASK_CANDIDATES` (48) moments and passages; Jev (`JEV_MODEL`, a pinned dated
+  version, through OpenRouter's decisions endpoint) scores each candidate's
+  relevance in parallel batches; up to `ASK_MAX_SOURCES` (8) candidates at or
+  above `JEV_RELEVANCE_THRESHOLD` (0.5) become the answer's sources. With
+  `JEV_ENABLED=false` or a Jev failure, the full-text order is used.
+- Answers use the same structured block stream as video chat. Source ids are
+  `m<moment id>` or `c<chunk id>`, and resolved citations carry `video_id`
+  (null in video conversations). Each question logs one `Library Ask
+  retrieval:` line with the model, candidate count, kept count, threshold, and
+  top scores.
+
+### Conversations
+- `GET /v2/conversations` lists the user's conversations that have at least one
+  question, latest first, with the first question as a title. Filter by
+  `scope` or `video_id` to resume a chat.
+
+### Transcripts and overviews
+- **Transcript status** (`videos.transcript_status`) is explicit: `pending`,
+  `ready`, or `unavailable`. Storing a transcript makes it `ready`. A
+  transcript task that fails for the last time, or succeeds without segments,
+  makes it `unavailable`; a later capture schedules a new task and sets it back
+  to `pending`.
+- **Overview status** (`videos.overview_status`, changed at
+  `overview_status_at`):
+
+  ```
+  pending ──transcript ready──▶ queued ──worker saves──▶ ready
+     │                            │  ▲
+     │                            │  └── retry, backfill ── failed, ready
+     │                            └── worker gives up, sweep ──▶ failed
+     └── transcript unavailable ──▶ no_transcript ── transcript ready ──▶ queued
+  ```
+
+  - The API is the only place that queues an overview: when it stores a
+    transcript (from `pending`, `no_transcript`, or `failed`), on a retry, and
+    in the backfill. If sending the job fails, the overview becomes `failed`.
+  - The worker saves through `POST /v2/internal/videos/{id}/summary`, which
+    marks it `ready`, or reports `POST /v2/internal/videos/{id}/overview/failed`,
+    which fails only a queued overview.
+  - `POST /v2/videos/{video_id}/overview/retry` (signed in, free) queues a
+    failed overview again.
+  - The sweep marks overviews queued for over two hours `failed`.
+  - Summaries from before key points count as `ready`; the backfill rewrites
+    them.
+- `GET /v2/videos/{video_id}/transcript` returns `status` (the transcript
+  status) and, when `ready`, the segments. JWT or guest session.
+- **Models are recorded on every AI output**: `moments.ai_model` for AI
+  lines, `miscellaneous_data.overview_model` and `overview_generated_at` for
+  overviews (`VideoRead.overview_model`), and a `models` object in saved
+  answer metadata (`model`, plus `query_model` and `relevance_model` for
+  library answers; null when that step was skipped).
+- `VideoRead.key_points` exposes the overview's key points
+  (`text`, `start_seconds`, `end_seconds`), stored in
+  `miscellaneous_data.key_points`. Writes that omit key points keep the
+  existing ones.
+
+### Library
+- `library_items` records saved videos per user. Capturing a moment or sending
+  a chat message saves the video. `PUT /v2/library/{video_id}` saves
+  explicitly; `DELETE` removes the item and keeps its moments.
+- `GET /v2/library` returns `moment_count`, `transcript_status`,
+  `overview_status`,
+  `added_at`, and `last_activity_at` (latest of added, opened, moment update,
+  or chat message). Sorts: `activity_desc` (default), `added_desc`,
+  `title_asc`, `title_desc`. `q` (2+ characters) filters titles literally.
+
 ## Async + Workers Integration
-- **Tasks**: Metadata/transcript tasks are stored in the `tasks` table and polled via `/v2/internal/tasks`.
-- **Task polling**: `/v2/internal/tasks?type=transcript|metadata` blocks up to a configurable timeout and returns `204` when no work is available.
+- **Tasks**: Metadata, transcript, and title-resolution tasks are stored in the `tasks` table and polled via `/v2/internal/tasks`.
+- **Task polling**: `/v2/internal/tasks?type=transcript|metadata|resolve_title` blocks up to a configurable timeout and returns `204` when no work is available.
 - **Task lifecycle**: On claim, a task is marked `in_progress`, `started_at` is set, and `retry_count` increments. Stale `in_progress` tasks can be reclaimed after a timeout.
-- **Transcript storage**: Transcripts are written to S3 when `S3_TRANSCRIPT_BUCKET_NAME` is configured, using the application's required AWS credentials; `transcript_available` is still set when the bucket is not configured.
+- **Transcript storage**: Transcripts are written to S3 when `S3_TRANSCRIPT_BUCKET_NAME` is configured, using the application's required AWS credentials; the transcript is still marked `ready` when the bucket is not configured.
+- **Sweep**: `python -m src.management.sweep --every 600` runs beside the API and fails jobs that stayed queued past the limits above.
+- **Backfills**: `python -m src.management.backfill chunks [--missing-only]` stores search passages; `python -m src.management.backfill overviews --limit N` queues up to N overviews that are missing, failed, or older than key points, most recently used videos first. `python -m src.management.backfill quotes` fills missing moment quotes on transcript-ready videos; use it for bulk imports whose moments arrive after their transcripts. Final reconciliation fills only its imported moments from local transcript files; see [reconciliation](reconciliation.md). Add `--all` to recompute existing quotes with the current window while preserving each moment's `updated_at`.
 - **Wiz chat**: Requires S3 transcript access and `OPENROUTER_API_KEY`. If transcript is not ready, `POST /v2/conversations/{id}/messages` returns `202 Accepted` with `status=processing`. If the transcript flag is set but S3 data is missing, the request errors with `Transcript data missing`.
 
 ## Streaming (SSE)
-- **Video readiness**: `/v2/videos/{id}/stream` emits `snapshot`, `update`, and `done` when metadata, transcript, and summary are all ready (timeout 60s).
 - **Wiz responses**: `/v2/conversations/{id}/messages` emits JSON SSE data with a
   `type` discriminator: `block`, `done`, or `error`. Each `block` event contains
   one complete Markdown block in `text` and its resolved `citations`. `done`
@@ -133,33 +263,48 @@ a transcript is replaced.
 - Datetimes are serialized as `YYYY-MM-DDTHH:MM:SS±HHMM` (local timezone offset).
 
 ## Data Model (Core Tables)
-- **users**: Email/password or Google login; stores `long_term_token` and `profile_data`.
-- **videos**: Metadata JSON, `transcript_available`, optional `summary`, and
+- **users**: Email/password or Google login; stores `profile_data` (`ai_moments_default`) and `credits_balance`.
+- **videos**: Metadata JSON, `transcript_status`, optional `summary`,
+  `overview_status` and `overview_status_at`, and
   general-purpose `miscellaneous_data` JSON. Wiz starter questions are stored
   under `miscellaneous_data.suggested_questions`.
-- **notes**: Timestamped notes tied to `videos.video_id` and a `user_id` (user foreign key is not enforced at the DB layer).
-- **conversations/messages**: Threaded chat history per video; supports guest sessions.
+- **moments**: Captures tied to a user and (once resolved) a video, with explicit `ai_status`, `resolve_status`, and `source`, enforced by CHECK constraints.
+- **library_items**: Saved videos per user (composite key `user_id, video_id`).
+- **api_tokens**: Hashed personal API tokens.
+- **conversations/messages**: Chat history with a `scope` of `video` (with `video_id`) or `library` (without); supports guest sessions.
 - **tasks**: Internal work queue with `task_details`, `worker_details`, and retry metadata.
 
 ## Public API Surface (By Domain)
 ### Auth
 - `POST /v2/auth/register`, `POST /v2/auth/login`, `POST /v2/auth/google`
-- `POST /v2/auth/tokens`, `DELETE /v2/auth/tokens`
+- `GET /v2/auth/tokens`, `POST /v2/auth/tokens`, `DELETE /v2/auth/tokens/{token_id}`
 - `GET /v2/users/me`, `PATCH /v2/users/me`
 
 ### Videos
-- `GET /v2/videos` (list/search)
 - `GET /v2/videos/{video_id}`
 - `GET /v2/videos/{video_id}/stream`
+- `GET /v2/videos/{video_id}/transcript`
 
-### Notes
-- `GET /v2/videos/{video_id}/notes`
-- `POST /v2/videos/{video_id}/notes`
-- `POST /v2/notes/by-title`
-- `PATCH /v2/notes/{note_id}`
-- `DELETE /v2/notes/{note_id}`
+### Moments
+- `POST /v2/captures`
+- `GET /v2/moments` (recent moments across the library)
+- `GET /v2/videos/{video_id}/moments`
+- `PATCH /v2/moments/{moment_id}`, `DELETE /v2/moments/{moment_id}`
+- `POST /v2/moments/{moment_id}/ai`
+- `POST /v2/videos/{video_id}/notes` (legacy 2.x extension)
+
+- `POST /v2/moments/passages`, `POST /v2/moments/{moment_id}/resolve`
+- `GET /v2/videos/{video_id}/export.md`, `GET /v2/library/export.md`
+
+### Library
+- `GET /v2/library`
+- `PUT /v2/library/{video_id}`, `DELETE /v2/library/{video_id}`
+
+### Search
+- `GET /v2/search`
 
 ### Conversations
+- `GET /v2/conversations`
 - `POST /v2/conversations`
 - `GET /v2/conversations/{id}`
 - `GET /v2/conversations/{id}/messages`
@@ -168,12 +313,12 @@ a transcript is replaced.
 ### Internal
 - `GET /v2/internal/tasks`
 - `POST /v2/internal/tasks/{id}/result`
-- `GET /v2/internal/videos/{video_id}/ai-notes`
+- `POST /v2/internal/videos/{video_id}/pending-moments`
 - `POST /v2/internal/videos/{video_id}/transcript`
 - `POST /v2/internal/videos/{video_id}/metadata`
 - `POST /v2/internal/videos/{video_id}/summary`
 - `GET /v2/internal/videos/{video_id}`
-- `PATCH /v2/internal/notes/{note_id}`
+- `PUT /v2/internal/moments/{moment_id}/ai`
 
 ### Payments
 - `GET /v2/payments/products`
@@ -233,21 +378,3 @@ The server fails on startup if any of the following env vars are missing. `ENVIR
 - `DODO_PAYMENTS_ENVIRONMENT`
 - `DODO_PAYMENTS_RETURN_URL`
 - `DODO_CREDIT_PRODUCTS`
-
-## Dashboard read APIs
-
-- `GET /v2/videos` adds `note_count` and `last_activity_at` per video.
-  `activity_desc` sorts by the user's latest note or chat message, with an ID
-  tie-breaker. Title search treats wildcard characters literally.
-- `GET /v2/videos/library-summary` returns `videos`, `notes`, `ai_notes`,
-  `wiz_chats`, and three `recent_videos`. All data belongs to the authenticated
-  user. Videos still require an owned note; pending notes count in totals.
-  Chats require at least one user message and a video in that library.
-- `GET /v2/notes/search?q=...&page=1&per_page=10` returns `notes`, `total`,
-  `page`, `per_page`, and `total_pages`. Items contain note ID, video ID/title/
-  metadata, timestamp, AI flag, and an excerpt around the case-insensitive match.
-  Queries are trimmed, require 2–500 characters, and treat `%` and `_` literally.
-  Results sort by updated time descending and note ID descending.
-- Aggregation uses grouped queries, without one request per displayed video.
-  No schema migration or worker change is required. Release these additive API
-  changes before the dashboard frontend.

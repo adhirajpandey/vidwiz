@@ -1,5 +1,11 @@
 export type TextPart = { type: 'text'; text: string };
-export type Passage = { chunk_ids: string[]; start_seconds: number; end_seconds: number };
+/** video_id is set in library answers, where sources span videos; null within one video. */
+export type Passage = {
+  chunk_ids: string[];
+  start_seconds: number;
+  end_seconds: number;
+  video_id?: string | null;
+};
 export type BlockCitation = { list_item_index: number | null; passages: Passage[] };
 export type BlockPart = { type: 'block'; text: string; citations: BlockCitation[] };
 export type CitationPart = {
@@ -52,5 +58,6 @@ function validCitation(value: unknown): value is BlockCitation {
     Array.isArray(c.passages) && c.passages.length > 0 && c.passages.every(p =>
       p && Array.isArray(p.chunk_ids) && p.chunk_ids.length > 0 && p.chunk_ids.every(id => typeof id === 'string' && id.length > 0) &&
       typeof p.start_seconds === 'number' && Number.isFinite(p.start_seconds) && p.start_seconds >= 0 &&
-      typeof p.end_seconds === 'number' && Number.isFinite(p.end_seconds) && p.end_seconds >= p.start_seconds);
+      typeof p.end_seconds === 'number' && Number.isFinite(p.end_seconds) && p.end_seconds >= p.start_seconds &&
+      (p.video_id === undefined || p.video_id === null || typeof p.video_id === 'string'));
 }

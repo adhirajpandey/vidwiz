@@ -37,7 +37,6 @@ export function extractVideoId(input: string): string | null {
   return candidate && VIDEO_ID_PATTERN.test(candidate) ? candidate : null;
 }
 
-/** Converts an `H:MM:SS` or `M:SS` note timestamp to seconds. */
-export function timestampToSeconds(timestamp: string): number {
-  return timestamp.split(':').reduce((seconds, part) => seconds * 60 + Number(part), 0);
+export function isValidVideoId(value: string): boolean {
+  return VIDEO_ID_PATTERN.test(value);
 }

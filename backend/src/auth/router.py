@@ -8,8 +8,9 @@ from src.auth.schemas import (
     AuthRegisterRequest,
     GoogleLoginRequest,
     LoginResponse,
-    TokenResponse,
-    TokenRevokeResponse,
+    ApiTokenCreate,
+    ApiTokenCreated,
+    ApiTokenRead,
     UserProfileRead,
     UserProfileUpdate,
 )
@@ -112,51 +113,52 @@ def google_login(
         raise UnauthorizedError("Invalid Google credential")
 
 
-@router.post(
+@router.get(
     "/auth/tokens",
-    response_model=TokenResponse,
-    status_code=status.HTTP_200_OK,
-    description="Create long-term token.",
+    response_model=list[ApiTokenRead],
+    description="List active personal API tokens.",
 )
-def create_long_term_token(
+def list_api_tokens(
     db: Session = Depends(get_db),
     user_id: int = Depends(get_current_user_id),
-) -> TokenResponse:
-    user = auth_service.get_user_by_id(db, user_id)
-    if not user:
-        raise NotFoundError("User not found")
+) -> list[ApiTokenRead]:
+    return [
+        ApiTokenRead.model_validate(token)
+        for token in auth_service.list_api_tokens(db, user_id)
+    ]
 
-    if user.long_term_token:
-        raise BadRequestError(
-            "A long-term token already exists. Please revoke the existing token before generating a new one."
-        )
 
-    long_term_token = auth_service.create_long_term_token(db, user, settings.secret_key)
-    return TokenResponse(
-        message="Long-term token generated successfully",
-        token=long_term_token,
+@router.post(
+    "/auth/tokens",
+    response_model=ApiTokenCreated,
+    status_code=status.HTTP_201_CREATED,
+    description="Create a named personal API token for capture clients. "
+    "The plain token is returned only once.",
+)
+def create_api_token(
+    payload: ApiTokenCreate,
+    db: Session = Depends(get_db),
+    user_id: int = Depends(get_current_user_id),
+) -> ApiTokenCreated:
+    api_token, token = auth_service.create_api_token(db, user_id, payload.name)
+    return ApiTokenCreated(
+        **ApiTokenRead.model_validate(api_token).model_dump(), token=token
     )
 
 
 @router.delete(
-    "/auth/tokens",
-    response_model=TokenRevokeResponse,
-    status_code=status.HTTP_200_OK,
-    description="Revoke long-term token.",
+    "/auth/tokens/{token_id}",
+    response_model=MessageResponse,
+    description="Revoke a personal API token.",
 )
-def revoke_long_term_token(
+def revoke_api_token(
+    token_id: int,
     db: Session = Depends(get_db),
     user_id: int = Depends(get_current_user_id),
-) -> TokenRevokeResponse:
-    user = auth_service.get_user_by_id(db, user_id)
-    if not user:
-        raise NotFoundError("User not found")
-
-    if not user.long_term_token:
-        raise NotFoundError("No long-term token found")
-
-    auth_service.revoke_long_term_token(db, user)
-    return TokenRevokeResponse(message="Long-term token revoked successfully")
+) -> MessageResponse:
+    if not auth_service.revoke_api_token(db, user_id, token_id):
+        raise NotFoundError("Token not found")
+    return MessageResponse(message="Token revoked")
 
 
 @router.get(
@@ -174,7 +176,7 @@ def get_profile(
     if not user:
         raise NotFoundError("User not found")
 
-    profile_data = auth_service.build_profile_data(user, include_long_term_token=True)
+    profile_data = auth_service.build_profile_data(user)
     return UserProfileRead.model_validate(profile_data)
 
 
@@ -198,9 +200,7 @@ def update_profile(
         db,
         user,
         payload.name,
-        payload.ai_notes_enabled,
+        payload.ai_moments_default,
     )
-    profile_data = auth_service.build_profile_data(
-        updated, include_long_term_token=False
-    )
+    profile_data = auth_service.build_profile_data(updated)
     return UserProfileRead.model_validate(profile_data)

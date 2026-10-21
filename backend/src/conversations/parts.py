@@ -29,6 +29,8 @@ class CitationPart(StrictModel):
     chunk_id: str = Field(min_length=1)
     start_seconds: float = Field(ge=0, allow_inf_nan=False)
     end_seconds: float = Field(ge=0, allow_inf_nan=False)
+    # Set for library answers, where sources span videos; null within one video.
+    video_id: str | None = None
 
     @model_validator(mode="after")
     def ordered_times(self):
@@ -53,6 +55,7 @@ class Passage(StrictModel):
     chunk_ids: list[str]
     start_seconds: float = Field(ge=0, allow_inf_nan=False)
     end_seconds: float = Field(ge=0, allow_inf_nan=False)
+    video_id: str | None = None
 
     @model_validator(mode="after")
     def ordered_times(self):
@@ -213,11 +216,17 @@ def resolve_block(block: ModelBlock, references: dict[str, CitationPart]) -> Blo
         passages: list[Passage] = []
         for source in sorted(
             (references[key] for key in ids),
-            key=lambda r: (r.start_seconds, r.end_seconds, r.chunk_id),
+            key=lambda r: (
+                r.video_id or "",
+                r.start_seconds,
+                r.end_seconds,
+                r.chunk_id,
+            ),
         ):
             previous = passages[-1] if passages else None
             if (
                 previous is not None
+                and previous.video_id == source.video_id
                 and source.start_seconds <= previous.end_seconds + 5
                 and max(previous.end_seconds, source.end_seconds)
                 - previous.start_seconds
@@ -231,6 +240,7 @@ def resolve_block(block: ModelBlock, references: dict[str, CitationPart]) -> Blo
                         chunk_ids=[source.chunk_id],
                         start_seconds=source.start_seconds,
                         end_seconds=source.end_seconds,
+                        video_id=source.video_id,
                     )
                 )
         if passages:

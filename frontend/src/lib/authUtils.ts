@@ -4,6 +4,11 @@
 import config from '../config';
 
 const TOKEN_KEY = 'token';
+export const AUTH_CHANGED_EVENT = 'vidwiz:auth-changed';
+
+function announceAuthChange(): void {
+  if (typeof window !== 'undefined') window.dispatchEvent(new Event(AUTH_CHANGED_EVENT));
+}
 
 interface TokenPayload {
   user_id: number;
@@ -68,8 +73,10 @@ export function getUserFromToken(): Pick<TokenPayload, 'email' | 'name' | 'profi
 
 export function removeToken(): void {
   try {
+    const hadToken = localStorage.getItem(TOKEN_KEY) !== null;
     localStorage.removeItem(TOKEN_KEY);
     syncExtension({ type: 'LOGOUT' });
+    if (hadToken) announceAuthChange();
   } catch (error) {
     console.error('Error removing token from localStorage', error);
   }
@@ -79,6 +86,7 @@ export function setToken(token: string): void {
   try {
     localStorage.setItem(TOKEN_KEY, token);
     syncExtension({ type: 'SYNC_TOKEN', token });
+    announceAuthChange();
   } catch (error) {
     console.error('Error setting token in localStorage', error);
   }

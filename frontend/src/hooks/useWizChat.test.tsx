@@ -9,7 +9,7 @@ import { getToken } from '../lib/authUtils';
 vi.mock('../api', async importOriginal => ({
   ...await importOriginal<typeof import('../api')>(),
   apiFetch: vi.fn(),
-  conversationsApi: { createConversation: vi.fn(), getSendMessageUrl: (id: number) => `/conversations/${id}/messages` },
+  conversationsApi: { createConversation: vi.fn(), listMessages: vi.fn(), getSendMessageUrl: (id: number) => `/conversations/${id}/messages` },
 }));
 vi.mock('../lib/authUtils', () => ({ getToken: vi.fn(), getAuthHeaders: () => ({}) }));
 
@@ -29,7 +29,7 @@ function stream() {
   };
 }
 async function ready() {
-  const hook = renderHook(({ video, isReady }) => useWizChat(video, isReady), { initialProps: { video: 'video-a', isReady: true }, wrapper: StrictMode });
+  const hook = renderHook(({ video, isReady }) => useWizChat({ scope: 'video', videoId: video }, isReady), { initialProps: { video: 'video-a', isReady: true }, wrapper: StrictMode });
   await waitFor(() => expect(hook.result.current.conversationId).toBe(1));
   return hook;
 }
@@ -38,7 +38,9 @@ beforeEach(() => {
   sessionStorage.clear();
   vi.mocked(getToken).mockReturnValue(null);
   let id = 0;
-  vi.mocked(conversationsApi.createConversation).mockImplementation(async ({ video_id }) => ({ id: ++id, video_id, created_at: '' }));
+  vi.mocked(conversationsApi.createConversation).mockImplementation(async body => ({
+    id: ++id, scope: body.scope, video_id: body.scope === 'video' ? body.video_id : null, created_at: '', updated_at: '',
+  }));
 });
 afterEach(cleanup);
 
@@ -217,7 +219,7 @@ describe('useWizChat', () => {
 
   it('retries creation, deduplicates retries, and ignores stale creation success', async () => {
     vi.mocked(conversationsApi.createConversation).mockRejectedValueOnce(new Error('failed'));
-    const hook = renderHook(({ video }) => useWizChat(video, true), { initialProps: { video: 'video-a' } });
+    const hook = renderHook(({ video }) => useWizChat({ scope: 'video', videoId: video }, true), { initialProps: { video: 'video-a' } });
     await waitFor(() => expect(hook.result.current.conversationError).not.toBe(null));
     const old = deferred<Awaited<ReturnType<typeof conversationsApi.createConversation>>>();
     vi.mocked(conversationsApi.createConversation).mockReturnValueOnce(old.promise);
@@ -225,8 +227,31 @@ describe('useWizChat', () => {
     expect(conversationsApi.createConversation).toHaveBeenCalledTimes(2);
     hook.rerender({ video: 'video-b' });
     await waitFor(() => expect(hook.result.current.conversationId).toBe(1));
-    await act(async () => old.resolve({ id: 99, video_id: 'video-a', created_at: '' }));
+    await act(async () => old.resolve({ id: 99, scope: 'video', video_id: 'video-a', created_at: '', updated_at: '' }));
     expect(hook.result.current.conversationId).toBe(1);
     expect(hook.result.current.conversationError).toBe(null);
+  });
+
+  it('starts a library conversation without a guest session', async () => {
+    const onStarted = vi.fn();
+    const hook = renderHook(() => useWizChat({ scope: 'library' }, true, { onStarted }));
+    await waitFor(() => expect(hook.result.current.conversationId).toBe(1));
+    expect(conversationsApi.createConversation).toHaveBeenCalledWith({ scope: 'library' });
+    expect(onStarted).toHaveBeenCalledWith(1);
+    expect(sessionStorage.getItem('guestSessionId')).toBeNull();
+  });
+
+  it('resumes a saved conversation from its messages', async () => {
+    vi.mocked(conversationsApi.listMessages).mockResolvedValue([
+      { id: 5, conversation_id: 7, role: 'user', content: 'Q', created_at: '2026-01-01T00:00:00Z', parts: [{ type: 'text', text: 'Q' }] },
+      { id: 6, conversation_id: 7, role: 'assistant', content: 'A', created_at: '2026-01-01T00:00:01Z', parts: [{ type: 'text', text: 'A' }] },
+    ]);
+    const hook = renderHook(() => useWizChat({ scope: 'library' }, true, { resumeId: 7 }));
+    expect(hook.result.current.isLoadingHistory).toBe(true);
+    await waitFor(() => expect(hook.result.current.messages).toHaveLength(2));
+    expect(conversationsApi.createConversation).not.toHaveBeenCalled();
+    expect(hook.result.current.conversationId).toBe(7);
+    expect(hook.result.current.messages[1]).toMatchObject({ role: 'assistant', serverMessageId: 6, status: 'complete' });
+    expect(hook.result.current.isSendDisabled).toBe(false);
   });
 });

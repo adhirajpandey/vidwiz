@@ -1,10 +1,17 @@
 from datetime import datetime
-from typing import Literal
-
 from pydantic import Field, field_validator
 
 from src.models import ApiModel
+from src.videos.models import OverviewStatus, TranscriptStatus
 from src.videos.utils import normalize_youtube_video_id
+
+
+class KeyPoint(ApiModel):
+    """A key idea from the overview, at the time the video explains it."""
+
+    text: str
+    start_seconds: float
+    end_seconds: float
 
 
 class VideoRead(ApiModel):
@@ -12,61 +19,14 @@ class VideoRead(ApiModel):
     video_id: str
     title: str | None
     metadata: dict | None = Field(default=None, validation_alias="video_metadata")
-    transcript_available: bool
+    transcript_status: TranscriptStatus
     summary: str | None = None
+    overview_status: OverviewStatus
     suggested_questions: list[str] | None = None
+    key_points: list["KeyPoint"] | None = None
+    overview_model: str | None = None
     created_at: datetime
     updated_at: datetime
-
-
-class VideoSearchItem(ApiModel):
-    note_count: int = 0
-    last_activity_at: datetime | None = None
-    video_id: str
-    title: str | None = None
-    metadata: dict | None = None
-
-
-class VideoListResponse(ApiModel):
-    videos: list[VideoSearchItem]
-    total: int
-    page: int
-    per_page: int
-    total_pages: int
-
-
-class VideoStreamPayload(ApiModel):
-    event: Literal["snapshot", "update", "done"]
-    video: VideoRead
-
-
-class VideoListParams(ApiModel):
-    q: str = ""
-    page: int = 1
-    per_page: int = 10
-    sort: str = "created_at_desc"
-
-    @field_validator("q")
-    @classmethod
-    def normalize_query(cls, value: str) -> str:
-        if not value:
-            return ""
-        trimmed = value.strip()
-        if len(trimmed) < 2:
-            return ""
-        return trimmed
-
-    @field_validator("page")
-    @classmethod
-    def validate_page(cls, value: int) -> int:
-        return max(1, value)
-
-    @field_validator("per_page")
-    @classmethod
-    def validate_per_page(cls, value: int) -> int:
-        if value < 1:
-            return 10
-        return min(50, value)
 
 
 class VideoIdPath(ApiModel):
@@ -78,9 +38,20 @@ class VideoIdPath(ApiModel):
         return normalize_youtube_video_id(value)
 
 
-class LibrarySummary(ApiModel):
-    videos: int
-    notes: int
-    ai_notes: int
-    wiz_chats: int
-    recent_videos: list[VideoSearchItem]
+class TranscriptSegment(ApiModel):
+    start_seconds: float
+    end_seconds: float
+    text: str
+
+
+class TranscriptRead(ApiModel):
+    video_id: str
+    # Segments are present only when ready.
+    status: TranscriptStatus
+    segments: list[TranscriptSegment]
+
+
+class AskStatus(ApiModel):
+    unlocked: bool
+    # Credits charged when the first conversation for the video starts.
+    cost: int

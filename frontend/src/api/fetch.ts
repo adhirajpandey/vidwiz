@@ -72,7 +72,7 @@ export async function apiFetch(
 
 /** Sends a JSON request and returns the parsed body; throws `ApiError` on non-2xx. */
 export async function apiRequest<T>(
-  method: 'GET' | 'POST' | 'PATCH' | 'DELETE',
+  method: 'GET' | 'POST' | 'PUT' | 'PATCH' | 'DELETE',
   path: string,
   { body, params }: { body?: unknown; params?: QueryParams } = {}
 ): Promise<T> {

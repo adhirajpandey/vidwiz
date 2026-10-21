@@ -3,16 +3,18 @@ import logging
 from collections import Counter
 from datetime import datetime, timedelta
 
-import boto3
 from openai import OpenAI
 from sqlalchemy import func, select
 from sqlalchemy.orm import Session
 
 from src.auth.schemas import ViewerContext
+from src import transcripts
+from src.library import service as library_service
 from src.config import settings
-from src.conversations.models import Conversation, Message
+from src.conversations.models import Conversation, ConversationScope, Message
 from src.conversations.parts import (
     BlockPart,
+    CitationPart,
     DoneEvent,
     DropReason,
     ErrorEvent,
@@ -25,8 +27,16 @@ from src.conversations.parts import (
     split_block,
     history_parts,
 )
+from src.ask import retrieval as ask_retrieval
+from src.ask.prompts import LIBRARY_SYSTEM_PROMPT_TEMPLATE
 from src.conversations.prompts import WIZ_SYSTEM_PROMPT_TEMPLATE
-from src.exceptions import InternalServerError, RateLimitError, NotFoundError
+from src.conversations.schemas import ConversationList, ConversationSummary
+from src.exceptions import (
+    BadRequestError,
+    InternalServerError,
+    NotFoundError,
+    RateLimitError,
+)
 from src.videos.models import Video
 from src.videos import service as videos_service
 
@@ -37,7 +47,11 @@ logger = logging.getLogger(__name__)
 
 
 def create_conversation(
-    db: Session, video_id: str, user_id: int | None, guest_session_id: str | None
+    db: Session,
+    video_id: str | None,
+    user_id: int | None,
+    guest_session_id: str | None,
+    scope: ConversationScope = ConversationScope.VIDEO,
 ) -> Conversation:
     logger.debug(
         "Creating conversation",
@@ -48,6 +62,7 @@ def create_conversation(
         },
     )
     conversation = Conversation(
+        scope=scope,
         video_id=video_id,
         user_id=user_id,
         guest_session_id=guest_session_id,
@@ -77,6 +92,80 @@ def get_conversation_for_viewer(
             Conversation.guest_session_id == viewer.guest_session_id,
         )
     return db.execute(query).scalar_one_or_none()
+
+
+TITLE_MAX_CHARS = 80
+
+
+def list_conversations(
+    db: Session,
+    user_id: int,
+    scope: ConversationScope | None,
+    video_id: str | None,
+    page: int,
+    per_page: int,
+) -> ConversationList:
+    """The user's conversations with at least one question, latest first."""
+    first_question = (
+        select(Message.content)
+        .where(Message.conversation_id == Conversation.id, Message.role == DB_ROLE_USER)
+        .order_by(Message.created_at.asc(), Message.id.asc())
+        .limit(1)
+        .scalar_subquery()
+    )
+    stats = (
+        select(
+            Message.conversation_id,
+            func.count(Message.id).label("message_count"),
+            func.max(Message.created_at).label("last_message_at"),
+        )
+        .group_by(Message.conversation_id)
+        .subquery()
+    )
+    query = (
+        select(
+            Conversation,
+            Video.title,
+            first_question,
+            stats.c.message_count,
+            stats.c.last_message_at,
+        )
+        .join(stats, stats.c.conversation_id == Conversation.id)
+        .outerjoin(Video, Video.video_id == Conversation.video_id)
+        .where(Conversation.user_id == user_id, first_question.is_not(None))
+        .order_by(stats.c.last_message_at.desc(), Conversation.id.desc())
+        .offset((page - 1) * per_page)
+        .limit(per_page + 1)
+    )
+    if scope is not None:
+        query = query.where(Conversation.scope == scope)
+    if video_id is not None:
+        query = query.where(Conversation.video_id == video_id)
+    rows = db.execute(query).all()
+    return ConversationList(
+        conversations=[
+            ConversationSummary(
+                id=conversation.id,
+                scope=conversation.scope,
+                video_id=conversation.video_id,
+                video_title=title,
+                title=_title(question),
+                message_count=count,
+                last_message_at=last_at,
+            )
+            for conversation, title, question, count, last_at in rows[:per_page]
+        ],
+        page=page,
+        per_page=per_page,
+        has_more=len(rows) > per_page,
+    )
+
+
+def _title(question: str) -> str:
+    question = " ".join(question.split())
+    if len(question) <= TITLE_MAX_CHARS:
+        return question
+    return question[:TITLE_MAX_CHARS].rsplit(" ", 1)[0] + "…"
 
 
 def list_messages(db: Session, conversation_id: int) -> list[Message]:
@@ -111,6 +200,11 @@ def save_chat_message(
         metadata_=metadata,
     )
     db.add(message)
+    if role == "user":
+        # Asking about a video saves it to the signed-in user's library.
+        conversation = db.get(Conversation, conversation_id)
+        if conversation and conversation.user_id and conversation.video_id:
+            library_service.save_video(db, conversation.user_id, conversation.video_id)
     db.commit()
     db.refresh(message)
     logger.debug("Saved chat message", extra={"message_id": message.id})
@@ -174,29 +268,7 @@ def check_daily_quota(
         )
 
 
-def get_transcript_from_s3(video_id: str) -> list | None:
-    logger.debug("Fetching transcript from S3", extra={"video_id": video_id})
-    if not settings.s3_transcript_bucket_name:
-        return None
-
-    transcript_key = f"transcripts/{video_id}.json"
-    try:
-        s3_client = boto3.client(
-            "s3",
-            aws_access_key_id=settings.aws_access_key_id,
-            aws_secret_access_key=settings.aws_secret_access_key,
-            region_name=settings.aws_region,
-        )
-        response = s3_client.get_object(
-            Bucket=settings.s3_transcript_bucket_name,
-            Key=transcript_key,
-        )
-        transcript_data = json.loads(response["Body"].read().decode("utf-8"))
-        logger.debug("Fetched transcript from S3", extra={"video_id": video_id})
-        return transcript_data
-    except Exception as exc:
-        logger.warning("Transcript fetch failed", extra={"error": str(exc)})
-        return None
+get_transcript_from_s3 = transcripts.load_transcript
 
 
 def get_valid_transcript_or_raise(
@@ -207,7 +279,7 @@ def get_valid_transcript_or_raise(
     if not video:
         raise NotFoundError("Video not found")
 
-    if not video.transcript_available:
+    if not video.has_transcript:
         logger.debug("Transcript not available", extra={"video_id": video_id})
         return None
 
@@ -271,18 +343,41 @@ def stream_wiz_response(
     db: Session,
     api_key: str,
 ):
+    """Answer about one video, citing its transcript segments."""
+    _, references = transcript_context(transcript)
+    yield from stream_answer(
+        system_prompt=build_system_instruction(video_title, transcript),
+        references=references,
+        history=history,
+        conversation_id=conversation_id,
+        db=db,
+        api_key=api_key,
+    )
+
+
+def answer_models(retrieval: dict | None = None) -> dict:
+    """Models behind a saved answer, stored in the message metadata."""
+    return {"model": settings.wiz_model, **(retrieval or {})}
+
+
+def stream_answer(
+    *,
+    system_prompt: str,
+    references: dict[str, CitationPart],
+    history: list[dict],
+    conversation_id: int,
+    db: Session,
+    api_key: str,
+    models: dict | None = None,
+):
+    """Stream a structured, cited answer and save it once complete."""
+
     def event(part):
         return f"data: {part.model_dump_json()}\n\n"
 
     response_stream = None
     try:
-        _, references = transcript_context(transcript)
-        messages = [
-            {
-                "role": "system",
-                "content": build_system_instruction(video_title, transcript),
-            }
-        ]
+        messages = [{"role": "system", "content": system_prompt}]
         for msg in history:
             content = msg["content"]
             if msg["role"] == DB_ROLE_ASSISTANT:
@@ -365,6 +460,7 @@ def stream_wiz_response(
             metadata={
                 "parts_version": 2,
                 "parts": [part.model_dump() for part in resolved],
+                "models": models or answer_models(),
             },
         )
         yield event(DoneEvent(message_id=message.id))
@@ -397,6 +493,8 @@ def prepare_chat(
         extra={"conversation_id": conversation.id, "user_id": viewer.user_id},
     )
     check_daily_quota(db, viewer.user_id, viewer.guest_session_id)
+    if conversation.scope == ConversationScope.LIBRARY:
+        raise BadRequestError("Use prepare_library_chat for library conversations")
 
     transcript_result = get_valid_transcript_or_raise(db, conversation.video_id)
     if transcript_result is None:
@@ -423,3 +521,48 @@ def prepare_chat(
     ]
 
     return video, transcript, history_serializable, api_key
+
+
+def prepare_library_chat(
+    db: Session, conversation: Conversation, message: str
+) -> tuple[str, dict[str, CitationPart], list[dict], str, dict]:
+    """Retrieve library sources for the question and build the answer context.
+
+    Also returns the models used, for the saved answer's metadata.
+    """
+    logger.debug(
+        "Preparing library chat",
+        extra={"conversation_id": conversation.id, "user_id": conversation.user_id},
+    )
+    check_daily_quota(db, conversation.user_id, None)
+    api_key = ensure_openrouter_api_key()
+    earlier_questions = [
+        msg.content
+        for msg in fetch_recent_history(db, conversation.id, limit=6)
+        if msg.role == DB_ROLE_USER
+    ]
+    retrieval = ask_retrieval.retrieve(
+        db, conversation.user_id, message, earlier_questions
+    )
+    sources = retrieval.sources
+    save_chat_message(db, conversation.id, DB_ROLE_USER, message)
+    history = [
+        {"role": msg.role, "content": msg.content, "metadata": msg.metadata_}
+        for msg in fetch_recent_history(db, conversation.id, limit=10)
+    ]
+    system_prompt = LIBRARY_SYSTEM_PROMPT_TEMPLATE.format(
+        sources=ask_retrieval.sources_json(sources)
+    )
+    models = answer_models(
+        {
+            "query_model": retrieval.query_model,
+            "relevance_model": retrieval.relevance_model,
+        }
+    )
+    return (
+        system_prompt,
+        ask_retrieval.build_references(sources),
+        history,
+        api_key,
+        models,
+    )

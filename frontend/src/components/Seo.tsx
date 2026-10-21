@@ -45,6 +45,10 @@ export default function Seo({
       <meta property="og:type" content={ogType} />
       <meta property="og:url" content={pageUrl} />
       <meta property="og:image" content={resolvedOgImage} />
+      <meta name="twitter:card" content="summary_large_image" />
+      <meta name="twitter:title" content={title} />
+      <meta name="twitter:description" content={description} />
+      <meta name="twitter:image" content={resolvedOgImage} />
 
       {noIndex ? <meta name="robots" content="noindex, nofollow" /> : null}
     </Helmet>

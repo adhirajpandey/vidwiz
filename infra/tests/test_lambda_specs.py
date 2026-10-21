@@ -18,19 +18,19 @@ def test_lambda_specs_map_each_function_to_a_self_contained_entry() -> None:
         (
             "transcript_dispatcher",
             "TranscriptDispatcher",
-            "vidwiz-prod-transcript-dispatcher",
+            "vidwiz-v3-transcript-dispatcher",
             "dispatch_service.py",
         ),
         (
             "ai_note_worker",
             "AiNoteWorker",
-            "vidwiz-prod-ai-note-worker",
+            "vidwiz-v3-ai-note-worker",
             "note_service.py",
         ),
         (
             "ai_summary_worker",
             "AiSummaryWorker",
-            "vidwiz-prod-ai-summary-worker",
+            "vidwiz-v3-ai-summary-worker",
             "summary_service.py",
         ),
     }
@@ -57,15 +57,13 @@ def test_ai_worker_bundling_copies_the_shared_package() -> None:
     hooks = SharedWorkerPackageHooks()
 
     assert (SHARED_WORKER_DIR / "vidwiz_worker" / "__init__.py").is_file()
-    assert hooks.before_bundling("/asset-input", "/asset-output") == [
-        "cp -R /asset-shared/vidwiz_worker /asset-input/vidwiz_worker"
+    assert hooks.before_bundling("/asset-input", "/asset-output") == []
+    assert hooks.after_bundling("/asset-input", "/asset-output") == [
+        "cp -R /asset-shared/vidwiz_worker /asset-output/vidwiz_worker"
     ]
-    assert hooks.after_bundling("/asset-input", "/asset-output") == []
-    assert shared_worker_bundling().asset_excludes == [
-        "tests",
-        "__pycache__",
-        "*.pyc",
-    ]
+    options = shared_worker_bundling(LAMBDA_SPECS[0].source)
+    assert options.asset_excludes == ["tests", "__pycache__", "*.pyc"]
+    assert options.asset_hash
 
 
 def test_lambda_bundling_excludes_colocated_tests() -> None:

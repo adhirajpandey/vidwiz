@@ -1,257 +1,223 @@
-import asyncio
-import json
-from datetime import datetime
+from datetime import datetime, timedelta
+
 import pytest
+from sqlalchemy import update
 
-from src.auth.models import User
-from src.notes.models import Note
+from src import transcripts
+from src.exceptions import BadRequestError
+from src.moments.models import AiStatus, CaptureSource, Moment
+from src.videos import overview
 from src.videos import service as videos_service
-from src.videos.models import Video
-from src.videos.schemas import VideoListParams
+from src.videos.models import OverviewStatus, TranscriptStatus, Video
+from src.videos.schemas import VideoRead
 
 
-def seed_video(db_session, video_id: str, title: str | None = None):
-    video = Video(video_id=video_id, title=title)
+@pytest.fixture
+def jobs(monkeypatch):
+    sent = []
+    monkeypatch.setattr(
+        overview,
+        "send_job",
+        lambda queue_url, payload: sent.append((queue_url, payload)),
+    )
+    return sent
+
+
+def seed_video(db_session, video_id: str, **fields) -> Video:
+    video = Video(video_id=video_id, title=fields.pop("title", None), **fields)
     db_session.add(video)
     db_session.commit()
     db_session.refresh(video)
     return video
 
 
-def test_list_videos_for_user_filters_and_sorts(db_session):
-    user = User(email="videos@example.com", name="Videos User")
-    db_session.add(user)
-    db_session.commit()
-    db_session.refresh(user)
+def test_new_videos_start_pending(db_session):
+    video = seed_video(db_session, "new12345678")
 
-    video_a = seed_video(db_session, "abc123DEF45", "Alpha Video")
-    video_b = seed_video(db_session, "xyz987LMN12", "Beta Video")
-
-    db_session.add_all(
-        [
-            Note(
-                video_id=video_a.video_id, timestamp="00:01", text="a", user_id=user.id
-            ),
-            Note(
-                video_id=video_b.video_id, timestamp="00:02", text="b", user_id=user.id
-            ),
-        ]
-    )
-    db_session.commit()
-
-    params = VideoListParams(q="Alpha", page=1, per_page=10, sort="title_asc")
-    response = videos_service.list_videos_for_user(db_session, user.id, params)
-    assert response.total == 1
-    assert response.videos[0].video_id == "abc123DEF45"
-
-    params = VideoListParams(q="", page=1, per_page=10, sort="title_desc")
-    response = videos_service.list_videos_for_user(db_session, user.id, params)
-    assert response.total == 2
-    assert response.videos[0].video_id == "xyz987LMN12"
-
-
-def test_list_videos_for_user_pagination(db_session):
-    user = User(email="paging@example.com", name="Paging User")
-    db_session.add(user)
-    db_session.commit()
-    db_session.refresh(user)
-
-    for index in range(3):
-        video_id = f"vid{index:02d}ABCDE1"
-        seed_video(db_session, video_id, f"Video {index}")
-        db_session.add(
-            Note(video_id=video_id, timestamp="00:01", text="note", user_id=user.id)
-        )
-    db_session.commit()
-
-    params = VideoListParams(q="", page=1, per_page=2, sort="created_at_desc")
-    response = videos_service.list_videos_for_user(db_session, user.id, params)
-    assert response.total == 3
-    assert response.total_pages == 2
-    assert len(response.videos) == 2
-
-
-def test_is_video_ready(db_session):
-    video = seed_video(db_session, "ready123456", "Ready")
-    assert videos_service.is_video_ready(video) is False
-
-    video.video_metadata = {"title": "Ready"}
-    video.transcript_available = True
-    video.summary = "summary"
-    assert videos_service.is_video_ready(video) is True
-
-
-def test_format_event_payload(db_session):
-    video = seed_video(db_session, "fmt1234567", "Format")
-    video.video_metadata = {"title": "Format"}
-    video.miscellaneous_data = {
-        "suggested_questions": [
-            "What is the first idea?",
-            "How is the idea supported?",
-            "What conclusion is reached?",
-        ]
-    }
-    db_session.commit()
-
-    event = videos_service._format_event("snapshot", video)
-    assert event.startswith("event: snapshot")
-    data_line = [line for line in event.splitlines() if line.startswith("data: ")][0]
-    payload = json.loads(data_line.replace("data: ", "", 1))
-    assert payload["event"] == "snapshot"
-    assert payload["video"]["video_id"] == "fmt1234567"
-    assert payload["video"]["suggested_questions"] == [
-        "What is the first idea?",
-        "How is the idea supported?",
-        "What conclusion is reached?",
-    ]
+    assert video.transcript_status == TranscriptStatus.PENDING
+    assert video.overview_status == OverviewStatus.PENDING
+    assert video.has_transcript is False
 
 
 def test_video_read_hides_invalid_suggested_questions(db_session):
-    video = seed_video(db_session, "invalid12345", "Invalid")
+    video = seed_video(db_session, "invalid1234")
     video.miscellaneous_data = {"suggested_questions": ["Only one?"]}
     db_session.commit()
 
-    event = videos_service._format_event("snapshot", video)
-    data_line = [line for line in event.splitlines() if line.startswith("data: ")][0]
-    payload = json.loads(data_line.replace("data: ", "", 1))
+    read = VideoRead.model_validate(video)
 
-    assert payload["video"]["suggested_questions"] is None
-
-
-def test_compute_total_pages_zero():
-    assert videos_service._compute_total_pages(0, 10) == 0
+    assert read.suggested_questions is None
+    assert read.overview_status == OverviewStatus.PENDING
 
 
-@pytest.mark.asyncio
-async def test_stream_video_events_emits_updates(monkeypatch):
-    def make_video(video_id, metadata, transcript, summary):
-        video = Video(video_id=video_id, title="Video")
-        video.id = 1
-        video.video_metadata = metadata
-        video.transcript_available = transcript
-        video.summary = summary
-        now = datetime.utcnow()
-        video.created_at = now
-        video.updated_at = now
-        return video
+def test_transcript_ready_queues_the_overview(db_session, jobs):
+    video = seed_video(db_session, "ready123456")
 
-    sequence = [
-        make_video("abc123DEF45", None, False, None),
-        make_video("abc123DEF45", {"title": "Video"}, False, None),
-        make_video("abc123DEF45", {"title": "Video"}, True, "summary"),
-    ]
+    videos_service.mark_transcript_ready(db_session, video)
 
-    async def fake_fetch(_video_id):
-        return sequence.pop(0) if sequence else None
-
-    async def fake_sleep(_):
-        return None
-
-    monkeypatch.setattr(videos_service, "_fetch_video", fake_fetch)
-    monkeypatch.setattr(asyncio, "sleep", fake_sleep)
-
-    events = []
-    async for chunk in videos_service.stream_video_events("abc123DEF45"):
-        if chunk.startswith("event:"):
-            events.append(chunk.splitlines()[0].replace("event: ", ""))
-
-    assert events[0] == "snapshot"
-    assert "update" in events
-    assert events[-1] == "done"
+    assert video.transcript_status == TranscriptStatus.READY
+    assert video.overview_status == OverviewStatus.QUEUED
+    assert jobs == [("test-summary-queue-url", {"video_id": "ready123456"})]
 
 
-@pytest.mark.asyncio
-async def test_stream_video_events_no_video(monkeypatch):
-    async def fake_fetch(_video_id):
-        return None
+def test_failed_send_marks_the_overview_failed(db_session, monkeypatch):
+    def broken(*_args):
+        raise RuntimeError("SQS down")
 
-    monkeypatch.setattr(videos_service, "_fetch_video", fake_fetch)
-    events = [
-        chunk async for chunk in videos_service.stream_video_events("abc123DEF45")
-    ]
-    assert events == []
+    monkeypatch.setattr(overview, "send_job", broken)
+    video = seed_video(db_session, "broken12345")
 
+    videos_service.mark_transcript_ready(db_session, video)
 
-@pytest.mark.asyncio
-async def test_stream_video_events_immediate_done(monkeypatch):
-    def make_video():
-        video = Video(video_id="abc123DEF45", title="Video")
-        video.id = 1
-        video.video_metadata = {"title": "Video"}
-        video.transcript_available = True
-        video.summary = "summary"
-        now = datetime.utcnow()
-        video.created_at = now
-        video.updated_at = now
-        return video
-
-    async def fake_fetch(_video_id):
-        return make_video()
-
-    monkeypatch.setattr(videos_service, "_fetch_video", fake_fetch)
-    events = []
-    async for chunk in videos_service.stream_video_events("abc123DEF45"):
-        if chunk.startswith("event:"):
-            events.append(chunk.splitlines()[0].replace("event: ", ""))
-    assert events == ["snapshot", "done"]
+    assert video.overview_status == OverviewStatus.FAILED
 
 
-@pytest.mark.asyncio
-async def test_stream_video_events_stop_when_missing_in_loop(monkeypatch):
-    def make_video():
-        video = Video(video_id="abc123DEF45", title="Video")
-        video.id = 1
-        video.video_metadata = None
-        video.transcript_available = False
-        video.summary = None
-        now = datetime.utcnow()
-        video.created_at = now
-        video.updated_at = now
-        return video
-
-    calls = {"count": 0}
-
-    async def fake_fetch(_video_id):
-        calls["count"] += 1
-        if calls["count"] == 1:
-            return make_video()
-        return None
-
-    async def fake_sleep(_):
-        return None
-
-    monkeypatch.setattr(videos_service, "_fetch_video", fake_fetch)
-    monkeypatch.setattr(asyncio, "sleep", fake_sleep)
-
-    events = [
-        chunk async for chunk in videos_service.stream_video_events("abc123DEF45")
-    ]
-    assert events
-
-
-@pytest.mark.asyncio
-async def test_fetch_video_uses_sessionlocal(monkeypatch):
-    captured = {"closed": False}
-
-    class _Session:
-        def close(self):
-            captured["closed"] = True
-
-    monkeypatch.setattr(videos_service, "SessionLocal", lambda: _Session())
-    monkeypatch.setattr(
-        videos_service,
-        "get_video_by_id",
-        lambda db, video_id: "video",
+def test_transcript_ready_keeps_an_existing_overview(db_session, jobs):
+    video = seed_video(
+        db_session, "keep1234567", summary="Done", overview_status=OverviewStatus.READY
     )
 
-    async def run_in_threadpool(fn):
-        return fn()
+    videos_service.mark_transcript_ready(db_session, video)
 
-    monkeypatch.setattr(videos_service, "run_in_threadpool", run_in_threadpool)
+    assert video.overview_status == OverviewStatus.READY
+    assert jobs == []
 
-    result = await videos_service._fetch_video("abc123DEF45")
-    assert result == "video"
-    assert captured["closed"] is True
+
+def test_unavailable_transcript_and_a_new_attempt(db_session, jobs):
+    video = seed_video(db_session, "none1234567")
+
+    videos_service.mark_transcript_unavailable(video)
+    assert video.transcript_status == TranscriptStatus.UNAVAILABLE
+    assert video.overview_status == OverviewStatus.NO_TRANSCRIPT
+
+    videos_service.mark_transcript_pending(video)
+    assert video.transcript_status == TranscriptStatus.PENDING
+    assert video.overview_status == OverviewStatus.PENDING
+
+    videos_service.mark_transcript_ready(db_session, video)
+    assert video.overview_status == OverviewStatus.QUEUED
+
+
+def test_fail_only_changes_a_queued_overview(db_session):
+    video = seed_video(db_session, "fail1234567", overview_status=OverviewStatus.READY)
+
+    overview.fail(video)
+    assert video.overview_status == OverviewStatus.READY
+
+    video.overview_status = OverviewStatus.QUEUED
+    overview.fail(video)
+    assert video.overview_status == OverviewStatus.FAILED
+
+
+def test_retry_queues_only_failed_overviews_with_a_transcript(db_session, jobs):
+    video = seed_video(
+        db_session,
+        "retry123456",
+        transcript_status=TranscriptStatus.READY,
+        overview_status=OverviewStatus.READY,
+    )
+    with pytest.raises(BadRequestError):
+        overview.retry(db_session, video)
+
+    video.overview_status = OverviewStatus.FAILED
+    overview.retry(db_session, video)
+    assert video.overview_status == OverviewStatus.QUEUED
+    assert jobs == [("test-summary-queue-url", {"video_id": "retry123456"})]
+
+    no_transcript = seed_video(
+        db_session, "notrans1234", overview_status=OverviewStatus.FAILED
+    )
+    with pytest.raises(BadRequestError):
+        overview.retry(db_session, no_transcript)
+
+
+def test_sweep_fails_only_stale_queued_overviews(db_session):
+    stale = seed_video(db_session, "stale123456", overview_status=OverviewStatus.QUEUED)
+    fresh = seed_video(db_session, "fresh123456", overview_status=OverviewStatus.QUEUED)
+    db_session.execute(
+        update(Video)
+        .where(Video.id == stale.id)
+        .values(overview_status_at=datetime.utcnow() - timedelta(hours=3))
+    )
+    db_session.commit()
+
+    assert overview.sweep(db_session, timedelta(hours=2)) == 1
+    db_session.refresh(stale)
+    db_session.refresh(fresh)
+    assert stale.overview_status == OverviewStatus.FAILED
+    assert fresh.overview_status == OverviewStatus.QUEUED
+
+
+def test_backfill_candidates_pick_missing_failed_and_legacy(db_session, user):
+    ready = TranscriptStatus.READY
+    seed_video(db_session, "pending1234", transcript_status=ready)
+    seed_video(
+        db_session,
+        "failed12345",
+        transcript_status=ready,
+        overview_status=OverviewStatus.FAILED,
+    )
+    legacy = seed_video(
+        db_session,
+        "legacy12345",
+        transcript_status=ready,
+        summary="Old",
+        overview_status=OverviewStatus.READY,
+    )
+    seed_video(
+        db_session,
+        "current1234",
+        transcript_status=ready,
+        summary="New",
+        overview_status=OverviewStatus.READY,
+        miscellaneous_data={
+            "key_points": [{"text": "k", "start_seconds": 0, "end_seconds": 1}]
+        },
+    )
+    seed_video(db_session, "notrans1234")
+    seed_video(
+        db_session,
+        "queued12345",
+        transcript_status=ready,
+        overview_status=OverviewStatus.QUEUED,
+    )
+    db_session.add(
+        Moment(
+            user_id=user.id,
+            video_id=legacy.video_id,
+            at_seconds=1,
+            ai_status=AiStatus.NOT_REQUESTED,
+            source=CaptureSource.WEB,
+        )
+    )
+    db_session.commit()
+
+    picked = [video.video_id for video in overview.backfill_candidates(db_session, 10)]
+
+    # Recently used videos come first.
+    assert picked[0] == "legacy12345"
+    assert sorted(picked) == ["failed12345", "legacy12345", "pending1234"]
+    assert len(overview.backfill_candidates(db_session, 2)) == 2
+
+
+def test_get_transcript_reports_the_status(db_session, monkeypatch):
+    pending = seed_video(db_session, "trpend12345")
+    assert videos_service.get_transcript(pending).status == TranscriptStatus.PENDING
+
+    monkeypatch.setattr(
+        transcripts,
+        "load_transcript",
+        lambda _id: [
+            {"text": "second", "offset": 5, "duration": 2},
+            {"text": " first ", "offset": 0, "duration": 2},
+        ],
+    )
+    ready = seed_video(
+        db_session, "trready1234", transcript_status=TranscriptStatus.READY
+    )
+    read = videos_service.get_transcript(ready)
+    assert read.status == TranscriptStatus.READY
+    assert [segment.text for segment in read.segments] == ["first", "second"]
 
 
 def test_get_or_create_video_creates_and_fills_missing_title(db_session):

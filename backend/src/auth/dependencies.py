@@ -13,9 +13,7 @@ from src.exceptions import UnauthorizedError
 bearer_auth = HTTPBearer(
     bearerFormat="JWT",
     scheme_name="BearerAuth",
-    description=(
-        "JWT access token. Long-term JWTs are accepted only by note creation."
-    ),
+    description=("JWT access token, or a personal API token on capture endpoints."),
     auto_error=False,
 )
 guest_session_auth = APIKeyHeader(
@@ -42,7 +40,7 @@ def get_current_user_id(
         raise UnauthorizedError("Invalid or expired token")
 
     if payload.get("type") == "long_term":
-        raise UnauthorizedError("Long-term tokens are not allowed for this endpoint")
+        raise UnauthorizedError("API tokens are not allowed for this endpoint")
 
     user_id = payload.get("user_id")
     if not user_id:
@@ -69,30 +67,26 @@ def get_viewer_context(
     raise UnauthorizedError("Missing Auth or Guest ID")
 
 
-def get_current_user_id_or_long_term(
+def get_current_user_id_or_api_token(
     authorization: HTTPAuthorizationCredentials | None = Security(bearer_auth),
     db: Session = Depends(get_db),
 ) -> int:
+    """Accept a web session JWT or a personal API token (capture clients)."""
     if not authorization:
         raise UnauthorizedError("Missing or invalid Authorization header")
 
     token = authorization.credentials
     try:
         payload = _decode(token)
-        user_id = payload.get("user_id")
-        if not user_id:
-            raise UnauthorizedError("Invalid token payload")
-
-        if payload.get("type") == "long_term":
-            user = auth_service.get_user_by_id(db, int(user_id))
-            if not user or user.long_term_token != token:
-                raise UnauthorizedError("Invalid or revoked long-term token")
-
-        return int(user_id)
-    except UnauthorizedError:
-        raise
     except Exception:
-        user = auth_service.get_user_by_long_term_token(db, token)
-        if user:
-            return user.id
-        raise UnauthorizedError("Invalid or expired token")
+        payload = None
+
+    # Legacy long-term tokens are JWTs too; they are checked by hash like
+    # any other API token.
+    if payload and payload.get("type") != "long_term" and payload.get("user_id"):
+        return int(payload["user_id"])
+
+    user_id = auth_service.authenticate_api_token(db, token)
+    if user_id is None:
+        raise UnauthorizedError("Invalid, expired, or revoked token")
+    return user_id

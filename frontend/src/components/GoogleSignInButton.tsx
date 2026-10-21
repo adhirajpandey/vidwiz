@@ -101,18 +101,16 @@ export default function GoogleSignInButton({ onSuccess, onError }: GoogleSignInB
   }
 
   return (
-    <div className="relative w-full group cursor-pointer focus-within:ring-2 focus-within:ring-ring focus-within:ring-offset-2 focus-within:ring-offset-background rounded-xl">
-      {/* Custom Visual Button */}
-      <div 
-        className={`relative flex items-center justify-center gap-3 w-full rounded-xl bg-muted/40 border border-border px-4 py-3.5 transition-all duration-300 md:hover:bg-accent md:hover:border-foreground/20 md:hover:scale-[1.01] shadow-sm shadow-black/5 ${!isReady ? 'opacity-80 cursor-wait' : ''}`}
+    <div className="relative w-full group cursor-pointer focus-within:ring-2 focus-within:ring-accent rounded-lg">
+      {/* Visible button; Google's own button sits invisibly on top to receive the click. */}
+      <div
+        className={`relative flex h-10 items-center justify-center gap-3 w-full rounded-lg border border-border bg-card px-4 transition-colors group-hover:bg-muted ${!isReady ? 'opacity-80 cursor-wait' : ''}`}
       >
-        {/* Glow Effect */}
-        <div className="absolute inset-0 rounded-xl bg-gradient-to-r from-white/0 via-white/[0.05] to-white/0 opacity-0 group-hover:opacity-100 transition-opacity duration-500 blur-sm" />
-        
+
         {isReady ? (
           <>
-            <GoogleLogo className="w-5 h-5 relative z-10" />
-            <span className="text-sm font-medium text-foreground relative z-10 tracking-wide">Continue with Google</span>
+            <GoogleLogo className="size-4" />
+            <span className="text-sm font-medium text-foreground">Continue with Google</span>
           </>
         ) : (
           <div className="flex items-center gap-2">

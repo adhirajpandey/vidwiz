@@ -90,25 +90,27 @@ def test_openrouter_client_sends_structured_output_options(settings):
     assert calls[0][1]["json"]["provider"] == {"require_parameters": True}
 
 
-def test_internal_api_client_updates_ai_note(settings):
+def test_internal_api_client_saves_moment_ai(settings):
     calls = []
 
     class Response:
         status_code = 200
 
     class Session:
-        def patch(self, *args, **kwargs):
+        def put(self, *args, **kwargs):
             calls.append((args, kwargs))
             return Response()
 
     client = InternalApiClient(settings, FakeLogger(), session=Session())
 
-    assert client.update_note(12, "Generated note") is True
-    assert calls[0][0] == ("https://internal.example/v2/internal/notes/12",)
-    assert calls[0][1]["json"] == {"text": "Generated note", "generated_by_ai": True}
+    assert client.save_moment_ai(12, "Generated note", "model/a") is True
+    assert client.save_moment_ai(12, None) is True
+    assert calls[0][0] == ("https://internal.example/v2/internal/moments/12/ai",)
+    assert calls[0][1]["json"] == {"ai_text": "Generated note", "ai_model": "model/a"}
+    assert calls[1][1]["json"] == {"ai_text": None, "ai_model": None}
 
 
-def test_internal_api_client_updates_summary_and_questions(settings):
+def test_internal_api_client_updates_overview(settings):
     calls = []
 
     class Response:
@@ -126,13 +128,21 @@ def test_internal_api_client_updates_summary_and_questions(settings):
         "What conclusion follows from the discussion?",
     ]
 
-    assert client.update_summary("video-id", "Generated summary", questions)
+    points = [{"text": "Point", "start_seconds": 1.0, "end_seconds": 2.0}]
+
+    assert client.update_summary(
+        "video-id", "Generated summary", questions, points, "model/b"
+    )
     assert calls[0][0] == (
         "https://internal.example/v2/internal/videos/video-id/summary",
     )
     assert calls[0][1]["json"] == {
         "summary": "Generated summary",
-        "miscellaneous_data": {"suggested_questions": questions},
+        "miscellaneous_data": {
+            "suggested_questions": questions,
+            "key_points": points,
+            "overview_model": "model/b",
+        },
     }
 
 
@@ -166,3 +176,30 @@ def test_openrouter_client_logs_safe_provider_error(settings):
         )
     ]
     assert "sensitive provider response" not in str(logger.records)
+
+
+def test_fail_overview_posts_to_the_internal_route():
+    from types import SimpleNamespace
+
+    from vidwiz_worker.clients import InternalApiClient
+
+    calls = []
+
+    class Session:
+        def post(self, url, **kwargs):
+            calls.append((url, kwargs["json"]))
+            return SimpleNamespace(status_code=200)
+
+    settings = SimpleNamespace(
+        internal_api_admin_token="token",
+        internal_api_base_url="https://api.example",
+        request_timeout=5,
+    )
+    client = InternalApiClient(
+        settings, SimpleNamespace(error=print), session=Session()
+    )
+
+    assert client.fail_overview("abc123DEF45") is True
+    assert calls == [
+        ("https://api.example/v2/internal/videos/abc123DEF45/overview/failed", {})
+    ]

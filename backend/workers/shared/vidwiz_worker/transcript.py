@@ -29,20 +29,47 @@ def build_transcript_text(
     return "\n".join(lines) if include_timestamps else " ".join(lines)
 
 
-def parse_timestamp_seconds(timestamp: str) -> int:
-    try:
-        parts = [int(part) for part in timestamp.split(":")]
-        if len(parts) not in (2, 3):
-            raise ValueError(timestamp)
-        return sum(value * 60**index for index, value in enumerate(reversed(parts)))
-    except Exception as error:
-        raise ValueError(f"Invalid timestamp format: {timestamp}") from error
+PASSAGE_SECONDS = 45
+
+
+def transcript_passages(transcript: list[dict[str, Any]]) -> list[dict[str, Any]]:
+    """Group segments into ~45-second passages with ids the model can cite."""
+    segments = []
+    for segment in transcript:
+        text = " ".join(str(segment.get("text") or "").split())
+        try:
+            start = float(segment["offset"])
+            end = start + max(float(segment.get("duration") or 0), 0.0)
+        except (KeyError, TypeError, ValueError):
+            continue
+        if text and start >= 0:
+            segments.append((start, end, text))
+    segments.sort(key=lambda item: item[0])
+
+    passages: list[dict[str, Any]] = []
+    current: list[tuple[float, float, str]] = []
+    for item in segments:
+        if current and item[0] - current[0][0] >= PASSAGE_SECONDS:
+            passages.append(_passage(len(passages), current))
+            current = []
+        current.append(item)
+    if current:
+        passages.append(_passage(len(passages), current))
+    return passages
+
+
+def _passage(index: int, items: list[tuple[float, float, str]]) -> dict[str, Any]:
+    return {
+        "id": f"p{index}",
+        "start_seconds": items[0][0],
+        "end_seconds": max(item[1] for item in items),
+        "text": " ".join(item[2] for item in items),
+    }
 
 
 def relevant_context(
-    transcript: list[dict[str, Any]], timestamp: str, settings: WorkerSettings
+    transcript: list[dict[str, Any]], timestamp_seconds: int, settings: WorkerSettings
 ) -> RelevantTranscriptContext | None:
-    timestamp_seconds = parse_timestamp_seconds(timestamp)
     relevant = [
         segment
         for segment in transcript
