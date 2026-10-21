@@ -241,6 +241,20 @@ describe('useWizChat', () => {
     expect(sessionStorage.getItem('guestSessionId')).toBeNull();
   });
 
+  it("sends the browser's time zone with library questions", async () => {
+    const zone = Intl.DateTimeFormat().resolvedOptions().timeZone;
+    const hook = renderHook(() => useWizChat({ scope: 'library' }, true));
+    await waitFor(() => expect(hook.result.current.conversationId).toBe(1));
+    const response = stream();
+    vi.mocked(apiFetch).mockResolvedValue(response.response);
+    act(() => { void hook.result.current.send('What did I save yesterday?'); });
+    await waitFor(() => expect(apiFetch).toHaveBeenCalledTimes(1));
+    expect(JSON.parse(vi.mocked(apiFetch).mock.calls[0][1]!.body as string)).toEqual({
+      message: 'What did I save yesterday?', parts_version: 2, time_zone: zone,
+    });
+    await act(async () => response.close());
+  });
+
   it('resumes a saved conversation from its messages', async () => {
     vi.mocked(conversationsApi.listMessages).mockResolvedValue([
       { id: 5, conversation_id: 7, role: 'user', content: 'Q', created_at: '2026-01-01T00:00:00Z', parts: [{ type: 'text', text: 'Q' }] },

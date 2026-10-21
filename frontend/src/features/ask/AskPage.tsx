@@ -16,7 +16,7 @@ import { citedVideoIds } from './citations';
 const STARTERS = [
   'What have I watched about staying focused?',
   'Summarize what I saved this week',
-  'Which videos disagree with each other?',
+  'What did I save yesterday?',
 ];
 
 function History({ activeId, onPick, onNew }: { activeId: number | null; onPick: (id: number) => void; onNew: () => void }) {
