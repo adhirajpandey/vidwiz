@@ -39,9 +39,10 @@ Formatting:
 """
 
 TIME_SCOPE_TEMPLATE = """The user asked about moments captured from {since} to {until} (their local
-dates, inclusive). The sources are only moments captured in that period. If there
-are none, say the user saved no moments in that period instead of answering from
-elsewhere.
+dates, inclusive). The sources are only moments captured in that period, and may
+not be all of them, so never state how many moments the user saved. If there are
+no sources, say you found no moments from that period that match the question,
+instead of answering from elsewhere.
 
 """
 

@@ -118,10 +118,11 @@ Describe the FastAPI backend: structure, auth rules, and the request/worker life
 - A question only about a period ("Summarize what I saved this week") skips
   search and Jev: its sources are the newest moments captured in that period,
   up to `ASK_TIME_RANGE_MAX_SOURCES` (25). A period with a topic searches only
-  moments captured then, since transcript passages have no capture time. An
-  empty period answers that nothing was saved then. Moment sources carry their
-  local capture date, and the saved answer's metadata records `time_range`
-  (`since`, `until`, `time_zone`).
+  moments captured then, since transcript passages have no capture time. With
+  no sources, the answer says it found no matching moments from that period,
+  and it never counts moments, since sources can be capped. Moment sources
+  carry their local capture date, and the saved answer's metadata records
+  `time_range` (`since`, `until`, `time_zone`).
 - Answers use the same structured block stream as video chat. Source ids are
   `m<moment id>` or `c<chunk id>`, and resolved citations carry `video_id`
   (null in video conversations). Each question logs one `Library Ask
