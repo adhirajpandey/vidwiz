@@ -129,10 +129,12 @@ v3 runs as a second, complete deployment beside the current one:
 2. A separate API, database, and helpers, restored from a production dump and
    migrated.
 3. Testing on the v3 deployment with a dedicated email and password account.
-4. Cutover: re-sync the latest production data, fill quotes on the imported
-   moments (`python -m src.management.backfill quotes --all`, preserving
-   moment activity timestamps), move the public API and frontend to v3, then
-   delete the old stack.
+4. Cutover: keep the existing v3 database and use the
+   [one-time reconciliation procedure](reconciliation.md) to import approved
+   missing production activity. Preserve v3 accounts, balances, captures,
+   conversations, tokens, generated content, and activity timestamps. Review
+   the frozen-data plan before applying it, then coordinate the public API and
+   frontend switch. Retain both backups and the old stack for recovery.
 
 ## Phases
 0. v3 deployment running the current code against restored data.

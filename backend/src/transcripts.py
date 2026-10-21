@@ -6,7 +6,6 @@ import math
 
 import boto3
 
-from src.config import settings
 
 logger = logging.getLogger(__name__)
 
@@ -22,6 +21,8 @@ CHUNK_TARGET_SECONDS = 45
 
 
 def _s3_client():
+    from src.config import settings
+
     return boto3.client(
         "s3",
         aws_access_key_id=settings.aws_access_key_id,
@@ -35,6 +36,8 @@ def _key(video_id: str) -> str:
 
 
 def load_transcript(video_id: str) -> list | None:
+    from src.config import settings
+
     logger.debug("Fetching transcript from S3", extra={"video_id": video_id})
     if not settings.s3_transcript_bucket_name:
         return None
@@ -51,6 +54,8 @@ def load_transcript(video_id: str) -> list | None:
 
 
 def store_transcript(video_id: str, transcript: list[dict]) -> None:
+    from src.config import settings
+
     logger.debug("Storing transcript in S3", extra={"video_id": video_id})
     bucket = settings.s3_transcript_bucket_name
     if not bucket:
