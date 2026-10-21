@@ -26,6 +26,7 @@ Learning from YouTube is friction-heavy: pausing, losing context, and poor note 
 - Capture a moment at the current time without leaving the video, from a phone, the extension, or the web.
 - Get an AI line and the exact transcript quote for each moment.
 - Ask questions about a video with transcript-based answers.
+- Ask across the library, including about a period, such as what was saved this week.
 - Review notes by video and jump to timestamps.
 
 ## Functional Requirements

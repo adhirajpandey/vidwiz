@@ -34,6 +34,15 @@ interface Session {
   request?: AbortController;
 }
 
+/** The browser's IANA time zone, so library questions like "this week" use the asker's days. */
+function browserTimeZone(): string | undefined {
+  try {
+    return Intl.DateTimeFormat().resolvedOptions().timeZone || undefined;
+  } catch {
+    return undefined;
+  }
+}
+
 function isRecord(value: unknown): value is Record<string, unknown> {
   return typeof value === 'object' && value !== null && !Array.isArray(value);
 }
@@ -191,7 +200,13 @@ export function useWizChat(
     let displayError: WizMessage['error'];
     try {
       const response = await apiFetch(conversationsApi.getSendMessageUrl(id), {
-        method: 'POST', body: JSON.stringify({ message, parts_version: 2 }), signal: controller.signal,
+        method: 'POST',
+        body: JSON.stringify({
+          message,
+          parts_version: 2,
+          ...(session.target.scope === 'library' ? { time_zone: browserTimeZone() } : {}),
+        }),
+        signal: controller.signal,
       });
       if (!isCurrent()) return;
       requestId = response.headers.get('X-Request-ID') ?? undefined;

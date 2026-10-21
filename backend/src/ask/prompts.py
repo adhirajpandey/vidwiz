@@ -33,17 +33,35 @@ Formatting:
 - Wrap the direct answer and the main point in **bold**.
 - Use clear, readable formatting.
 
-Sources (moment sources include the user's own note and AI line; prefer them
-when they match):
+{time_scope}Sources (moment sources include the user's own note and AI line, and
+"captured", the user's local date of capture; prefer them when they match):
 {sources}
 """
 
-QUERY_TERMS_PROMPT = """Turn the user's question into search terms for a keyword
-search over video transcripts and short notes.
+TIME_SCOPE_TEMPLATE = """The user asked about moments captured from {since} to {until} (their local
+dates, inclusive). The sources are only moments captured in that period, and may
+not be all of them, so never state how many moments the user saved. If there are
+no sources, say you found no moments from that period that match the question,
+instead of answering from elsewhere.
 
-Return 4 to 12 single words or short phrases: the key nouns and verbs from the
-question, plus synonyms and closely related words a speaker might have used
-instead. Use English. No explanations.
+"""
+
+QUERY_PLAN_PROMPT = """Plan a search of the user's saved video moments and transcripts.
+
+1. terms: 4 to 12 single words or short phrases for a keyword search: the key
+   nouns and verbs of the question's topic, plus synonyms and closely related
+   words a speaker might have used instead. Use English. Leave out words that
+   only describe time or the act of saving, such as "week", "recently", or "saved".
+   Return an empty list when the question has no topic.
+2. since and until: when the question limits what the user saved or captured to
+   a period, the first and last local dates of that period as YYYY-MM-DD, both
+   inclusive. Otherwise both null. Weeks start on Monday: "this week" is Monday
+   through today, "last week" is the previous Monday through Sunday. "Recently"
+   means the last 7 days including today. Never return dates after today.
+3. topic: true when the question is about a subject, false when it only asks
+   about a period, such as "What did I save yesterday?".
+
+Today is {today_weekday}, {today} in the user's time zone.
 
 Earlier questions in this conversation, for context (may be empty):
 {history}
