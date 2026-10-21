@@ -28,7 +28,7 @@ from src.conversations.parts import (
     history_parts,
 )
 from src.ask import retrieval as ask_retrieval
-from src.ask.prompts import LIBRARY_SYSTEM_PROMPT_TEMPLATE
+from src.ask.prompts import LIBRARY_SYSTEM_PROMPT_TEMPLATE, TIME_SCOPE_TEMPLATE
 from src.conversations.prompts import WIZ_SYSTEM_PROMPT_TEMPLATE
 from src.conversations.schemas import ConversationList, ConversationSummary
 from src.exceptions import (
@@ -369,8 +369,12 @@ def stream_answer(
     db: Session,
     api_key: str,
     models: dict | None = None,
+    time_range: dict | None = None,
 ):
-    """Stream a structured, cited answer and save it once complete."""
+    """Stream a structured, cited answer and save it once complete.
+
+    ``time_range`` records the period a library question was limited to.
+    """
 
     def event(part):
         return f"data: {part.model_dump_json()}\n\n"
@@ -461,6 +465,7 @@ def stream_answer(
                 "parts_version": 2,
                 "parts": [part.model_dump() for part in resolved],
                 "models": models or answer_models(),
+                **({"time_range": time_range} if time_range else {}),
             },
         )
         yield event(DoneEvent(message_id=message.id))
@@ -524,11 +529,15 @@ def prepare_chat(
 
 
 def prepare_library_chat(
-    db: Session, conversation: Conversation, message: str
-) -> tuple[str, dict[str, CitationPart], list[dict], str, dict]:
+    db: Session,
+    conversation: Conversation,
+    message: str,
+    time_zone: str | None = None,
+) -> tuple[str, dict[str, CitationPart], list[dict], str, dict, dict | None]:
     """Retrieve library sources for the question and build the answer context.
 
-    Also returns the models used, for the saved answer's metadata.
+    Also returns the models used and any time range the question was limited
+    to, for the saved answer's metadata.
     """
     logger.debug(
         "Preparing library chat",
@@ -542,7 +551,11 @@ def prepare_library_chat(
         if msg.role == DB_ROLE_USER
     ]
     retrieval = ask_retrieval.retrieve(
-        db, conversation.user_id, message, earlier_questions
+        db,
+        conversation.user_id,
+        message,
+        earlier_questions,
+        time_zone or ask_retrieval.DEFAULT_TIME_ZONE,
     )
     sources = retrieval.sources
     save_chat_message(db, conversation.id, DB_ROLE_USER, message)
@@ -550,8 +563,16 @@ def prepare_library_chat(
         {"role": msg.role, "content": msg.content, "metadata": msg.metadata_}
         for msg in fetch_recent_history(db, conversation.id, limit=10)
     ]
+    time_range = retrieval.time_range
     system_prompt = LIBRARY_SYSTEM_PROMPT_TEMPLATE.format(
-        sources=ask_retrieval.sources_json(sources)
+        time_scope=(
+            TIME_SCOPE_TEMPLATE.format(
+                since=time_range.since.isoformat(), until=time_range.until.isoformat()
+            )
+            if time_range
+            else ""
+        ),
+        sources=ask_retrieval.sources_json(sources),
     )
     models = answer_models(
         {
@@ -565,4 +586,5 @@ def prepare_library_chat(
         history,
         api_key,
         models,
+        time_range.as_metadata() if time_range else None,
     )

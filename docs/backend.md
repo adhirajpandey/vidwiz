@@ -104,13 +104,24 @@ Describe the FastAPI backend: structure, auth rules, and the request/worker life
 - `POST /v2/conversations` with `{"scope": "library"}` (no `video_id`) starts a
   library conversation for a signed-in user. It is free within the daily
   message quota.
-- Each question: `ASK_QUERY_MODEL` (default `z-ai/glm-5.3-flash`) turns it into
-  search terms and synonyms; full-text search in any-term mode gathers up to
-  `ASK_CANDIDATES` (48) moments and passages; Jev (`JEV_MODEL`, a pinned dated
+- Each question: `ASK_QUERY_MODEL` (default `z-ai/glm-5.3-flash`) plans it as
+  search terms and synonyms, plus an optional period of local capture dates
+  ("this week", "yesterday") and whether it has a topic. The message's optional
+  `time_zone` (an IANA name; the web app sends the browser's, and unknown or
+  missing zones use UTC) decides today's date and day boundaries. Full-text
+  search in any-term mode gathers up to `ASK_CANDIDATES` (48) moments and
+  passages; Jev (`JEV_MODEL`, a pinned dated
   version, through OpenRouter's decisions endpoint) scores each candidate's
   relevance in parallel batches; up to `ASK_MAX_SOURCES` (8) candidates at or
   above `JEV_RELEVANCE_THRESHOLD` (0.5) become the answer's sources. With
   `JEV_ENABLED=false` or a Jev failure, the full-text order is used.
+- A question only about a period ("Summarize what I saved this week") skips
+  search and Jev: its sources are the newest moments captured in that period,
+  up to `ASK_TIME_RANGE_MAX_SOURCES` (25). A period with a topic searches only
+  moments captured then, since transcript passages have no capture time. An
+  empty period answers that nothing was saved then. Moment sources carry their
+  local capture date, and the saved answer's metadata records `time_range`
+  (`since`, `until`, `time_zone`).
 - Answers use the same structured block stream as video chat. Source ids are
   `m<moment id>` or `c<chunk id>`, and resolved citations carry `video_id`
   (null in video conversations). Each question logs one `Library Ask

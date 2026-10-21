@@ -1,5 +1,6 @@
 from datetime import datetime
 from typing import Literal
+from zoneinfo import ZoneInfo, ZoneInfoNotFoundError
 
 from pydantic import ConfigDict, Field, field_validator, model_validator
 
@@ -65,8 +66,28 @@ class MessageCreate(ApiModel):
     message: str
     # Only block responses are generated; the field stays for existing clients.
     parts_version: Literal[2] = 2
+    time_zone: str | None = Field(
+        default=None,
+        max_length=64,
+        description=(
+            "The asker's IANA time zone, such as Asia/Kolkata, for questions about "
+            "a period like this week. Missing or unknown zones use UTC."
+        ),
+    )
 
     model_config = ConfigDict(extra="forbid")
+
+    @field_validator("time_zone")
+    @classmethod
+    def known_time_zone(cls, value: str | None) -> str | None:
+        # An unknown zone falls back to UTC rather than failing the question.
+        if not value:
+            return None
+        try:
+            ZoneInfo(value)
+        except (ZoneInfoNotFoundError, ValueError):
+            return None
+        return value
 
     @field_validator("message")
     @classmethod

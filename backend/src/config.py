@@ -55,6 +55,10 @@ class Settings(BaseSettings):
     ] = Field(default="z-ai/glm-5.3-flash", alias="ASK_QUERY_MODEL")
     ask_candidates: int = Field(default=48, ge=1, le=200, alias="ASK_CANDIDATES")
     ask_max_sources: int = Field(default=8, ge=1, le=30, alias="ASK_MAX_SOURCES")
+    # A question only about a period ("this week") reads its newest moments.
+    ask_time_range_max_sources: int = Field(
+        default=25, ge=1, le=50, alias="ASK_TIME_RANGE_MAX_SOURCES"
+    )
     jev_enabled: bool = Field(default=True, alias="JEV_ENABLED")
     jev_model: Annotated[
         str, StringConstraints(strip_whitespace=True, min_length=1)
