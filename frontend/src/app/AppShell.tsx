@@ -1,5 +1,4 @@
-import { useEffect, useState } from 'react';
-import type { FormEvent, ReactNode } from 'react';
+import type { ReactNode } from 'react';
 import { Link, NavLink, useLocation, useNavigate } from 'react-router-dom';
 import { Home, Library, LogOut, Moon, Search, Settings, Sparkles, Sun } from 'lucide-react';
 import { useQueryClient } from '@tanstack/react-query';
@@ -10,6 +9,7 @@ import { removeToken } from '../lib/authUtils';
 import { cn } from '../lib/utils';
 import Button from '../components/ui/Button';
 import { Menu, MenuContent, MenuItem, MenuSeparator, MenuTrigger } from '../components/ui/Menu';
+import SearchForm from '../components/SearchForm';
 import CommandPalette from './CommandPalette';
 
 const NAV = [
@@ -24,32 +24,6 @@ function Logo() {
       <img src="/brand/vidwiz-mark-color.svg" alt="" className="size-7 rounded-[7px]" />
       <span>VidWiz</span>
     </Link>
-  );
-}
-
-function HeaderSearch() {
-  const navigate = useNavigate();
-  const location = useLocation();
-  const current = location.pathname === '/search' ? new URLSearchParams(location.search).get('q') ?? '' : '';
-  const [value, setValue] = useState(current);
-  useEffect(() => setValue(current), [current]);
-  const submit = (event: FormEvent) => {
-    event.preventDefault();
-    const q = value.trim();
-    if (q.length >= 2) navigate(`/search?q=${encodeURIComponent(q)}`);
-  };
-  return (
-    <form role="search" onSubmit={submit} className="relative hidden w-full max-w-md md:block">
-      <Search className="pointer-events-none absolute left-3 top-1/2 size-4 -translate-y-1/2 text-muted-foreground" />
-      <input
-        value={value}
-        onChange={event => setValue(event.target.value)}
-        aria-label="Search your moments and videos"
-        placeholder="Search moments and transcripts"
-        className="h-10 w-full rounded-[9px] border border-input bg-card pl-9 pr-14 text-sm placeholder:text-muted-foreground focus:border-foreground/60 focus:outline-none focus:ring-2 focus:ring-foreground/10"
-      />
-      <kbd className="pointer-events-none absolute right-2.5 top-1/2 -translate-y-1/2 rounded-[5px] border border-border border-b-2 px-1.5 text-[11px] font-semibold text-muted-foreground">Ctrl K</kbd>
-    </form>
   );
 }
 
@@ -156,7 +130,7 @@ export default function AppShell({ children }: { children: ReactNode }) {
             </nav>
           )}
           <div className="flex flex-1 justify-end gap-3">
-            {signedIn && <HeaderSearch />}
+            {signedIn && <SearchForm shortcut className="hidden max-w-md md:block" />}
             {signedIn ? <UserMenu /> : <SignedOutActions />}
           </div>
         </div>

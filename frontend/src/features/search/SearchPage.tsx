@@ -4,6 +4,7 @@ import { Search, Sparkles } from 'lucide-react';
 import { searchApi } from '../../api';
 import type { SearchResult } from '../../api';
 import PageTitle from '../../components/PageTitle';
+import SearchForm from '../../components/SearchForm';
 import Button from '../../components/ui/Button';
 import EmptyState from '../../components/ui/EmptyState';
 import ErrorState from '../../components/ui/ErrorState';
@@ -55,8 +56,9 @@ export default function SearchPage() {
     return (
       <div className="mx-auto max-w-3xl">
         <PageTitle title="Search" />
+        <SearchForm className="mb-2 md:hidden" />
         <EmptyState icon={<Search className="size-5" />} title="Search what you watched">
-          Find your moments and anything said in your saved videos. Use the search bar above.
+          Find your moments and anything said in your saved videos.
         </EmptyState>
       </div>
     );
@@ -68,6 +70,7 @@ export default function SearchPage() {
   return (
     <div className="mx-auto max-w-3xl space-y-4">
       <PageTitle title={`Search: ${q}`} />
+      <SearchForm className="md:hidden" />
       <div className="flex flex-wrap items-baseline justify-between gap-2">
         <h1 className="display text-3xl">Results for “{q}”</h1>
         {askLink}
