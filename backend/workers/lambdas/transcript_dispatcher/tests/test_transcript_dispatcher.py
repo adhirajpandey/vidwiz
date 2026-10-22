@@ -79,7 +79,7 @@ def test_dispatch_videos_queues_only_ai_lines(monkeypatch):
     assert not hasattr(dispatch_service, "push_summary_to_sqs")
 
 
-def test_collect_pending_moments_uses_configured_request_timeout(monkeypatch):
+def test_collect_pending_moments_caps_request_timeout(monkeypatch):
     monkeypatch.setenv("REQUEST_TIMEOUT", "17")
     dispatch_service = _load_module("dispatch_service.py", monkeypatch)
     calls = []
@@ -99,7 +99,7 @@ def test_collect_pending_moments_uses_configured_request_timeout(monkeypatch):
 
     assert dispatch_service.collect_pending_moments("video-id") == []
     assert calls[0][0][0].endswith("/v2/internal/videos/video-id/pending-moments")
-    assert calls[0][1]["timeout"] == 17
+    assert calls[0][1]["timeout"] == (1, 1)
     assert "response_preview" not in dispatch_service.logger.records[0][2]
 
 
@@ -164,3 +164,57 @@ def test_handler_reraises_dispatch_failure(monkeypatch):
 
     with pytest.raises(RuntimeError, match="dispatch failed"):
         handler.lambda_handler({"video_ids": ["video-id"]}, object())
+
+
+@pytest.mark.parametrize("conflicts", [1, 2, 4])
+def test_pending_moments_retries_until_ready(monkeypatch, conflicts):
+    service = _load_module("dispatch_service.py", monkeypatch)
+    sleeps = []
+    statuses = iter([409] * conflicts + [200])
+    jobs = [{"id": 1}]
+
+    class Response:
+        def __init__(self):
+            self.status_code = next(statuses)
+
+        def json(self):
+            return {"moments": jobs}
+
+    monkeypatch.setattr(service.requests, "post", lambda *_a, **_k: Response())
+    monkeypatch.setattr(service.time, "sleep", sleeps.append)
+    assert service.collect_pending_moments("video-id") == jobs
+    assert sleeps == [1, 2, 4, 8][:conflicts]
+
+
+def test_exhausted_readiness_retries_fail_invocation(monkeypatch):
+    handler = _load_module("handler.py", monkeypatch)
+    service = handler.dispatch_service
+    calls = []
+    sleeps = []
+
+    class Response:
+        status_code = 409
+
+    monkeypatch.setattr(
+        service.requests,
+        "post",
+        lambda *_a, **_k: calls.append(1) or Response(),
+    )
+    monkeypatch.setattr(service.time, "sleep", sleeps.append)
+    with pytest.raises(service.TranscriptNotReadyError):
+        handler.lambda_handler({"video_ids": ["video-id"]}, object())
+    assert len(calls) == 5
+    assert sleeps == [1, 2, 4, 8]
+
+
+def test_other_http_errors_do_not_retry(monkeypatch):
+    service = _load_module("dispatch_service.py", monkeypatch)
+    sleeps = []
+
+    class Response:
+        status_code = 500
+
+    monkeypatch.setattr(service.requests, "post", lambda *_a, **_k: Response())
+    monkeypatch.setattr(service.time, "sleep", sleeps.append)
+    assert service.collect_pending_moments("video-id") is None
+    assert sleeps == []

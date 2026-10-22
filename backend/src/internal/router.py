@@ -85,7 +85,8 @@ def submit_task_result(
     status_code=status.HTTP_200_OK,
     description=(
         "Charge and mark queued the moments waiting for this video's transcript. "
-        "Called by the dispatcher after the transcript upload."
+        "Called by the dispatcher after the transcript upload. Returns 409 while "
+        "the transcript is pending, without charging or changing moments."
     ),
 )
 @limiter.exempt

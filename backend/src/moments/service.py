@@ -11,7 +11,7 @@ from src.auth import service as auth_service
 from src.auth.models import User
 from src.config import settings
 from src.credits import service as credits_service
-from src.exceptions import BadRequestError, ForbiddenError, NotFoundError
+from src.exceptions import BadRequestError, ConflictError, ForbiddenError, NotFoundError
 from src.internal import constants as internal_constants
 from src.internal.models import Task, TaskStatus
 from src.internal.scheduling import prepare_video
@@ -411,6 +411,12 @@ def collect_pending_ai(db: Session, video_id: str) -> list[Moment]:
     Called by the dispatcher after the transcript upload. Owners without
     credits get an explicit insufficient_credits status.
     """
+    video = db.execute(
+        select(Video).where(Video.video_id == video_id)
+    ).scalar_one_or_none()
+    if video is not None and video.transcript_status == TranscriptStatus.PENDING:
+        raise ConflictError("Transcript is still being processed")
+
     waiting = (
         db.execute(
             select(Moment)

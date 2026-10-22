@@ -1,5 +1,6 @@
 import json
 import os
+import time
 from typing import Any, Dict, List, Optional
 
 import boto3
@@ -15,7 +16,15 @@ assert VIDWIZ_INTERNAL_API_BASE_URL, "VIDWIZ_INTERNAL_API_BASE_URL is not set"
 assert VIDWIZ_INTERNAL_API_ADMIN_TOKEN, "VIDWIZ_INTERNAL_API_ADMIN_TOKEN is not set"
 assert SQS_AI_NOTE_QUEUE_URL, "SQS_AI_NOTE_QUEUE_URL is not set"
 
+# Keep individual connect/read waits short alongside the 15-second backoff.
+PENDING_REQUEST_TIMEOUT = (min(REQUEST_TIMEOUT, 1), min(REQUEST_TIMEOUT, 1))
+TRANSCRIPT_RETRY_DELAYS = (1, 2, 4, 8)
+
 logger = Logger()
+
+
+class TranscriptNotReadyError(RuntimeError):
+    pass
 
 
 def collect_pending_moments(video_id: str) -> Optional[List[Dict[str, Any]]]:
@@ -24,24 +33,44 @@ def collect_pending_moments(video_id: str) -> Optional[List[Dict[str, Any]]]:
         f"{VIDWIZ_INTERNAL_API_BASE_URL}/v2/internal/videos/{video_id}/pending-moments"
     )
     headers = {"Authorization": f"Bearer {VIDWIZ_INTERNAL_API_ADMIN_TOKEN}"}
-    try:
-        response = requests.post(url, headers=headers, timeout=REQUEST_TIMEOUT)
-        if response.status_code == 200:
-            moments = response.json().get("moments", [])
-            logger.info(
-                "Collected pending AI moments",
-                extra={"video_id": video_id, "moment_count": len(moments)},
+    for attempt in range(len(TRANSCRIPT_RETRY_DELAYS) + 1):
+        try:
+            response = requests.post(
+                url, headers=headers, timeout=PENDING_REQUEST_TIMEOUT
             )
-            return moments
-        logger.error(
-            "Failed to collect pending AI moments",
-            extra={"video_id": video_id, "status_code": response.status_code},
+            if response.status_code == 200:
+                moments = response.json().get("moments", [])
+                logger.info(
+                    "Collected pending AI moments",
+                    extra={"video_id": video_id, "moment_count": len(moments)},
+                )
+                return moments
+            if response.status_code != 409:
+                logger.error(
+                    "Failed to collect pending AI moments",
+                    extra={"video_id": video_id, "status_code": response.status_code},
+                )
+                return None
+        except Exception as error:
+            logger.error(
+                "Error collecting pending AI moments",
+                extra={"video_id": video_id, "error_type": type(error).__name__},
+            )
+            return None
+
+        if attempt == len(TRANSCRIPT_RETRY_DELAYS):
+            logger.error(
+                "Transcript readiness retries exhausted",
+                extra={"video_id": video_id, "attempts": attempt + 1},
+            )
+            raise TranscriptNotReadyError(f"Transcript is not ready for {video_id}")
+
+        delay = TRANSCRIPT_RETRY_DELAYS[attempt]
+        logger.info(
+            "Transcript is not ready; retrying pending AI moments",
+            extra={"video_id": video_id, "retry": attempt + 1, "delay_seconds": delay},
         )
-    except Exception as error:
-        logger.error(
-            "Error collecting pending AI moments",
-            extra={"video_id": video_id, "error_type": type(error).__name__},
-        )
+        time.sleep(delay)
     return None
 
 
