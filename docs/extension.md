@@ -90,7 +90,9 @@ Plain JavaScript modules, no bundler.
     note**, and **Delete**. The note is edited in the row (Enter saves,
     Shift+Enter adds a line, Esc cancels, empty removes it) with
     `PATCH /v2/moments/{id}`. Delete asks inside the row first, since there is
-    no undo, then calls `DELETE /v2/moments/{id}`. Errors show in the row.
+    no undo, then calls `DELETE /v2/moments/{id}`. While that request is out,
+    the row stays as it is: repeated Enter, Esc, and other rows' actions wait
+    for it. Errors show in the row and keep the draft for a retry.
     While a row is being edited or confirmed, the list doesn't refresh, so
     nothing being typed is lost.
   - If the tab moves to another video while the popup is open (autoplay or

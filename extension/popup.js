@@ -177,9 +177,13 @@ document.addEventListener("click", (event) => {
 let editingId = null;
 let confirmingId = null;
 let closeActionsMenu = null;
+// True while a row's edit or delete request is out. The row stays as it is
+// until the request ends, so nothing can start a second one or drop the draft.
+let mutating = false;
 const busy = () => editingId !== null || confirmingId !== null;
 
 function setRowState(tab, { editing = null, confirming = null }) {
+  if (mutating) return;
   editingId = editing;
   confirmingId = confirming;
   paint(tab);
@@ -296,13 +300,18 @@ function noteEditor(tab, moment) {
   });
   form.addEventListener("submit", async (event) => {
     event.preventDefault();
-    save.disabled = cancel.disabled = true;
+    // Enter submits even with Save disabled, so check for a request already out.
+    if (mutating) return;
+    mutating = true;
+    save.disabled = cancel.disabled = field.readOnly = true;
     try {
       const updated = await api(`/moments/${moment.id}`, { method: "PATCH", body: { note: field.value.trim() || null } });
       lastMoments = lastMoments.map((item) => (item.id === moment.id ? updated : item));
+      mutating = false;
       done();
     } catch (error) {
-      save.disabled = cancel.disabled = false;
+      mutating = false;
+      save.disabled = cancel.disabled = field.readOnly = false;
       rowError(form, error);
     }
   });
@@ -337,13 +346,17 @@ function deleteConfirm(tab, moment) {
     }
   });
   remove.addEventListener("click", async () => {
+    if (mutating) return;
+    mutating = true;
     remove.disabled = cancel.disabled = true;
     try {
       await api(`/moments/${moment.id}`, { method: "DELETE" });
       lastMoments = lastMoments.filter((item) => item.id !== moment.id);
       if (highlightId === moment.id) highlightId = null;
+      mutating = false;
       done();
     } catch (error) {
+      mutating = false;
       remove.disabled = cancel.disabled = false;
       rowError(bar, error);
     }
