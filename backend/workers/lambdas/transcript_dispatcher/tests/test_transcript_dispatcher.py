@@ -80,6 +80,7 @@ def test_dispatch_videos_queues_only_ai_lines(monkeypatch):
 
 
 def test_collect_pending_moments_preserves_configured_read_timeout(monkeypatch):
+    """Allow slow successful responses while bounding connection setup."""
     monkeypatch.setenv("REQUEST_TIMEOUT", "17")
     dispatch_service = _load_module("dispatch_service.py", monkeypatch)
     calls = []
@@ -168,6 +169,7 @@ def test_handler_reraises_dispatch_failure(monkeypatch):
 
 @pytest.mark.parametrize("conflicts", [1, 2, 4])
 def test_pending_moments_retries_until_ready(monkeypatch, conflicts):
+    """Readiness conflicts back off before returning the jobs unchanged."""
     service = _load_module("dispatch_service.py", monkeypatch)
     sleeps = []
     statuses = iter([409] * conflicts + [200])
@@ -187,6 +189,7 @@ def test_pending_moments_retries_until_ready(monkeypatch, conflicts):
 
 
 def test_exhausted_readiness_retries_fail_invocation(monkeypatch):
+    """Persistent conflicts must escape the handler for AWS to retry."""
     handler = _load_module("handler.py", monkeypatch)
     service = handler.dispatch_service
     calls = []
@@ -208,6 +211,7 @@ def test_exhausted_readiness_retries_fail_invocation(monkeypatch):
 
 
 def test_other_http_errors_fail_for_lambda_retry_without_sleep(monkeypatch):
+    """Only readiness conflicts use the local backoff loop."""
     service = _load_module("dispatch_service.py", monkeypatch)
     sleeps = []
 

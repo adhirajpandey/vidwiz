@@ -96,6 +96,7 @@ def collect_pending_moments(
     db: Session = Depends(get_db),
     _: None = Depends(require_admin_token),
 ) -> PendingMomentsResponse:
+    """Collect waiting or queued jobs; reject pending transcripts without changes."""
     moments = moments_service.collect_pending_ai(db, path.video_id)
     return PendingMomentsResponse(
         video_id=path.video_id,
