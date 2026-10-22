@@ -264,6 +264,7 @@ function setupMenu(aiDefault, save) {
 
 async function init() {
   onClick("open-app", () => openTab("/"));
+  onClick("brand", () => openTab("/"));
   $("login").addEventListener("click", () => openTab("/login"));
   $("shortcut").textContent = await shortcutLabel();
 

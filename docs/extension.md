@@ -92,8 +92,8 @@ Plain JavaScript modules, no bundler.
 ## Branding
 
 The 16, 48, and 128 px icons are generated from the same SVG as the web app.
-The popup selects an outlined Bricolage wordmark for the OS light or dark
-scheme, and uses the web app's palette for that scheme: ink for actions and
+The popup header uses the web app's lockup: the colour mark from
+`frontend/public/brand/` and the name as Bricolage text. The popup uses the web app's palette for that scheme: ink for actions and
 links, caption yellow for Save moment and time chips. Its text is set in
 Bricolage Grotesque from `fonts/` (latin subset, SIL Open Font License), so
 the popup makes no font request. The on-page toast copies the web app's

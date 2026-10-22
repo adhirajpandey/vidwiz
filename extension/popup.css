@@ -59,8 +59,10 @@ button, textarea { font: inherit; color: inherit; }
 .tabular { font-variant-numeric: tabular-nums; }
 
 .header { display: flex; align-items: center; gap: 8px; padding: 12px 14px; border-bottom: 1px solid var(--border); }
-.brand { display: block; flex-shrink: 0; }
-.brand img { display: block; width: 112px; height: 34px; object-fit: contain; }
+/* The web app's header lockup: the colour mark and the name as text. */
+.brand { display: flex; align-items: center; gap: 10px; flex-shrink: 0; color: var(--fg); text-decoration: none; }
+.brand img { display: block; width: 28px; height: 28px; border-radius: 7px; }
+.brand span { font-size: 18px; font-weight: 700; letter-spacing: -0.025em; }
 .header-link {
   margin-left: auto; color: var(--fg); font-size: 12px; font-weight: 600;
   text-decoration: underline; text-decoration-color: color-mix(in srgb, var(--fg) 30%, transparent); text-underline-offset: 4px;
