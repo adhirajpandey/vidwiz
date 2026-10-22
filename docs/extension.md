@@ -94,7 +94,8 @@ Plain JavaScript modules, no bundler.
     the row stays as it is: repeated Enter, Esc, and other rows' actions wait
     for it. Errors show in the row and keep the draft for a retry.
     While a row is being edited or confirmed, the list doesn't refresh, so
-    nothing being typed is lost.
+    nothing being typed is lost. A refresh already loading is discarded and
+    fetched again afterwards, so it can't undo the edit or delete either.
   - If the tab moves to another video while the popup is open (autoplay or
     navigation), or leaves the video, the popup reloads for what the tab shows
     now, so a save never lands on a video other than the one shown.

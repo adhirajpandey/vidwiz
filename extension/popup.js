@@ -184,6 +184,7 @@ const busy = () => editingId !== null || confirmingId !== null;
 
 function setRowState(tab, { editing = null, confirming = null }) {
   if (mutating) return;
+  listChanged++;
   editingId = editing;
   confirmingId = confirming;
   paint(tab);
@@ -374,6 +375,10 @@ let highlightId = null;
 let scrollToHighlight = false;
 
 let lastMoments = [];
+// A list response is stale if a newer request was sent, or a row was opened,
+// edited, or deleted while it was out.
+let listRequest = 0;
+let listChanged = 0;
 
 async function renderMoments(tab, videoId) {
   clearTimeout(pollTimer);
@@ -383,10 +388,13 @@ async function renderMoments(tab, videoId) {
     return;
   }
   const list = $("moments");
+  const request = ++listRequest;
+  const changed = listChanged;
   let moments;
   try {
     moments = await api(`/videos/${videoId}/moments`);
   } catch (error) {
+    if (request !== listRequest) return;
     if (error instanceof ApiError && error.status === 401) {
       showLogin(error.message);
       return;
@@ -400,6 +408,11 @@ async function renderMoments(tab, videoId) {
     }
     if (Date.now() < pollUntil) pollTimer = setTimeout(() => void renderMoments(tab, videoId), POLL_MS);
     return;
+  }
+  if (request !== listRequest) return;
+  if (busy() || changed !== listChanged) {
+    // Fetch again once the row is done, so the response can't undo its change.
+    return void renderMoments(tab, videoId);
   }
   lastMoments = moments;
   paint(tab);
