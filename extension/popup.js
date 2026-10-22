@@ -516,16 +516,38 @@ async function init() {
   }
 
   const buttons = () => [$("capture"), $("capture-toggle"), ...document.querySelectorAll("#capture-menu .option")];
+  function resetNote() {
+    $("note").value = "";
+    $("note").style.height = "";
+    $("note").style.overflowY = "";
+    $("capture-note").classList.add("hidden");
+    $("add-note").setAttribute("aria-expanded", "false");
+  }
+  $("add-note").addEventListener("click", () => {
+    $("capture-note").classList.remove("hidden");
+    $("add-note").setAttribute("aria-expanded", "true");
+    fitNote();
+    $("note").focus();
+  });
+  $("cancel-note").addEventListener("click", () => {
+    resetNote();
+    $("add-note").focus();
+  });
+
   let saving = false;
   let ad = video.ad;
   const setDisabled = () => {
     for (const button of buttons()) button.disabled = saving || ad;
+    // Lock the draft during a request so success cannot erase newer edits.
+    for (const id of ["note", "add-note", "cancel-note"]) $(id).disabled = saving;
   };
 
   /** `ai` undefined lets the server apply the user's default. */
   async function save(ai) {
     if (saving || ad) return;
     saving = true;
+    let focusSave = false;
+    const startedInForm = $("capture-form").contains(document.activeElement);
     setDisabled();
     // Save where the video is now, not where it was when the popup opened.
     const latest = (await currentVideo(tab)) || video;
@@ -540,8 +562,9 @@ async function init() {
         return;
       }
       const result = await capture({ ...latest, note: $("note").value.trim(), ai });
-      $("note").value = "";
-      fitNote();
+      // Disabled controls lose focus; restore it unless the user moved elsewhere.
+      focusSave = startedInForm && (document.activeElement === document.body || $("capture-form").contains(document.activeElement));
+      resetNote();
       const at = formatClock(latest.seconds);
       // The web app's wording.
       feedback(result.merged ? `Added to your moment near ${at}` : `Moment saved at ${at}`, "success");
@@ -558,6 +581,7 @@ async function init() {
     } finally {
       saving = false;
       setDisabled();
+      if (focusSave) $("capture").focus();
     }
   }
 
@@ -621,7 +645,6 @@ async function init() {
     // Without the profile, Save moment still works with the server's default.
   }
   refreshMoments(tab, video.videoId);
-  $("note").focus();
 
   $("capture-form").addEventListener("submit", (event) => {
     event.preventDefault();

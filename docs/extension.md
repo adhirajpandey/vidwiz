@@ -58,8 +58,12 @@ Plain JavaScript modules, no bundler.
     The arrow beside it opens the same options as the web app: "With AI line,
     1 credit" and "Without AI line, Free", with the default checked, and a link
     to change the default in Settings. Saving is disabled while an ad plays.
-  - The note field starts as one line and grows to five. Enter submits;
-    Shift+Enter adds a line.
+  - The note icon beside Save moment opens and focuses an optional note field
+    above the buttons. It starts as one line and grows to five. Enter submits;
+    Shift+Enter adds a line. Clicking the icon again focuses the existing draft.
+    Cancel note clears and closes it. A successful save clears and closes the
+    field; a failed save keeps the draft open. Note controls are disabled while
+    saving so a completed request cannot erase new edits.
   - After a save, the popup says "Moment saved at m:ss" (or "Added to your
     moment near m:ss") for 3 seconds, and the list highlights that moment and
     scrolls to it. Errors stay until the next save.
