@@ -17,7 +17,7 @@ tile. Use the same geometry for the website, browser icons, and extension.
 | `frontend/public/og-image.png` | 1200 x 630 social preview, shared by Open Graph and Twitter metadata |
 | `frontend/public/brand/vidwiz-social.svg` | Portable outlined source for the social preview |
 | `extension/icons/icon16.png`, `icon48.png`, `icon128.png` | Extension toolbar, management, and package icons |
-| `extension/icons/wordmark-on-light.svg`, `wordmark-on-dark.svg` | Popup branding, selected by OS color scheme |
+| `extension/icons/mark.svg` | Popup header mark, beside the name as live text like the web app's header |
 
 The 48 and 128 px web PNGs are also retained as reusable exports. Rounded
 standard icons have transparent corners. Apple and maskable icons have a solid

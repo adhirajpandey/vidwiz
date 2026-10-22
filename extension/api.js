@@ -104,3 +104,27 @@ export function formatClock(seconds) {
 }
 
 export const webUrl = (path) => `${CONFIG.WEB_URL}${path}`;
+
+// Same lead-in as the web app: its 3 seconds plus the 2 its player adds.
+const MOMENT_LEAD_SECONDS = 5;
+
+/** Where playing a moment starts: a few seconds before it was saved. */
+export function playFrom(moment) {
+  return Math.max(0, moment.at_seconds - MOMENT_LEAD_SECONDS);
+}
+
+/** True for YouTube watch and Shorts URLs, which the content script reads. */
+export function isVideoUrl(url) {
+  try {
+    const { hostname, pathname, searchParams } = new URL(url);
+    if (hostname !== "youtube.com" && !hostname.endsWith(".youtube.com")) return false;
+    return (pathname === "/watch" && searchParams.has("v")) || pathname.startsWith("/shorts/");
+  } catch {
+    return false;
+  }
+}
+
+export const MESSAGES = {
+  ad: "An ad is playing. Save the moment after it ends.",
+  reload: "Reload this YouTube tab to use VidWiz.",
+};

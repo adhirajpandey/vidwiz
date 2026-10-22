@@ -1,85 +1,265 @@
+/* The web app's palette: blue ink on cool white, or the dark navy theme.
+   Caption yellow marks what the user saves and is always a background.
+   Copied from frontend/src/index.css; change both together. */
+@font-face {
+  font-family: "Bricolage Grotesque";
+  font-style: normal;
+  font-weight: 400 800;
+  font-stretch: 75% 100%;
+  src: url("fonts/bricolage-grotesque-latin.woff2") format("woff2");
+}
+
 :root {
-  --bg: #ffffff;
-  --fg: #18181b;
-  --muted: #6b6b76;
-  --border: #e4e4e7;
-  --surface: #f7f7f9;
-  --accent: #7c3aed;
-  --accent-fg: #ffffff;
-  --accent-soft: rgb(124 58 237 / 10%);
-  --danger: #dc2626;
+  --bg: hsl(240 33% 99%);
+  --card: hsl(0 0% 100%);
+  --fg: hsl(236 36% 17%);
+  --muted: hsl(231 32% 95%);
+  --muted-fg: hsl(234 13% 44%);
+  --border: hsl(236 25% 89%);
+  --saved: hsl(50 100% 68%);
+  --saved-fg: hsl(236 36% 17%);
+  --destructive: hsl(0 68% 48%);
+  --success: hsl(152 55% 30%);
+  --warning: hsl(32 92% 36%);
   color-scheme: light dark;
 }
 
 @media (prefers-color-scheme: dark) {
   :root {
-    --bg: #111114;
-    --fg: #f4f4f5;
-    --muted: #a1a1aa;
-    --border: #2a2a31;
-    --surface: #18181c;
-    --accent: #a78bfa;
-    --accent-fg: #111114;
-    --accent-soft: rgb(167 139 250 / 12%);
-    --danger: #f87171;
+    --bg: hsl(234 33% 12%);
+    --card: hsl(233 29% 18%);
+    --fg: hsl(233 31% 94%);
+    --muted: hsl(233 27% 20%);
+    --muted-fg: hsl(233 16% 69%);
+    --border: hsl(234 24% 23%);
+    --destructive: hsl(0 75% 66%);
+    --success: hsl(152 45% 58%);
+    --warning: hsl(40 92% 62%);
   }
 }
 
 * { box-sizing: border-box; margin: 0; padding: 0; }
 
+/* Chrome caps popups at 600px. Only the moments list scrolls, so the header
+   and Save moment stay in place. */
 body {
   width: 360px;
+  max-height: 600px;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
   background: var(--bg);
   color: var(--fg);
-  font: 14px/1.5 system-ui, -apple-system, "Segoe UI", sans-serif;
+  font: 14px/1.5 "Bricolage Grotesque", system-ui, -apple-system, "Segoe UI", sans-serif;
+  font-optical-sizing: auto;
+  -webkit-font-smoothing: antialiased;
 }
 
-.header { display: flex; align-items: center; gap: 8px; padding: 12px 14px; border-bottom: 1px solid var(--border); }
-.brand { display: block; flex-shrink: 0; }
-.brand img { display: block; width: 112px; height: 34px; object-fit: contain; }
-.header-link { margin-left: auto; color: var(--accent); font-size: 12px; font-weight: 500; text-decoration: none; }
-.header-link:hover { text-decoration: underline; }
-.moments-head .header-link { margin-left: 0; }
+button, textarea { font: inherit; color: inherit; }
+/* Everything clickable shows a pointer, including its icons and text; disabled
+   controls keep the default cursor and drop their hover styles. */
+a[href], button:enabled { cursor: pointer; }
+.tabular { font-variant-numeric: tabular-nums; }
 
-.view { padding: 14px; display: flex; flex-direction: column; gap: 10px; }
+.header { display: flex; align-items: center; gap: 8px; padding: 4px 14px; border-bottom: 1px solid var(--border); }
+/* The web app's header lockup: the colour mark and the name as text. */
+.brand { display: flex; align-items: center; gap: 10px; flex-shrink: 0; color: var(--fg); text-decoration: none; }
+.brand img { display: block; width: 28px; height: 28px; border-radius: 7px; }
+.brand span { font-size: 18px; font-weight: 700; letter-spacing: -0.025em; }
+.header-link {
+  margin-left: auto; color: var(--fg); font-size: 12px; font-weight: 600;
+  text-decoration: underline; text-decoration-color: color-mix(in srgb, var(--fg) 30%, transparent); text-underline-offset: 4px;
+}
+.header-link:hover { text-decoration-color: var(--fg); }
+/* The account chip uses the same ink fallback as the web app. */
+.profile { position: relative; margin-left: auto; width: 28px; height: 28px; border-radius: 50%; background: var(--fg); color: var(--bg); text-decoration: none; }
+.profile span { display: grid; place-items: center; height: 100%; font-size: 12px; font-weight: 700; }
+.profile img { position: absolute; inset: 0; border-radius: 50%; object-fit: cover; }
+.profile:hover { opacity: 0.85; }
+.profile:focus-visible, .video-card:focus-visible { outline: 2px solid var(--fg); outline-offset: 2px; }
+
+.view { padding: 14px; display: flex; flex-direction: column; gap: 10px; min-height: 0; }
+#capture-view { flex: 1 1 auto; padding-top: 4px; padding-bottom: 4px; }
+#capture-view > * { flex-shrink: 0; }
+#capture-view > .moments { flex-shrink: 1; }
 .hidden { display: none; }
-.title { font-size: 15px; font-weight: 600; }
-.muted { color: var(--muted); font-size: 13px; }
-kbd { font: 12px ui-monospace, monospace; border: 1px solid var(--border); border-radius: 4px; padding: 0 4px; }
+/* The web app's heading style. */
+.title { font-size: 17px; font-weight: 720; font-stretch: 90%; letter-spacing: -0.025em; }
+.muted { color: var(--muted-fg); font-size: 13px; }
+kbd { font-size: 12px; font-weight: 600; border: 1.5px solid var(--border); border-radius: 5px; padding: 0 5px; }
 
-.video-title { font-weight: 500; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; }
+/* Match the library's video card title and thumbnail. */
+.video-card { display: flex; align-items: center; gap: 10px; border-radius: 9px; color: var(--fg); text-decoration: none; }
+.video-card:hover { background: var(--muted); }
+#video-thumbnail { flex: none; object-fit: cover; border-radius: 8px; }
+.video-info { flex: 1; min-width: 0; }
+.video-title { font-size: 15px; font-weight: 600; line-height: 1.375; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; }
+.video-channel { display: block; margin-top: 4px; color: var(--muted-fg); font-size: 12px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.video-channel.hidden { display: none; }
 
-.capture { display: flex; flex-direction: column; gap: 8px; }
+.capture { display: flex; flex-direction: column; gap: 8px; border-top: 1px solid var(--border); padding-top: 8px; }
+/* One line like the web app's note field; popup.js grows it as the note gets longer. */
 textarea {
-  width: 100%; resize: vertical; border: 1px solid var(--border); border-radius: 8px; padding: 8px 10px;
-  background: var(--surface); color: var(--fg); font: inherit;
+  display: block; width: 100%; height: 40px; resize: none; overflow-y: hidden;
+  border: 1px solid var(--border); border-radius: 9px; padding: 8px 12px; background: var(--card); line-height: 22px;
 }
-textarea:focus { outline: none; border-color: var(--accent); box-shadow: 0 0 0 2px var(--accent-soft); }
-.row { display: flex; align-items: center; justify-content: space-between; gap: 8px; }
-.row .primary { margin-left: auto; }
-button.other { border: 0; background: none; padding: 0; color: var(--muted); font: 12px system-ui, sans-serif; cursor: pointer; }
-button.other:hover { color: var(--fg); text-decoration: underline; }
-button.other:disabled { opacity: 0.5; cursor: default; }
+textarea::placeholder { color: var(--muted-fg); }
+textarea:focus { outline: none; border-color: color-mix(in srgb, var(--fg) 55%, transparent); }
 
+/* Ink carries actions. */
 button.primary {
-  border: 0; border-radius: 8px; padding: 8px 14px; background: var(--accent); color: var(--accent-fg);
-  font: 500 13px system-ui, sans-serif; cursor: pointer;
+  border: 0; border-radius: 9px; padding: 9px 16px; background: var(--fg); color: var(--bg);
+  font-size: 14px; font-weight: 600;
 }
-button.primary:hover { opacity: 0.9; }
-button.primary:disabled { opacity: 0.5; cursor: default; }
-#capture-time { font-family: ui-monospace, monospace; opacity: 0.85; }
+button.primary:hover:not(:disabled) { opacity: 0.9; }
+button:disabled { opacity: 0.5; }
+button.primary:focus-visible, button.saved:focus-visible { outline: 2px solid var(--fg); outline-offset: 2px; }
 
-.feedback { font-size: 12px; min-height: 18px; color: var(--muted); }
-.feedback.error { color: var(--danger); }
-.feedback.success { color: var(--accent); }
+/* Save moment with its options menu, as in the web app. */
+.save { position: relative; display: flex; }
+.split { display: flex; width: 100%; }
+button.saved {
+  border: 0; background: var(--saved); color: var(--saved-fg); font-weight: 600;
+}
+button.saved:hover:not(:disabled) { filter: brightness(1.05); }
+.split-main { flex: 1; height: 42px; padding: 0 16px; border-radius: 9px; font-size: 15px; }
+.split .split-main:not(:last-child) { border-top-right-radius: 0; border-bottom-right-radius: 0; }
+.split-toggle {
+  display: flex; align-items: center; height: 42px; padding: 0 10px; border-radius: 0 9px 9px 0;
+  border-left: 1px solid color-mix(in srgb, var(--saved-fg) 20%, transparent) !important;
+}
+.split-toggle.hidden { display: none; }
+.menu {
+  position: absolute; top: calc(100% + 6px); left: 0; right: 0; z-index: 10;
+  display: flex; flex-direction: column; padding: 4px; border: 1px solid var(--border); border-radius: 8px;
+  background: var(--card); box-shadow: 0 10px 28px rgb(0 0 0 / 22%);
+}
+.menu.hidden { display: none; }
+.option {
+  display: flex; align-items: center; gap: 8px; width: 100%; padding: 7px 8px; border: 0; border-radius: 6px;
+  background: none; font-size: 13px; text-align: left;
+}
+.option:hover:not(:disabled), .option:focus-visible { background: var(--muted); outline: none; }
+.option:focus-visible { box-shadow: inset 0 0 0 1.5px var(--fg); }
+.check { width: 14px; flex: none; }
+.option[aria-checked="true"] .check::before { content: "✓"; font-weight: 700; }
+.option-label { flex: 1; font-weight: 500; }
+.cost { color: var(--muted-fg); font-size: 12px; }
+.menu-link {
+  margin-top: 4px; padding: 7px 8px 5px 30px; border-top: 1px solid var(--border);
+  color: var(--muted-fg); font-size: 12px; text-decoration: none;
+}
+.menu-link:hover, .menu-link:focus-visible { color: var(--fg); outline: none; text-decoration: underline; }
+
+.feedback {
+  display: flex; align-items: center; gap: 8px; font-size: 13px; color: var(--muted-fg);
+  max-height: 40px; transition: opacity 250ms ease, max-height 250ms ease, margin 250ms ease;
+}
+.feedback.leaving { opacity: 0; max-height: 0; margin-bottom: -10px; }
+.feedback:empty { display: none; }
+.feedback.error { color: var(--destructive); }
+.feedback.success { color: var(--fg); font-weight: 500; }
+.feedback-icon {
+  width: 18px; height: 18px; border-radius: 50%; flex: none; display: grid; place-items: center;
+  background: var(--success); color: var(--bg); font-size: 11px; font-weight: 800;
+}
 
 .moments-head { display: flex; align-items: center; justify-content: space-between; border-top: 1px solid var(--border); padding-top: 10px; }
-.moments { list-style: none; display: flex; flex-direction: column; gap: 2px; max-height: 240px; overflow-y: auto; }
-.moments li { display: flex; gap: 8px; align-items: flex-start; padding: 6px 2px; border-radius: 6px; }
-.time {
-  flex: none; border: 0; border-radius: 6px; padding: 1px 6px; background: var(--accent-soft); color: var(--accent);
-  font: 500 12px ui-monospace, monospace; cursor: pointer;
+.moments {
+  list-style: none; display: flex; flex-direction: column; flex: 1 1 auto; min-height: 0; overflow-y: auto;
+  margin: 0 -14px; padding: 0 14px 10px;
+  scrollbar-width: thin; scrollbar-color: color-mix(in srgb, var(--muted-fg) 35%, transparent) transparent;
 }
-.time:hover { filter: brightness(1.1); }
-.moment-text { font-size: 13px; }
-.moment-text.pending { color: var(--muted); font-style: italic; }
+.moments:hover { scrollbar-color: color-mix(in srgb, var(--muted-fg) 60%, transparent) transparent; }
+/* A fixed time column, like the web app, so text lines up whatever the chip's width. */
+.moments li { position: relative; display: grid; grid-template-columns: 58px minmax(0, 1fr) 24px; gap: 8px; align-items: start; padding: 12px 0; }
+/* The moment just saved, tinted like the web app's highlighted moment. */
+.moments li.highlighted { margin: 0 -8px; padding: 12px 8px; border-radius: 10px; background: color-mix(in srgb, var(--saved) 32%, transparent); }
+.moments li.highlighted, .moments li.highlighted + li { border-top-color: transparent; }
+.moments li.muted { display: block; }
+.moments li + li { border-top: 1px solid var(--border); }
+.time {
+  justify-self: start; margin-top: 2px; border: 0; border-radius: 5px; padding: 1px 6px; background: var(--saved); color: var(--saved-fg);
+  font-size: 12px; font-weight: 700; font-variant-numeric: tabular-nums;
+}
+.time:hover { filter: brightness(1.05); }
+.moment-body { min-width: 0; display: flex; flex-direction: column; gap: 4px; }
+.moment-text { font-size: 13.5px; line-height: 1.5; }
+.moment-text.ai { display: flex; gap: 6px; }
+.moment-text.ai span { display: -webkit-box; -webkit-line-clamp: 4; -webkit-box-orient: vertical; overflow: hidden; }
+.moment-text.ai svg { flex: none; margin-top: 3px; color: var(--muted-fg); cursor: default; }
+.moment-text.note { border-left: 2px solid color-mix(in srgb, var(--fg) 25%, transparent); padding-left: 8px; white-space: pre-wrap; }
+.moment-text.quote { color: var(--muted-fg); display: -webkit-box; -webkit-line-clamp: 3; -webkit-box-orient: vertical; overflow: hidden; }
+.moment-text.pending { color: var(--muted-fg); }
+.moment-status { color: var(--muted-fg); font-size: 12px; }
+.moment-status a { color: var(--fg); font-weight: 600; }
+/* Out of credits is something to act on, in the web app's warning colour. */
+.moment-status.warning { color: var(--warning); }
+.moment-status.warning svg { vertical-align: -2px; margin-right: 5px; }
+
+/* The moment's "…" menu, faint until the row is hovered, like the web app. */
+.actions { position: relative; }
+.actions-toggle {
+  display: grid; place-items: center; width: 24px; height: 24px; border: 0; border-radius: 6px;
+  background: none; color: var(--muted-fg); opacity: 0.55;
+}
+.moments li:hover .actions-toggle, .actions-toggle:focus-visible, .actions-toggle[aria-expanded="true"] { opacity: 1; }
+.actions-toggle:hover, .actions-toggle[aria-expanded="true"] { background: var(--muted); color: var(--fg); }
+.actions-toggle:focus-visible { outline: 2px solid var(--fg); outline-offset: 1px; }
+.actions-menu {
+  position: absolute; top: calc(100% + 4px); right: 0; z-index: 10; width: 9.5rem;
+  display: flex; flex-direction: column; padding: 4px; border: 1px solid var(--border); border-radius: 8px;
+  background: var(--card); box-shadow: 0 10px 28px rgb(0 0 0 / 22%);
+}
+.actions-menu.hidden { display: none; }
+.option.destructive { color: var(--destructive); }
+.moments li:last-child .actions-menu { top: auto; bottom: calc(100% + 4px); }
+
+/* Editing a note or confirming a delete happens inside the row. */
+.note-editor { display: flex; flex-direction: column; gap: 6px; margin-top: 2px; }
+.note-editor textarea { height: 38px; font-size: 13.5px; padding: 7px 10px; line-height: 22px; }
+.row-buttons { display: flex; gap: 6px; }
+button.small { height: 28px; padding: 0 12px; border-radius: 7px; font-size: 12.5px; font-weight: 600; }
+button.ghost { border: 0; background: none; color: var(--muted-fg); }
+button.ghost:hover:not(:disabled) { background: var(--muted); color: var(--fg); }
+button.danger { border: 0; background: var(--destructive); color: var(--bg); }
+button.danger:hover:not(:disabled) { filter: brightness(1.05); }
+button.small:focus-visible { outline: 2px solid var(--fg); outline-offset: 2px; }
+.delete-bar {
+  display: flex; align-items: center; flex-wrap: wrap; gap: 6px; margin-top: 4px; padding: 8px 10px; border-radius: 9px;
+  background: color-mix(in srgb, var(--destructive) 10%, transparent); font-size: 13px; font-weight: 500;
+}
+/* The question on its own line, then the buttons, like the note editor. */
+.delete-bar span { width: 100%; }
+.row-error { width: 100%; color: var(--destructive); font-size: 12px; }
+/* While a row is being edited, the others step back. */
+.moments.busy li:not(.editing):not(.confirming) { opacity: 0.55; }
+.notice {
+  display: flex; align-items: center; flex-wrap: wrap; gap: 4px 6px; padding: 8px 10px; border-radius: 9px;
+  font-size: 12.5px; color: var(--warning); background: color-mix(in srgb, var(--warning) 12%, transparent);
+}
+.notice.hidden { display: none; }
+.notice a { color: var(--fg); font-weight: 600; }
+.option.empty .option-label, .option.empty .cost { color: var(--muted-fg); }
+
+/* Optional notes leave the save action and moments visible until needed. */
+.capture-note { display: flex; flex-direction: column; gap: 4px; }
+.capture-note.hidden { display: none; }
+.cancel-note { align-self: flex-end; padding: 2px 0; border: 0; background: none; color: var(--muted-fg); font-size: 12px; }
+.cancel-note:hover:not(:disabled) { color: var(--fg); }
+.save-row { display: flex; gap: 8px; }
+.save-row .save { flex: 1; min-width: 0; }
+.save-row .split-main { font-size: 14px; padding: 9px 8px; }
+.add-note { display: grid; place-items: center; width: 40px; height: 42px; flex: none; border: 1px solid var(--border); border-radius: 9px; background: var(--card); color: var(--fg); }
+.add-note:hover:not(:disabled), .add-note[aria-expanded="true"] { background: var(--muted); }
+.add-note:focus-visible, .cancel-note:focus-visible { outline: 2px solid var(--fg); outline-offset: 2px; }
+
+/* The shared tooltip, in ink like the popup's other actions. */
+.tooltip {
+  position: fixed; z-index: 100; max-width: 260px; padding: 5px 9px; border-radius: 7px;
+  background: var(--fg); color: var(--bg); font-size: 12px; font-weight: 500; line-height: 1.4;
+  box-shadow: 0 6px 18px rgb(0 0 0 / 18%); overflow-wrap: anywhere;
+}
+.tooltip span { display: block; }
+/* With full text above it, the action reads as its own line. */
+.tooltip span:not(:only-child):last-child { margin-top: 3px; opacity: 0.75; }

@@ -7,10 +7,14 @@
 </head>
 <body>
   <header class="header">
-    <picture class="brand">
-      <source media="(prefers-color-scheme: dark)" srcset="icons/wordmark-on-dark.svg">
-      <img src="icons/wordmark-on-light.svg" alt="VidWiz" width="112" height="34">
-    </picture>
+    <a href="#" id="brand" class="brand" data-tooltip="Open VidWiz">
+      <img src="icons/mark.svg" alt="" width="28" height="28">
+      <span>VidWiz</span>
+    </a>
+    <a href="#" id="profile" class="profile hidden">
+      <span id="profile-initial" aria-hidden="true"></span>
+      <img id="profile-image" class="hidden" alt="" width="28" height="28" referrerpolicy="no-referrer">
+    </a>
     <a href="#" id="open-app" class="header-link">Open VidWiz</a>
   </header>
 
@@ -22,22 +26,59 @@
 
   <section id="idle-view" class="view hidden">
     <h1 class="title">Open a YouTube video</h1>
-    <p class="muted">Then press <kbd id="shortcut">Alt+S</kbd> or use this popup to capture the moment.</p>
+    <p class="muted">Then press <kbd id="shortcut">Alt+S</kbd> or use this popup to save the moment.</p>
+  </section>
+
+  <section id="reload-view" class="view hidden">
+    <h1 class="title">Reload this tab</h1>
+    <p class="muted">VidWiz was installed or updated after this YouTube tab opened, so it can't read the video yet.</p>
+    <button id="reload" class="primary">Reload tab</button>
   </section>
 
   <section id="capture-view" class="view hidden">
-    <p id="video-title" class="video-title"></p>
+    <a href="#" id="video-card" class="video-card">
+      <img id="video-thumbnail" alt="" width="64" height="36">
+      <span class="video-info">
+        <span id="video-title" class="video-title"></span>
+        <span id="video-channel" class="video-channel hidden"></span>
+      </span>
+    </a>
     <form id="capture-form" class="capture">
-      <textarea id="note" rows="2" placeholder="Note (optional)" aria-label="Note"></textarea>
-      <div class="row">
-        <button type="button" id="capture-other" class="other hidden"></button>
-        <button type="submit" id="capture" class="primary">Capture <span id="capture-time"></span></button>
+      <div id="capture-note" class="capture-note hidden">
+        <textarea id="note" rows="1" placeholder="Note (optional)" aria-label="Note"></textarea>
+        <button type="button" id="cancel-note" class="cancel-note">Cancel note</button>
+      </div>
+      <p id="credits-notice" class="notice hidden" role="status">
+        <span class="coin" aria-hidden="true"></span>
+        <span>No credits left. Saves won't get an AI line.</span>
+        <a href="#" id="get-credits">Get credits</a>
+      </p>
+      <div class="save-row">
+        <div class="save">
+          <div class="split">
+            <button type="submit" id="capture" class="saved split-main">Save moment <span id="capture-time" class="tabular"></span></button>
+            <button type="button" id="capture-toggle" class="saved split-toggle hidden" aria-label="Save options" data-tooltip="Save options" aria-haspopup="menu" aria-expanded="false" aria-controls="capture-menu">
+              <svg viewBox="0 0 16 16" width="14" height="14" aria-hidden="true"><path d="M4 6l4 4 4-4" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"/></svg>
+            </button>
+          </div>
+          <div id="capture-menu" class="menu hidden" role="menu" aria-label="Save options">
+            <button type="button" class="option" role="menuitemradio" data-ai="true">
+              <span class="check" aria-hidden="true"></span><span class="option-label">With AI line</span><span class="cost">1 credit</span>
+            </button>
+            <button type="button" class="option" role="menuitemradio" data-ai="false">
+              <span class="check" aria-hidden="true"></span><span class="option-label">Without AI line</span><span class="cost">Free</span>
+            </button>
+            <a href="#" id="change-default" class="menu-link" role="menuitem">Change default in Settings</a>
+          </div>
+        </div>
+        <button type="button" id="add-note" class="add-note" aria-label="Add note" aria-expanded="false" aria-controls="capture-note">
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M13 4H5a2 2 0 0 0-2 2v13a2 2 0 0 0 2 2h13a2 2 0 0 0 2-2v-8"/><path d="m16 3 5 5M10 14l-1 4 4-1L22 8a2.1 2.1 0 0 0-5-5z"/></svg>
+        </button>
       </div>
     </form>
     <p id="feedback" class="feedback" role="status"></p>
     <div class="moments-head">
-      <span class="muted">Moments in this video</span>
-      <a href="#" id="open-video" class="header-link">Open in VidWiz</a>
+      <span id="moment-count" class="muted">Moments in this video</span>
     </div>
     <ul id="moments" class="moments"></ul>
   </section>

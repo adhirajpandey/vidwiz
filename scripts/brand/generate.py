@@ -134,8 +134,8 @@ def main():
     icons = ROOT / 'extension/icons'
     for size in (16, 48, 128):
         shutil.copyfile(PUBLIC / f'icon-{size}.png', icons / f'icon{size}.png')
-    for theme in ('light', 'dark'):
-        shutil.copyfile(BRAND / f'vidwiz-wordmark-on-{theme}.svg', icons / f'wordmark-on-{theme}.svg')
+    # The popup header shows the colour mark beside the name as live text, like the web app.
+    shutil.copyfile(BRAND / 'vidwiz-mark-color.svg', icons / 'mark.svg')
     print('Generated web branding, favicon, mobile icons, social card, and extension assets.')
 
 
