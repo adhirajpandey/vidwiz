@@ -45,6 +45,18 @@ function coin() {
   return svg;
 }
 
+/** The web app's Loader2, spun by CSS while the AI line is being written. */
+function spinner() {
+  const svg = document.createElementNS("http://www.w3.org/2000/svg", "svg");
+  svg.setAttribute("class", "spinner");
+  svg.setAttribute("viewBox", "0 0 24 24");
+  svg.setAttribute("width", "14");
+  svg.setAttribute("height", "14");
+  svg.setAttribute("aria-hidden", "true");
+  svg.innerHTML = '<path d="M21 12a9 9 0 1 1-6.219-8.56" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"/>';
+  return svg;
+}
+
 function showLogin(reason) {
   if (reason) $("login-reason").textContent = reason;
   show("login-view");
@@ -86,7 +98,7 @@ async function currentVideo(tab) {
 // The status line under a moment while its AI line is pending or didn't happen,
 // in the web app's words.
 const STATUS = {
-  queued: { text: "Writing the AI line…", pending: true },
+  queued: { text: "Writing the AI line…", pending: true, spinner: true },
   waiting_transcript: { text: "AI line waits for the transcript", pending: true },
   no_transcript: { text: "This video has no transcript, so there is no AI line or quote" },
   insufficient_credits: { text: "Not enough credits for the AI line.", link: { text: "Get credits", path: "/settings#credits" }, warning: true },
@@ -145,6 +157,7 @@ function momentRow(tab, moment) {
     line.className = `moment-status${status.warning ? " warning" : ""}`;
     line.textContent = status.text;
     if (status.warning) line.prepend(coin());
+    if (status.spinner) line.prepend(spinner());
     if (status.link) {
       const link = document.createElement("a");
       link.href = "#";

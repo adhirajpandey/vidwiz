@@ -198,6 +198,10 @@ button.saved:hover:not(:disabled) { filter: brightness(1.05); }
 /* Out of credits is something to act on, in the web app's warning colour. */
 .moment-status.warning { color: var(--warning); }
 .moment-status.warning svg { vertical-align: -2px; margin-right: 5px; }
+/* The web app's spinner, only while the AI line is being written. */
+.moment-status .spinner { vertical-align: -2px; margin-right: 5px; animation: spin 1s linear infinite; }
+@keyframes spin { to { transform: rotate(360deg); } }
+@media (prefers-reduced-motion: reduce) { .moment-status .spinner { animation: none; } }
 
 /* The moment's "…" menu, faint until the row is hovered, like the web app.
    The menu is fixed so the scrolling list can't clip it; popup.js places it. */

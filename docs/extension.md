@@ -106,8 +106,10 @@ Plain JavaScript modules, no bundler.
     5 seconds before it, like the web app; its tooltip names that time ("Play
     from m:ss"). The text is the note, AI line, or
     quote, with the AI line's status in the web app's words when it is pending,
-    failed, out of credits, or impossible without a transcript. The list
-    refreshes every 3 seconds while an AI line is pending, for up to 3 minutes.
+    failed, out of credits, or impossible without a transcript. Like the web
+    app, only "Writing the AI line…" has a spinner, which stays still under
+    reduced motion. The list refreshes every 3 seconds while an AI line is
+    pending, for up to 3 minutes.
 - **Tooltips and cursors**: the brand, profile chip, video card, Save moment,
   its arrow ("Save options"), the note icon, the save menu items, time
   buttons, "…" ("Moment actions"), and the AI line mark ("AI-generated line")
