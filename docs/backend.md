@@ -23,7 +23,7 @@ Describe the FastAPI backend: structure, auth rules, and the request/worker life
 - **Token payloads**: JWTs include `user_id`, `email`, `name`, `profile_image_url`, `exp`. A JWT with `type=long_term` is never accepted as a session; it is checked by hash like any API token.
 
 ## Validation Rules (Selected)
-- **video_id**: Normalized from YouTube IDs or URLs; supports `youtube.com/watch`, `/shorts/`, `/live/`, `/embed/`, and `youtu.be`. Playlist URLs are rejected.
+- **video_id**: Normalized from YouTube IDs or URLs; supports `youtube.com/watch`, `/shorts/`, `/live/`, `/embed/`, and `youtu.be`. Playlist URLs are rejected. An invalid ID in a route path returns `422 VALIDATION_ERROR`, after any auth check.
 - **Capture time (`at`)**: Seconds, `m:ss`, or `h:mm:ss`; never negative.
 - **Moment text**: Empty/whitespace notes are normalized to `null`.
 - **Chat message**: Must be non-empty after trimming.

@@ -235,3 +235,19 @@ async def test_internal_overview_failed_route(client, db_session):
     assert response.status_code == 200
     assert response.json()["overview_status"] == "failed"
     assert unauthorized.status_code in (401, 403)
+
+
+@pytest.mark.asyncio
+async def test_internal_invalid_video_id_is_a_validation_error_after_auth(client):
+    payload = {"transcript": [{"text": "hello"}]}
+
+    invalid = await client.post(
+        "/v2/internal/videos/x/transcript", headers=admin_headers(), json=payload
+    )
+    unauthorized = await client.post("/v2/internal/videos/x/transcript", json=payload)
+
+    assert invalid.status_code == 422
+    error = invalid.json()["error"]
+    assert error["code"] == "VALIDATION_ERROR"
+    assert error["details"][0]["field"] == "path.video_id"
+    assert unauthorized.status_code == 401

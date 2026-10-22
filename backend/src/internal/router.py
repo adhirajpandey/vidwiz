@@ -21,6 +21,7 @@ from src.moments import service as moments_service
 from src.moments.models import Moment
 from src.moments.schemas import MomentRead
 from src.shared.ratelimit import limiter
+from src.videos.dependencies import get_video_id_path
 from src.videos.schemas import VideoIdPath, VideoRead
 
 
@@ -89,7 +90,7 @@ def submit_task_result(
 )
 @limiter.exempt
 def collect_pending_moments(
-    path: VideoIdPath = Depends(),
+    path: VideoIdPath = Depends(get_video_id_path),
     db: Session = Depends(get_db),
     _: None = Depends(require_admin_token),
 ) -> PendingMomentsResponse:
@@ -109,7 +110,7 @@ def collect_pending_moments(
 @limiter.exempt
 def store_transcript(
     payload: TranscriptWrite,
-    path: VideoIdPath = Depends(),
+    path: VideoIdPath = Depends(get_video_id_path),
     db: Session = Depends(get_db),
     _: None = Depends(require_admin_token),
 ) -> VideoRead:
@@ -126,7 +127,7 @@ def store_transcript(
 @limiter.exempt
 def store_metadata(
     payload: MetadataWrite,
-    path: VideoIdPath = Depends(),
+    path: VideoIdPath = Depends(get_video_id_path),
     db: Session = Depends(get_db),
     _: None = Depends(require_admin_token),
 ) -> VideoRead:
@@ -143,7 +144,7 @@ def store_metadata(
 @limiter.exempt
 def store_summary(
     payload: SummaryWrite,
-    path: VideoIdPath = Depends(),
+    path: VideoIdPath = Depends(get_video_id_path),
     db: Session = Depends(get_db),
     _: None = Depends(require_admin_token),
 ) -> VideoRead:
@@ -170,7 +171,7 @@ def store_summary(
 )
 @limiter.exempt
 def fail_overview(
-    path: VideoIdPath = Depends(),
+    path: VideoIdPath = Depends(get_video_id_path),
     db: Session = Depends(get_db),
     _: None = Depends(require_admin_token),
 ) -> VideoRead:
@@ -185,7 +186,7 @@ def fail_overview(
 )
 @limiter.exempt
 def get_video(
-    path: VideoIdPath = Depends(),
+    path: VideoIdPath = Depends(get_video_id_path),
     db: Session = Depends(get_db),
     _: None = Depends(require_admin_token),
 ) -> VideoRead:

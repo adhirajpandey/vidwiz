@@ -10,6 +10,7 @@ from src.library import service as library_service
 from src.library.schemas import LibraryParams, LibraryResponse, LibrarySort
 from src.models import MessageResponse
 from src.shared.ratelimit import limiter
+from src.videos.dependencies import get_video_id_path
 from src.videos.schemas import VideoIdPath
 
 router = APIRouter(prefix="/v2/library", tags=["Library"])
@@ -38,7 +39,7 @@ def list_library(
     description="Save a video by ID or URL. Fetches its transcript and metadata.",
 )
 def save_video(
-    path: VideoIdPath = Depends(),
+    path: VideoIdPath = Depends(get_video_id_path),
     db: Session = Depends(get_db),
     user_id: int = Depends(get_current_user_id),
 ) -> MessageResponse:
@@ -54,7 +55,7 @@ def save_video(
     description="Remove a video from the library. Its moments are kept.",
 )
 def remove_video(
-    path: VideoIdPath = Depends(),
+    path: VideoIdPath = Depends(get_video_id_path),
     db: Session = Depends(get_db),
     user_id: int = Depends(get_current_user_id),
 ) -> MessageResponse:

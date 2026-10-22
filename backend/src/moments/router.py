@@ -25,6 +25,7 @@ from src.moments.schemas import (
     parse_seconds,
 )
 from src.videos import service as videos_service
+from src.videos.dependencies import get_video_id_path
 from src.videos.schemas import VideoIdPath
 
 router = APIRouter(prefix="/v2", tags=["Moments"])
@@ -95,7 +96,7 @@ def list_recent_moments(
     description="The user's moments for a video, in playback order.",
 )
 def list_video_moments(
-    path: VideoIdPath = Depends(),
+    path: VideoIdPath = Depends(get_video_id_path),
     db: Session = Depends(get_db),
     user_id: int = Depends(get_current_user_id),
 ) -> list[MomentRead]:
@@ -170,7 +171,7 @@ def delete_moment(
 )
 def create_legacy_note(
     payload: LegacyNoteCreate,
-    path: VideoIdPath = Depends(),
+    path: VideoIdPath = Depends(get_video_id_path),
     db: Session = Depends(get_db),
     user_id: int = Depends(get_current_user_id_or_api_token),
 ) -> MomentRead:
@@ -197,7 +198,7 @@ def create_legacy_note(
     description="The user's moments for a video as Markdown.",
 )
 def export_video(
-    path: VideoIdPath = Depends(),
+    path: VideoIdPath = Depends(get_video_id_path),
     db: Session = Depends(get_db),
     user_id: int = Depends(get_current_user_id),
 ) -> PlainTextResponse:
