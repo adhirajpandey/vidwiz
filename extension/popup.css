@@ -79,7 +79,9 @@ a[href], button:enabled { cursor: pointer; }
 .profile:focus-visible, .video-card:focus-visible { outline: 2px solid var(--fg); outline-offset: 2px; }
 
 .view { padding: 14px; display: flex; flex-direction: column; gap: 10px; min-height: 0; }
-#capture-view { flex: 1 1 auto; padding-top: 4px; padding-bottom: 4px; }
+/* The card sits as far below the header's line as the rest of the popup's
+   content sits from its dividers. */
+#capture-view { flex: 1 1 auto; padding-top: 10px; padding-bottom: 4px; }
 #capture-view > * { flex-shrink: 0; }
 #capture-view > .moments { flex-shrink: 1; }
 .hidden { display: none; }
