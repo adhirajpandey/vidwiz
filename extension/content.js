@@ -18,14 +18,21 @@
 
   function player() {
     // Shorts keep several players; the playing one is the visible, active one.
-    return document.querySelector("ytd-reel-video-renderer[is-active] video") || document.querySelector("video");
+    // On watch pages, feed previews and the miniplayer add other <video> elements,
+    // so prefer the main player's.
+    if (window.location.pathname.startsWith("/shorts/")) {
+      return document.querySelector("ytd-reel-video-renderer[is-active] video, #shorts-player video") || document.querySelector("video");
+    }
+    return document.querySelector("#movie_player video.html5-main-video") || document.querySelector("video.html5-main-video") || document.querySelector("video");
   }
 
   function currentVideo() {
     const id = videoId();
     const element = player();
     if (!id || !VIDEO_ID.test(id) || !element) return null;
-    return { videoId: id, title: title(), seconds: element.currentTime || 0 };
+    // During an ad, the element plays the ad, so its time isn't the video's.
+    const ad = Boolean(element.closest(".html5-video-player")?.classList.contains("ad-showing"));
+    return { videoId: id, title: title(), seconds: element.currentTime || 0, ad };
   }
 
   let toastHost = null;
@@ -33,8 +40,10 @@
     if (!toastHost) {
       toastHost = document.createElement("div");
       toastHost.attachShadow({ mode: "open" });
-      document.documentElement.appendChild(toastHost);
     }
+    // Only the fullscreen element's subtree is visible in fullscreen.
+    const parent = document.fullscreenElement || document.documentElement;
+    if (toastHost.parentNode !== parent) parent.appendChild(toastHost);
     const root = toastHost.shadowRoot;
     root.innerHTML = "";
     const style = document.createElement("style");
@@ -64,7 +73,7 @@
     } else if (request.action === "seek") {
       const element = player();
       if (element && Number.isFinite(request.seconds)) {
-        element.currentTime = Math.max(0, request.seconds - 2);
+        element.currentTime = Math.max(0, request.seconds);
         element.play().catch(() => {});
       }
       sendResponse(Boolean(element));
