@@ -123,6 +123,7 @@ button.saved:hover:not(:disabled) { filter: brightness(1.05); }
   background: none; font-size: 13px; text-align: left; cursor: pointer;
 }
 .option:hover, .option:focus-visible { background: var(--muted); outline: none; }
+.option:focus-visible { box-shadow: inset 0 0 0 1.5px var(--fg); }
 .check { width: 14px; flex: none; }
 .option[aria-checked="true"] .check::before { content: "✓"; font-weight: 700; }
 .option-label { flex: 1; font-weight: 500; }

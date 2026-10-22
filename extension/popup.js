@@ -157,10 +157,14 @@ async function renderMoments(tab, videoId) {
       showLogin(error.message);
       return;
     }
-    const failed = document.createElement("li");
-    failed.className = "muted";
-    failed.textContent = "Couldn't load this video's moments.";
-    list.replaceChildren(failed);
+    // Keep what's shown and try again while polling; say so only if nothing loaded yet.
+    if (!list.querySelector("li:not(.muted)")) {
+      const failed = document.createElement("li");
+      failed.className = "muted";
+      failed.textContent = "Couldn't load this video's moments.";
+      list.replaceChildren(failed);
+    }
+    if (Date.now() < pollUntil) pollTimer = setTimeout(() => void renderMoments(tab, videoId), POLL_MS);
     return;
   }
   list.replaceChildren(...moments.map((moment) => momentRow(tab, moment)));
@@ -296,6 +300,11 @@ async function init() {
     setDisabled();
     // Save where the video is now, not where it was when the popup opened.
     const latest = (await currentVideo(tab)) || video;
+    // YouTube moved on to another video while the popup was open: show that one instead.
+    if (latest.videoId !== video.videoId) {
+      location.reload();
+      return;
+    }
     try {
       if (latest.ad) {
         feedback(MESSAGES.ad, "error");
@@ -340,7 +349,10 @@ async function init() {
   setDisabled();
   setInterval(async () => {
     const current = await currentVideo(tab);
-    if (current?.videoId === video.videoId) showPlayhead(current);
+    if (!current) return;
+    // Autoplay or navigation changed the video; reopen the popup's view for it.
+    if (current.videoId !== video.videoId) location.reload();
+    else showPlayhead(current);
   }, 500);
   onClick("open-video", () => openTab(`/v/${video.videoId}`));
 

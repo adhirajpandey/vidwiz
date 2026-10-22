@@ -60,6 +60,9 @@ Plain JavaScript modules, no bundler.
     missed its AI line for lack of credits shows that in the warning colour.
   - The popup stays within Chrome's 600 px limit: only the moments list
     scrolls, under a count of the video's moments.
+  - If the tab moves to another video while the popup is open (autoplay or
+    navigation), the popup reloads for that video, so a save never lands on a
+    video other than the one shown.
   - **Moments**: each row shows the save time, and its time button plays from
     5 seconds before it, like the web app. The text is the note, AI line, or
     quote, with the AI line's status in the web app's words when it is pending,

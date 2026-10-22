@@ -42,12 +42,18 @@ chrome.tabs.onUpdated.addListener((tabId, { status }) => {
 
 const LOGIN_OPENED_KEY = "loginOpenedAt";
 
+let openingLogin = null;
+
 /** Opens the web login page, at most once a minute so repeated Alt+S presses don't stack tabs. */
-async function openLogin() {
-  const openedAt = (await chrome.storage.session.get(LOGIN_OPENED_KEY))[LOGIN_OPENED_KEY] || 0;
-  if (Date.now() - openedAt < 60_000) return;
-  await chrome.storage.session.set({ [LOGIN_OPENED_KEY]: Date.now() });
-  await chrome.tabs.create({ url: webUrl("/login") });
+function openLogin() {
+  // Presses that arrive together share one check, so they can't both open a tab.
+  openingLogin ??= (async () => {
+    const openedAt = (await chrome.storage.session.get(LOGIN_OPENED_KEY))[LOGIN_OPENED_KEY] || 0;
+    if (Date.now() - openedAt < 60_000) return;
+    await chrome.storage.session.set({ [LOGIN_OPENED_KEY]: Date.now() });
+    await chrome.tabs.create({ url: webUrl("/login") });
+  })().finally(() => { openingLogin = null; });
+  return openingLogin;
 }
 
 // Alt+S: capture the current moment without opening the popup.
