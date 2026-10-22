@@ -18,8 +18,8 @@ The CDK stack owns:
 - The transcript dispatcher, AI-note worker, and AI-summary worker.
 - Explicit seven-day log groups, event sources, and separate runtime roles.
 
-The GitHub OIDC provider, `VidwizGitHubDeployRole`, and the application user
-remain manual resources outside the stack.
+The GitHub OIDC provider, the `vidwiz-github-production-deploy` role, and the
+application user remain manual resources outside the stack.
 
 ## Local Validation
 
@@ -70,8 +70,8 @@ Using an MFA-protected administrator identity:
    `vidwiz-v3-transcripts`.
 2. Perform a modern CDK bootstrap.
 3. Configure the GitHub OIDC provider.
-4. Create `VidwizGitHubDeployRole` with the trust and permissions returned by
-   `vidwiz_infra.manual_policies`. It trusts only the `main` branch subject and
+4. Create the `vidwiz-github-production-deploy` role with the trust and
+   permissions returned by `vidwiz_infra.manual_policies`. It trusts only the `main` branch subject and
    can assume only the deployment, file-publishing, and lookup bootstrap roles.
 5. Configure the GitHub variable `AWS_GITHUB_DEPLOY_ROLE_ARN` and the secret
    `PRODUCTION_DEPLOYMENT_ENV`. Do not create a separate `AWS_ACCOUNT_ID`

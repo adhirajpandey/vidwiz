@@ -102,7 +102,7 @@ payloads.
   `vidwiz-v3-ai-note-worker`, and `vidwiz-v3-ai-summary-worker`.
 - `.github/workflows/deploy-aws-infrastructure.yml` validates and deploys production
   infrastructure only when manually dispatched from `main`.
-- The deployment job assumes `VidwizGitHubDeployRole` through GitHub OIDC,
+- The deployment job assumes `vidwiz-github-production-deploy` through GitHub OIDC,
   rejects an unexpected AWS account, and uses only the production CDK
   deployment, file-publishing, and lookup bootstrap roles.
 - Each Lambda has its own source directory and explicit infrastructure

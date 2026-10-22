@@ -71,7 +71,7 @@ FastAPI API
 The production AWS path is:
 
 ```text
-GitHub OIDC -> VidwizGitHubDeployRole -> CDK bootstrap roles -> vidwiz-v3-stack
+GitHub OIDC -> vidwiz-github-production-deploy -> CDK bootstrap roles -> vidwiz-v3-stack
                                                                |
                          +-------------------------------------+----------+
                          |                                     |          |
