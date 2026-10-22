@@ -22,6 +22,8 @@ Plain JavaScript modules, no bundler.
   the window's bottom left.
 - `popup.html`, `popup.css`, `popup.js`: Save moment with an optional note and
   the save options menu, plus the video's moments with click-to-play.
+- `tooltip.js`: the popup's one shared tooltip, shown on hover and keyboard
+  focus.
 - `build.mjs`: writes a build with other origins, and zips it for the store.
 
 ## Key Flows
@@ -44,13 +46,16 @@ Plain JavaScript modules, no bundler.
 - **Popup**: shows the login view, an idle view off YouTube videos, a reload
   view on video tabs without the content script, or the capture view.
   - The video card opens the video in VidWiz. It shows a 64×36 thumbnail,
-    a two-line title, and the channel when available. Failed thumbnails are
+    a two-line title, and the channel when available. Its tooltip says "Open
+    video in VidWiz", after the full title or channel when the card cuts
+    them short. Failed thumbnails are
     hidden so the text uses the full width. Channel names are display-only
     and are not sent in capture requests. A subtle divider separates the video
     details from the capture controls.
   - The compact header shows the profile picture, or the name's first letter,
-    when the capture view has loaded a profile. Its tooltip shows the name
-    and credit balance, refreshed after saves; clicking it opens Settings.
+    when the capture view has loaded a profile. Its tooltip and label show the
+    name, credit balance, and "Open Settings", refreshed after saves; clicking
+    it opens Settings.
     Without a profile the chip is hidden. The "Open VidWiz" header link
     appears only outside the capture view, never alongside the chip.
   - **Save moment** follows the user's AI line default and shows the video's
@@ -58,7 +63,13 @@ Plain JavaScript modules, no bundler.
     The arrow beside it opens the same options as the web app: "With AI line,
     1 credit" and "Without AI line, Free", with the default checked, and a link
     to change the default in Settings. Saving is disabled while an ad plays.
-  - The note icon beside Save moment opens and focuses an optional note field
+    Save moment's tooltip says what it will do: with an AI line for 1 credit,
+    without one (the default, or because no credits are left), saving, paused
+    for an ad, or "your AI line default" before the profile loads. The menu
+    items save right away ("Save this moment with an AI line", or without);
+    they don't change the default.
+  - The note icon ("Add note", or "Edit note" while the field is open) beside
+    Save moment opens and focuses an optional note field
     above the buttons. It starts as one line and grows to five. Enter submits;
     Shift+Enter adds a line. Clicking the icon again focuses the existing draft.
     Cancel note clears and closes it. A successful save clears and closes the
@@ -85,10 +96,22 @@ Plain JavaScript modules, no bundler.
     navigation), the popup reloads for that video, so a save never lands on a
     video other than the one shown.
   - **Moments**: each row shows the save time, and its time button plays from
-    5 seconds before it, like the web app. The text is the note, AI line, or
+    5 seconds before it, like the web app; its tooltip names that time ("Play
+    from m:ss"). The text is the note, AI line, or
     quote, with the AI line's status in the web app's words when it is pending,
     failed, out of credits, or impossible without a transcript. The list
     refreshes every 3 seconds while an AI line is pending, for up to 3 minutes.
+- **Tooltips and cursors**: the brand, profile chip, video card, Save moment,
+  its arrow ("Save options"), the note icon, the save menu items, time
+  buttons, "…" ("Moment actions"), and the AI line mark ("AI-generated line")
+  have tooltips. Controls whose text already says what they do have none.
+  Tooltips show after a short hover or at once on keyboard focus, close on
+  Escape, a click, or when the pointer leaves, and can be hovered. They sit
+  outside the scrolling list, beside a menu rather than over its items, and
+  inside the popup's edges; they close when their control is redrawn,
+  hidden, or scrolled away. Links and enabled buttons use the pointer cursor,
+  including their icons and text; disabled buttons use the default cursor
+  and have no hover styles. Moment text stays selectable.
 - **First install**: opens the web app, which syncs an existing login.
 
 ## Builds
