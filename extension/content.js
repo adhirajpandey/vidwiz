@@ -16,6 +16,17 @@
     return document.title.replace(/^\(\d+\)\s*/, "").replace(/\s+-\s+YouTube$/, "").trim();
   }
 
+  function channel() {
+    // Newer Shorts renderers omit is-active; the main Shorts player still
+    // belongs to the current renderer, not its preloaded neighbours.
+    const short = document.querySelector("ytd-reel-video-renderer[is-active]")
+      || document.querySelector("#shorts-player")?.closest("ytd-reel-video-renderer");
+    const owner = window.location.pathname.startsWith("/shorts/")
+      ? short?.querySelector("#channel-name, .ytReelChannelBarViewModelChannelName")
+      : document.querySelector("ytd-watch-metadata #owner #channel-name a, ytd-video-owner-renderer #channel-name");
+    return owner?.innerText?.trim() || null;
+  }
+
   function player() {
     // Shorts keep several players; the playing one is the visible, active one.
     // On watch pages, feed previews and the miniplayer add other <video> elements,
@@ -32,7 +43,7 @@
     if (!id || !VIDEO_ID.test(id) || !element) return null;
     // During an ad, the element plays the ad, so its time isn't the video's.
     const ad = Boolean(element.closest(".html5-video-player")?.classList.contains("ad-showing"));
-    return { videoId: id, title: title(), seconds: element.currentTime || 0, ad };
+    return { videoId: id, title: title(), channel: channel(), seconds: element.currentTime || 0, ad };
   }
 
   /**

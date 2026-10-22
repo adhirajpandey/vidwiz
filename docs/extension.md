@@ -14,7 +14,7 @@ Plain JavaScript modules, no bundler.
   Shared by the popup and the background worker.
 - `background.js` (module service worker): login and logout sync from the web
   app, the Alt+S capture, and opening the web app on first install.
-- `content.js`: reads the video ID (`/watch?v=` and `/shorts/`), title, and
+- `content.js`: reads the video ID (`/watch?v=` and `/shorts/`), title, channel, and
   current time from the main player, and whether an ad is playing; seeks the
   player; shows a toast in a shadow root. The toast sits inside the player, top
   right, in normal, theatre, and fullscreen mode, and centred below the
