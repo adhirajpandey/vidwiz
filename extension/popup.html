@@ -11,6 +11,10 @@
       <img src="icons/mark.svg" alt="" width="28" height="28">
       <span>VidWiz</span>
     </a>
+    <a href="#" id="profile" class="profile hidden">
+      <span id="profile-initial" aria-hidden="true"></span>
+      <img id="profile-image" class="hidden" alt="" width="28" height="28" referrerpolicy="no-referrer">
+    </a>
     <a href="#" id="open-app" class="header-link">Open VidWiz</a>
   </header>
 
@@ -32,7 +36,13 @@
   </section>
 
   <section id="capture-view" class="view hidden">
-    <p id="video-title" class="video-title"></p>
+    <a href="#" id="video-card" class="video-card">
+      <img id="video-thumbnail" alt="" width="64" height="36">
+      <span class="video-info">
+        <span id="video-title" class="video-title"></span>
+        <span id="video-channel" class="video-channel hidden"></span>
+      </span>
+    </a>
     <form id="capture-form" class="capture">
       <textarea id="note" rows="1" placeholder="Note (optional)" aria-label="Note"></textarea>
       <p id="credits-notice" class="notice hidden" role="status">
@@ -61,7 +71,6 @@
     <p id="feedback" class="feedback" role="status"></p>
     <div class="moments-head">
       <span id="moment-count" class="muted">Moments in this video</span>
-      <a href="#" id="open-video" class="header-link">Open in VidWiz</a>
     </div>
     <ul id="moments" class="moments"></ul>
   </section>

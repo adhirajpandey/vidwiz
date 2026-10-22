@@ -43,6 +43,15 @@ Plain JavaScript modules, no bundler.
   content script yet, it shows a red `!` badge whose tooltip asks for a reload.
 - **Popup**: shows the login view, an idle view off YouTube videos, a reload
   view on video tabs without the content script, or the capture view.
+  - The video card opens the video in VidWiz. It shows a 64×36 thumbnail,
+    a two-line title, and the channel when available. Failed thumbnails are
+    hidden so the text uses the full width. Channel names are display-only
+    and are not sent in capture requests.
+  - The compact header shows the profile picture, or the name's first letter,
+    when the capture view has loaded a profile. Its tooltip shows the name
+    and credit balance, refreshed after saves; clicking it opens Settings.
+    Without a profile the chip is hidden. The "Open VidWiz" header link
+    appears only outside the capture view, never alongside the chip.
   - **Save moment** follows the user's AI line default and shows the video's
     current time, updated while it plays. It saves at the time of submitting.
     The arrow beside it opens the same options as the web app: "With AI line,

@@ -4,7 +4,8 @@ const $ = (id) => document.getElementById(id);
 const VIEWS = ["login-view", "idle-view", "reload-view", "capture-view"];
 const show = (id) => {
   for (const view of VIEWS) $(view).classList.toggle("hidden", view !== id);
-  // The video view has its own "Open in VidWiz" for this video.
+  // The video card opens VidWiz; other views keep the header link.
+  $("profile").classList.add("hidden");
   $("open-app").classList.toggle("hidden", id === "capture-view");
 };
 const openTab = (path) => chrome.tabs.create({ url: webUrl(path) });
@@ -46,6 +47,26 @@ function coin() {
 function showLogin(reason) {
   if (reason) $("login-reason").textContent = reason;
   show("login-view");
+}
+
+function showProfile(profile) {
+  if ($("capture-view").classList.contains("hidden")) return;
+  const name = profile.name || profile.email || "Account";
+  const label = `${name} · ${profile.credits_balance} credits`;
+  $("profile").title = label;
+  $("profile").setAttribute("aria-label", label);
+  $("profile-initial").textContent = name.slice(0, 1).toUpperCase();
+  const image = $("profile-image");
+  image.onerror = () => image.classList.add("hidden");
+  if (profile.profile_image_url && image.getAttribute("src") !== profile.profile_image_url) {
+    image.classList.remove("hidden");
+    image.src = profile.profile_image_url;
+  } else if (!profile.profile_image_url) {
+    image.classList.add("hidden");
+    image.removeAttribute("src");
+  }
+  $("open-app").classList.add("hidden");
+  $("profile").classList.remove("hidden");
 }
 
 async function activeTab() {
@@ -469,6 +490,8 @@ function setupMenu(aiDefault, save) {
 
 async function init() {
   onClick("open-app", () => openTab("/"));
+  $("profile").href = webUrl("/settings");
+  onClick("profile", () => openTab("/settings"));
   onClick("brand", () => openTab("/"));
   $("login").addEventListener("click", () => openTab("/login"));
   $("shortcut").textContent = await shortcutLabel();
@@ -550,6 +573,12 @@ async function init() {
 
   show("capture-view");
   $("video-title").textContent = video.title;
+  $("video-channel").textContent = video.channel || "";
+  $("video-channel").classList.toggle("hidden", !video.channel);
+  const thumbnail = $("video-thumbnail");
+  thumbnail.onerror = () => thumbnail.classList.add("hidden");
+  thumbnail.src = `https://i.ytimg.com/vi/${video.videoId}/mqdefault.jpg`;
+  $("video-card").href = webUrl(`/v/${video.videoId}`);
   $("capture-time").textContent = `at ${formatClock(video.seconds)}`;
   if (ad) feedback(MESSAGES.ad);
   setDisabled();
@@ -560,14 +589,16 @@ async function init() {
     if (current.videoId !== video.videoId) location.reload();
     else showPlayhead(current);
   }, 500);
-  onClick("open-video", () => openTab(`/v/${video.videoId}`));
+  onClick("video-card", () => openTab(`/v/${video.videoId}`));
 
   let aiDefault = null;
   // A save with an AI line spends a credit, so the balance is re-read after each save.
   async function refreshCredits() {
     if (aiDefault === null) return;
     try {
-      showCredits((await api("/users/me")).credits_balance, aiDefault);
+      const profile = await api("/users/me");
+      showCredits(profile.credits_balance, aiDefault);
+      showProfile(profile);
     } catch {
       // Keep the last balance shown.
     }
@@ -577,6 +608,7 @@ async function init() {
 
   try {
     const profile = await api("/users/me");
+    showProfile(profile);
     aiDefault = Boolean(profile.ai_moments_default);
     setupMenu(aiDefault, save);
     showCredits(profile.credits_balance, aiDefault);

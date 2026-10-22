@@ -58,7 +58,7 @@ body {
 button, textarea { font: inherit; color: inherit; }
 .tabular { font-variant-numeric: tabular-nums; }
 
-.header { display: flex; align-items: center; gap: 8px; padding: 12px 14px; border-bottom: 1px solid var(--border); }
+.header { display: flex; align-items: center; gap: 8px; padding: 4px 14px; border-bottom: 1px solid var(--border); }
 /* The web app's header lockup: the colour mark and the name as text. */
 .brand { display: flex; align-items: center; gap: 10px; flex-shrink: 0; color: var(--fg); text-decoration: none; }
 .brand img { display: block; width: 28px; height: 28px; border-radius: 7px; }
@@ -68,10 +68,15 @@ button, textarea { font: inherit; color: inherit; }
   text-decoration: underline; text-decoration-color: color-mix(in srgb, var(--fg) 30%, transparent); text-underline-offset: 4px;
 }
 .header-link:hover { text-decoration-color: var(--fg); }
-.moments-head .header-link { margin-left: 0; }
+/* The account chip uses the same ink fallback as the web app. */
+.profile { position: relative; margin-left: auto; width: 28px; height: 28px; border-radius: 50%; background: var(--fg); color: var(--bg); text-decoration: none; }
+.profile span { display: grid; place-items: center; height: 100%; font-size: 12px; font-weight: 700; }
+.profile img { position: absolute; inset: 0; border-radius: 50%; object-fit: cover; }
+.profile:hover { opacity: 0.85; }
+.profile:focus-visible, .video-card:focus-visible { outline: 2px solid var(--fg); outline-offset: 2px; }
 
 .view { padding: 14px; display: flex; flex-direction: column; gap: 10px; min-height: 0; }
-#capture-view { flex: 1 1 auto; padding-bottom: 4px; }
+#capture-view { flex: 1 1 auto; padding-top: 4px; padding-bottom: 4px; }
 #capture-view > * { flex-shrink: 0; }
 #capture-view > .moments { flex-shrink: 1; }
 .hidden { display: none; }
@@ -80,7 +85,14 @@ button, textarea { font: inherit; color: inherit; }
 .muted { color: var(--muted-fg); font-size: 13px; }
 kbd { font-size: 12px; font-weight: 600; border: 1.5px solid var(--border); border-radius: 5px; padding: 0 5px; }
 
-.video-title { font-weight: 720; font-stretch: 90%; letter-spacing: -0.025em; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; }
+/* Match the library's video card title and thumbnail. */
+.video-card { display: flex; align-items: center; gap: 10px; border-radius: 9px; color: var(--fg); text-decoration: none; }
+.video-card:hover { background: var(--muted); }
+#video-thumbnail { flex: none; object-fit: cover; border-radius: 8px; }
+.video-info { flex: 1; min-width: 0; }
+.video-title { font-size: 15px; font-weight: 600; line-height: 1.375; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; }
+.video-channel { display: block; margin-top: 4px; color: var(--muted-fg); font-size: 12px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.video-channel.hidden { display: none; }
 
 .capture { display: flex; flex-direction: column; gap: 8px; }
 /* One line like the web app's note field; popup.js grows it as the note gets longer. */
