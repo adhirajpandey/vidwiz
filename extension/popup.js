@@ -565,9 +565,10 @@ async function init() {
     const startedInForm = $("capture-form").contains(document.activeElement);
     setDisabled();
     // Save where the video is now, not where it was when the popup opened.
-    const latest = (await currentVideo(tab)) || video;
-    // YouTube moved on to another video while the popup was open: show that one instead.
-    if (latest.videoId !== video.videoId) {
+    const latest = await currentVideo(tab);
+    // The tab left this video while the popup was open: show what it has now
+    // instead of saving to a video that is no longer there.
+    if (latest?.videoId !== video.videoId) {
       location.reload();
       return;
     }
@@ -648,9 +649,9 @@ async function init() {
   setDisabled();
   setInterval(async () => {
     const current = await currentVideo(tab);
-    if (!current) return;
-    // Autoplay or navigation changed the video; reopen the popup's view for it.
-    if (current.videoId !== video.videoId) location.reload();
+    // Autoplay or navigation changed the video, or the tab left it; reopen the
+    // popup's view for what the tab shows now.
+    if (current?.videoId !== video.videoId) location.reload();
     else showPlayhead(current);
   }, 500);
   onClick("video-card", () => openTab(`/v/${video.videoId}`));

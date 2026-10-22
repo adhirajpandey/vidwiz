@@ -94,8 +94,8 @@ Plain JavaScript modules, no bundler.
     While a row is being edited or confirmed, the list doesn't refresh, so
     nothing being typed is lost.
   - If the tab moves to another video while the popup is open (autoplay or
-    navigation), the popup reloads for that video, so a save never lands on a
-    video other than the one shown.
+    navigation), or leaves the video, the popup reloads for what the tab shows
+    now, so a save never lands on a video other than the one shown.
   - **Moments**: each row shows the save time, and its time button plays from
     5 seconds before it, like the web app; its tooltip names that time ("Play
     from m:ss"). The text is the note, AI line, or
