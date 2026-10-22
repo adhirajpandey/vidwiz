@@ -53,9 +53,12 @@ def test_application_user_policy_is_exactly_scoped() -> None:
             "Resource": "arn:aws:s3:::vidwiz-v3-transcripts/transcripts/*",
         },
         {
-            "Sid": "SubmitAiNoteJobs",
+            "Sid": "SubmitJobs",
             "Effect": "Allow",
             "Action": "sqs:SendMessage",
-            "Resource": (f"arn:aws:sqs:{REGION}:{ACCOUNT}:vidwiz-v3-ai-note-jobs"),
+            "Resource": [
+                f"arn:aws:sqs:{REGION}:{ACCOUNT}:vidwiz-v3-ai-note-jobs",
+                f"arn:aws:sqs:{REGION}:{ACCOUNT}:vidwiz-v3-ai-summary-jobs",
+            ],
         },
     ]
