@@ -96,6 +96,7 @@ button.primary {
 }
 button.primary:hover { opacity: 0.9; }
 button:disabled { opacity: 0.5; cursor: default; }
+button.primary:focus-visible, button.saved:focus-visible { outline: 2px solid var(--fg); outline-offset: 2px; }
 
 /* Save moment with its options menu, as in the web app. */
 .save { position: relative; display: flex; }
@@ -132,7 +133,11 @@ button.saved:hover:not(:disabled) { filter: brightness(1.05); }
 }
 .menu-link:hover, .menu-link:focus-visible { color: var(--fg); outline: none; text-decoration: underline; }
 
-.feedback { display: flex; align-items: center; gap: 8px; font-size: 13px; color: var(--muted-fg); }
+.feedback {
+  display: flex; align-items: center; gap: 8px; font-size: 13px; color: var(--muted-fg);
+  max-height: 40px; transition: opacity 250ms ease, max-height 250ms ease, margin 250ms ease;
+}
+.feedback.leaving { opacity: 0; max-height: 0; margin-bottom: -10px; }
 .feedback:empty { display: none; }
 .feedback.error { color: var(--destructive); }
 .feedback.success { color: var(--fg); font-weight: 500; }
@@ -170,3 +175,13 @@ button.saved:hover:not(:disabled) { filter: brightness(1.05); }
 .moment-text.pending { color: var(--muted-fg); }
 .moment-status { color: var(--muted-fg); font-size: 12px; }
 .moment-status a { color: var(--fg); font-weight: 600; }
+/* Out of credits is something to act on, in the web app's warning colour. */
+.moment-status.warning { color: var(--warning); }
+.moment-status.warning svg { vertical-align: -2px; margin-right: 5px; }
+.notice {
+  display: flex; align-items: center; flex-wrap: wrap; gap: 4px 6px; padding: 8px 10px; border-radius: 9px;
+  font-size: 12.5px; color: var(--warning); background: color-mix(in srgb, var(--warning) 12%, transparent);
+}
+.notice.hidden { display: none; }
+.notice a { color: var(--fg); font-weight: 600; }
+.option.empty .option-label, .option.empty .cost { color: var(--muted-fg); }

@@ -10,8 +10,13 @@ const show = (id) => {
 const openTab = (path) => chrome.tabs.create({ url: webUrl(path) });
 const onClick = (id, handler) => $(id).addEventListener("click", (event) => { event.preventDefault(); handler(); });
 
+// A confirmation fades after a few seconds; errors stay until the next save.
+const CONFIRMATION_MS = 3000;
+let feedbackTimer = null;
+
 function feedback(text, kind = "") {
   const element = $("feedback");
+  clearTimeout(feedbackTimer);
   element.textContent = text;
   element.className = `feedback ${kind}`;
   if (text && kind === "success") {
@@ -20,7 +25,22 @@ function feedback(text, kind = "") {
     icon.setAttribute("aria-hidden", "true");
     icon.textContent = "✓";
     element.prepend(icon);
+    feedbackTimer = setTimeout(() => {
+      element.classList.add("leaving");
+      feedbackTimer = setTimeout(() => feedback(""), 250);
+    }, CONFIRMATION_MS);
   }
+}
+
+/** The web app's coin mark for credits. */
+function coin() {
+  const svg = document.createElementNS("http://www.w3.org/2000/svg", "svg");
+  svg.setAttribute("viewBox", "0 0 24 24");
+  svg.setAttribute("width", "14");
+  svg.setAttribute("height", "14");
+  svg.setAttribute("aria-hidden", "true");
+  svg.innerHTML = '<g fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="8" cy="8" r="6"/><path d="M18.09 10.37A6 6 0 1 1 10.34 18"/><path d="M7 6h1v4"/><path d="m16.71 13.88.7.71-2.82 2.82"/></g>';
+  return svg;
 }
 
 function showLogin(reason) {
@@ -47,7 +67,7 @@ const STATUS = {
   queued: { text: "Writing the AI line…", pending: true },
   waiting_transcript: { text: "AI line waits for the transcript", pending: true },
   no_transcript: { text: "This video has no transcript, so there is no AI line or quote" },
-  insufficient_credits: { text: "Not enough credits for the AI line.", link: { text: "Get credits", path: "/settings#credits" } },
+  insufficient_credits: { text: "Not enough credits for the AI line.", link: { text: "Get credits", path: "/settings#credits" }, warning: true },
   failed: { text: "The AI line failed.", link: { text: "Retry in VidWiz", path: null } },
 };
 
@@ -94,8 +114,9 @@ function momentRow(tab, moment) {
   const status = moment.ai_text ? null : STATUS[moment.ai_status];
   if (status) {
     const line = document.createElement("p");
-    line.className = "moment-status";
+    line.className = `moment-status${status.warning ? " warning" : ""}`;
     line.textContent = status.text;
+    if (status.warning) line.prepend(coin());
     if (status.link) {
       const link = document.createElement("a");
       link.href = "#";
@@ -178,6 +199,20 @@ async function shortcutLabel() {
 }
 
 /** The save options menu beside Save moment, as in the web app. */
+/**
+ * Shows the credit balance where it matters: in the menu's AI line cost, and
+ * as a notice above Save moment when the default would need a credit and none
+ * are left. Saving still works; the moment is kept without an AI line.
+ */
+function showCredits(balance, aiDefault) {
+  const option = $("capture-menu").querySelector('.option[data-ai="true"]');
+  const cost = option.querySelector(".cost");
+  const empty = balance <= 0;
+  cost.textContent = empty ? "No credits" : `1 credit · ${balance} left`;
+  option.classList.toggle("empty", empty);
+  $("credits-notice").classList.toggle("hidden", !(empty && aiDefault));
+}
+
 function setupMenu(aiDefault, save) {
   const toggle = $("capture-toggle");
   const menu = $("capture-menu");
@@ -275,6 +310,7 @@ async function init() {
       highlightId = result.moment?.id ?? null;
       scrollToHighlight = true;
       refreshMoments(tab, video.videoId);
+      void refreshCredits();
     } catch (error) {
       if (error instanceof ApiError && error.status === 401) {
         showLogin(error.message);
@@ -308,9 +344,24 @@ async function init() {
   }, 500);
   onClick("open-video", () => openTab(`/v/${video.videoId}`));
 
+  let aiDefault = null;
+  // A save with an AI line spends a credit, so the balance is re-read after each save.
+  async function refreshCredits() {
+    if (aiDefault === null) return;
+    try {
+      showCredits((await api("/users/me")).credits_balance, aiDefault);
+    } catch {
+      // Keep the last balance shown.
+    }
+  }
+  onClick("get-credits", () => openTab("/settings#credits"));
+  $("credits-notice").querySelector(".coin").replaceWith(coin());
+
   try {
     const profile = await api("/users/me");
-    setupMenu(Boolean(profile.ai_moments_default), save);
+    aiDefault = Boolean(profile.ai_moments_default);
+    setupMenu(aiDefault, save);
+    showCredits(profile.credits_balance, aiDefault);
     setDisabled();
   } catch (error) {
     if (error instanceof ApiError && error.status === 401) {
