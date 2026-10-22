@@ -842,3 +842,47 @@ def test_backfill_existing_quotes_preserves_activity(
         assert moments[1].quote_start_seconds is None
     else:
         assert all(moment.quote == "old long quote" for moment in moments)
+
+
+@pytest.mark.asyncio
+async def test_pending_transcript_returns_conflict_without_charging(
+    client, db_session, user
+):
+    """Pending requests are inert; lost ready responses can be collected again."""
+    moment, _ = capture(db_session, user, ai=True)
+    balance = user.credits_balance
+    response = await client.post(
+        f"/v2/internal/videos/{VIDEO_ID}/pending-moments", headers=admin_headers()
+    )
+    assert response.status_code == 409
+    db_session.refresh(moment)
+    db_session.refresh(user)
+    assert moment.ai_status == AiStatus.WAITING_TRANSCRIPT
+    assert user.credits_balance == balance
+    assert charges(db_session, user) == []
+
+    db_session.query(Video).filter_by(
+        video_id=VIDEO_ID
+    ).one().transcript_status = TranscriptStatus.READY
+    db_session.flush()
+    response = await client.post(
+        f"/v2/internal/videos/{VIDEO_ID}/pending-moments", headers=admin_headers()
+    )
+    assert response.status_code == 200
+    assert [item["id"] for item in response.json()["moments"]] == [moment.id]
+    assert len(charges(db_session, user)) == 1
+
+    response = await client.post(
+        f"/v2/internal/videos/{VIDEO_ID}/pending-moments", headers=admin_headers()
+    )
+    assert response.status_code == 200
+    assert [item["id"] for item in response.json()["moments"]] == [moment.id]
+    assert len(charges(db_session, user)) == 1
+
+    # Once the worker has finished, subsequent collections exclude this moment.
+    moments_service.save_ai_text(db_session, moment, "Done")
+    response = await client.post(
+        f"/v2/internal/videos/{VIDEO_ID}/pending-moments", headers=admin_headers()
+    )
+    assert response.json()["moments"] == []
+    assert len(charges(db_session, user)) == 1

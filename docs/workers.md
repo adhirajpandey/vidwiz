@@ -141,3 +141,19 @@ payloads.
 - LLM provider: OpenRouter (`OPENROUTER_API_KEY`, `OPENROUTER_BASE_URL`)
 - Summary model: `SUMMARY_MODEL` (default `qwen/qwen3.5-35b-a3b`)
 - AI note model: `AI_NOTE_MODEL` (default `z-ai/glm-5.3-flash`)
+
+
+### Transcript readiness during dispatch
+The pending-moments endpoint returns HTTP 409 while the video's transcript is
+`pending`, before changing moments or charging credits. The dispatcher retries
+after 1, 2, 4, and 8 seconds and logs each retry. Five consecutive 409 responses
+raise an error so Lambda's asynchronous invocation retries can run.
+The connect timeout is capped at one second; the read timeout uses
+`REQUEST_TIMEOUT` (default 30 seconds). Slow requests can exhaust the Lambda
+invocation timeout, which also triggers asynchronous retries.
+HTTP errors, request failures, and partial or complete SQS failures fail the
+invocation. Collection returns already-queued moments again without another
+charge, so a retry can recover jobs after a lost response or failed send.
+Delivery is at least once: a retry may resend jobs still being processed.
+Completed moments are excluded from collection.
+Deploy the dispatcher before the API so it can handle the new 409 response.

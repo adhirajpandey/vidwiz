@@ -85,7 +85,9 @@ def submit_task_result(
     status_code=status.HTTP_200_OK,
     description=(
         "Charge and mark queued the moments waiting for this video's transcript. "
-        "Called by the dispatcher after the transcript upload."
+        "Called by the dispatcher after the transcript upload. Returns 409 while "
+        "the transcript is pending, without charging or changing moments. "
+        "Queued moments are returned again without another charge for safe retries."
     ),
 )
 @limiter.exempt
@@ -94,6 +96,7 @@ def collect_pending_moments(
     db: Session = Depends(get_db),
     _: None = Depends(require_admin_token),
 ) -> PendingMomentsResponse:
+    """Collect waiting or queued jobs; reject pending transcripts without changes."""
     moments = moments_service.collect_pending_ai(db, path.video_id)
     return PendingMomentsResponse(
         video_id=path.video_id,
