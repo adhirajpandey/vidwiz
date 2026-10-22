@@ -1,5 +1,6 @@
 /* The web app's palette: blue ink on cool white, or the dark navy theme.
-   Caption yellow marks what the user saves and is always a background. */
+   Caption yellow marks what the user saves and is always a background.
+   Copied from frontend/src/index.css; change both together. */
 @font-face {
   font-family: "Bricolage Grotesque";
   font-style: normal;
@@ -44,6 +45,8 @@ body {
   background: var(--bg);
   color: var(--fg);
   font: 14px/1.5 "Bricolage Grotesque", system-ui, -apple-system, "Segoe UI", sans-serif;
+  font-optical-sizing: auto;
+  -webkit-font-smoothing: antialiased;
 }
 
 button, textarea { font: inherit; color: inherit; }
@@ -61,11 +64,12 @@ button, textarea { font: inherit; color: inherit; }
 
 .view { padding: 14px; display: flex; flex-direction: column; gap: 10px; }
 .hidden { display: none; }
-.title { font-size: 16px; font-weight: 700; letter-spacing: -0.015em; }
+/* The web app's heading style. */
+.title { font-size: 17px; font-weight: 720; font-stretch: 90%; letter-spacing: -0.025em; }
 .muted { color: var(--muted-fg); font-size: 13px; }
-kbd { font: 12px ui-monospace, monospace; border: 1px solid var(--border); border-radius: 4px; padding: 0 4px; }
+kbd { font-size: 12px; font-weight: 600; border: 1.5px solid var(--border); border-radius: 5px; padding: 0 5px; }
 
-.video-title { font-weight: 700; letter-spacing: -0.015em; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; }
+.video-title { font-weight: 720; font-stretch: 90%; letter-spacing: -0.025em; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; }
 
 .capture { display: flex; flex-direction: column; gap: 8px; }
 textarea {
@@ -99,7 +103,7 @@ button.saved:hover:not(:disabled) { filter: brightness(1.05); }
 .split-toggle.hidden { display: none; }
 .menu {
   position: absolute; top: calc(100% + 6px); left: 0; right: 0; z-index: 10;
-  display: flex; flex-direction: column; padding: 4px; border: 1px solid var(--border); border-radius: 10px;
+  display: flex; flex-direction: column; padding: 4px; border: 1px solid var(--border); border-radius: 8px;
   background: var(--card); box-shadow: 0 10px 28px rgb(0 0 0 / 22%);
 }
 .menu.hidden { display: none; }
