@@ -3,22 +3,23 @@
 ## Scope and Safety Boundary
 
 `infra/` is the production-only Python CDK application for the serverless
-worker system. It synthesizes the stack `vidwiz-stack` in `ap-south-1`.
+worker system. It synthesizes the stack `vidwiz-v3-stack` in `ap-south-1`.
 
 Completing local validation does not authorize an AWS operation. Do not run
-bootstrap, create IAM identities, deploy, copy transcripts, cut over the
-Docker application, or remove legacy resources until the synthesized template
-and policies have been reviewed.
+bootstrap, create IAM identities, or deploy until the synthesized template and
+policies have been reviewed.
 
 The CDK stack owns:
 
-- `vidwiz-prod`, retained if the stack is deleted or replaced.
-- `vidwiz-prod-ai-note-jobs` and `vidwiz-prod-ai-summary-jobs`.
+- `vidwiz-v3-transcripts`, retained if the stack is deleted or replaced.
+- `vidwiz-v3-ai-note-jobs` and `vidwiz-v3-ai-summary-jobs`, each with a
+  dead-letter queue (`vidwiz-v3-ai-note-dlq`, `vidwiz-v3-ai-summary-dlq`) that
+  receives a job after three failed attempts.
 - The transcript dispatcher, AI-note worker, and AI-summary worker.
 - Explicit seven-day log groups, event sources, and separate runtime roles.
 
-The GitHub OIDC provider, `VidwizGitHubDeployRole`, and
-`VidwizApplicationUser` remain manual resources outside the stack.
+The GitHub OIDC provider, `VidwizGitHubDeployRole`, and the application user
+remain manual resources outside the stack.
 
 ## Local Validation
 
@@ -51,10 +52,6 @@ to `qwen/qwen3.5-35b-a3b`, and `AI_NOTE_MODEL` defaults to
 `z-ai/glm-5.3-flash`. The application configures Wiz chat separately through
 `WIZ_MODEL`, which defaults to `minimax/minimax-m2.5`.
 
-Capture the existing functions' memory, timeout, runtime, architecture,
-environment, event mappings, queue batch configuration, layers, and ZIPs
-before filling that file.
-
 Lambda secrets remain environment variables to avoid another paid service. The
 workflow reconstructs the multiline GitHub secret as a private temporary file,
 validates it, masks its individual secret values, and exposes its path through
@@ -67,10 +64,10 @@ inspected by privileged AWS identities. Do not upload, cache, or print
 
 ## Manual Preparation and Initial Deployment
 
-Using the existing MFA-protected administrator identity:
+Using an MFA-protected administrator identity:
 
 1. Confirm the AWS account, `ap-south-1`, and global availability of
-   `vidwiz-prod`.
+   `vidwiz-v3-transcripts`.
 2. Perform a modern CDK bootstrap.
 3. Configure the GitHub OIDC provider.
 4. Create `VidwizGitHubDeployRole` with the trust and permissions returned by
@@ -88,34 +85,22 @@ After deployment, verify exact resource names, event mappings, notifications,
 runtime settings, policies, log retention, and the absence of optional
 cost-bearing resources.
 
-## Transcript Migration and Docker Cutover
+## Application User
 
-Transcript copying is intentionally manual and has no repository script.
-Compare source and destination object counts, total size, representative keys,
-and JSON contents. Copying `transcripts/*.json` invokes the new dispatcher and
-can generate duplicate AI work and external-model cost. Before copying,
-temporarily disable dispatcher processing through a reviewed infrastructure
-change (for example, remove the transcript S3 notification), then restore it
-after verification and manually replay the copied video IDs to the dispatcher.
-Do not perform the copy with dispatcher processing enabled unless durable
-idempotency has been implemented and validated.
+The Docker application reaches AWS through one manually managed IAM user:
 
-After the copy:
-
-1. Stop the Docker backend and helpers.
-2. Manually create `VidwizApplicationUser` using the exact policy returned by
-   `application_user_policy`.
-3. Keep exactly one active key except briefly during rotation.
-4. Configure `AWS_ACCESS_KEY_ID` and `AWS_SECRET_ACCESS_KEY` from the
-   application user, `S3_TRANSCRIPT_BUCKET_NAME=vidwiz-prod`,
-   `SQS_AI_NOTE_QUEUE_URL` and `SQS_AI_SUMMARY_QUEUE_URL` from the stack
-   outputs, and `AWS_REGION=ap-south-1`.
-5. Restart and verify transcript reads/uploads, dispatch, both queues and
+1. Create it with the exact policy returned by `application_user_policy`.
+2. Keep exactly one active key except briefly during rotation.
+3. Configure `AWS_ACCESS_KEY_ID` and `AWS_SECRET_ACCESS_KEY` from that user,
+   `S3_TRANSCRIPT_BUCKET_NAME=vidwiz-v3-transcripts`, `SQS_AI_NOTE_QUEUE_URL`
+   and `SQS_AI_SUMMARY_QUEUE_URL` from the stack outputs, and
+   `AWS_REGION=ap-south-1`.
+4. Restart and verify transcript reads/uploads, dispatch, both queues and
    workers, internal API updates, and logs.
 
 The application user has only `GetObject`/`PutObject` on `transcripts/*` and
-`SendMessage` on the AI-note and overview queues. It cannot list the bucket,
-call Lambda or infrastructure APIs, manage IAM, or manage its own key.
+`SendMessage` on the job queues. It cannot list the bucket, call Lambda or
+infrastructure APIs, manage IAM, or manage its own key.
 
 ## Manual Deployment
 
@@ -125,28 +110,18 @@ role. Pull requests do not run this workflow.
 
 Protect `main`: require pull requests and relevant checks, block force pushes
 and deletion, and require zero approvals if that remains the chosen policy.
-Remove any legacy permanent AWS keys from GitHub. Confirm a second unchanged
-deployment has no replacement or drift.
+Confirm a second unchanged deployment has no replacement or drift.
 
-## Recovery and Legacy Cleanup
+## Recovery
 
-If the initial deployment fails, keep Docker on the legacy bucket and queue,
-correct the reviewed CDK/configuration issue, and manually dispatch the
-workflow from `main`. If rollback retained `vidwiz-prod`, do not
-rerun stack creation until CloudFormation has been reconciled with that bucket:
-prepare the matching reviewed template, import the existing bucket as logical
-ID `TranscriptBucket` with CloudFormation/CDK import, and verify the resulting
-stack and drift state. Do not empty or delete the retained transcript bucket
-as rollback.
-
-If cutover fails, stop the application, restore the previous Docker
-configuration and credential, restart it, and verify the legacy path before
-investigating. The accepted downtime window avoids dual-write complexity.
-
-Only after full acceptance, manually remove old event mappings, functions,
-queues, execution roles and policies, log groups, Docker credentials, and the
-old transcript bucket after final data verification. The new transcript bucket
-is retained and is never routine cleanup.
+If a deployment fails, correct the reviewed CDK or configuration issue and
+manually dispatch the workflow from `main` again. If a failed stack creation
+retained `vidwiz-v3-transcripts`, do not rerun stack creation until
+CloudFormation has been reconciled with that bucket: prepare the matching
+reviewed template, import the existing bucket as logical ID `TranscriptBucket`
+with CloudFormation/CDK import, and verify the resulting stack and drift state.
+Do not empty or delete the transcript bucket as rollback. It is never routine
+cleanup.
 
 Rotate the Docker application key by creating a temporary replacement,
 updating and restarting the host, verifying it, deleting the former key, and
