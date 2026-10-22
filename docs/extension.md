@@ -62,7 +62,10 @@ Plain JavaScript modules, no bundler.
     current time, updated while it plays. It saves at the time of submitting.
     The arrow beside it opens the same options as the web app: "With AI line,
     1 credit" and "Without AI line, Free", with the default checked, and a link
-    to change the default in Settings. Saving is disabled while an ad plays.
+    to change the default in Settings. Until the profile loads, the arrow shows
+    but is disabled, so Save moment keeps its width. The moments load
+    alongside the profile. While the options are open, the popup grows to
+    fit them. Saving is disabled while an ad plays.
     Save moment's tooltip says what it will do: with an AI line for 1 credit,
     without one (the default, or because no credits are left), saving, paused
     for an ad, or "your AI line default" before the profile loads. Saving
@@ -85,10 +88,14 @@ Plain JavaScript modules, no bundler.
     AI line and links to buying credits; saving still works. A moment that
     missed its AI line for lack of credits shows that in the warning colour.
   - The popup stays within Chrome's 600 px limit: only the moments list
-    scrolls, under a count of the video's moments.
+    scrolls, under a count of the video's moments. Content sits 10px from
+    each divider and from the popup's bottom.
   - Each moment has the web app's "…" menu with **Add note** or **Edit
-    note**, and **Delete**. The note is edited in the row (Enter saves,
-    Shift+Enter adds a line, Esc cancels, empty removes it) with
+    note**, and **Delete**. It opens below the button, or above it near the
+    popup's bottom, stays inside the popup rather than the scrolling list,
+    and closes on Escape, a click outside, or scrolling. The note is edited
+    in the row (Enter saves, Shift+Enter adds a line, Esc cancels, empty
+    removes it) with
     `PATCH /v2/moments/{id}`. Delete asks inside the row first, since there is
     no undo, then calls `DELETE /v2/moments/{id}`. While that request is out,
     the row stays as it is: repeated Enter, Esc, and other rows' actions wait
@@ -103,8 +110,10 @@ Plain JavaScript modules, no bundler.
     5 seconds before it, like the web app; its tooltip names that time ("Play
     from m:ss"). The text is the note, AI line, or
     quote, with the AI line's status in the web app's words when it is pending,
-    failed, out of credits, or impossible without a transcript. The list
-    refreshes every 3 seconds while an AI line is pending, for up to 3 minutes.
+    failed, out of credits, or impossible without a transcript. Like the web
+    app, only "Writing the AI line…" has a spinner, which stays still under
+    reduced motion. The list refreshes every 3 seconds while an AI line is
+    pending, for up to 3 minutes.
 - **Tooltips and cursors**: the brand, profile chip, video card, Save moment,
   its arrow ("Save options"), the note icon, the save menu items, time
   buttons, "…" ("Moment actions"), and the AI line mark ("AI-generated line")

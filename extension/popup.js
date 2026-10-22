@@ -45,6 +45,18 @@ function coin() {
   return svg;
 }
 
+/** The web app's Loader2, spun by CSS while the AI line is being written. */
+function spinner() {
+  const svg = document.createElementNS("http://www.w3.org/2000/svg", "svg");
+  svg.setAttribute("class", "spinner");
+  svg.setAttribute("viewBox", "0 0 24 24");
+  svg.setAttribute("width", "14");
+  svg.setAttribute("height", "14");
+  svg.setAttribute("aria-hidden", "true");
+  svg.innerHTML = '<path d="M21 12a9 9 0 1 1-6.219-8.56" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"/>';
+  return svg;
+}
+
 function showLogin(reason) {
   if (reason) $("login-reason").textContent = reason;
   show("login-view");
@@ -86,7 +98,7 @@ async function currentVideo(tab) {
 // The status line under a moment while its AI line is pending or didn't happen,
 // in the web app's words.
 const STATUS = {
-  queued: { text: "Writing the AI line…", pending: true },
+  queued: { text: "Writing the AI line…", pending: true, spinner: true },
   waiting_transcript: { text: "AI line waits for the transcript", pending: true },
   no_transcript: { text: "This video has no transcript, so there is no AI line or quote" },
   insufficient_credits: { text: "Not enough credits for the AI line.", link: { text: "Get credits", path: "/settings#credits" }, warning: true },
@@ -145,6 +157,7 @@ function momentRow(tab, moment) {
     line.className = `moment-status${status.warning ? " warning" : ""}`;
     line.textContent = status.text;
     if (status.warning) line.prepend(coin());
+    if (status.spinner) line.prepend(spinner());
     if (status.link) {
       const link = document.createElement("a");
       link.href = "#";
@@ -167,10 +180,12 @@ function momentRow(tab, moment) {
   return item;
 }
 
-// A click outside a moment's "…" menu closes it.
+// A click outside a moment's "…" menu closes it, and so does scrolling the
+// list, since the open menu is placed against the popup rather than its row.
 document.addEventListener("click", (event) => {
   if (!event.target.closest?.(".actions")) closeActionsMenu?.();
 });
+document.addEventListener("scroll", () => closeActionsMenu?.(), true);
 
 // One row at a time can edit its note or confirm a delete. While it does, the
 // list doesn't redraw, so a refresh can't wipe what the user is typing.
@@ -230,6 +245,7 @@ function momentActions(tab, moment) {
     if (!menu.classList.contains("hidden")) return close();
     closeActionsMenu?.();
     menu.classList.remove("hidden");
+    placeMenu(toggle, menu);
     toggle.setAttribute("aria-expanded", "true");
     closeActionsMenu = close;
     menu.querySelector("button").focus();
@@ -248,6 +264,20 @@ function momentActions(tab, moment) {
   });
   wrap.append(toggle, menu);
   return wrap;
+}
+
+// Below the "…" button, or above it near the popup's bottom, kept inside the popup.
+function placeMenu(toggle, menu) {
+  const gap = 4;
+  const edge = 6;
+  const rect = toggle.getBoundingClientRect();
+  const { width, height } = menu.getBoundingClientRect();
+  let top = rect.bottom + gap;
+  if (top + height > innerHeight - edge) top = rect.top - gap - height;
+  top = Math.max(edge, Math.min(top, innerHeight - edge - height));
+  const left = Math.max(edge, Math.min(rect.right - width, innerWidth - edge - width));
+  menu.style.top = `${Math.round(top)}px`;
+  menu.style.left = `${Math.round(left)}px`;
 }
 
 function rowError(container, error) {
@@ -476,6 +506,9 @@ function showCredits(balance, aiDefault) {
   $("credits-notice").classList.toggle("hidden", !(empty && aiDefault));
 }
 
+// The save options show the user's default and balance, so the arrow stays
+// disabled until the profile loads.
+let menuReady = false;
 function setupMenu(aiDefault, save) {
   const toggle = $("capture-toggle");
   const menu = $("capture-menu");
@@ -494,14 +527,18 @@ function setupMenu(aiDefault, save) {
     });
   }
 
+  // Chrome sizes the popup to its content, which leaves out the open menu, so
+  // the popup grows to keep the usual 10px below it.
   function open() {
     menu.classList.remove("hidden");
     toggle.setAttribute("aria-expanded", "true");
+    document.body.style.minHeight = `${Math.ceil(menu.getBoundingClientRect().bottom + 10)}px`;
     options[0].focus();
   }
   function close() {
     menu.classList.add("hidden");
     toggle.setAttribute("aria-expanded", "false");
+    document.body.style.minHeight = "";
   }
   toggle.addEventListener("click", () => (menu.classList.contains("hidden") ? open() : close()));
   menu.addEventListener("keydown", (event) => {
@@ -521,7 +558,7 @@ function setupMenu(aiDefault, save) {
     if (!menu.contains(event.target) && !toggle.contains(event.target)) close();
   });
   onClick("change-default", () => openTab("/settings#account"));
-  toggle.classList.remove("hidden");
+  menuReady = true;
 }
 
 async function init() {
@@ -579,6 +616,9 @@ async function init() {
   let ad = video.ad;
   const setDisabled = () => {
     for (const button of buttons()) button.disabled = saving || ad;
+    if (!menuReady) $("capture-toggle").disabled = true;
+    // Only waiting on the profile: keep the colour, so the button doesn't flash dark.
+    $("capture-toggle").classList.toggle("loading", !menuReady && !saving && !ad);
     // Lock the draft during a request so success cannot erase newer edits.
     for (const id of ["note", "add-note", "cancel-note"]) $(id).disabled = saving;
   };
@@ -705,6 +745,8 @@ async function init() {
   }
   onClick("get-credits", () => openTab("/settings#credits"));
   $("credits-notice").querySelector(".coin").replaceWith(coin());
+  // The moments don't need the profile, so both load at once.
+  refreshMoments(tab, video.videoId);
 
   try {
     const savesBefore = saves;
@@ -723,7 +765,6 @@ async function init() {
     }
     // Without the profile, Save moment still works with the server's default.
   }
-  refreshMoments(tab, video.videoId);
 }
 
 void init();
