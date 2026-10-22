@@ -61,7 +61,7 @@ button, textarea { font: inherit; color: inherit; }
 a[href], button:enabled { cursor: pointer; }
 .tabular { font-variant-numeric: tabular-nums; }
 
-.header { display: flex; align-items: center; gap: 8px; padding: 4px 14px; border-bottom: 1px solid var(--border); }
+.header { display: flex; align-items: center; gap: 8px; padding: 10px 14px; border-bottom: 1px solid var(--border); }
 /* The web app's header lockup: the colour mark and the name as text. */
 .brand { display: flex; align-items: center; gap: 10px; flex-shrink: 0; color: var(--fg); text-decoration: none; }
 .brand img { display: block; width: 28px; height: 28px; border-radius: 7px; }
@@ -79,9 +79,8 @@ a[href], button:enabled { cursor: pointer; }
 .profile:focus-visible, .video-card:focus-visible { outline: 2px solid var(--fg); outline-offset: 2px; }
 
 .view { padding: 14px; display: flex; flex-direction: column; gap: 10px; min-height: 0; }
-/* The card sits as far below the header's line as the rest of the popup's
-   content sits from its dividers. */
-#capture-view { flex: 1 1 auto; padding-top: 10px; padding-bottom: 4px; }
+/* Content sits 10px from every divider, the header's included. */
+#capture-view { flex: 1 1 auto; padding-top: 10px; padding-bottom: 0; }
 #capture-view > * { flex-shrink: 0; }
 #capture-view > .moments { flex-shrink: 1; }
 .hidden { display: none; }
@@ -99,7 +98,7 @@ kbd { font-size: 12px; font-weight: 600; border: 1.5px solid var(--border); bord
 .video-channel { display: block; margin-top: 4px; color: var(--muted-fg); font-size: 12px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .video-channel.hidden { display: none; }
 
-.capture { display: flex; flex-direction: column; gap: 8px; border-top: 1px solid var(--border); padding-top: 8px; }
+.capture { display: flex; flex-direction: column; gap: 8px; border-top: 1px solid var(--border); padding-top: 10px; }
 /* One line like the web app's note field; popup.js grows it as the note gets longer. */
 textarea {
   display: block; width: 100%; height: 40px; resize: none; overflow-y: hidden;
@@ -180,6 +179,10 @@ button.saved:hover:not(:disabled) { filter: brightness(1.05); }
 .moments li.highlighted, .moments li.highlighted + li { border-top-color: transparent; }
 .moments li.muted { display: block; }
 .moments li + li { border-top: 1px solid var(--border); }
+/* The first and last rows have no line beside them, so they sit as close to the
+   count and the popup's bottom as every section's content sits to its divider. */
+.moments li:first-child:not(.highlighted) { padding-top: 0; }
+.moments li:last-child:not(.highlighted) { padding-bottom: 0; }
 .time {
   justify-self: start; margin-top: 2px; border: 0; border-radius: 5px; padding: 1px 6px; background: var(--saved); color: var(--saved-fg);
   font-size: 12px; font-weight: 700; font-variant-numeric: tabular-nums;

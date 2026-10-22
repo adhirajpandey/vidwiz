@@ -85,7 +85,8 @@ Plain JavaScript modules, no bundler.
     AI line and links to buying credits; saving still works. A moment that
     missed its AI line for lack of credits shows that in the warning colour.
   - The popup stays within Chrome's 600 px limit: only the moments list
-    scrolls, under a count of the video's moments.
+    scrolls, under a count of the video's moments. Content sits 10px from
+    each divider and from the popup's bottom.
   - Each moment has the web app's "…" menu with **Add note** or **Edit
     note**, and **Delete**. It opens below the button, or above it near the
     popup's bottom, stays inside the popup rather than the scrolling list,
