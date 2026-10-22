@@ -1,8 +1,9 @@
-from sqlalchemy import select
+from sqlalchemy import select, update
 from sqlalchemy.orm import Session
 
 from src.internal import constants as internal_constants
 from src.internal.models import Task, TaskStatus
+from src.moments.models import AiStatus, Moment
 from src.videos import service as videos_service
 from src.videos.models import TranscriptStatus, Video
 
@@ -47,8 +48,20 @@ def schedule_video_tasks(db: Session, video: Video) -> None:
             db, internal_constants.FETCH_TRANSCRIPT_TASK_TYPE, video.video_id
         )
         if video.transcript_status == TranscriptStatus.UNAVAILABLE:
-            # A new capture tries the transcript again.
+            # A new capture tries the transcript again, and the AI lines that gave
+            # up on it wait for it again. Keeping `updated_at` keeps library order.
             videos_service.mark_transcript_pending(video)
+            db.execute(
+                update(Moment)
+                .where(
+                    Moment.video_id == video.video_id,
+                    Moment.ai_status == AiStatus.NO_TRANSCRIPT,
+                )
+                .values(
+                    ai_status=AiStatus.WAITING_TRANSCRIPT,
+                    updated_at=Moment.updated_at,
+                )
+            )
             db.commit()
 
 

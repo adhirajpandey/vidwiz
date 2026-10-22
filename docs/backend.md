@@ -61,7 +61,8 @@ Describe the FastAPI backend: structure, auth rules, and the request/worker life
     transcript upload the dispatcher calls
     `POST /v2/internal/videos/{video_id}/pending-moments`, which charges and
     queues those moments. A transcript task that fails for the last time marks
-    them `no_transcript`.
+    them `no_transcript`. A later capture of the video fetches the transcript
+    again and puts its `no_transcript` moments back to `waiting_transcript`.
   - If sending the job to SQS fails, the moment becomes `failed`. Requesting AI
     again (`POST /v2/moments/{id}/ai`) does not charge again.
   - The worker stores its result through `PUT /v2/internal/moments/{id}/ai`;
