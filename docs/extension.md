@@ -65,7 +65,8 @@ Plain JavaScript modules, no bundler.
     to change the default in Settings. Saving is disabled while an ad plays.
     Save moment's tooltip says what it will do: with an AI line for 1 credit,
     without one (the default, or because no credits are left), saving, paused
-    for an ad, or "your AI line default" before the profile loads. The menu
+    for an ad, or "your AI line default" before the profile loads. Saving
+    works before then too, with the server applying the default. The menu
     items save right away ("Save this moment with an AI line", or without);
     they don't change the default.
   - The note icon ("Add note", or "Edit note" while the field is open) beside

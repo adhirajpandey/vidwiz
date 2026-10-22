@@ -577,6 +577,7 @@ async function init() {
         return;
       }
       const result = await capture({ ...latest, note: $("note").value.trim(), ai });
+      saves += 1;
       // Disabled controls lose focus; restore it unless the user moved elsewhere.
       focusSave = startedInForm && (document.activeElement === document.body || $("capture-form").contains(document.activeElement));
       resetNote();
@@ -609,6 +610,21 @@ async function init() {
       feedback(ad ? MESSAGES.ad : "");
     }
   }
+
+  // Wire saving before the controls show, so a save made before the profile
+  // loads uses the server's default instead of submitting the page.
+  let saves = 0;
+  $("capture-form").addEventListener("submit", (event) => {
+    event.preventDefault();
+    void save(undefined);
+  });
+  $("note").addEventListener("input", fitNote);
+  $("note").addEventListener("keydown", (event) => {
+    if (event.key === "Enter" && !event.shiftKey) {
+      event.preventDefault();
+      $("capture-form").requestSubmit();
+    }
+  });
 
   show("capture-view");
   // The full title and channel when the card cuts them short.
@@ -664,12 +680,15 @@ async function init() {
   $("credits-notice").querySelector(".coin").replaceWith(coin());
 
   try {
+    const savesBefore = saves;
     const profile = await api("/users/me");
     showProfile(profile);
     aiDefault = Boolean(profile.ai_moments_default);
     setupMenu(aiDefault, save);
     showCredits(profile.credits_balance, aiDefault);
     setDisabled();
+    // A save during the request may have spent a credit after it was read.
+    if (saves !== savesBefore) void refreshCredits();
   } catch (error) {
     if (error instanceof ApiError && error.status === 401) {
       showLogin(error.message);
@@ -678,18 +697,6 @@ async function init() {
     // Without the profile, Save moment still works with the server's default.
   }
   refreshMoments(tab, video.videoId);
-
-  $("capture-form").addEventListener("submit", (event) => {
-    event.preventDefault();
-    void save(undefined);
-  });
-  $("note").addEventListener("input", fitNote);
-  $("note").addEventListener("keydown", (event) => {
-    if (event.key === "Enter" && !event.shiftKey) {
-      event.preventDefault();
-      $("capture-form").requestSubmit();
-    }
-  });
 }
 
 void init();
