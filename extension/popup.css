@@ -94,7 +94,7 @@ kbd { font-size: 12px; font-weight: 600; border: 1.5px solid var(--border); bord
 .video-channel { display: block; margin-top: 4px; color: var(--muted-fg); font-size: 12px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .video-channel.hidden { display: none; }
 
-.capture { display: flex; flex-direction: column; gap: 8px; }
+.capture { display: flex; flex-direction: column; gap: 8px; border-top: 1px solid var(--border); padding-top: 8px; }
 /* One line like the web app's note field; popup.js grows it as the note gets longer. */
 textarea {
   display: block; width: 100%; height: 40px; resize: none; overflow-y: hidden;

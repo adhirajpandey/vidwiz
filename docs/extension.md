@@ -46,7 +46,8 @@ Plain JavaScript modules, no bundler.
   - The video card opens the video in VidWiz. It shows a 64×36 thumbnail,
     a two-line title, and the channel when available. Failed thumbnails are
     hidden so the text uses the full width. Channel names are display-only
-    and are not sent in capture requests.
+    and are not sent in capture requests. A subtle divider separates the video
+    details from the capture controls.
   - The compact header shows the profile picture, or the name's first letter,
     when the capture view has loaded a profile. Its tooltip shows the name
     and credit balance, refreshed after saves; clicking it opens Settings.
