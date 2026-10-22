@@ -22,16 +22,35 @@
 
   <section id="idle-view" class="view hidden">
     <h1 class="title">Open a YouTube video</h1>
-    <p class="muted">Then press <kbd id="shortcut">Alt+S</kbd> or use this popup to capture the moment.</p>
+    <p class="muted">Then press <kbd id="shortcut">Alt+S</kbd> or use this popup to save the moment.</p>
+  </section>
+
+  <section id="reload-view" class="view hidden">
+    <h1 class="title">Reload this tab</h1>
+    <p class="muted">VidWiz was installed or updated after this YouTube tab opened, so it can't read the video yet.</p>
+    <button id="reload" class="primary">Reload tab</button>
   </section>
 
   <section id="capture-view" class="view hidden">
     <p id="video-title" class="video-title"></p>
     <form id="capture-form" class="capture">
       <textarea id="note" rows="2" placeholder="Note (optional)" aria-label="Note"></textarea>
-      <div class="row">
-        <button type="button" id="capture-other" class="other hidden"></button>
-        <button type="submit" id="capture" class="primary">Capture <span id="capture-time"></span></button>
+      <div class="save">
+        <div class="split">
+          <button type="submit" id="capture" class="primary split-main">Save moment <span id="capture-time"></span></button>
+          <button type="button" id="capture-toggle" class="primary split-toggle hidden" aria-label="Save options" aria-haspopup="menu" aria-expanded="false" aria-controls="capture-menu">
+            <svg viewBox="0 0 16 16" width="14" height="14" aria-hidden="true"><path d="M4 6l4 4 4-4" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"/></svg>
+          </button>
+        </div>
+        <div id="capture-menu" class="menu hidden" role="menu" aria-label="Save options">
+          <button type="button" class="option" role="menuitemradio" data-ai="true">
+            <span class="check" aria-hidden="true"></span><span class="option-label">With AI line</span><span class="cost">1 credit</span>
+          </button>
+          <button type="button" class="option" role="menuitemradio" data-ai="false">
+            <span class="check" aria-hidden="true"></span><span class="option-label">Without AI line</span><span class="cost">Free</span>
+          </button>
+          <a href="#" id="change-default" class="menu-link" role="menuitem">Change default in Settings</a>
+        </div>
       </div>
     </form>
     <p id="feedback" class="feedback" role="status"></p>

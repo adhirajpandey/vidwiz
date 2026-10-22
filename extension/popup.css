@@ -55,19 +55,42 @@ textarea {
   background: var(--surface); color: var(--fg); font: inherit;
 }
 textarea:focus { outline: none; border-color: var(--accent); box-shadow: 0 0 0 2px var(--accent-soft); }
-.row { display: flex; align-items: center; justify-content: space-between; gap: 8px; }
-.row .primary { margin-left: auto; }
-button.other { border: 0; background: none; padding: 0; color: var(--muted); font: 12px system-ui, sans-serif; cursor: pointer; }
-button.other:hover { color: var(--fg); text-decoration: underline; }
-button.other:disabled { opacity: 0.5; cursor: default; }
-
 button.primary {
   border: 0; border-radius: 8px; padding: 8px 14px; background: var(--accent); color: var(--accent-fg);
   font: 500 13px system-ui, sans-serif; cursor: pointer;
 }
 button.primary:hover { opacity: 0.9; }
 button.primary:disabled { opacity: 0.5; cursor: default; }
-#capture-time { font-family: ui-monospace, monospace; opacity: 0.85; }
+#capture-time { font-family: ui-monospace, monospace; font-variant-numeric: tabular-nums; opacity: 0.85; }
+
+/* Save moment with its options menu, as in the web app. */
+.save { position: relative; display: flex; justify-content: flex-end; }
+.split { display: flex; gap: 1px; }
+.split-main { min-width: 11.5rem; }
+.split .split-main:not(:last-child) { border-top-right-radius: 0; border-bottom-right-radius: 0; }
+.split-toggle { display: flex; align-items: center; padding: 8px 9px; border-top-left-radius: 0; border-bottom-left-radius: 0; }
+.split-toggle.hidden { display: none; }
+.menu {
+  position: absolute; top: calc(100% + 6px); right: 0; z-index: 10; width: 15rem;
+  display: flex; flex-direction: column; padding: 4px; border: 1px solid var(--border); border-radius: 10px;
+  background: var(--bg); box-shadow: 0 10px 28px rgb(0 0 0 / 18%);
+}
+.menu.hidden { display: none; }
+.option {
+  display: flex; align-items: center; gap: 8px; width: 100%; padding: 7px 8px; border: 0; border-radius: 6px;
+  background: none; color: var(--fg); font: 13px system-ui, sans-serif; text-align: left; cursor: pointer;
+}
+.option:hover, .option:focus-visible { background: var(--surface); outline: none; }
+.option:disabled { opacity: 0.5; cursor: default; }
+.check { width: 14px; flex: none; color: var(--accent); }
+.option[aria-checked="true"] .check::before { content: "✓"; font-weight: 600; }
+.option-label { flex: 1; }
+.cost { color: var(--muted); font-size: 12px; }
+.menu-link {
+  margin-top: 4px; padding: 7px 8px 5px 30px; border-top: 1px solid var(--border);
+  color: var(--muted); font-size: 12px; text-decoration: none;
+}
+.menu-link:hover, .menu-link:focus-visible { color: var(--fg); outline: none; text-decoration: underline; }
 
 .feedback { font-size: 12px; min-height: 18px; color: var(--muted); }
 .feedback.error { color: var(--danger); }
@@ -81,5 +104,9 @@ button.primary:disabled { opacity: 0.5; cursor: default; }
   font: 500 12px ui-monospace, monospace; cursor: pointer;
 }
 .time:hover { filter: brightness(1.1); }
+.moment-body { min-width: 0; display: flex; flex-direction: column; gap: 2px; }
 .moment-text { font-size: 13px; }
 .moment-text.pending { color: var(--muted); font-style: italic; }
+.moment-status { color: var(--muted); font-size: 12px; }
+.moment-status.pending { font-style: italic; }
+.moment-status a { color: var(--accent); }

@@ -15,10 +15,12 @@ Plain JavaScript modules, no bundler.
 - `background.js` (module service worker): login and logout sync from the web
   app, the Alt+S capture, and opening the web app on first install.
 - `content.js`: reads the video ID (`/watch?v=` and `/shorts/`), title, and
-  current time; seeks the player; shows a toast in a shadow root on the page.
-- `popup.html`, `popup.css`, `popup.js`: capture with an optional note and AI
-  toggle, plus the video's moments with click-to-seek.
-- `build.mjs`: writes a build with other origins.
+  current time from the main player, and whether an ad is playing; seeks the
+  player; shows a toast in a shadow root on the page, inside the fullscreen
+  element when the player is fullscreen.
+- `popup.html`, `popup.css`, `popup.js`: Save moment with an optional note and
+  the save options menu, plus the video's moments with click-to-play.
+- `build.mjs`: writes a build with other origins, and zips it for the store.
 
 ## Key Flows
 - **Login sync**: the web app sends `SYNC_TOKEN` and `LOGOUT` with
@@ -33,19 +35,30 @@ Plain JavaScript modules, no bundler.
 - **Alt+S**: the background worker asks the content script for the current
   video, posts `POST /v2/captures` with `video`, `title`, `at`, and
   `source: "extension"` (the AI line follows the user's default), and shows a
-  toast: saved, merged into a nearby moment, or the error. Without a login it
-  opens the web login page.
-- **Popup**: shows the login view, an idle view off YouTube videos, or the
-  capture view. A capture uses the video's time at the moment of submitting.
-  Capture follows the user's AI line default; a small button beside it saves
-  one moment the other way ("Save without AI line" or "Save with AI line, 1
-  credit"). Enter submits; Shift+Enter adds a line. The list shows the note, AI line, pending status, or quote for each
-  moment, and its time button seeks the page's player.
+  toast: saved, merged into a nearby moment, or the error. During an ad it
+  saves nothing and says to wait for the ad to end. Without a login it opens
+  the web login page, at most once a minute. On a YouTube video tab that has no
+  content script yet, it shows a red `!` badge whose tooltip asks for a reload.
+- **Popup**: shows the login view, an idle view off YouTube videos, a reload
+  view on video tabs without the content script, or the capture view.
+  - **Save moment** follows the user's AI line default and shows the video's
+    current time, updated while it plays. It saves at the time of submitting.
+    The arrow beside it opens the same options as the web app: "With AI line,
+    1 credit" and "Without AI line, Free", with the default checked, and a link
+    to change the default in Settings. Saving is disabled while an ad plays.
+  - Enter submits; Shift+Enter adds a line.
+  - **Moments**: each row shows the save time, and its time button plays from
+    5 seconds before it, like the web app. The text is the note, AI line, or
+    quote, with the AI line's status in the web app's words when it is pending,
+    failed, out of credits, or impossible without a transcript. The list
+    refreshes every 3 seconds while an AI line is pending, for up to 3 minutes.
 - **First install**: opens the web app, which syncs an existing login.
 
 ## Builds
 - Production: load `extension/` unpacked, or run `node extension/build.mjs`
-  (output in `extension/dist/prod`, ignored by Git) to package it.
+  (output in `extension/dist/prod`, ignored by Git) to package it. Add `--zip`
+  to also write `extension/dist/vidwiz-extension-<version>.zip` for the Chrome
+  Web Store; this needs the `zip` command.
 - Development: `node extension/build.mjs --web <web origin> --api <api base
   URL> --out extension/dist/dev`, then load that folder unpacked. Run the web
   app with `VITE_EXTENSION_ID` set to the unpacked extension's ID so login sync
@@ -54,7 +67,9 @@ Plain JavaScript modules, no bundler.
 ## Constraints
 - Video detection and title reading depend on YouTube's page structure.
 - Pages opened before the extension was installed or updated need a reload
-  before the popup or Alt+S can read the video.
+  before the popup or Alt+S can read the video; the popup and the badge say so.
+- The player and ad detection use YouTube's `#movie_player`,
+  `html5-main-video`, and `ad-showing` classes.
 - The 2.x extension still posts to `POST /v2/videos/{video_id}/notes`; the API
   keeps that route until 3.x is live in the store.
 
