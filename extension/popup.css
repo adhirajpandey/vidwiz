@@ -56,6 +56,9 @@ body {
 }
 
 button, textarea { font: inherit; color: inherit; }
+/* Everything clickable shows a pointer, including its icons and text; disabled
+   controls keep the default cursor and drop their hover styles. */
+a[href], button:enabled { cursor: pointer; }
 .tabular { font-variant-numeric: tabular-nums; }
 
 .header { display: flex; align-items: center; gap: 8px; padding: 4px 14px; border-bottom: 1px solid var(--border); }
@@ -106,17 +109,17 @@ textarea:focus { outline: none; border-color: color-mix(in srgb, var(--fg) 55%, 
 /* Ink carries actions. */
 button.primary {
   border: 0; border-radius: 9px; padding: 9px 16px; background: var(--fg); color: var(--bg);
-  font-size: 14px; font-weight: 600; cursor: pointer;
+  font-size: 14px; font-weight: 600;
 }
-button.primary:hover { opacity: 0.9; }
-button:disabled { opacity: 0.5; cursor: default; }
+button.primary:hover:not(:disabled) { opacity: 0.9; }
+button:disabled { opacity: 0.5; }
 button.primary:focus-visible, button.saved:focus-visible { outline: 2px solid var(--fg); outline-offset: 2px; }
 
 /* Save moment with its options menu, as in the web app. */
 .save { position: relative; display: flex; }
 .split { display: flex; width: 100%; }
 button.saved {
-  border: 0; background: var(--saved); color: var(--saved-fg); font-weight: 600; cursor: pointer;
+  border: 0; background: var(--saved); color: var(--saved-fg); font-weight: 600;
 }
 button.saved:hover:not(:disabled) { filter: brightness(1.05); }
 .split-main { flex: 1; height: 42px; padding: 0 16px; border-radius: 9px; font-size: 15px; }
@@ -134,9 +137,9 @@ button.saved:hover:not(:disabled) { filter: brightness(1.05); }
 .menu.hidden { display: none; }
 .option {
   display: flex; align-items: center; gap: 8px; width: 100%; padding: 7px 8px; border: 0; border-radius: 6px;
-  background: none; font-size: 13px; text-align: left; cursor: pointer;
+  background: none; font-size: 13px; text-align: left;
 }
-.option:hover, .option:focus-visible { background: var(--muted); outline: none; }
+.option:hover:not(:disabled), .option:focus-visible { background: var(--muted); outline: none; }
 .option:focus-visible { box-shadow: inset 0 0 0 1.5px var(--fg); }
 .check { width: 14px; flex: none; }
 .option[aria-checked="true"] .check::before { content: "✓"; font-weight: 700; }
@@ -177,14 +180,14 @@ button.saved:hover:not(:disabled) { filter: brightness(1.05); }
 .moments li + li { border-top: 1px solid var(--border); }
 .time {
   justify-self: start; margin-top: 2px; border: 0; border-radius: 5px; padding: 1px 6px; background: var(--saved); color: var(--saved-fg);
-  font-size: 12px; font-weight: 700; font-variant-numeric: tabular-nums; cursor: pointer;
+  font-size: 12px; font-weight: 700; font-variant-numeric: tabular-nums;
 }
 .time:hover { filter: brightness(1.05); }
 .moment-body { min-width: 0; display: flex; flex-direction: column; gap: 4px; }
 .moment-text { font-size: 13.5px; line-height: 1.5; }
 .moment-text.ai { display: flex; gap: 6px; }
 .moment-text.ai span { display: -webkit-box; -webkit-line-clamp: 4; -webkit-box-orient: vertical; overflow: hidden; }
-.moment-text.ai svg { flex: none; margin-top: 3px; color: var(--muted-fg); }
+.moment-text.ai svg { flex: none; margin-top: 3px; color: var(--muted-fg); cursor: default; }
 .moment-text.note { border-left: 2px solid color-mix(in srgb, var(--fg) 25%, transparent); padding-left: 8px; white-space: pre-wrap; }
 .moment-text.quote { color: var(--muted-fg); display: -webkit-box; -webkit-line-clamp: 3; -webkit-box-orient: vertical; overflow: hidden; }
 .moment-text.pending { color: var(--muted-fg); }
@@ -198,7 +201,7 @@ button.saved:hover:not(:disabled) { filter: brightness(1.05); }
 .actions { position: relative; }
 .actions-toggle {
   display: grid; place-items: center; width: 24px; height: 24px; border: 0; border-radius: 6px;
-  background: none; color: var(--muted-fg); cursor: pointer; opacity: 0.55;
+  background: none; color: var(--muted-fg); opacity: 0.55;
 }
 .moments li:hover .actions-toggle, .actions-toggle:focus-visible, .actions-toggle[aria-expanded="true"] { opacity: 1; }
 .actions-toggle:hover, .actions-toggle[aria-expanded="true"] { background: var(--muted); color: var(--fg); }
@@ -216,7 +219,7 @@ button.saved:hover:not(:disabled) { filter: brightness(1.05); }
 .note-editor { display: flex; flex-direction: column; gap: 6px; margin-top: 2px; }
 .note-editor textarea { height: 38px; font-size: 13.5px; padding: 7px 10px; line-height: 22px; }
 .row-buttons { display: flex; gap: 6px; }
-button.small { height: 28px; padding: 0 12px; border-radius: 7px; font-size: 12.5px; font-weight: 600; cursor: pointer; }
+button.small { height: 28px; padding: 0 12px; border-radius: 7px; font-size: 12.5px; font-weight: 600; }
 button.ghost { border: 0; background: none; color: var(--muted-fg); }
 button.ghost:hover:not(:disabled) { background: var(--muted); color: var(--fg); }
 button.danger { border: 0; background: var(--destructive); color: var(--bg); }
@@ -242,11 +245,11 @@ button.small:focus-visible { outline: 2px solid var(--fg); outline-offset: 2px; 
 /* Optional notes leave the save action and moments visible until needed. */
 .capture-note { display: flex; flex-direction: column; gap: 4px; }
 .capture-note.hidden { display: none; }
-.cancel-note { align-self: flex-end; padding: 2px 0; border: 0; background: none; color: var(--muted-fg); font-size: 12px; cursor: pointer; }
-.cancel-note:hover { color: var(--fg); }
+.cancel-note { align-self: flex-end; padding: 2px 0; border: 0; background: none; color: var(--muted-fg); font-size: 12px; }
+.cancel-note:hover:not(:disabled) { color: var(--fg); }
 .save-row { display: flex; gap: 8px; }
 .save-row .save { flex: 1; min-width: 0; }
 .save-row .split-main { font-size: 14px; padding: 9px 8px; }
-.add-note { display: grid; place-items: center; width: 40px; height: 42px; flex: none; border: 1px solid var(--border); border-radius: 9px; background: var(--card); color: var(--fg); cursor: pointer; }
+.add-note { display: grid; place-items: center; width: 40px; height: 42px; flex: none; border: 1px solid var(--border); border-radius: 9px; background: var(--card); color: var(--fg); }
 .add-note:hover:not(:disabled), .add-note[aria-expanded="true"] { background: var(--muted); }
 .add-note:focus-visible, .cancel-note:focus-visible { outline: 2px solid var(--fg); outline-offset: 2px; }
