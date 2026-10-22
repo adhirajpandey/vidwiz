@@ -1,4 +1,5 @@
 import { ApiError, MESSAGES, api, capture, formatClock, getToken, isVideoUrl, playFrom, webUrl } from "./api.js";
+import { tooltip } from "./tooltip.js";
 
 const $ = (id) => document.getElementById(id);
 const VIEWS = ["login-view", "idle-view", "reload-view", "capture-view"];
@@ -52,9 +53,9 @@ function showLogin(reason) {
 function showProfile(profile) {
   if ($("capture-view").classList.contains("hidden")) return;
   const name = profile.name || profile.email || "Account";
-  const label = `${name} · ${profile.credits_balance} credits`;
-  $("profile").title = label;
-  $("profile").setAttribute("aria-label", label);
+  const credits = profile.credits_balance === 1 ? "1 credit" : `${profile.credits_balance} credits`;
+  $("profile").setAttribute("aria-label", `${name}, ${credits}. Open Settings`);
+  tooltip($("profile"), [name, credits, "Open Settings"]);
   $("profile-initial").textContent = name.slice(0, 1).toUpperCase();
   const image = $("profile-image");
   image.onerror = () => image.classList.add("hidden");
@@ -100,7 +101,9 @@ function sparkle() {
   svg.setAttribute("viewBox", "0 0 24 24");
   svg.setAttribute("width", "13");
   svg.setAttribute("height", "13");
-  svg.setAttribute("aria-label", "AI line");
+  svg.setAttribute("role", "img");
+  svg.setAttribute("aria-label", "AI-generated line");
+  tooltip(svg, "AI-generated line");
   svg.innerHTML = '<path d="M12 3l1.9 5.1L19 10l-5.1 1.9L12 17l-1.9-5.1L5 10l5.1-1.9z" fill="none" stroke="currentColor" stroke-width="2" stroke-linejoin="round"/>';
   return svg;
 }
@@ -115,6 +118,7 @@ function momentRow(tab, moment) {
   time.className = "time tabular";
   time.textContent = formatClock(moment.at_seconds);
   time.setAttribute("aria-label", `Play from ${formatClock(start)}`);
+  tooltip(time, `Play from ${formatClock(start)}`);
   time.addEventListener("click", () => chrome.tabs.sendMessage(tab.id, { action: "seek", seconds: start }).catch(() => {}));
 
   const body = document.createElement("div");
@@ -191,6 +195,7 @@ function momentActions(tab, moment) {
   toggle.type = "button";
   toggle.className = "actions-toggle";
   toggle.setAttribute("aria-label", "Moment actions");
+  tooltip(toggle, "Moment actions");
   toggle.setAttribute("aria-haspopup", "menu");
   toggle.setAttribute("aria-expanded", "false");
   toggle.innerHTML = '<svg viewBox="0 0 24 24" width="16" height="16" aria-hidden="true"><g fill="currentColor"><circle cx="5" cy="12" r="1.8"/><circle cx="12" cy="12" r="1.8"/><circle cx="19" cy="12" r="1.8"/></g></svg>';
@@ -434,7 +439,9 @@ async function shortcutLabel() {
  * as a notice above Save moment when the default would need a credit and none
  * are left. Saving still works; the moment is kept without an AI line.
  */
+let creditBalance = null;
 function showCredits(balance, aiDefault) {
+  creditBalance = balance;
   const option = $("capture-menu").querySelector('.option[data-ai="true"]');
   const cost = option.querySelector(".cost");
   const empty = balance <= 0;
@@ -450,13 +457,16 @@ function setupMenu(aiDefault, save) {
   for (const option of options) {
     const isDefault = (option.dataset.ai === "true") === aiDefault;
     option.setAttribute("aria-checked", String(isDefault));
-    option.title = isDefault ? "Your default" : "Saves this moment only";
+    // These save right away; the default only changes in Settings.
+    tooltip(option, () => {
+      if (option.dataset.ai === "false") return "Save this moment without an AI line";
+      return creditBalance !== null && creditBalance <= 0 ? "Save this moment. No credits left, so it won't get an AI line" : "Save this moment with an AI line";
+    });
     option.addEventListener("click", () => {
       close();
       void save(option.dataset.ai === "true");
     });
   }
-  $("capture").title = aiDefault ? "Saves with an AI line, 1 credit" : "Saves without an AI line";
 
   function open() {
     menu.classList.remove("hidden");
@@ -516,16 +526,21 @@ async function init() {
   }
 
   const buttons = () => [$("capture"), $("capture-toggle"), ...document.querySelectorAll("#capture-menu .option")];
+  // The icon adds a note, then edits the open draft.
+  function noteOpen(open) {
+    $("capture-note").classList.toggle("hidden", !open);
+    $("add-note").setAttribute("aria-expanded", String(open));
+    $("add-note").setAttribute("aria-label", open ? "Edit note" : "Add note");
+  }
+  tooltip($("add-note"), () => $("add-note").getAttribute("aria-label"));
   function resetNote() {
     $("note").value = "";
     $("note").style.height = "";
     $("note").style.overflowY = "";
-    $("capture-note").classList.add("hidden");
-    $("add-note").setAttribute("aria-expanded", "false");
+    noteOpen(false);
   }
   $("add-note").addEventListener("click", () => {
-    $("capture-note").classList.remove("hidden");
-    $("add-note").setAttribute("aria-expanded", "true");
+    noteOpen(true);
     fitNote();
     $("note").focus();
   });
@@ -596,6 +611,15 @@ async function init() {
   }
 
   show("capture-view");
+  // The full title and channel when the card cuts them short.
+  tooltip($("video-card"), () => {
+    const title = $("video-title"), channel = $("video-channel");
+    return [
+      title.scrollHeight > title.clientHeight + 1 && video.title,
+      channel.scrollWidth > channel.clientWidth && video.channel,
+      "Open video in VidWiz",
+    ];
+  });
   $("video-title").textContent = video.title;
   $("video-channel").textContent = video.channel || "";
   $("video-channel").classList.toggle("hidden", !video.channel);
@@ -616,6 +640,15 @@ async function init() {
   onClick("video-card", () => openTab(`/v/${video.videoId}`));
 
   let aiDefault = null;
+  // What Save moment will do now; unknown until the profile loads.
+  tooltip($("capture"), () => {
+    if (saving) return "Saving this moment…";
+    if (ad) return "Saving is paused while an ad plays";
+    if (aiDefault === null) return "Saves with your AI line default";
+    if (!aiDefault) return "Saves without an AI line, your default. Free";
+    if (creditBalance !== null && creditBalance <= 0) return "Saves without an AI line: no credits left";
+    return "Saves with an AI line, your default. 1 credit";
+  });
   // A save with an AI line spends a credit, so the balance is re-read after each save.
   async function refreshCredits() {
     if (aiDefault === null) return;

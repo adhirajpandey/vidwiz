@@ -7,7 +7,7 @@
 </head>
 <body>
   <header class="header">
-    <a href="#" id="brand" class="brand">
+    <a href="#" id="brand" class="brand" data-tooltip="Open VidWiz">
       <img src="icons/mark.svg" alt="" width="28" height="28">
       <span>VidWiz</span>
     </a>
@@ -57,7 +57,7 @@
         <div class="save">
           <div class="split">
             <button type="submit" id="capture" class="saved split-main">Save moment <span id="capture-time" class="tabular"></span></button>
-            <button type="button" id="capture-toggle" class="saved split-toggle hidden" aria-label="Save options" aria-haspopup="menu" aria-expanded="false" aria-controls="capture-menu">
+            <button type="button" id="capture-toggle" class="saved split-toggle hidden" aria-label="Save options" data-tooltip="Save options" aria-haspopup="menu" aria-expanded="false" aria-controls="capture-menu">
               <svg viewBox="0 0 16 16" width="14" height="14" aria-hidden="true"><path d="M4 6l4 4 4-4" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"/></svg>
             </button>
           </div>
@@ -71,7 +71,7 @@
             <a href="#" id="change-default" class="menu-link" role="menuitem">Change default in Settings</a>
           </div>
         </div>
-        <button type="button" id="add-note" class="add-note" title="Add note" aria-label="Add note" aria-expanded="false" aria-controls="capture-note">
+        <button type="button" id="add-note" class="add-note" aria-label="Add note" aria-expanded="false" aria-controls="capture-note">
           <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M13 4H5a2 2 0 0 0-2 2v13a2 2 0 0 0 2 2h13a2 2 0 0 0 2-2v-8"/><path d="m16 3 5 5M10 14l-1 4 4-1L22 8a2.1 2.1 0 0 0-5-5z"/></svg>
         </button>
       </div>

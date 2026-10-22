@@ -253,3 +253,13 @@ button.small:focus-visible { outline: 2px solid var(--fg); outline-offset: 2px; 
 .add-note { display: grid; place-items: center; width: 40px; height: 42px; flex: none; border: 1px solid var(--border); border-radius: 9px; background: var(--card); color: var(--fg); }
 .add-note:hover:not(:disabled), .add-note[aria-expanded="true"] { background: var(--muted); }
 .add-note:focus-visible, .cancel-note:focus-visible { outline: 2px solid var(--fg); outline-offset: 2px; }
+
+/* The shared tooltip, in ink like the popup's other actions. */
+.tooltip {
+  position: fixed; z-index: 100; max-width: 260px; padding: 5px 9px; border-radius: 7px;
+  background: var(--fg); color: var(--bg); font-size: 12px; font-weight: 500; line-height: 1.4;
+  box-shadow: 0 6px 18px rgb(0 0 0 / 18%); overflow-wrap: anywhere;
+}
+.tooltip span { display: block; }
+/* With full text above it, the action reads as its own line. */
+.tooltip span:not(:only-child):last-child { margin-top: 3px; opacity: 0.75; }
