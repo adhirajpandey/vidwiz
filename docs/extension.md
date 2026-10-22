@@ -60,6 +60,13 @@ Plain JavaScript modules, no bundler.
     missed its AI line for lack of credits shows that in the warning colour.
   - The popup stays within Chrome's 600 px limit: only the moments list
     scrolls, under a count of the video's moments.
+  - Each moment has the web app's "…" menu with **Add note** or **Edit
+    note**, and **Delete**. The note is edited in the row (Enter saves,
+    Shift+Enter adds a line, Esc cancels, empty removes it) with
+    `PATCH /v2/moments/{id}`. Delete asks inside the row first, since there is
+    no undo, then calls `DELETE /v2/moments/{id}`. Errors show in the row.
+    While a row is being edited or confirmed, the list doesn't refresh, so
+    nothing being typed is lost.
   - If the tab moves to another video while the popup is open (autoplay or
     navigation), the popup reloads for that video, so a save never lands on a
     video other than the one shown.

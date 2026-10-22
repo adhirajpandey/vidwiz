@@ -87,7 +87,9 @@ function sparkle() {
 function momentRow(tab, moment) {
   const start = playFrom(moment);
   const item = document.createElement("li");
-  if (moment.id === highlightId) item.className = "highlighted";
+  item.classList.toggle("highlighted", moment.id === highlightId);
+  item.classList.toggle("editing", moment.id === editingId);
+  item.classList.toggle("confirming", moment.id === confirmingId);
   const time = document.createElement("button");
   time.className = "time tabular";
   time.textContent = formatClock(moment.at_seconds);
@@ -110,7 +112,8 @@ function momentRow(tab, moment) {
     text.textContent = moment.ai_text;
     line.append(sparkle(), text);
   }
-  if (moment.note) add("note", moment.note);
+  // While the note is being edited, the field takes its place.
+  if (moment.note && editingId !== moment.id) add("note", moment.note);
   const status = moment.ai_text ? null : STATUS[moment.ai_status];
   if (status) {
     const line = document.createElement("p");
@@ -133,8 +136,193 @@ function momentRow(tab, moment) {
     if (moment.quote) add("quote", moment.quote);
     else if (!status) add("pending", "Saved moment");
   }
-  item.append(time, body);
+  if (editingId === moment.id) body.append(noteEditor(tab, moment));
+  if (confirmingId === moment.id) body.append(deleteConfirm(tab, moment));
+  item.append(time, body, momentActions(tab, moment));
   return item;
+}
+
+// A click outside a moment's "…" menu closes it.
+document.addEventListener("click", (event) => {
+  if (!event.target.closest?.(".actions")) closeActionsMenu?.();
+});
+
+// One row at a time can edit its note or confirm a delete. While it does, the
+// list doesn't redraw, so a refresh can't wipe what the user is typing.
+let editingId = null;
+let confirmingId = null;
+let closeActionsMenu = null;
+const busy = () => editingId !== null || confirmingId !== null;
+
+function setRowState(tab, { editing = null, confirming = null }) {
+  editingId = editing;
+  confirmingId = confirming;
+  paint(tab);
+  const row = $("moments").querySelector(".editing textarea, .confirming .confirm-delete");
+  row?.focus();
+}
+
+/** The "…" menu on a moment, like the web app's: add or edit the note, or delete. */
+function momentActions(tab, moment) {
+  const wrap = document.createElement("div");
+  wrap.className = "actions";
+  const toggle = document.createElement("button");
+  toggle.type = "button";
+  toggle.className = "actions-toggle";
+  toggle.setAttribute("aria-label", "Moment actions");
+  toggle.setAttribute("aria-haspopup", "menu");
+  toggle.setAttribute("aria-expanded", "false");
+  toggle.innerHTML = '<svg viewBox="0 0 24 24" width="16" height="16" aria-hidden="true"><g fill="currentColor"><circle cx="5" cy="12" r="1.8"/><circle cx="12" cy="12" r="1.8"/><circle cx="19" cy="12" r="1.8"/></g></svg>';
+  const menu = document.createElement("div");
+  menu.className = "actions-menu hidden";
+  menu.setAttribute("role", "menu");
+  const item = (label, className, onSelect) => {
+    const button = document.createElement("button");
+    button.type = "button";
+    button.className = `option ${className}`;
+    button.setAttribute("role", "menuitem");
+    button.textContent = label;
+    button.addEventListener("click", () => { close(); onSelect(); });
+    menu.append(button);
+    return button;
+  };
+  item(moment.note ? "Edit note" : "Add note", "", () => setRowState(tab, { editing: moment.id }));
+  item("Delete", "destructive", () => setRowState(tab, { confirming: moment.id }));
+
+  function close() {
+    menu.classList.add("hidden");
+    toggle.setAttribute("aria-expanded", "false");
+    if (closeActionsMenu === close) closeActionsMenu = null;
+  }
+  toggle.addEventListener("click", (event) => {
+    event.stopPropagation();
+    if (!menu.classList.contains("hidden")) return close();
+    closeActionsMenu?.();
+    menu.classList.remove("hidden");
+    toggle.setAttribute("aria-expanded", "true");
+    closeActionsMenu = close;
+    menu.querySelector("button").focus();
+  });
+  menu.addEventListener("keydown", (event) => {
+    const items = [...menu.querySelectorAll("button")];
+    const index = items.indexOf(document.activeElement);
+    if (event.key === "Escape") {
+      event.preventDefault();
+      close();
+      toggle.focus();
+    } else if (event.key === "ArrowDown" || event.key === "ArrowUp") {
+      event.preventDefault();
+      items[(index + (event.key === "ArrowDown" ? 1 : -1) + items.length) % items.length].focus();
+    }
+  });
+  wrap.append(toggle, menu);
+  return wrap;
+}
+
+function rowError(container, error) {
+  if (error instanceof ApiError && error.status === 401) {
+    showLogin(error.message);
+    return;
+  }
+  let line = container.querySelector(".row-error");
+  if (!line) {
+    line = document.createElement("p");
+    line.className = "row-error";
+    line.setAttribute("role", "alert");
+    container.append(line);
+  }
+  line.textContent = error.message;
+}
+
+/** Edits the note in place: Enter saves, Shift+Enter adds a line, Esc cancels. Empty removes it. */
+function noteEditor(tab, moment) {
+  const form = document.createElement("form");
+  form.className = "note-editor";
+  const field = document.createElement("textarea");
+  field.rows = 1;
+  field.value = moment.note ?? "";
+  field.placeholder = "Note";
+  field.setAttribute("aria-label", "Note");
+  const buttons = document.createElement("div");
+  buttons.className = "row-buttons";
+  const save = document.createElement("button");
+  save.type = "submit";
+  save.className = "primary small";
+  save.textContent = "Save";
+  const cancel = document.createElement("button");
+  cancel.type = "button";
+  cancel.className = "ghost small";
+  cancel.textContent = "Cancel";
+  buttons.append(save, cancel);
+  form.append(field, buttons);
+
+  const done = () => setRowState(tab, {});
+  cancel.addEventListener("click", done);
+  field.addEventListener("input", () => fit(field));
+  field.addEventListener("keydown", (event) => {
+    if (event.key === "Escape") {
+      event.preventDefault();
+      done();
+    } else if (event.key === "Enter" && !event.shiftKey) {
+      event.preventDefault();
+      form.requestSubmit();
+    }
+  });
+  form.addEventListener("submit", async (event) => {
+    event.preventDefault();
+    save.disabled = cancel.disabled = true;
+    try {
+      const updated = await api(`/moments/${moment.id}`, { method: "PATCH", body: { note: field.value.trim() || null } });
+      lastMoments = lastMoments.map((item) => (item.id === moment.id ? updated : item));
+      done();
+    } catch (error) {
+      save.disabled = cancel.disabled = false;
+      rowError(form, error);
+    }
+  });
+  requestAnimationFrame(() => {
+    fit(field);
+    field.setSelectionRange(field.value.length, field.value.length);
+  });
+  return form;
+}
+
+/** Asks before deleting, inside the row; there is no undo. */
+function deleteConfirm(tab, moment) {
+  const bar = document.createElement("div");
+  bar.className = "delete-bar";
+  const label = document.createElement("span");
+  label.textContent = "Delete this moment?";
+  const remove = document.createElement("button");
+  remove.type = "button";
+  remove.className = "danger small confirm-delete";
+  remove.textContent = "Delete";
+  const cancel = document.createElement("button");
+  cancel.type = "button";
+  cancel.className = "ghost small";
+  cancel.textContent = "Cancel";
+  bar.append(label, remove, cancel);
+  const done = () => setRowState(tab, {});
+  cancel.addEventListener("click", done);
+  bar.addEventListener("keydown", (event) => {
+    if (event.key === "Escape") {
+      event.preventDefault();
+      done();
+    }
+  });
+  remove.addEventListener("click", async () => {
+    remove.disabled = cancel.disabled = true;
+    try {
+      await api(`/moments/${moment.id}`, { method: "DELETE" });
+      lastMoments = lastMoments.filter((item) => item.id !== moment.id);
+      if (highlightId === moment.id) highlightId = null;
+      done();
+    } catch (error) {
+      remove.disabled = cancel.disabled = false;
+      rowError(bar, error);
+    }
+  });
+  return bar;
 }
 
 // While an AI line is on its way, refresh the list like the web app does.
@@ -146,8 +334,15 @@ let pollUntil = 0;
 let highlightId = null;
 let scrollToHighlight = false;
 
+let lastMoments = [];
+
 async function renderMoments(tab, videoId) {
   clearTimeout(pollTimer);
+  if (busy()) {
+    // Check again after the edit or delete finishes.
+    if (Date.now() < pollUntil) pollTimer = setTimeout(() => void renderMoments(tab, videoId), POLL_MS);
+    return;
+  }
   const list = $("moments");
   let moments;
   try {
@@ -167,7 +362,20 @@ async function renderMoments(tab, videoId) {
     if (Date.now() < pollUntil) pollTimer = setTimeout(() => void renderMoments(tab, videoId), POLL_MS);
     return;
   }
+  lastMoments = moments;
+  paint(tab);
+  if (moments.some(isPending) && Date.now() < pollUntil) {
+    pollTimer = setTimeout(() => void renderMoments(tab, videoId), POLL_MS);
+  }
+}
+
+/** Draws the list from the last loaded moments. */
+function paint(tab) {
+  closeActionsMenu = null;
+  const list = $("moments");
+  const moments = lastMoments;
   list.replaceChildren(...moments.map((moment) => momentRow(tab, moment)));
+  list.classList.toggle("busy", busy());
   $("moment-count").textContent = moments.length === 1 ? "1 moment" : `${moments.length} moments`;
   if (scrollToHighlight) {
     scrollToHighlight = false;
@@ -179,9 +387,6 @@ async function renderMoments(tab, videoId) {
     empty.textContent = "No moments yet.";
     list.append(empty);
   }
-  if (moments.some(isPending) && Date.now() < pollUntil) {
-    pollTimer = setTimeout(() => void renderMoments(tab, videoId), POLL_MS);
-  }
 }
 
 function refreshMoments(tab, videoId) {
@@ -190,12 +395,12 @@ function refreshMoments(tab, videoId) {
 }
 
 /** One line like the web app's note field, growing to five lines as the note gets longer. */
-function fitNote() {
-  const note = $("note");
-  note.style.height = "auto";
-  note.style.height = `${Math.min(note.scrollHeight + 2, 128)}px`;
-  note.style.overflowY = note.scrollHeight + 2 > 128 ? "auto" : "hidden";
+function fit(field) {
+  field.style.height = "auto";
+  field.style.height = `${Math.min(field.scrollHeight + 2, 128)}px`;
+  field.style.overflowY = field.scrollHeight + 2 > 128 ? "auto" : "hidden";
 }
+const fitNote = () => fit($("note"));
 
 async function shortcutLabel() {
   const commands = await chrome.commands.getAll();

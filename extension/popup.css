@@ -157,7 +157,7 @@ button.saved:hover:not(:disabled) { filter: brightness(1.05); }
 }
 .moments:hover { scrollbar-color: color-mix(in srgb, var(--muted-fg) 60%, transparent) transparent; }
 /* A fixed time column, like the web app, so text lines up whatever the chip's width. */
-.moments li { display: grid; grid-template-columns: 58px minmax(0, 1fr); gap: 8px; align-items: start; padding: 12px 0; }
+.moments li { position: relative; display: grid; grid-template-columns: 58px minmax(0, 1fr) 24px; gap: 8px; align-items: start; padding: 12px 0; }
 /* The moment just saved, tinted like the web app's highlighted moment. */
 .moments li.highlighted { margin: 0 -8px; padding: 12px 8px; border-radius: 10px; background: color-mix(in srgb, var(--saved) 32%, transparent); }
 .moments li.highlighted, .moments li.highlighted + li { border-top-color: transparent; }
@@ -181,6 +181,44 @@ button.saved:hover:not(:disabled) { filter: brightness(1.05); }
 /* Out of credits is something to act on, in the web app's warning colour. */
 .moment-status.warning { color: var(--warning); }
 .moment-status.warning svg { vertical-align: -2px; margin-right: 5px; }
+
+/* The moment's "…" menu, faint until the row is hovered, like the web app. */
+.actions { position: relative; }
+.actions-toggle {
+  display: grid; place-items: center; width: 24px; height: 24px; border: 0; border-radius: 6px;
+  background: none; color: var(--muted-fg); cursor: pointer; opacity: 0.55;
+}
+.moments li:hover .actions-toggle, .actions-toggle:focus-visible, .actions-toggle[aria-expanded="true"] { opacity: 1; }
+.actions-toggle:hover, .actions-toggle[aria-expanded="true"] { background: var(--muted); color: var(--fg); }
+.actions-toggle:focus-visible { outline: 2px solid var(--fg); outline-offset: 1px; }
+.actions-menu {
+  position: absolute; top: calc(100% + 4px); right: 0; z-index: 10; width: 9.5rem;
+  display: flex; flex-direction: column; padding: 4px; border: 1px solid var(--border); border-radius: 8px;
+  background: var(--card); box-shadow: 0 10px 28px rgb(0 0 0 / 22%);
+}
+.actions-menu.hidden { display: none; }
+.option.destructive { color: var(--destructive); }
+.moments li:last-child .actions-menu { top: auto; bottom: calc(100% + 4px); }
+
+/* Editing a note or confirming a delete happens inside the row. */
+.note-editor { display: flex; flex-direction: column; gap: 6px; margin-top: 2px; }
+.note-editor textarea { height: 38px; font-size: 13.5px; padding: 7px 10px; line-height: 22px; }
+.row-buttons { display: flex; gap: 6px; }
+button.small { height: 28px; padding: 0 12px; border-radius: 7px; font-size: 12.5px; font-weight: 600; cursor: pointer; }
+button.ghost { border: 0; background: none; color: var(--muted-fg); }
+button.ghost:hover:not(:disabled) { background: var(--muted); color: var(--fg); }
+button.danger { border: 0; background: var(--destructive); color: var(--bg); }
+button.danger:hover:not(:disabled) { filter: brightness(1.05); }
+button.small:focus-visible { outline: 2px solid var(--fg); outline-offset: 2px; }
+.delete-bar {
+  display: flex; align-items: center; flex-wrap: wrap; gap: 6px; margin-top: 4px; padding: 8px 10px; border-radius: 9px;
+  background: color-mix(in srgb, var(--destructive) 10%, transparent); font-size: 13px; font-weight: 500;
+}
+/* The question on its own line, then the buttons, like the note editor. */
+.delete-bar span { width: 100%; }
+.row-error { width: 100%; color: var(--destructive); font-size: 12px; }
+/* While a row is being edited, the others step back. */
+.moments.busy li:not(.editing):not(.confirming) { opacity: 0.55; }
 .notice {
   display: flex; align-items: center; flex-wrap: wrap; gap: 4px 6px; padding: 8px 10px; border-radius: 9px;
   font-size: 12.5px; color: var(--warning); background: color-mix(in srgb, var(--warning) 12%, transparent);
