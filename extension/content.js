@@ -35,23 +35,45 @@
     return { videoId: id, title: title(), seconds: element.currentTime || 0, ad };
   }
 
+  /**
+   * The player the toast shows in, or null to use the window: the active
+   * Short's player, or the main player in normal, theatre, and fullscreen mode.
+   * The miniplayer is too small, so it uses the window too.
+   */
+  function toastPlayer() {
+    const element = player()?.closest(".html5-video-player");
+    if (!element || document.querySelector("ytd-app[miniplayer-is-active]")) return null;
+    const { width, height } = element.getBoundingClientRect();
+    return width >= 320 && height >= 180 ? element : null;
+  }
+
   let toastHost = null;
   function showToast(text, kind) {
     if (!toastHost) {
       toastHost = document.createElement("div");
       toastHost.attachShadow({ mode: "open" });
     }
-    // Only the fullscreen element's subtree is visible in fullscreen.
-    const parent = document.fullscreenElement || document.documentElement;
+    // Inside the player, top right, where the user is looking. Otherwise the
+    // window's bottom left, clear of YouTube's own notices; in fullscreen only
+    // the fullscreen element's subtree is visible.
+    const inPlayer = toastPlayer();
+    const parent = inPlayer || document.fullscreenElement || document.documentElement;
     if (toastHost.parentNode !== parent) parent.appendChild(toastHost);
+    // Shorts draw their own controls over the player's top corners, so there
+    // the toast sits centred below that row.
+    const shorts = inPlayer?.id === "shorts-player";
+    const place = !inPlayer
+      ? "position: fixed; bottom: 24px; left: 24px; max-width: calc(100vw - 48px);"
+      : shorts
+        ? "position: absolute; top: 64px; left: 50%; transform: translateX(-50%); width: max-content; max-width: calc(100% - 32px);"
+        : "position: absolute; top: 16px; right: 16px; max-width: calc(100% - 32px);";
+    toastHost.style.cssText = `${place} z-index: 2147483647; pointer-events: none;`;
     const root = toastHost.shadowRoot;
     root.innerHTML = "";
     const style = document.createElement("style");
     // The web app's toast: navy card, green check for success, red for errors.
-    // In fullscreen it sits above YouTube's progress bar and controls.
     style.textContent = `
-      .toast { position: fixed; bottom: ${document.fullscreenElement ? 96 : 24}px; left: 50%; transform: translateX(-50%);
-        z-index: 2147483647; display: flex; align-items: center; gap: 10px; padding: 10px 16px 10px 12px; border-radius: 12px;
+      .toast { display: flex; align-items: center; gap: 10px; max-width: 360px; padding: 10px 16px 10px 12px; border-radius: 12px;
         font: 500 14px/1.4 system-ui, -apple-system, "Segoe UI", sans-serif; color: hsl(233 31% 94%); background: hsl(233 29% 18%);
         box-shadow: 0 10px 28px rgb(0 0 0 / 35%); border: 1px solid hsl(234 24% 23%); }
       .icon { width: 20px; height: 20px; border-radius: 50%; flex: none; display: grid; place-items: center;

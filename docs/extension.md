@@ -16,8 +16,10 @@ Plain JavaScript modules, no bundler.
   app, the Alt+S capture, and opening the web app on first install.
 - `content.js`: reads the video ID (`/watch?v=` and `/shorts/`), title, and
   current time from the main player, and whether an ad is playing; seeks the
-  player; shows a toast in a shadow root on the page, inside the fullscreen
-  element when the player is fullscreen.
+  player; shows a toast in a shadow root. The toast sits inside the player, top
+  right, in normal, theatre, and fullscreen mode, and centred below the
+  controls on Shorts. In the miniplayer, or without a visible player, it sits at
+  the window's bottom left.
 - `popup.html`, `popup.css`, `popup.js`: Save moment with an optional note and
   the save options menu, plus the video's moments with click-to-play.
 - `build.mjs`: writes a build with other origins, and zips it for the store.
