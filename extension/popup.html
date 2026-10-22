@@ -34,7 +34,7 @@
   <section id="capture-view" class="view hidden">
     <p id="video-title" class="video-title"></p>
     <form id="capture-form" class="capture">
-      <textarea id="note" rows="2" placeholder="Note (optional)" aria-label="Note"></textarea>
+      <textarea id="note" rows="1" placeholder="Note (optional)" aria-label="Note"></textarea>
       <div class="save">
         <div class="split">
           <button type="submit" id="capture" class="saved split-main">Save moment <span id="capture-time" class="tabular"></span></button>
@@ -55,7 +55,7 @@
     </form>
     <p id="feedback" class="feedback" role="status"></p>
     <div class="moments-head">
-      <span class="muted">Moments in this video</span>
+      <span id="moment-count" class="muted">Moments in this video</span>
       <a href="#" id="open-video" class="header-link">Open in VidWiz</a>
     </div>
     <ul id="moments" class="moments"></ul>

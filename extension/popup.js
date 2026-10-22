@@ -4,6 +4,8 @@ const $ = (id) => document.getElementById(id);
 const VIEWS = ["login-view", "idle-view", "reload-view", "capture-view"];
 const show = (id) => {
   for (const view of VIEWS) $(view).classList.toggle("hidden", view !== id);
+  // The video view has its own "Open in VidWiz" for this video.
+  $("open-app").classList.toggle("hidden", id === "capture-view");
 };
 const openTab = (path) => chrome.tabs.create({ url: webUrl(path) });
 const onClick = (id, handler) => $(id).addEventListener("click", (event) => { event.preventDefault(); handler(); });
@@ -12,6 +14,13 @@ function feedback(text, kind = "") {
   const element = $("feedback");
   element.textContent = text;
   element.className = `feedback ${kind}`;
+  if (text && kind === "success") {
+    const icon = document.createElement("span");
+    icon.className = "feedback-icon";
+    icon.setAttribute("aria-hidden", "true");
+    icon.textContent = "✓";
+    element.prepend(icon);
+  }
 }
 
 function showLogin(reason) {
@@ -58,6 +67,7 @@ function sparkle() {
 function momentRow(tab, moment) {
   const start = playFrom(moment);
   const item = document.createElement("li");
+  if (moment.id === highlightId) item.className = "highlighted";
   const time = document.createElement("button");
   time.className = "time tabular";
   time.textContent = formatClock(moment.at_seconds);
@@ -74,7 +84,12 @@ function momentRow(tab, moment) {
     return element;
   };
   // Like the web app: the AI line and note lead, and the quote shows only without them.
-  if (moment.ai_text) add("ai", moment.ai_text).prepend(sparkle());
+  if (moment.ai_text) {
+    const line = add("ai", "");
+    const text = document.createElement("span");
+    text.textContent = moment.ai_text;
+    line.append(sparkle(), text);
+  }
   if (moment.note) add("note", moment.note);
   const status = moment.ai_text ? null : STATUS[moment.ai_status];
   if (status) {
@@ -106,6 +121,9 @@ const POLL_MS = 3000;
 const POLL_LIMIT_MS = 3 * 60 * 1000;
 let pollTimer = null;
 let pollUntil = 0;
+// The moment just saved, highlighted and scrolled to like on the web app.
+let highlightId = null;
+let scrollToHighlight = false;
 
 async function renderMoments(tab, videoId) {
   clearTimeout(pollTimer);
@@ -125,6 +143,11 @@ async function renderMoments(tab, videoId) {
     return;
   }
   list.replaceChildren(...moments.map((moment) => momentRow(tab, moment)));
+  $("moment-count").textContent = moments.length === 1 ? "1 moment" : `${moments.length} moments`;
+  if (scrollToHighlight) {
+    scrollToHighlight = false;
+    list.querySelector(".highlighted")?.scrollIntoView({ block: "nearest", behavior: "smooth" });
+  }
   if (!moments.length) {
     const empty = document.createElement("li");
     empty.className = "muted";
@@ -139,6 +162,14 @@ async function renderMoments(tab, videoId) {
 function refreshMoments(tab, videoId) {
   pollUntil = Date.now() + POLL_LIMIT_MS;
   void renderMoments(tab, videoId);
+}
+
+/** One line like the web app's note field, growing to five lines as the note gets longer. */
+function fitNote() {
+  const note = $("note");
+  note.style.height = "auto";
+  note.style.height = `${Math.min(note.scrollHeight + 2, 128)}px`;
+  note.style.overflowY = note.scrollHeight + 2 > 128 ? "auto" : "hidden";
 }
 
 async function shortcutLabel() {
@@ -237,7 +268,12 @@ async function init() {
       }
       const result = await capture({ ...latest, note: $("note").value.trim(), ai });
       $("note").value = "";
-      feedback(result.merged ? "Added to a nearby moment." : `Saved at ${formatClock(latest.seconds)}.`, "success");
+      fitNote();
+      const at = formatClock(latest.seconds);
+      // The web app's wording.
+      feedback(result.merged ? `Added to your moment near ${at}` : `Moment saved at ${at}`, "success");
+      highlightId = result.moment?.id ?? null;
+      scrollToHighlight = true;
       refreshMoments(tab, video.videoId);
     } catch (error) {
       if (error instanceof ApiError && error.status === 401) {
@@ -290,6 +326,7 @@ async function init() {
     event.preventDefault();
     void save(undefined);
   });
+  $("note").addEventListener("input", fitNote);
   $("note").addEventListener("keydown", (event) => {
     if (event.key === "Enter" && !event.shiftKey) {
       event.preventDefault();

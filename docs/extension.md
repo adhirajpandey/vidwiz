@@ -48,7 +48,12 @@ Plain JavaScript modules, no bundler.
     The arrow beside it opens the same options as the web app: "With AI line,
     1 credit" and "Without AI line, Free", with the default checked, and a link
     to change the default in Settings. Saving is disabled while an ad plays.
-  - Enter submits; Shift+Enter adds a line.
+  - The note field starts as one line and grows to five. Enter submits;
+    Shift+Enter adds a line.
+  - After a save, the popup says "Moment saved at m:ss" (or "Added to your
+    moment near m:ss"), and the list highlights that moment and scrolls to it.
+  - The popup stays within Chrome's 600 px limit: only the moments list
+    scrolls, under a count of the video's moments.
   - **Moments**: each row shows the save time, and its time button plays from
     5 seconds before it, like the web app. The text is the note, AI line, or
     quote, with the AI line's status in the web app's words when it is pending,
