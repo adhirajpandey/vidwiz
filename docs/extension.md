@@ -87,8 +87,11 @@ Plain JavaScript modules, no bundler.
   - The popup stays within Chrome's 600 px limit: only the moments list
     scrolls, under a count of the video's moments.
   - Each moment has the web app's "…" menu with **Add note** or **Edit
-    note**, and **Delete**. The note is edited in the row (Enter saves,
-    Shift+Enter adds a line, Esc cancels, empty removes it) with
+    note**, and **Delete**. It opens below the button, or above it near the
+    popup's bottom, stays inside the popup rather than the scrolling list,
+    and closes on Escape, a click outside, or scrolling. The note is edited
+    in the row (Enter saves, Shift+Enter adds a line, Esc cancels, empty
+    removes it) with
     `PATCH /v2/moments/{id}`. Delete asks inside the row first, since there is
     no undo, then calls `DELETE /v2/moments/{id}`. While that request is out,
     the row stays as it is: repeated Enter, Esc, and other rows' actions wait

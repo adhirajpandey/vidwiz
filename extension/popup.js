@@ -167,10 +167,12 @@ function momentRow(tab, moment) {
   return item;
 }
 
-// A click outside a moment's "…" menu closes it.
+// A click outside a moment's "…" menu closes it, and so does scrolling the
+// list, since the open menu is placed against the popup rather than its row.
 document.addEventListener("click", (event) => {
   if (!event.target.closest?.(".actions")) closeActionsMenu?.();
 });
+document.addEventListener("scroll", () => closeActionsMenu?.(), true);
 
 // One row at a time can edit its note or confirm a delete. While it does, the
 // list doesn't redraw, so a refresh can't wipe what the user is typing.
@@ -230,6 +232,7 @@ function momentActions(tab, moment) {
     if (!menu.classList.contains("hidden")) return close();
     closeActionsMenu?.();
     menu.classList.remove("hidden");
+    placeMenu(toggle, menu);
     toggle.setAttribute("aria-expanded", "true");
     closeActionsMenu = close;
     menu.querySelector("button").focus();
@@ -248,6 +251,20 @@ function momentActions(tab, moment) {
   });
   wrap.append(toggle, menu);
   return wrap;
+}
+
+// Below the "…" button, or above it near the popup's bottom, kept inside the popup.
+function placeMenu(toggle, menu) {
+  const gap = 4;
+  const edge = 6;
+  const rect = toggle.getBoundingClientRect();
+  const { width, height } = menu.getBoundingClientRect();
+  let top = rect.bottom + gap;
+  if (top + height > innerHeight - edge) top = rect.top - gap - height;
+  top = Math.max(edge, Math.min(top, innerHeight - edge - height));
+  const left = Math.max(edge, Math.min(rect.right - width, innerWidth - edge - width));
+  menu.style.top = `${Math.round(top)}px`;
+  menu.style.left = `${Math.round(left)}px`;
 }
 
 function rowError(container, error) {
