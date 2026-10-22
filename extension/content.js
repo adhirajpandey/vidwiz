@@ -47,21 +47,25 @@
     const root = toastHost.shadowRoot;
     root.innerHTML = "";
     const style = document.createElement("style");
+    // The web app's toast: navy card, green check for success, red for errors.
+    // In fullscreen it sits above YouTube's progress bar and controls.
     style.textContent = `
-      .toast { position: fixed; bottom: 24px; left: 50%; transform: translateX(-50%); z-index: 2147483647;
-        display: flex; align-items: center; gap: 8px; padding: 10px 14px; border-radius: 10px;
-        font: 500 13px/1.4 system-ui, -apple-system, sans-serif; color: #fff; background: #18181b;
-        box-shadow: 0 8px 24px rgb(0 0 0 / 30%); border: 1px solid rgb(255 255 255 / 10%); }
-      .dot { width: 8px; height: 8px; border-radius: 50%; background: #a78bfa; flex: none; }
-      .error .dot { background: #f87171; }`;
+      .toast { position: fixed; bottom: ${document.fullscreenElement ? 96 : 24}px; left: 50%; transform: translateX(-50%);
+        z-index: 2147483647; display: flex; align-items: center; gap: 10px; padding: 10px 16px 10px 12px; border-radius: 12px;
+        font: 500 14px/1.4 system-ui, -apple-system, "Segoe UI", sans-serif; color: hsl(233 31% 94%); background: hsl(233 29% 18%);
+        box-shadow: 0 10px 28px rgb(0 0 0 / 35%); border: 1px solid hsl(234 24% 23%); }
+      .icon { width: 20px; height: 20px; border-radius: 50%; flex: none; display: grid; place-items: center;
+        background: hsl(152 45% 58%); color: hsl(234 33% 12%); font-size: 12px; font-weight: 800; }
+      .error .icon { background: hsl(0 75% 66%); }`;
     const toast = document.createElement("div");
     toast.className = `toast ${kind === "error" ? "error" : ""}`;
     toast.setAttribute("role", "status");
-    const dot = document.createElement("span");
-    dot.className = "dot";
+    const icon = document.createElement("span");
+    icon.className = "icon";
+    icon.textContent = kind === "error" ? "!" : "✓";
     const label = document.createElement("span");
     label.textContent = text;
-    toast.append(dot, label);
+    toast.append(icon, label);
     root.append(style, toast);
     clearTimeout(showToast.timer);
     showToast.timer = setTimeout(() => { root.innerHTML = ""; }, 2600);

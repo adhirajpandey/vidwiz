@@ -77,6 +77,9 @@ Plain JavaScript modules, no bundler.
 
 The 16, 48, and 128 px icons are generated from the same SVG as the web app.
 The popup selects an outlined Bricolage wordmark for the OS light or dark
-scheme. All artwork is local, so popup branding requires no font request.
-`build.mjs` copies these SVGs with the existing `icons/` directory.
+scheme, and uses the web app's palette for that scheme: ink for actions and
+links, caption yellow for Save moment and time chips. Its text is set in
+Bricolage Grotesque from `fonts/` (latin subset, SIL Open Font License), so
+the popup makes no font request. The on-page toast copies the web app's
+toast with system fonts. `build.mjs` copies `icons/` and `fonts/`.
 See [Brand assets](branding.md) for regeneration.

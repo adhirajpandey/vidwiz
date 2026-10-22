@@ -26,7 +26,7 @@ const web = (args.web || "https://vidwiz.online").replace(/\/$/, "");
 const apiUrl = (args.api || "https://api.vidwiz.online/v2").replace(/\/$/, "");
 const out = resolve(args.out || join(here, "dist", "prod"));
 
-const files = ["api.js", "background.js", "content.js", "popup.html", "popup.css", "popup.js", "icons"];
+const files = ["api.js", "background.js", "content.js", "popup.html", "popup.css", "popup.js", "icons", "fonts"];
 rmSync(out, { recursive: true, force: true });
 mkdirSync(out, { recursive: true });
 for (const file of files) cpSync(join(here, file), join(out, file), { recursive: true });

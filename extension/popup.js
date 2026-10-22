@@ -44,28 +44,42 @@ const STATUS = {
 
 const isPending = (moment) => Boolean(STATUS[moment.ai_status]?.pending);
 
+/** The web app's AI line mark. */
+function sparkle() {
+  const svg = document.createElementNS("http://www.w3.org/2000/svg", "svg");
+  svg.setAttribute("viewBox", "0 0 24 24");
+  svg.setAttribute("width", "13");
+  svg.setAttribute("height", "13");
+  svg.setAttribute("aria-label", "AI line");
+  svg.innerHTML = '<path d="M12 3l1.9 5.1L19 10l-5.1 1.9L12 17l-1.9-5.1L5 10l5.1-1.9z" fill="none" stroke="currentColor" stroke-width="2" stroke-linejoin="round"/>';
+  return svg;
+}
+
 function momentRow(tab, moment) {
   const start = playFrom(moment);
   const item = document.createElement("li");
   const time = document.createElement("button");
-  time.className = "time";
+  time.className = "time tabular";
   time.textContent = formatClock(moment.at_seconds);
   time.setAttribute("aria-label", `Play from ${formatClock(start)}`);
   time.addEventListener("click", () => chrome.tabs.sendMessage(tab.id, { action: "seek", seconds: start }).catch(() => {}));
 
   const body = document.createElement("div");
   body.className = "moment-body";
-  const text = moment.note || moment.ai_text || moment.quote;
+  const add = (className, text) => {
+    const element = document.createElement("p");
+    element.className = `moment-text ${className}`;
+    element.textContent = text;
+    body.append(element);
+    return element;
+  };
+  // Like the web app: the AI line and note lead, and the quote shows only without them.
+  if (moment.ai_text) add("ai", moment.ai_text).prepend(sparkle());
+  if (moment.note) add("note", moment.note);
   const status = moment.ai_text ? null : STATUS[moment.ai_status];
-  if (text) {
-    const label = document.createElement("p");
-    label.className = "moment-text";
-    label.textContent = text;
-    body.append(label);
-  }
   if (status) {
     const line = document.createElement("p");
-    line.className = `moment-status${status.pending ? " pending" : ""}`;
+    line.className = "moment-status";
     line.textContent = status.text;
     if (status.link) {
       const link = document.createElement("a");
@@ -78,11 +92,10 @@ function momentRow(tab, moment) {
       line.append(" ", link);
     }
     body.append(line);
-  } else if (!text) {
-    const label = document.createElement("p");
-    label.className = "moment-text pending";
-    label.textContent = "Saved moment";
-    body.append(label);
+  }
+  if (!moment.ai_text && !moment.note) {
+    if (moment.quote) add("quote", moment.quote);
+    else if (!status) add("pending", "Saved moment");
   }
   item.append(time, body);
   return item;
