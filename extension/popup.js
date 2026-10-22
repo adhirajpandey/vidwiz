@@ -506,6 +506,9 @@ function showCredits(balance, aiDefault) {
   $("credits-notice").classList.toggle("hidden", !(empty && aiDefault));
 }
 
+// The save options show the user's default and balance, so the arrow stays
+// disabled until the profile loads.
+let menuReady = false;
 function setupMenu(aiDefault, save) {
   const toggle = $("capture-toggle");
   const menu = $("capture-menu");
@@ -551,7 +554,7 @@ function setupMenu(aiDefault, save) {
     if (!menu.contains(event.target) && !toggle.contains(event.target)) close();
   });
   onClick("change-default", () => openTab("/settings#account"));
-  toggle.classList.remove("hidden");
+  menuReady = true;
 }
 
 async function init() {
@@ -609,6 +612,9 @@ async function init() {
   let ad = video.ad;
   const setDisabled = () => {
     for (const button of buttons()) button.disabled = saving || ad;
+    if (!menuReady) $("capture-toggle").disabled = true;
+    // Only waiting on the profile: keep the colour, so the button doesn't flash dark.
+    $("capture-toggle").classList.toggle("loading", !menuReady && !saving && !ad);
     // Lock the draft during a request so success cannot erase newer edits.
     for (const id of ["note", "add-note", "cancel-note"]) $(id).disabled = saving;
   };
@@ -735,6 +741,8 @@ async function init() {
   }
   onClick("get-credits", () => openTab("/settings#credits"));
   $("credits-notice").querySelector(".coin").replaceWith(coin());
+  // The moments don't need the profile, so both load at once.
+  refreshMoments(tab, video.videoId);
 
   try {
     const savesBefore = saves;
@@ -753,7 +761,6 @@ async function init() {
     }
     // Without the profile, Save moment still works with the server's default.
   }
-  refreshMoments(tab, video.videoId);
 }
 
 void init();

@@ -62,7 +62,9 @@ Plain JavaScript modules, no bundler.
     current time, updated while it plays. It saves at the time of submitting.
     The arrow beside it opens the same options as the web app: "With AI line,
     1 credit" and "Without AI line, Free", with the default checked, and a link
-    to change the default in Settings. Saving is disabled while an ad plays.
+    to change the default in Settings. Until the profile loads, the arrow shows
+    but is disabled, so Save moment keeps its width. The moments load
+    alongside the profile. Saving is disabled while an ad plays.
     Save moment's tooltip says what it will do: with an AI line for 1 credit,
     without one (the default, or because no credits are left), saving, paused
     for an ad, or "your AI line default" before the profile loads. Saving
