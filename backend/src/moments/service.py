@@ -409,7 +409,8 @@ def collect_pending_ai(db: Session, video_id: str) -> list[Moment]:
     """Charge and mark queued the moments waiting for this video's transcript.
 
     Called by the dispatcher after the transcript upload. Owners without
-    credits get an explicit insufficient_credits status.
+    credits get an explicit insufficient_credits status. Queued moments are
+    returned again without charging, so a lost response can be retried.
     """
     video = db.execute(
         select(Video).where(Video.video_id == video_id)
@@ -422,7 +423,7 @@ def collect_pending_ai(db: Session, video_id: str) -> list[Moment]:
             select(Moment)
             .where(
                 Moment.video_id == video_id,
-                Moment.ai_status == AiStatus.WAITING_TRANSCRIPT,
+                Moment.ai_status.in_([AiStatus.WAITING_TRANSCRIPT, AiStatus.QUEUED]),
             )
             .order_by(Moment.created_at.asc(), Moment.id.asc())
         )
@@ -431,7 +432,7 @@ def collect_pending_ai(db: Session, video_id: str) -> list[Moment]:
     )
     queued = []
     for moment in waiting:
-        if _request_ai(db, moment):
+        if moment.ai_status == AiStatus.QUEUED or _request_ai(db, moment):
             queued.append(moment)
     db.commit()
     return queued

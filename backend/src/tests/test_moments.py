@@ -848,6 +848,7 @@ def test_backfill_existing_quotes_preserves_activity(
 async def test_pending_transcript_returns_conflict_without_charging(
     client, db_session, user
 ):
+    """Pending requests are inert; lost ready responses can be collected again."""
     moment, _ = capture(db_session, user, ai=True)
     balance = user.credits_balance
     response = await client.post(
@@ -875,5 +876,13 @@ async def test_pending_transcript_returns_conflict_without_charging(
         f"/v2/internal/videos/{VIDEO_ID}/pending-moments", headers=admin_headers()
     )
     assert response.status_code == 200
+    assert [item["id"] for item in response.json()["moments"]] == [moment.id]
+    assert len(charges(db_session, user)) == 1
+
+    # Once the worker has finished, subsequent collections exclude this moment.
+    moments_service.save_ai_text(db_session, moment, "Done")
+    response = await client.post(
+        f"/v2/internal/videos/{VIDEO_ID}/pending-moments", headers=admin_headers()
+    )
     assert response.json()["moments"] == []
     assert len(charges(db_session, user)) == 1

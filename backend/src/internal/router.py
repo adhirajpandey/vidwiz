@@ -86,7 +86,8 @@ def submit_task_result(
     description=(
         "Charge and mark queued the moments waiting for this video's transcript. "
         "Called by the dispatcher after the transcript upload. Returns 409 while "
-        "the transcript is pending, without charging or changing moments."
+        "the transcript is pending, without charging or changing moments. "
+        "Queued moments are returned again without another charge for safe retries."
     ),
 )
 @limiter.exempt

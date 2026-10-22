@@ -1,7 +1,7 @@
 import json
 import os
 import time
-from typing import Any, Dict, List, Optional
+from typing import Any, Dict, List
 
 import boto3
 import requests
@@ -16,18 +16,14 @@ assert VIDWIZ_INTERNAL_API_BASE_URL, "VIDWIZ_INTERNAL_API_BASE_URL is not set"
 assert VIDWIZ_INTERNAL_API_ADMIN_TOKEN, "VIDWIZ_INTERNAL_API_ADMIN_TOKEN is not set"
 assert SQS_AI_NOTE_QUEUE_URL, "SQS_AI_NOTE_QUEUE_URL is not set"
 
-# Keep individual connect/read waits short alongside the 15-second backoff.
-PENDING_REQUEST_TIMEOUT = (min(REQUEST_TIMEOUT, 1), min(REQUEST_TIMEOUT, 1))
+# Keep connects short, but allow the API time to commit charges and return jobs.
+PENDING_REQUEST_TIMEOUT = (min(REQUEST_TIMEOUT, 1), REQUEST_TIMEOUT)
 TRANSCRIPT_RETRY_DELAYS = (1, 2, 4, 8)
 
 logger = Logger()
 
 
-class TranscriptNotReadyError(RuntimeError):
-    pass
-
-
-def collect_pending_moments(video_id: str) -> Optional[List[Dict[str, Any]]]:
+def collect_pending_moments(video_id: str) -> List[Dict[str, Any]]:
     """Ask the API to charge and mark queued the moments waiting on this video."""
     url = (
         f"{VIDWIZ_INTERNAL_API_BASE_URL}/v2/internal/videos/{video_id}/pending-moments"
@@ -50,20 +46,24 @@ def collect_pending_moments(video_id: str) -> Optional[List[Dict[str, Any]]]:
                     "Failed to collect pending AI moments",
                     extra={"video_id": video_id, "status_code": response.status_code},
                 )
-                return None
+                raise RuntimeError(
+                    f"Pending moments request failed with HTTP {response.status_code}"
+                )
         except Exception as error:
             logger.error(
                 "Error collecting pending AI moments",
                 extra={"video_id": video_id, "error_type": type(error).__name__},
             )
-            return None
+            raise RuntimeError(
+                f"Failed to collect pending moments for {video_id}"
+            ) from None
 
         if attempt == len(TRANSCRIPT_RETRY_DELAYS):
             logger.error(
                 "Transcript readiness retries exhausted",
                 extra={"video_id": video_id, "attempts": attempt + 1},
             )
-            raise TranscriptNotReadyError(f"Transcript is not ready for {video_id}")
+            raise RuntimeError(f"Transcript is not ready for {video_id}")
 
         delay = TRANSCRIPT_RETRY_DELAYS[attempt]
         logger.info(
@@ -71,7 +71,7 @@ def collect_pending_moments(video_id: str) -> Optional[List[Dict[str, Any]]]:
             extra={"video_id": video_id, "retry": attempt + 1, "delay_seconds": delay},
         )
         time.sleep(delay)
-    return None
+    return []
 
 
 def chunk_list(items: List[Dict[str, Any]], size: int) -> List[List[Dict[str, Any]]]:
@@ -141,8 +141,6 @@ def dispatch_videos(video_ids: List[str]) -> None:
         )
 
         moments = collect_pending_moments(video_id)
-        if moments is None:
-            continue
         if not moments:
             logger.info(
                 "No AI moments to dispatch",
@@ -151,6 +149,8 @@ def dispatch_videos(video_ids: List[str]) -> None:
             continue
 
         result = push_moments_to_sqs_batch(moments)
+        if result["failed"]:
+            raise RuntimeError(f"Failed to send AI moments for {video_id}")
         logger.info(
             "Completed AI moment dispatch",
             extra={

@@ -327,7 +327,9 @@ a transcript is replaced.
 - `POST /v2/internal/tasks/{id}/result`
 - `POST /v2/internal/videos/{video_id}/pending-moments`
   returns HTTP 409 while the transcript is `pending`, without charging credits
-  or changing moments. The dispatcher retries as described in [Workers](workers.md).
+  or changing moments. It returns already-queued moments again without charging
+  so dispatch retries can recover lost responses. The dispatcher retries as
+  described in [Workers](workers.md).
 - `POST /v2/internal/videos/{video_id}/transcript`
 - `POST /v2/internal/videos/{video_id}/metadata`
 - `POST /v2/internal/videos/{video_id}/summary`
