@@ -64,7 +64,8 @@ Plain JavaScript modules, no bundler.
     1 credit" and "Without AI line, Free", with the default checked, and a link
     to change the default in Settings. Until the profile loads, the arrow shows
     but is disabled, so Save moment keeps its width. The moments load
-    alongside the profile. Saving is disabled while an ad plays.
+    alongside the profile. While the options are open, the popup grows to
+    fit them. Saving is disabled while an ad plays.
     Save moment's tooltip says what it will do: with an AI line for 1 credit,
     without one (the default, or because no credits are left), saving, paused
     for an ad, or "your AI line default" before the profile loads. Saving

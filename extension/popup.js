@@ -527,14 +527,18 @@ function setupMenu(aiDefault, save) {
     });
   }
 
+  // Chrome sizes the popup to its content, which leaves out the open menu, so
+  // the popup grows to keep the usual 10px below it.
   function open() {
     menu.classList.remove("hidden");
     toggle.setAttribute("aria-expanded", "true");
+    document.body.style.minHeight = `${Math.ceil(menu.getBoundingClientRect().bottom + 10)}px`;
     options[0].focus();
   }
   function close() {
     menu.classList.add("hidden");
     toggle.setAttribute("aria-expanded", "false");
+    document.body.style.minHeight = "";
   }
   toggle.addEventListener("click", () => (menu.classList.contains("hidden") ? open() : close()));
   menu.addEventListener("keydown", (event) => {
