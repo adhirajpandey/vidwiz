@@ -8,6 +8,7 @@ import PageTitle from '../../components/PageTitle';
 import WizChat from '../../components/wiz/WizChat';
 import Button from '../../components/ui/Button';
 import { formatRelative, videoTitle } from '../../lib/format';
+import { shortTitle } from '../../lib/title';
 import { cn } from '../../lib/utils';
 import ChatLimitNotice from '../chat/ChatLimitNotice';
 import { usePassageActions } from '../chat/usePassageActions';
@@ -25,8 +26,8 @@ function History({ activeId, onPick, onNew }: { activeId: number | null; onPick:
     queryFn: () => conversationsApi.list({ scope: 'library', per_page: 30 }),
   });
   return (
-    <aside aria-label="Earlier questions" className="hidden w-64 shrink-0 lg:block">
-      <Button onClick={onNew} className="mb-3 w-full justify-center"><MessageSquarePlus className="size-4" />New question</Button>
+    <aside aria-label="Chat history" className="hidden w-64 shrink-0 lg:block">
+      <Button onClick={onNew} className="mb-3 w-full justify-center"><MessageSquarePlus className="size-4" />New chat</Button>
       <ul className="space-y-0.5">
         {chats.data?.conversations.map(chat => (
           <li key={chat.id}>
@@ -98,10 +99,13 @@ export default function AskPage() {
   }, [ids.join(','), videos.map(query => query.dataUpdatedAt).join(',')]);
   const videoLabel = useCallback((id: string) => titles.get(id), [titles]);
   const passages = usePassageActions({ signedIn: true, videoLabel });
+  // A chat is named by its first question, so follow-ups and streaming keep the title.
+  const firstQuestion = chat.messages.find(message => message.role === 'user')?.parts
+    .map(part => (part.type === 'citation' ? '' : part.text)).join(' ');
 
   return (
     <div className="flex gap-6">
-      <PageTitle title="Ask your library" />
+      <PageTitle title={firstQuestion?.trim() ? shortTitle(firstQuestion) : 'Ask your library'} />
       <History
         activeId={chat.conversationId}
         onPick={id => { setConversation(id); chat.resume(id); }}

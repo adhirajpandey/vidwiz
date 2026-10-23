@@ -127,6 +127,20 @@ Workers.
   or a test deployment).
 - `pnpm lint`, `pnpm test`, `pnpm build`.
 
+## Tab titles
+Tab titles name what is open, most specific first, joined with ` · ` and
+ending in `VidWiz`. `documentTitle` in `src/lib/title.ts` builds them; public
+pages pass the result to `Seo`, and signed-in pages use `PageTitle`.
+- The landing page and `index.html` share `LANDING_TITLE`.
+- A video page adds its open panel, as in `<video title> · Ask · VidWiz`.
+  While the video loads, fails, or has no title yet, the title is
+  `Video · VidWiz`; it never shows the video ID.
+- A library chat is named by its first question, shortened, and keeps that
+  name through follow-ups. A new chat is `Ask your library · VidWiz`.
+- Search uses `"<query>" · Search · VidWiz` with curly quotes.
+
+Chat controls are called **New chat** and **Chat history** everywhere.
+
 ## UI Screenshot Workflow
 `scripts/screenshot_pages.py` captures the 2.x pages and still needs updating
 for the v3 routes and states.

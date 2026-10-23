@@ -25,6 +25,7 @@ import { useVideo } from './queries';
 
 type Tab = 'moments' | 'ask' | 'transcript' | 'overview';
 const TABS: Tab[] = ['moments', 'ask', 'transcript', 'overview'];
+const TAB_LABELS: Record<Tab, string> = { moments: 'Moments', ask: 'Ask', transcript: 'Transcript', overview: 'Overview' };
 
 function numberParam(value: string | null): number | null {
   const parsed = value === null ? NaN : Number(value);
@@ -77,7 +78,7 @@ function Workspace({ videoId }: { videoId: string }) {
 
   if (video.isError) {
     const missing = video.error instanceof ApiError && video.error.response.status === 404;
-    return missing ? (
+    return <><PageTitle title="Video" />{missing ? (
       <EmptyState icon={<FileText className="size-5" />} title="This video is not in VidWiz yet" action={
         signedIn ? (
           <Button variant="primary" onClick={async () => {
@@ -95,15 +96,17 @@ function Workspace({ videoId }: { videoId: string }) {
       }>Save it to fetch its transcript and start capturing moments.</EmptyState>
     ) : (
       <ErrorState title="The video did not load" message="Check your connection and try again." onRetry={() => void video.refetch()} />
-    );
+    )}</>;
   }
 
   const data = video.data;
   const title = data ? videoTitle(data.title ?? data.metadata?.title, videoId) : 'Loading…';
+  // The tab title never shows the raw video ID that `videoTitle` falls back to.
+  const tabTitle = data ? [(data.title ?? data.metadata?.title)?.trim() || 'Video', TAB_LABELS[tab]] : 'Video';
 
   return (
     <div className="grid gap-6 lg:grid-cols-[minmax(0,1fr)_minmax(0,26rem)] xl:grid-cols-[minmax(0,1fr)_minmax(0,30rem)]">
-      <PageTitle title={title} />
+      <PageTitle title={tabTitle} />
       <div className="min-w-0 space-y-4 lg:sticky lg:top-24 lg:self-start">
         <YouTubePlayer ref={playerRef} videoId={videoId} onTimeUpdate={setPlayhead} className="overflow-hidden rounded-[14px] shadow-[0_24px_60px_rgb(10_12_40/0.18)]" />
         {signedIn && data?.metadata?.duration ? (
@@ -163,7 +166,7 @@ function Workspace({ videoId }: { videoId: string }) {
 export default function VideoPage() {
   const { videoId = '' } = useParams();
   if (!isValidVideoId(videoId)) {
-    return <EmptyState icon={<FileText className="size-5" />} title="That is not a YouTube video link">Check the address and try again.</EmptyState>;
+    return <><PageTitle title="Video" /><EmptyState icon={<FileText className="size-5" />} title="That is not a YouTube video link">Check the address and try again.</EmptyState></>;
   }
   return <Workspace key={videoId} videoId={videoId} />;
 }

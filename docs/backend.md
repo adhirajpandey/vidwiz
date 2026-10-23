@@ -190,6 +190,12 @@ Describe the FastAPI backend: structure, auth rules, and the request/worker life
 - **Task lifecycle**: On claim, a task is marked `in_progress`, `started_at` is set, and `retry_count` increments. Stale `in_progress` tasks can be reclaimed after a timeout.
 - **Transcript storage**: Transcripts are written to S3 when `S3_TRANSCRIPT_BUCKET_NAME` is configured, using the application's required AWS credentials; the transcript is still marked `ready` when the bucket is not configured.
 - **Sweep**: `python -m src.management.sweep --every 600` runs beside the API and fails jobs that stayed queued past the limits above.
+  It also deletes conversations created over 7 days ago that have no
+  messages. Opening Ask creates a conversation before the first question, so
+  abandoned opens would otherwise pile up. Deleting one does not lock a paid
+  video chat again: the unlock is the `wiz_chat` credits ledger entry for the
+  video. A message saved during the sweep makes the delete fail on the
+  messages foreign key, and the next pass tries again.
 - **Backfills**: `python -m src.management.backfill chunks [--missing-only]` stores search passages; `python -m src.management.backfill overviews --limit N` queues up to N overviews that are missing, failed, or older than key points, most recently used videos first. `python -m src.management.backfill quotes` fills missing moment quotes on transcript-ready videos; use it for bulk imports whose moments arrive after their transcripts. Add `--all` to recompute existing quotes with the current window while preserving each moment's `updated_at`.
 - **Wiz chat**: Requires S3 transcript access and `OPENROUTER_API_KEY`. If transcript is not ready, `POST /v2/conversations/{id}/messages` returns `202 Accepted` with `status=processing`. If the transcript flag is set but S3 data is missing, the request errors with `Transcript data missing`.
 
@@ -347,7 +353,8 @@ a transcript is replaced.
 - Swagger includes public, internal, and payment webhook routes. Protected
   operations still require their existing JWT, guest-session, or admin
   credentials.
-- SQLite is the default when `DB_URL` is not set; Postgres is used in deployed environments.
+- `DB_URL` must point to PostgreSQL in every environment. Migrations and search
+  use PostgreSQL features, so other databases are not supported.
 - CORS allows all origins with credentials enabled and exposes `X-Request-ID`
   and `Retry-After` to browser clients; browsers will reject credentialed
   requests with wildcard origins.
@@ -381,12 +388,14 @@ a transcript is replaced.
 
 ## Startup Requirements
 The server fails on startup if any of the following env vars are missing. `ENVIRONMENT`,
-`SECRET_KEY`, `VIDWIZ_INTERNAL_API_ADMIN_TOKEN`, and `GOOGLE_CLIENT_ID` must also be non-empty:
+`DB_URL`, `SECRET_KEY`, `VIDWIZ_INTERNAL_API_ADMIN_TOKEN`, and `GOOGLE_CLIENT_ID` must also be non-empty:
 - `ENVIRONMENT`
+- `DB_URL`
 - `SECRET_KEY`
 - `VIDWIZ_INTERNAL_API_ADMIN_TOKEN`
 - `GOOGLE_CLIENT_ID`
 - `SQS_AI_NOTE_QUEUE_URL`
+- `SQS_AI_SUMMARY_QUEUE_URL`
 - `AWS_ACCESS_KEY_ID`
 - `AWS_SECRET_ACCESS_KEY`
 - `DODO_PAYMENTS_API_KEY`

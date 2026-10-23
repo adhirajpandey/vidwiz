@@ -15,7 +15,17 @@ TEST_CREDIT_PRODUCTS = (
     '[{"product_id":"pdt_test","credits":200,"price_inr":20,"name":"200 Credits"}]'
 )
 
+# Tests need PostgreSQL with pgvector, because search and embeddings use
+# PostgreSQL features. The database is wiped and migrated at session start.
+TEST_DATABASE_URL = os.environ.get("TEST_DB_URL")
+if not TEST_DATABASE_URL:
+    raise RuntimeError(
+        "TEST_DB_URL must point to a disposable PostgreSQL database with pgvector"
+    )
+
 os.environ.setdefault("ENVIRONMENT", "test")
+# The app engine must never point anywhere but the disposable test database.
+os.environ["DB_URL"] = TEST_DATABASE_URL
 os.environ.setdefault("SECRET_KEY", "test-secret")
 os.environ.setdefault(
     "VIDWIZ_INTERNAL_API_ADMIN_TOKEN",
@@ -47,14 +57,6 @@ from src.database import get_db  # noqa: E402
 from src.main import create_app  # noqa: E402
 from src.config import CreditProductConfig, settings  # noqa: E402
 
-
-# Tests need PostgreSQL with pgvector, because search and embeddings use
-# PostgreSQL features. The database is wiped and migrated at session start.
-TEST_DATABASE_URL = os.environ.get("TEST_DB_URL")
-if not TEST_DATABASE_URL:
-    raise RuntimeError(
-        "TEST_DB_URL must point to a disposable PostgreSQL database with pgvector"
-    )
 BACKEND_DIR = Path(__file__).resolve().parents[2]
 
 

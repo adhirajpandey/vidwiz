@@ -4,7 +4,8 @@ from collections import Counter
 from datetime import datetime, timedelta
 
 from openai import OpenAI
-from sqlalchemy import func, select
+from sqlalchemy import delete, exists, func, or_, select
+from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
 
 from src.auth.schemas import ViewerContext
@@ -72,6 +73,36 @@ def create_conversation(
     db.refresh(conversation)
     logger.debug("Created conversation", extra={"conversation_id": conversation.id})
     return conversation
+
+
+def sweep_empty(db: Session, older_than: timedelta) -> int:
+    """Delete conversations that never got a message.
+
+    Opening Ask creates a conversation before the first question, so most
+    abandoned opens leave an empty one. A paid video chat stays unlocked: the
+    unlock is the credits ledger entry for the video, and a new conversation
+    for it costs nothing. If a first message is saved while this runs, the
+    messages foreign key fails the delete and the next sweep tries again, so
+    no message is lost.
+    """
+    try:
+        result = db.execute(
+            delete(Conversation)
+            .where(
+                or_(
+                    Conversation.created_at.is_(None),
+                    Conversation.created_at < func.now() - older_than,
+                ),
+                ~exists().where(Message.conversation_id == Conversation.id),
+            )
+            .execution_options(synchronize_session=False)
+        )
+        db.commit()
+    except IntegrityError:
+        db.rollback()
+        logger.info("Skipped empty conversation sweep: a message arrived")
+        return 0
+    return result.rowcount
 
 
 def get_conversation_for_viewer(
