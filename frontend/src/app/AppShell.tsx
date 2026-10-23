@@ -1,6 +1,6 @@
 import type { ReactNode } from 'react';
 import { Link, NavLink, useLocation, useNavigate } from 'react-router-dom';
-import { Home, Library, LogOut, Moon, Search, Settings, Sparkles, Sun } from 'lucide-react';
+import { Home, LifeBuoy, Library, LogOut, Moon, Search, Settings, Sparkles, Sun } from 'lucide-react';
 import { useQueryClient } from '@tanstack/react-query';
 import { useProfile } from '../hooks/useProfile';
 import { useSignedIn } from '../hooks/useSignedIn';
@@ -60,6 +60,7 @@ function UserMenu() {
         </div>
         <MenuSeparator />
         <MenuItem onSelect={() => navigate('/settings')}><Settings className="size-4" />Settings</MenuItem>
+        <MenuItem onSelect={() => navigate('/support')}><LifeBuoy className="size-4" />Help</MenuItem>
         <MenuItem onSelect={toggle}>
           {theme === 'dark' ? <Sun className="size-4" /> : <Moon className="size-4" />}
           {theme === 'dark' ? 'Light theme' : 'Dark theme'}

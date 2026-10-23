@@ -1,8 +1,8 @@
 import { useEffect, useState } from 'react';
 import type { ReactNode } from 'react';
-import { useLocation } from 'react-router-dom';
+import { Link, useLocation } from 'react-router-dom';
 import { useMutation, useQueryClient } from '@tanstack/react-query';
-import { Chrome } from 'lucide-react';
+import { Chrome, LifeBuoy } from 'lucide-react';
 import { authApi } from '../../api';
 import config from '../../config';
 import { useNotify } from '../../hooks/useNotify';
@@ -80,7 +80,13 @@ export default function SettingsPage() {
         <a href={config.CHROME_WEBSTORE_URL} target="_blank" rel="noopener noreferrer" className="inline-flex h-10 items-center gap-2 rounded-lg border border-border px-4 text-sm font-medium hover:bg-muted">
           <Chrome className="size-4" />Get the extension
         </a>
+        <Link to="/support" className="ml-2 inline-flex h-10 items-center gap-2 rounded-lg px-4 text-sm font-medium text-muted-foreground hover:bg-muted hover:text-foreground">
+          <LifeBuoy className="size-4" />Help
+        </Link>
       </Section>
+      <p className="text-center text-xs text-muted-foreground">
+        <Link to="/privacy" className="underline-offset-4 hover:text-foreground hover:underline">Privacy policy</Link>
+      </p>
     </div>
   );
 }
