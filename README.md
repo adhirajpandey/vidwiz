@@ -82,6 +82,7 @@ API. Run the ones you need from `backend/`, each in its own terminal:
 ```sh
 uv run --locked --env-file .env python workers/scripts/task-helper.py transcript
 uv run --locked --env-file .env python workers/scripts/task-helper.py metadata
+uv run --locked --env-file .env python workers/scripts/task-helper.py resolve_title
 uv run --locked --env-file .env python -m src.management.sweep --every 600
 ```
 
