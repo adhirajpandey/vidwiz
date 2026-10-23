@@ -259,6 +259,7 @@ export default function LandingPage() {
       <footer>
         <div className="wrap">
           <span>VidWiz</span>
+          <Link to="/support">Help</Link>
           <Link to="/privacy">Privacy</Link>
           <a href="https://github.com/adhirajpandey/vidwiz" target="_blank" rel="noopener noreferrer">GitHub</a>
         </div>

@@ -41,7 +41,11 @@ Workers.
   (`moments`, `ask`, `transcript`, `overview`).
 - `/library`, `/search?q=`, `/ask` (`c` resumes, `q` asks once), `/settings`.
 - `/login`, `/signup` (`next` returns to an in-app path), `/share` (PWA share
-  target), `/privacy`.
+  target).
+- `/privacy` and `/support`: public text pages that share
+  `features/landing/DocPage.tsx`. The landing footer, the account menu, and
+  Settings link to them. They are the privacy policy and support URLs for the
+  Chrome Web Store listing.
 - Redirects keep 2.x links working: `/dashboard` → `/library`,
   `/dashboard/:id` → `/v/:id`, `/wiz/:id` → `/v/:id?tab=ask`, `/profile` →
   `/settings`.
