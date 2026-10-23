@@ -1,5 +1,6 @@
 import type { ReactNode } from 'react';
 import Seo from '../../components/Seo';
+import { documentTitle } from '../../lib/title';
 
 function Section({ title, children }: { title: string; children: ReactNode }) {
   return (
@@ -14,7 +15,7 @@ export default function PrivacyPolicyPage() {
   return (
     <>
       <Seo
-        title="Privacy Policy | VidWiz"
+        title={documentTitle('Privacy Policy')}
         description="Read how VidWiz handles your data, including account information, Smart Notes, and product usage details."
         path="/privacy"
       />

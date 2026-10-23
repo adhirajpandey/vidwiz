@@ -3,6 +3,7 @@ import { Navigate, useNavigate, useSearchParams } from 'react-router-dom';
 import { useQueryClient } from '@tanstack/react-query';
 import { libraryApi } from '../../api';
 import { useSignedIn } from '../../hooks/useSignedIn';
+import PageTitle from '../../components/PageTitle';
 import EmptyState from '../../components/ui/EmptyState';
 import Spinner from '../../components/ui/Spinner';
 import { sharedVideoId } from './sharedVideoId';
@@ -28,8 +29,13 @@ export default function SharePage() {
       .catch(() => setFailed(true));
   }, [signedIn, videoId, navigate, queryClient]);
 
-  if (!videoId) return <EmptyState title="Nothing to save">Share a YouTube video to save it to your library.</EmptyState>;
-  if (!signedIn) return <Navigate to={`/login?next=${encodeURIComponent(`/share?url=${videoId}`)}`} replace />;
-  if (failed) return <EmptyState title="The video was not saved">Check your connection and share it again.</EmptyState>;
-  return <div className="flex justify-center py-16"><Spinner label="Saving video" /></div>;
+  if (!signedIn && videoId) return <Navigate to={`/login?next=${encodeURIComponent(`/share?url=${videoId}`)}`} replace />;
+  return (
+    <>
+      <PageTitle title="Save to VidWiz" />
+      {!videoId ? <EmptyState title="Nothing to save">Share a YouTube video to save it to your library.</EmptyState>
+        : failed ? <EmptyState title="The video was not saved">Check your connection and share it again.</EmptyState>
+          : <div className="flex justify-center py-16"><Spinner label="Saving video" /></div>}
+    </>
+  );
 }

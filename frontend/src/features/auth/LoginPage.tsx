@@ -5,6 +5,7 @@ import { authApi, getValidationFieldErrors, normalizeApiError } from '../../api'
 import { useNotify } from '../../hooks/useNotify';
 import { setToken } from '../../lib/authUtils';
 import Seo from '../../components/Seo';
+import { documentTitle } from '../../lib/title';
 import Button from '../../components/ui/Button';
 import { Input } from '../../components/ui/Input';
 import AuthCard from './AuthCard';
@@ -37,7 +38,7 @@ export default function LoginPage() {
 
   return (
     <>
-      <Seo title="Log in | VidWiz" description="Log in to VidWiz to search and ask across the YouTube moments you saved." path="/login" />
+      <Seo title={documentTitle('Log in')} description="Log in to VidWiz to search and ask across the YouTube moments you saved." path="/login" />
       <AuthCard
         title="Welcome back"
         subtitle="Log in to your library"

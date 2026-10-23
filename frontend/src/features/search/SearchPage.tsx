@@ -69,7 +69,7 @@ export default function SearchPage() {
 
   return (
     <div className="mx-auto max-w-3xl space-y-4">
-      <PageTitle title={`Search: ${q}`} />
+      <PageTitle title={[`“${q}”`, 'Search']} />
       <SearchForm className="md:hidden" />
       <div className="flex flex-wrap items-baseline justify-between gap-2">
         <h1 className="display text-3xl">Results for “{q}”</h1>

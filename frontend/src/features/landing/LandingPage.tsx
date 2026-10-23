@@ -7,6 +7,7 @@ import config from '../../config';
 import { useNotify } from '../../hooks/useNotify';
 import { useTheme } from '../../hooks/useTheme';
 import { formatClock } from '../../lib/format';
+import { LANDING_TITLE } from '../../lib/title';
 import { extractVideoId } from '../../lib/videoUtils';
 import Seo from '../../components/Seo';
 import './landing.css';
@@ -135,7 +136,7 @@ export default function LandingPage() {
   return (
     <div className="landing">
       <Seo
-        title="VidWiz: save the moment you heard"
+        title={LANDING_TITLE}
         description="Save the exact words from any YouTube moment you tap. Search what was said weeks later, and ask questions across everything you have watched."
         path="/"
       />

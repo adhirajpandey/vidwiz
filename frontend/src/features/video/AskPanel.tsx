@@ -35,7 +35,7 @@ function Unlock({ cost, onUnlock }: { cost: number; onUnlock: () => void }) {
   );
 }
 
-function EarlierChats({ videoId, onPick }: { videoId: string; onPick: (id: number) => void }) {
+function ChatHistory({ videoId, onPick }: { videoId: string; onPick: (id: number) => void }) {
   const chats = useQuery({
     queryKey: ['conversations', 'video', videoId],
     queryFn: () => conversationsApi.list({ scope: 'video', video_id: videoId, per_page: 10 }),
@@ -44,7 +44,7 @@ function EarlierChats({ videoId, onPick }: { videoId: string; onPick: (id: numbe
   return (
     <Menu>
       <MenuTrigger asChild>
-        <Button variant="ghost" size="sm"><History className="size-3.5" />Earlier chats</Button>
+        <Button variant="ghost" size="sm"><History className="size-3.5" />Chat history</Button>
       </MenuTrigger>
       <MenuContent className="w-72">
         {chats.data.conversations.map(chat => (
@@ -95,7 +95,7 @@ export default function AskPanel({ video, seek, signedIn, resumeId, onConversati
       className="h-[min(70dvh,640px)] lg:h-[calc(100dvh-13rem)]"
       header={
         <div className="flex items-center gap-1">
-          {signedIn && <EarlierChats videoId={video.video_id} onPick={id => { onConversation(id); chat.resume(id); }} />}
+          {signedIn && <ChatHistory videoId={video.video_id} onPick={id => { onConversation(id); chat.resume(id); }} />}
         </div>
       }
       statusBanner={
