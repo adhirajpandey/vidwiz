@@ -4,6 +4,7 @@ from pydantic import ValidationError
 
 REQUIRED_ENV_VARS = [
     "ENVIRONMENT",
+    "DB_URL",
     "SECRET_KEY",
     "VIDWIZ_INTERNAL_API_ADMIN_TOKEN",
     "GOOGLE_CLIENT_ID",
@@ -44,6 +45,7 @@ def test_settings_requires_env_vars(monkeypatch, missing_key):
     "key",
     [
         "ENVIRONMENT",
+        "DB_URL",
         "SECRET_KEY",
         "VIDWIZ_INTERNAL_API_ADMIN_TOKEN",
         "GOOGLE_CLIENT_ID",
