@@ -25,6 +25,7 @@ Plain JavaScript modules, no bundler.
 - `tooltip.js`: the popup's one shared tooltip, shown on hover and keyboard
   focus.
 - `build.mjs`: writes a build with other origins, and zips it for the store.
+  `output.mjs` decides whether an `--out` folder is safe to replace.
 
 ## Key Flows
 - **Login sync**: the web app sends `SYNC_TOKEN` and `LOGOUT` with
@@ -132,10 +133,17 @@ Plain JavaScript modules, no bundler.
   (output in `extension/dist/prod`, ignored by Git) to package it. Add `--zip`
   to also write `extension/dist/vidwiz-extension-<version>.zip` for the Chrome
   Web Store; this needs the `zip` command.
+- Windows: the unpacked build works the same. Windows has no `zip` command, so
+  `--zip` stops with a message after building. Make the store zip on Linux or
+  macOS and copy it over.
 - Development: `node extension/build.mjs --web <web origin> --api <api base
   URL> --out extension/dist/dev`, then load that folder unpacked. Run the web
   app with `VITE_EXTENSION_ID` set to the unpacked extension's ID so login sync
   reaches it.
+- `--out` is deleted and rewritten on every build. It must be under
+  `extension/dist/` or outside `extension/`. The builder refuses the source
+  folder, any folder that contains it, `dist/` itself, and an existing folder
+  with files that is not an earlier VidWiz build.
 
 ## Constraints
 - Video detection and title reading depend on YouTube's page structure.
