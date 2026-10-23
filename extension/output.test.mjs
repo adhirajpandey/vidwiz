@@ -1,7 +1,7 @@
 // node --test extension/output.test.mjs
 import assert from "node:assert/strict";
 import { execFileSync } from "node:child_process";
-import { existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
+import { cpSync, existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync, symlinkSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { dirname, join, parse } from "node:path";
 import { after, describe, it } from "node:test";
@@ -23,6 +23,27 @@ describe("unsafeOutput", () => {
     assert.match(unsafeOutput(join(source, "icons"), source, "VidWiz"), /inside the extension source/);
     assert.match(unsafeOutput(join(source, "distant"), source, "VidWiz"), /inside the extension source/);
     assert.match(unsafeOutput(join(source, "dist"), source, "VidWiz"), /holds every build/);
+  });
+
+  it("treats names starting with two dots as folders, not parents", () => {
+    assert.match(unsafeOutput(join(source, "..cache"), source, "VidWiz"), /inside the extension source/);
+    assert.equal(unsafeOutput(join(source, "dist", "..cache"), source, "VidWiz"), null);
+  });
+
+  it("follows symlinked parents into the source", { skip: process.platform === "win32" && "symlinks need privileges" }, () => {
+    const link = join(scratch, "repo-link");
+    symlinkSync(dirname(source), link);
+    assert.match(unsafeOutput(join(link, "extension"), source, "VidWiz"), /contains the extension source/);
+    assert.match(unsafeOutput(join(link, "extension", "generated"), source, "VidWiz"), /inside the extension source/);
+    assert.equal(unsafeOutput(join(link, "extension", "dist", "dev"), source, "VidWiz"), null);
+  });
+
+  it("refuses another checkout's extension source", () => {
+    const checkout = join(scratch, "checkout");
+    mkdirSync(checkout);
+    cpSync(join(source, "manifest.json"), join(checkout, "manifest.json"));
+    cpSync(join(source, "build.mjs"), join(checkout, "build.mjs"));
+    assert.match(unsafeOutput(checkout, source, "VidWiz"), /not an earlier build/);
   });
 
   it("allows folders under dist", () => {

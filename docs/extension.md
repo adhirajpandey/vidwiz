@@ -143,7 +143,9 @@ Plain JavaScript modules, no bundler.
 - `--out` is deleted and rewritten on every build. It must be under
   `extension/dist/` or outside `extension/`. The builder refuses the source
   folder, any folder that contains it, `dist/` itself, and an existing folder
-  with files that is not an earlier VidWiz build.
+  with files that is not an earlier VidWiz build. A folder with `build.mjs`,
+  such as another checkout's `extension/`, never counts as a build. Symlinked
+  parent folders are followed before these checks.
 
 ## Constraints
 - Video detection and title reading depend on YouTube's page structure.
