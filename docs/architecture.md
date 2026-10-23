@@ -7,7 +7,7 @@ Provide a system-level view of how VidWiz components interact. Subsystem details
 - **Clients**: Web app (React), Chromium extension, and mobile automations (MacroDroid/Shortcuts).
 - **Backend**: FastAPI service exposing public `/v2` and admin-only `/v2/internal` endpoints.
 - **Workers**: Helpers for transcript, metadata, and title resolution; Lambdas for AI moments and AI summaries.
-- **Storage**: PostgreSQL in deployed environments; SQLite by default in local dev.
+- **Storage**: PostgreSQL in every environment, required by `DB_URL`.
 - **Object store**: S3 for transcript JSON when `S3_TRANSCRIPT_BUCKET_NAME` and AWS credentials are configured.
 - **Queues**: SQS for AI moment jobs (app + dispatcher) and overview jobs (app).
 - **AWS infrastructure**: The production transcript bucket, queues, Lambdas,
@@ -41,7 +41,7 @@ Provide a system-level view of how VidWiz components interact. Subsystem details
 - The runtime-generated OpenAPI schema (`/openapi.json`) and Swagger UI
   (`/docs`) are available in every environment. They include internal route
   definitions, but the routes continue to enforce admin authentication.
-- `DB_URL` defaults to SQLite if not provided.
+- `DB_URL` is required and must point to PostgreSQL.
 - Transcript storage and Wiz chat require S3 credentials and bucket configuration.
 - Wiz chat also requires `OPENROUTER_API_KEY`; without it, chat requests error.
 - AI moments use `AI_NOTE_MODEL`, which defaults to `z-ai/glm-5.3-flash`.

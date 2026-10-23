@@ -353,7 +353,8 @@ a transcript is replaced.
 - Swagger includes public, internal, and payment webhook routes. Protected
   operations still require their existing JWT, guest-session, or admin
   credentials.
-- SQLite is the default when `DB_URL` is not set; Postgres is used in deployed environments.
+- `DB_URL` must point to PostgreSQL in every environment. Migrations and search
+  use PostgreSQL features, so other databases are not supported.
 - CORS allows all origins with credentials enabled and exposes `X-Request-ID`
   and `Retry-After` to browser clients; browsers will reject credentialed
   requests with wildcard origins.
@@ -387,12 +388,14 @@ a transcript is replaced.
 
 ## Startup Requirements
 The server fails on startup if any of the following env vars are missing. `ENVIRONMENT`,
-`SECRET_KEY`, `VIDWIZ_INTERNAL_API_ADMIN_TOKEN`, and `GOOGLE_CLIENT_ID` must also be non-empty:
+`DB_URL`, `SECRET_KEY`, `VIDWIZ_INTERNAL_API_ADMIN_TOKEN`, and `GOOGLE_CLIENT_ID` must also be non-empty:
 - `ENVIRONMENT`
+- `DB_URL`
 - `SECRET_KEY`
 - `VIDWIZ_INTERNAL_API_ADMIN_TOKEN`
 - `GOOGLE_CLIENT_ID`
 - `SQS_AI_NOTE_QUEUE_URL`
+- `SQS_AI_SUMMARY_QUEUE_URL`
 - `AWS_ACCESS_KEY_ID`
 - `AWS_SECRET_ACCESS_KEY`
 - `DODO_PAYMENTS_API_KEY`

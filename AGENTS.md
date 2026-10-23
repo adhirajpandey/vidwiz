@@ -27,21 +27,26 @@ VidWiz helps users take timestamped notes on YouTube videos, enriches notes with
   - `workers/`: background workers and Lambda functions.
 - `infra/`: production AWS CDK app for the worker Lambdas.
 - `frontend/`: Vite + React + TypeScript web app.
-  - `src/pages/`: route-level views.
+  - `src/features/`: route-level views, grouped by area.
   - `src/components/`: shared UI components.
-- `extension/`: Chromium extension assets.
-  - `manifest.json`, `popup.*`, `icons/`.
+- `extension/`: Chromium extension (MV3, plain JavaScript).
+  - `manifest.json`, `popup.*`, `background.js`, `content.js`, `icons/`, `fonts/`.
+  - `build.mjs`: builds for given origins into `extension/dist/`.
 - `docs/`: living documentation set.
 
 ## Build, Test, and Development Commands
 ### Backend
 - Install: `cd backend && uv sync --locked`
 - Run (local): `cd backend && uv run --locked uvicorn src.main:app --host 0.0.0.0 --port 5000`
-- Tests: `cd backend && uv run --locked pytest`
+- Tests: `cd backend && TEST_DB_URL=<url> uv run --locked pytest`. `TEST_DB_URL` must point to a disposable PostgreSQL database with pgvector (for example the `pgvector/pgvector:pg17` image); each run drops and recreates its `public` schema.
+
+### Extension
+- Builder tests: `node --test extension/output.test.mjs`
 
 ### Frontend
 - Install: `cd frontend && pnpm install --frozen-lockfile`
 - Run: `cd frontend && pnpm dev`
+- Checks: `cd frontend && pnpm lint && pnpm test && pnpm build`
 
 ## Architecture
 - Refer to `docs/architecture.md` for system-level interactions.
