@@ -35,7 +35,7 @@ describe('dayLabel', () => {
 });
 
 describe('groupFeed', () => {
-  it('groups consecutive moments by video and day', () => {
+  it('groups moments by video and day in playback order', () => {
     const today = new Date().toISOString();
     const groups = groupFeed([
       moment(3, 'aaaaaaaaaaa', today),
@@ -43,7 +43,7 @@ describe('groupFeed', () => {
       moment(1, 'bbbbbbbbbbb', today),
       moment(0, null, today),
     ]);
-    expect(groups.map(group => group.moments.map(item => item.id))).toEqual([[3, 2], [1], [0]]);
+    expect(groups.map(group => group.moments.map(item => item.id))).toEqual([[2, 3], [1], [0]]);
   });
 });
 
@@ -52,8 +52,8 @@ describe('resultLink', () => {
   it('opens passages at their time and moments highlighted', () => {
     const passage: PassageResult = { kind: 'passage', video, chunk_id: 1, start_seconds: 42.7, end_seconds: 80, snippet: [], score: 1 };
     const found = { kind: 'moment', video, start_seconds: 12, snippet: [], score: 1, moment: { id: 9, at_seconds: 12, quote_start_seconds: 0 } } as unknown as MomentResult;
-    expect(resultLink(passage)).toBe('/v/aaaaaaaaaaa?t=42');
-    expect(resultLink(found)).toBe('/v/aaaaaaaaaaa?t=9&m=9');
+    expect(resultLink(passage)).toBe('/v/aaaaaaaaaaa?t=42&tab=transcript');
+    expect(resultLink(found)).toBe('/v/aaaaaaaaaaa?t=9&m=9&tab=moments');
   });
 });
 

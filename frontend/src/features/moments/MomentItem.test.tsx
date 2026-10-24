@@ -34,7 +34,7 @@ it('confirms before deleting, focuses Delete, and restores focus on Escape', asy
 });
 
 it('allows only one active row and keeps a failed delete available to retry', async () => {
-  vi.mocked(momentsApi.remove).mockRejectedValueOnce(new Error('offline')).mockResolvedValueOnce(undefined);
+  vi.mocked(momentsApi.remove).mockRejectedValueOnce(new Error('offline')).mockResolvedValueOnce({ message: 'Saved' });
   const user = setup();
   const actions = screen.getAllByRole('button', { name: 'Moment actions' });
   await user.click(actions[0]);
