@@ -99,6 +99,9 @@ Workers.
   Library rows separate channel, moment count, chats, activity, and the latest
   moment text. Feed groups follow capture order, with moments in video-time
   order inside each group. Quote-only moments keep their text preview.
+- **Moment actions**: deleting asks inline before making a request. Escape or
+  Cancel returns focus to the actions button. Only one row can edit a note or
+  confirm deletion at a time; a failed delete stays open with a retry.
 - **Moments**: `MomentItem` shows the AI line, the user's note, the quote, and
   one explicit status line with its fix (retry without a new charge, get
   credits). While the AI line is being written, its status takes the AI line's
