@@ -82,6 +82,12 @@ Workers.
 - Moment timestamps and timeline marks use the saved capture time. Playing a
   moment starts five seconds earlier (clamped at zero), including search and
   exported links; the transcript quote has its own context window.
+- **Library**: one field searches titles and channels or previews a pasted
+  YouTube video link. Views select All, With moments, or With chats; their
+  counts follow the search. A themed menu offers six sorts. A paste card
+  checks membership, preserves the link's time, and offers Add and open or
+  Add to library. Existing videos open directly; failed checks claim no
+  membership state, and failed saves retry the original action in place.
 - **Home and video rows**: the four recent videos show thumbnail durations.
   Library rows separate channel, moment count, chats, activity, and the latest
   moment text. Feed groups follow capture order, with moments in video-time

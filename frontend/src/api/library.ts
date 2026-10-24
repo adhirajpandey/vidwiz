@@ -1,11 +1,12 @@
 import { apiFetch, ApiError, apiRequest } from './fetch';
-import type { LibraryResponse, LibrarySort, MessageResponse } from './types';
+import type { LibraryResponse, LibrarySort, LibraryView, MessageResponse } from './types';
 
 export interface LibraryParams {
   q?: string;
   page?: number;
   per_page?: number;
   sort?: LibrarySort;
+  view?: LibraryView;
 }
 
 async function downloadMarkdown(path: string): Promise<string> {

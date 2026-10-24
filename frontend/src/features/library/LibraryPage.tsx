@@ -1,8 +1,8 @@
 import { useEffect, useState } from 'react';
 import { useSearchParams } from 'react-router-dom';
-import { Download, Library as LibraryIcon } from 'lucide-react';
+import { Download, Library as LibraryIcon, Search } from 'lucide-react';
 import { libraryApi } from '../../api';
-import type { LibrarySort } from '../../api';
+import type { LibrarySort, LibraryView } from '../../api';
 import { useNotify } from '../../hooks/useNotify';
 import PageTitle from '../../components/PageTitle';
 import Button from '../../components/ui/Button';
@@ -11,102 +11,92 @@ import ErrorState from '../../components/ui/ErrorState';
 import { Input } from '../../components/ui/Input';
 import Spinner from '../../components/ui/Spinner';
 import { downloadText } from '../../lib/download';
-import AddVideoForm from './AddVideoForm';
+import { extractVideoId } from '../../lib/videoUtils';
+import { cn } from '../../lib/utils';
+import LinkCard from './LinkCard';
+import SortMenu from './SortMenu';
 import VideoRow from './VideoRow';
+import { looksLikeLink } from './links';
 import { useLibrary } from './queries';
 
-const SORTS: { value: LibrarySort; label: string }[] = [
-  { value: 'activity_desc', label: 'Recent activity' },
-  { value: 'added_desc', label: 'Recently added' },
-  { value: 'title_asc', label: 'Title A–Z' },
-  { value: 'title_desc', label: 'Title Z–A' },
-];
+const SORTS: LibrarySort[] = ['activity_desc', 'added_desc', 'moments_desc', 'chats_desc', 'title_asc', 'title_desc'];
+const VIEWS: { value: LibraryView; label: string }[] = [{ value: 'all', label: 'All' }, { value: 'with_moments', label: 'With moments' }, { value: 'with_chats', label: 'With chats' }];
 
 export default function LibraryPage() {
   const [params, setParams] = useSearchParams();
-  const sort = (SORTS.find(option => option.value === params.get('sort'))?.value ?? 'activity_desc');
-  const page = Math.max(1, Number(params.get('page')) || 1);
-  const [filter, setFilter] = useState(params.get('q') ?? '');
+  const sort = SORTS.find(s => s === params.get('sort')) ?? 'activity_desc';
+  const view = VIEWS.find(v => v.value === params.get('view'))?.value ?? 'all';
+  const page = Math.max(1, Math.floor(Number(params.get('page')) || 1));
   const q = params.get('q') ?? '';
-  const library = useLibrary({ q, page, per_page: 20, sort });
+  const [input, setInput] = useState({ query: q, value: q });
+  if (input.query !== q) setInput({ query: q, value: q });
+  const filter = input.value;
+  const link = looksLikeLink(filter) ? filter.trim() : null;
+  const pasted = link ? extractVideoId(link) : null;
+  const library = useLibrary({ q, page, per_page: 20, sort, view });
   const notify = useNotify();
   const [exporting, setExporting] = useState(false);
+  const [justAdded, setJustAdded] = useState<string | null>(null);
 
-  // Filter as the user types, without a request per keystroke.
   useEffect(() => {
+    if (link) return;
     const timer = setTimeout(() => {
-      if (filter !== q) {
-        const next = new URLSearchParams(params);
-        if (filter.trim().length >= 2) next.set('q', filter.trim()); else next.delete('q');
-        next.delete('page');
-        setParams(next, { replace: true });
-      }
+      const trimmed = filter.trim().length >= 2 ? filter.trim() : '';
+      if (trimmed === q) return;
+      const next = new URLSearchParams(params);
+      if (trimmed) next.set('q', trimmed); else next.delete('q');
+      next.delete('page');
+      setParams(next, { replace: true });
     }, 300);
     return () => clearTimeout(timer);
-  }, [filter, q, params, setParams]);
+  }, [filter, link, q, params, setParams]);
 
-  const update = (key: string, value: string | null) => {
+  const update = (key: string, value: string) => {
     const next = new URLSearchParams(params);
-    if (value) next.set(key, value); else next.delete(key);
+    next.set(key, value);
     if (key !== 'page') next.delete('page');
     setParams(next);
   };
-
+  const clear = () => { setInput({ query: '', value: '' }); const next = new URLSearchParams(params); next.delete('q'); next.delete('page'); setParams(next); };
   const exportAll = async () => {
     setExporting(true);
-    try {
-      downloadText(await libraryApi.exportLibrary(), 'vidwiz-library.md');
-    } catch (cause) {
-      notify.error(cause, 'Export failed', 'The library could not be exported.');
-    } finally {
-      setExporting(false);
-    }
+    try { downloadText(await libraryApi.exportLibrary(), 'vidwiz-library.md'); }
+    catch (cause) { notify.error(cause, 'Export failed', 'The library could not be exported.'); }
+    finally { setExporting(false); }
   };
-
+  const total = library.data?.total;
   return (
-    <div className="mx-auto max-w-3xl space-y-6">
+    <div className="mx-auto max-w-3xl space-y-5">
       <PageTitle title="Library" />
-      <div className="flex flex-wrap items-center justify-between gap-3">
-        <h1 className="display text-4xl">Library</h1>
-        <Button size="sm" onClick={() => void exportAll()} disabled={exporting}>
-          <Download className="size-3.5" />Export Markdown
-        </Button>
+      <div className="flex items-end justify-between gap-3">
+        <div><h1 className="display text-4xl">Library</h1>{total !== undefined && !link && <p className="mt-1 text-sm text-muted-foreground tabular">{q ? `${total} videos match “${q}”` : `${total} videos`}</p>}</div>
+        <Button size="sm" variant="ghost" aria-label="Export Markdown" title="Export Markdown" onClick={() => void exportAll()} disabled={exporting}><Download className="size-4" /><span className="hidden sm:inline">Export</span></Button>
       </div>
-      <AddVideoForm />
-      <div className="flex flex-col gap-2 sm:flex-row">
-        <Input value={filter} onChange={event => setFilter(event.target.value)} placeholder="Filter by title" aria-label="Filter by title" />
-        <select
-          value={sort}
-          onChange={event => update('sort', event.target.value === 'activity_desc' ? null : event.target.value)}
-          aria-label="Sort videos"
-          className="h-10 rounded-[9px] border border-input bg-card px-3 text-sm font-medium"
-        >
-          {SORTS.map(option => <option key={option.value} value={option.value}>{option.label}</option>)}
-        </select>
+      <div className="flex gap-2">
+        <label className="relative min-w-0 flex-1">
+          <Search className="pointer-events-none absolute left-3 top-1/2 size-4 -translate-y-1/2 text-muted-foreground" />
+          <Input value={filter} onChange={event => setInput({ query: q, value: event.target.value })} aria-invalid={Boolean(link && !pasted)} className={cn('pl-9', link && !pasted && 'border-destructive/60 focus:border-destructive/70 focus:ring-destructive/15')} placeholder="Search or paste a link" aria-label="Search titles and channels, or paste a link" />
+        </label>
+        <SortMenu sort={sort} onChange={value => update('sort', value)} />
       </div>
-
-      {library.isPending && <div className="flex justify-center py-10"><Spinner /></div>}
-      {library.isError && <ErrorState title="The library did not load" message="Check your connection and try again." onRetry={() => void library.refetch()} />}
-      {library.data && library.data.total === 0 && (
-        <EmptyState icon={<LibraryIcon className="size-5" />} title={q ? 'No videos match that title' : 'No saved videos yet'}>
-          {q ? 'Try a shorter filter, or search inside transcripts from the search bar.' : 'Paste a YouTube link above, or capture a moment while you watch.'}
-        </EmptyState>
-      )}
-      {library.data && library.data.videos.length > 0 && (
-        <>
-          <div className="divide-y divide-border border-t-2 border-foreground">
-            <p className="py-2 text-sm text-muted-foreground tabular">{library.data.total} videos</p>
-            {library.data.videos.map(video => <VideoRow key={video.video_id} video={video} />)}
-          </div>
-          {library.data.total_pages > 1 && (
-            <div className="flex items-center justify-center gap-3 text-sm">
-              <Button size="sm" disabled={page <= 1} onClick={() => update('page', String(page - 1))}>Previous</Button>
-              <span className="text-muted-foreground tabular">{page} / {library.data.total_pages}</span>
-              <Button size="sm" disabled={page >= library.data.total_pages} onClick={() => update('page', String(page + 1))}>Next</Button>
-            </div>
-          )}
-        </>
-      )}
+      {!link && <div role="group" aria-label="Library views" className="-mx-4 flex gap-1 overflow-x-auto border-b border-border px-4 sm:mx-0 sm:px-0">
+        {VIEWS.map(v => <button key={v.value} type="button" aria-pressed={view === v.value} onClick={() => update('view', v.value)} className={cn('-mb-px shrink-0 border-b-2 px-3 pb-2 pt-1 text-sm font-semibold', view === v.value ? 'border-foreground text-foreground' : 'border-transparent text-muted-foreground hover:text-foreground')}>{v.label} <span className="ml-0.5 text-xs font-medium text-muted-foreground tabular">{library.data?.counts[v.value] ?? '…'}</span></button>)}
+      </div>}
+      {link && !pasted ? <p role="alert" className="-mt-3 text-xs text-destructive">Paste a YouTube video link, like youtube.com/watch?v=… or youtu.be/…</p>
+        : pasted && link ? <LinkCard key={pasted} link={link} videoId={pasted} onClear={clear} onAdded={id => { setJustAdded(id); setInput({ query: '', value: '' }); setParams({ sort: 'activity_desc' }); }} />
+        : <>
+          {library.isPending && <div className="flex justify-center py-10"><Spinner /></div>}
+          {library.isError && <ErrorState title="The library did not load" message="Check your connection and try again." onRetry={() => void library.refetch()} />}
+          {library.data && total === 0 && <EmptyState icon={<LibraryIcon className="size-5" />} title={q ? 'No titles or channels match' : view === 'all' ? 'No saved videos yet' : 'No videos in this view'}>{q ? 'Try a shorter search, or search inside transcripts from the search bar.' : 'Paste a YouTube link above, or capture a moment while you watch.'}</EmptyState>}
+          {library.data && <div className="divide-y divide-border/70" aria-busy={library.isFetching}>
+            {library.data.videos.map(video => video.video_id === justAdded ? <div key={video.video_id} className="-mx-2 rounded-[12px] bg-saved-soft px-2"><p className="pt-2 text-xs font-semibold">Added just now</p><VideoRow video={video} /></div> : <VideoRow key={video.video_id} video={video} />)}
+          </div>}
+          {library.data && library.data.total_pages > 1 && <div className="flex items-center justify-between gap-3 text-sm">
+            <Button disabled={page <= 1 || library.isPlaceholderData} onClick={() => update('page', String(page - 1))}>Previous</Button>
+            <span className="text-muted-foreground">Page {page} of {library.data.total_pages}</span>
+            <Button disabled={page >= library.data.total_pages || library.isPlaceholderData} onClick={() => update('page', String(page + 1))}>Next</Button>
+          </div>}
+        </>}
     </div>
   );
 }

@@ -247,3 +247,15 @@ async def test_library_views_counts_and_latest_preview(client, db_session, user)
     assert (
         await client.get("/v2/library?view=unknown", headers=headers)
     ).status_code == 422
+
+
+def test_exact_video_id_leads_matches_for_link_membership(db_session, user):
+    from src.library.schemas import LibraryParams
+
+    add_video(db_session, user, "aaaaaaaaaaa", "Saved video", added_days_ago=5)
+    add_video(db_session, user, "bbbbbbbbbbb", "A video mentioning aaaaaaaaaaa")
+    result = library_service.list_library(
+        db_session, user.id, LibraryParams(q="aaaaaaaaaaa", per_page=1)
+    )
+    assert result.total == 2
+    assert result.videos[0].video_id == "aaaaaaaaaaa"

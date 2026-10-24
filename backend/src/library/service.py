@@ -140,7 +140,9 @@ def list_library(db: Session, user_id: int, params: LibraryParams) -> LibraryRes
         "chats_desc": chat_count.desc(),
     }[params.sort]
     rows = db.execute(
-        query.order_by(order, activity.desc(), Video.id.desc())
+        query.order_by(
+            (Video.video_id == params.q).desc(), order, activity.desc(), Video.id.desc()
+        )
         .offset((params.page - 1) * params.per_page)
         .limit(params.per_page)
     ).all()
