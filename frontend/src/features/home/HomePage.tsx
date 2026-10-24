@@ -8,7 +8,9 @@ import PageTitle from '../../components/PageTitle';
 import EmptyState from '../../components/ui/EmptyState';
 import { Input } from '../../components/ui/Input';
 import AddVideoForm from '../library/AddVideoForm';
-import VideoRow from '../library/VideoRow';
+import DurationThumb from '../../components/ui/DurationThumbnail';
+import type { LibraryVideo } from '../../api';
+import { formatRelative, videoTitle } from '../../lib/format';
 import { useLibrary } from '../library/queries';
 import MomentFeed from './MomentFeed';
 
@@ -47,40 +49,62 @@ function greeting(): string {
   return 'Good evening';
 }
 
-export default function HomePage() {
+const link = 'text-sm font-semibold underline decoration-foreground/30 underline-offset-4 hover:decoration-foreground';
+const plural = (n: number, word: string) => `${n} ${word}${n === 1 ? '' : 's'}`;
+
+function CompactHeader() {
   const profile = useProfile();
-  const recent = useLibrary({ per_page: 4, sort: 'activity_desc' });
   const firstName = profile.data?.name?.split(' ')[0];
-  const isEmpty = recent.data?.total === 0;
-
   return (
-    <div className="mx-auto max-w-3xl space-y-8">
-      <PageTitle title="Home" />
-      <div className="space-y-4">
-        <h1 className="display text-4xl">{firstName ? `${greeting()}, ${firstName}.` : `${greeting()}.`}</h1>
-        <MobileSearch />
-        <div className="grid gap-3 sm:grid-cols-[1fr_auto]">
-          <AddVideoForm />
-          <Link to="/ask" className="inline-flex h-10 items-center justify-center gap-2 rounded-[9px] border border-border bg-card px-4 text-sm font-semibold hover:border-foreground/40">
-            <Sparkles className="size-4" />Ask your library
-          </Link>
-        </div>
+    <div className="space-y-3">
+      <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+        <h1 className="display text-[28px]">{firstName ? `${greeting()}, ${firstName}` : greeting()}</h1>
+        <div className="sm:w-[24rem]"><AddVideoForm /></div>
       </div>
+      <MobileSearch />
+    </div>
+  );
+}
 
-      {isEmpty && <Welcome />}
+function SectionHead({ id, title, to, label }: { id: string; title: string; to: string; label: string }) {
+  return (
+    <div className="mb-3 flex items-baseline justify-between">
+      <h2 id={id} className="display text-xl">{title}</h2>
+      <Link to={to} className={link}>{label}</Link>
+    </div>
+  );
+}
 
-      {recent.data && recent.data.videos.length > 0 && (
-        <section aria-labelledby="continue">
-          <div className="mb-3 flex items-baseline justify-between border-t-2 border-foreground pt-4">
-            <h2 id="continue" className="display text-xl">Continue watching</h2>
-            <Link to="/library" className="text-sm font-semibold underline decoration-foreground/30 underline-offset-4 hover:decoration-foreground">All videos</Link>
-          </div>
-          <div className="grid gap-1 sm:grid-cols-2">
-            {recent.data.videos.map(video => <VideoRow key={video.video_id} video={video} />)}
-          </div>
-        </section>
-      )}
+function VideoCard({ video }: { video: LibraryVideo }) {
+  return (
+    <Link to={`/v/${video.video_id}`} className="group block w-40 shrink-0 snap-start rounded-[12px] sm:w-auto">
+      <DurationThumb video={video} className="w-full" />
+      <p className="mt-2 line-clamp-2 text-sm font-semibold leading-snug group-hover:underline group-hover:decoration-foreground/30 group-hover:underline-offset-4">{videoTitle(video.title, video.video_id)}</p>
+      <p className="mt-0.5 truncate text-xs text-muted-foreground tabular">{plural(video.moment_count, 'moment')} · {formatRelative(video.last_activity_at)}</p>
+    </Link>
+  );
+}
 
+function RecentStrip({ videos }: { videos: LibraryVideo[] }) {
+  return (
+    <section aria-labelledby="recent-videos">
+      <SectionHead id="recent-videos" title="Recent videos" to="/library" label="All videos" />
+      <div className="-mx-4 flex snap-x scroll-px-4 gap-3 overflow-x-auto px-4 pb-1 sm:mx-0 sm:grid sm:scroll-px-0 sm:grid-cols-4 sm:overflow-visible sm:px-0">
+        {videos.slice(0, 4).map(video => <VideoCard key={video.video_id} video={video} />)}
+      </div>
+    </section>
+  );
+}
+
+export default function HomePage() {
+  const recent = useLibrary({ per_page: 4, sort: 'activity_desc' });
+  const videos = recent.data?.videos ?? [];
+  return (
+    <div className="mx-auto max-w-3xl space-y-7">
+      <PageTitle title="Home" />
+      <CompactHeader />
+      {recent.data?.total === 0 && <Welcome />}
+      {videos.length > 0 && <RecentStrip videos={videos} />}
       <MomentFeed />
     </div>
   );

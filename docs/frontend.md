@@ -31,8 +31,8 @@ Workers.
   `useProfile`, `useTheme`, `useNotify`, `useToast`.
 
 ## Routes
-- `/`: Home when signed in (search on mobile, add a video, Ask entry, continue
-  watching, recent moments grouped by day and video); the landing page when
+- `/`: Home when signed in (search on mobile, add a video, a compact Recent videos strip,
+  and recent moments grouped once per day and video); the landing page when
   signed out. The landing page renders without the app header and has its own
   styles in `features/landing/landing.css` (Bricolage Grotesque, light and dark
   from the app theme).
@@ -82,6 +82,10 @@ Workers.
 - Moment timestamps and timeline marks use the saved capture time. Playing a
   moment starts five seconds earlier (clamped at zero), including search and
   exported links; the transcript quote has its own context window.
+- **Home and video rows**: the four recent videos show thumbnail durations.
+  Library rows separate channel, moment count, chats, activity, and the latest
+  moment text. Feed groups follow capture order, with moments in video-time
+  order inside each group. Quote-only moments keep their text preview.
 - **Moments**: `MomentItem` shows the AI line, the user's note, the quote, and
   one explicit status line with its fix (retry without a new charge, get
   credits). While the AI line is being written, its status takes the AI line's
