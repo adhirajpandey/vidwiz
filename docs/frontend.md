@@ -88,6 +88,10 @@ Workers.
   checks membership, preserves the link's time, and offers Add and open or
   Add to library. Existing videos open directly; failed checks claim no
   membership state, and failed saves retry the original action in place.
+- **Resurfacing**: Home shows an older moment in a stable daily order. Another
+  advances through the eligible moments and wraps to the first. Empty results
+  hide the section; failures show a retry. Imported moments use an approximate
+  date label.
 - **Home and video rows**: the four recent videos show thumbnail durations.
   Library rows separate channel, moment count, chats, activity, and the latest
   moment text. Feed groups follow capture order, with moments in video-time

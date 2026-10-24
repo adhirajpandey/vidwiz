@@ -13,6 +13,7 @@ import type { LibraryVideo } from '../../api';
 import { formatRelative, videoTitle } from '../../lib/format';
 import { useLibrary } from '../library/queries';
 import MomentFeed from './MomentFeed';
+import Resurface from './Resurface';
 
 function MobileSearch() {
   const [value, setValue] = useState('');
@@ -105,6 +106,7 @@ export default function HomePage() {
       <CompactHeader />
       {recent.data?.total === 0 && <Welcome />}
       {videos.length > 0 && <RecentStrip videos={videos} />}
+      <Resurface />
       <MomentFeed />
     </div>
   );

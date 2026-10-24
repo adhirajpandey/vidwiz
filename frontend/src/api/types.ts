@@ -193,6 +193,8 @@ export interface PassageSave {
   note?: string | null;
 }
 
+export type ResurfaceResponse = { state: 'found'; moment: FeedMoment } | { state: 'none' };
+
 // Library
 export type LibrarySort = 'activity_desc' | 'added_desc' | 'title_asc' | 'title_desc' | 'moments_desc' | 'chats_desc';
 export type LibraryView = 'all' | 'with_moments' | 'with_chats';
