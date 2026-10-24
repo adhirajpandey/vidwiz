@@ -86,6 +86,15 @@ Describe the FastAPI backend: structure, auth rules, and the request/worker life
   requests AI if the user setting allows it. Remove it once the 3.x extension
   is live.
 
+### Resurfacing
+- `GET /v2/moments/resurface?skip=0` returns `{state: "found", moment: ...}`
+  or `{state: "none"}`. It reads only the signed-in user's resolved moments,
+  strictly older than 60 days at the database day's start. The first non-empty
+  AI line, note, or quote must have at least 15 characters after trimming.
+- Ordering by the hash of moment ID and database date keeps the pick stable
+  for that day. Incrementing `skip` walks the order; past its end returns
+  `none`. No model call, credit charge, or data write is involved.
+
 ### Search
 - Stored transcripts are split into ~45-second passages in `transcript_chunks`
   (written whenever a transcript is stored; `python -m src.management.backfill
