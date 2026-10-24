@@ -63,6 +63,9 @@ Workers.
   the `display` utility (condensed and heavy).
 - Every paid action shows its cost: "Unlock for 5 credits" before the first
   question about a video, and the cost of each way to save in the save menu.
+- The note field starts collapsed; the pencil opens it, and Cancel note or
+  Escape closes it. Saving keeps the selected panel and shows an inline
+  **View moment** toast action to open and highlight the saved moment.
 - Save moment is a split button. The main part follows the AI line default from
   Settings. The arrow opens a menu listing both ways with their cost and key,
   the default checked (S); the other is Shift S. Choosing one saves.
@@ -108,8 +111,10 @@ Workers.
   retry (signed in), no transcript, pending (transcript still loading), or
   no overview yet (transcript ready, never queued). While a newer overview is
   written or after it fails, the older one stays visible with a status line.
-- **Video workspace**: the player is sticky on desktop and above the tabs on
-  mobile. Captures use the player's current time. Timestamps in moments,
+- **Video workspace**: desktop shows moments below the player and a separate
+  scrolling column for Transcript (the default), Ask, and Overview. On phones,
+  the player, moment strip, save controls, and tabs stay pinned. Windows under
+  720px tall use page scrolling. Captures use the player's current time. Timestamps in moments,
   key points, transcript lines, and citations seek the same player. The
   transcript centers the playing line in its own scroll panel, with natural
   clamping at the start and end. Line changes ease over 240 ms; initial entry,
@@ -119,6 +124,8 @@ Workers.
   The panel recenters on seeks, tab entry, and size changes while following,
   without scrolling the page. It also filters by text and saves any line as a
   moment.
+- Overview questions fill the Ask composer without sending. Locked videos show
+  the question above the unlock action and retain it after unlocking.
 - Ask initializes only when its tab is first opened. It stays mounted after
   that so switching panels preserves the chat. Creating a conversation updates
   its URL parameter without changing the selected panel.

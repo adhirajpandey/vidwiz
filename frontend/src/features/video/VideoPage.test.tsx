@@ -5,6 +5,9 @@ import { MemoryRouter, Route, Routes, useLocation } from 'react-router-dom';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import VideoPage from './VideoPage';
 
+let wideScreen = false;
+vi.stubGlobal('matchMedia', () => ({ matches: wideScreen, addEventListener: vi.fn(), removeEventListener: vi.fn() }));
+vi.stubGlobal('ResizeObserver', class { observe() {} disconnect() {} });
 let completeChat: (id: number) => void;
 vi.mock('../../hooks/useSignedIn', () => ({ useSignedIn: () => true }));
 vi.mock('../../hooks/useNotify', () => ({ useNotify: () => ({}) }));
@@ -18,12 +21,12 @@ vi.mock('../../components/wiz/YouTubePlayer', () => ({ default: () => null }));
 vi.mock('./CaptureBar', () => ({ default: () => null }));
 vi.mock('./MomentsPanel', () => ({ default: () => <div>Saved moments</div> }));
 vi.mock('./TranscriptPanel', () => ({ default: () => <div>Transcript text</div> }));
-vi.mock('./OverviewPanel', () => ({ default: () => null }));
-vi.mock('./AskPanel', () => ({ default: ({ onConversation }: { onConversation: (id: number) => void }) => {
+vi.mock('./OverviewPanel', () => ({ default: ({ onAsk }: { onAsk: (q: string) => void }) => <button onClick={() => onAsk('Why does this work?')}>Suggested question</button> }));
+vi.mock('./AskPanel', () => ({ default: ({ onConversation, draft }: { onConversation: (id: number) => void; draft?: { text: string } }) => {
   completeChat = onConversation;
-  return <div>Chat initialized</div>;
+  return <div>Chat initialized{draft && <output>{draft.text}</output>}</div>;
 } }));
-afterEach(() => { cleanup(); video = loaded; });
+afterEach(() => { cleanup(); video = loaded; wideScreen = false; });
 
 function Location() { return <output data-testid="location">{useLocation().search}</output>; }
 function setup(query = '') {
@@ -89,3 +92,17 @@ describe('video tab title', () => {
     expect(title()).toBe('Video');
   });
 });
+
+ it('shows moments below the player and Transcript by default on desktop', () => {
+  wideScreen = true;
+  setup();
+  expect(screen.getByRole('tab', { name: 'Transcript' }).getAttribute('aria-selected')).toBe('true');
+  expect(screen.getAllByText('Saved moments')).toHaveLength(1);
+  expect(screen.getByTestId('title').textContent).toBe('Test video · Transcript');
+ });
+ it('carries an Overview question into Ask', () => {
+  setup('?tab=overview');
+  fireEvent.click(screen.getByText('Suggested question'));
+  expect(screen.getByRole('tab', { name: 'Ask' }).getAttribute('aria-selected')).toBe('true');
+  expect(screen.getByText('Why does this work?')).toBeTruthy();
+ });

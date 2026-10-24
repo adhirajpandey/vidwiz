@@ -46,7 +46,7 @@ export default function OverviewPanel({ video, signedIn, onSeek, onAsk }: {
   video: VideoRead;
   signedIn: boolean;
   onSeek: (seconds: number) => void;
-  onAsk: () => void;
+  onAsk: (question: string) => void;
 }) {
   if (!video.summary && !video.key_points) {
     switch (video.overview_status) {
@@ -98,7 +98,7 @@ export default function OverviewPanel({ video, signedIn, onSeek, onAsk }: {
           <ul className="space-y-1.5">
             {video.suggested_questions.map(question => (
               <li key={question}>
-                <button type="button" onClick={onAsk} className="text-left text-sm underline decoration-foreground/30 underline-offset-4 hover:decoration-foreground">{question}</button>
+                <button type="button" onClick={() => onAsk(question)} className="text-left text-sm underline decoration-foreground/30 underline-offset-4 hover:decoration-foreground">{question}</button>
               </li>
             ))}
           </ul>

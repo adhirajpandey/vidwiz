@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState } from 'react';
 import { Link } from 'react-router-dom';
 import { useQueryClient } from '@tanstack/react-query';
-import { Check, ChevronDown, Settings } from 'lucide-react';
+import { Check, ChevronDown, Coins, Settings, SquarePen } from 'lucide-react';
 import { momentsApi } from '../../api';
 import { useNotify } from '../../hooks/useNotify';
 import { PROFILE_KEY, useProfile } from '../../hooks/useProfile';
@@ -38,13 +38,15 @@ function SaveOption({ label, cost, isDefault, onSelect }: {
   );
 }
 
-export default function CaptureBar({ videoId, currentTime, playhead, onCaptured }: {
+export default function CaptureBar({ videoId, currentTime, playhead, onView }: {
   videoId: string;
   currentTime: () => number | null;
-  /** Latest playback position, for the button label. */
   playhead: number | null;
-  onCaptured?: (momentId: number) => void;
+  onView?: (momentId: number) => void;
 }) {
+  const [noteOpen, setNoteOpen] = useState(false);
+  const noteButton = useRef<HTMLButtonElement>(null);
+  const savingRef = useRef(false);
   const profile = useProfile();
   const [note, setNote] = useState('');
   const [saving, setSaving] = useState(false);
@@ -55,9 +57,13 @@ export default function CaptureBar({ videoId, currentTime, playhead, onCaptured 
   // Saving waits for the profile, so a save never guesses the AI line default.
   const ready = profile.data !== undefined && !saving;
   const aiDefault = profile.data?.ai_moments_default ?? false;
+  const balance = profile.data?.credits_balance;
+  const broke = balance === 0;
+  const aiCost = broke ? 'No credits' : '1 credit';
 
   const capture = async (ai: boolean) => {
-    if (!ready) return;
+    if (!ready || savingRef.current) return;
+    savingRef.current = true;
     const at = Math.floor(currentTime() ?? 0);
     setSaving(true);
     try {
@@ -65,14 +71,16 @@ export default function CaptureBar({ videoId, currentTime, playhead, onCaptured 
         video: videoId, at, note: note.trim() || null, ai, source: 'web',
       });
       setNote('');
+      setNoteOpen(false);
       void queryClient.invalidateQueries({ queryKey: momentKeys.all });
       void queryClient.invalidateQueries({ queryKey: ['library'] });
       void queryClient.invalidateQueries({ queryKey: PROFILE_KEY });
-      notify.success(result.merged ? 'Added to a nearby moment' : `Moment saved at ${formatClock(at)}`);
-      onCaptured?.(result.moment.id);
+      const title = result.merged ? 'Added to a nearby moment' : `Moment saved at ${formatClock(at)}`;
+      notify.success(title, '', { label: 'View moment', onClick: () => onView?.(result.moment.id) });
     } catch (cause) {
       notify.error(cause, 'Moment not saved', 'The moment could not be saved.');
     } finally {
+      savingRef.current = false;
       setSaving(false);
     }
   };
@@ -93,26 +101,36 @@ export default function CaptureBar({ videoId, currentTime, playhead, onCaptured 
   }, [aiDefault]);
 
   return (
+    <div className="space-y-2">
+    {broke && aiDefault && (
+      <p role="status" className="flex flex-wrap items-center gap-1.5 rounded-[10px] border border-warning/30 bg-warning/10 px-3 py-2 text-sm">
+        <Coins className="size-4 text-warning" />No credits left, so saves won't get an AI line.
+        <Link to="/settings#credits" className="font-semibold underline decoration-foreground/30 underline-offset-4 hover:decoration-foreground">Get credits</Link>
+      </p>
+    )}
+    {noteOpen && (
+      <div className="space-y-1">
+        <Input value={note} onChange={event => setNote(event.target.value)} placeholder="Note (optional)" aria-label="Note for this moment" autoFocus className="h-11"
+          onKeyDown={event => { if (event.key === 'Escape') { setNote(''); setNoteOpen(false); noteButton.current?.focus(); } }} />
+        <div className="flex justify-end">
+          <button type="button" onClick={() => { setNote(''); setNoteOpen(false); noteButton.current?.focus(); }} className="text-xs font-medium text-muted-foreground hover:text-foreground">Cancel note</button>
+        </div>
+      </div>
+    )}
     <form
-      className="flex flex-col gap-2 sm:flex-row sm:items-center"
+      // V1 phones: one row, so the pinned block stays short.
+      className="flex flex-row items-center gap-2"
       onSubmit={event => { event.preventDefault(); void capture(aiDefault); }}
     >
-      <Input
-        value={note}
-        onChange={event => setNote(event.target.value)}
-        placeholder="Note (optional)"
-        aria-label="Note for this moment"
-        className="sm:flex-1"
-      />
-      <div ref={group} className="flex">
+      <div ref={group} className="flex min-w-0 flex-1">
         <Button
           type="submit"
           variant="save"
           disabled={!ready}
-          title={aiDefault ? 'Saves with an AI line, 1 credit' : 'Saves without an AI line'}
-          className="h-11 flex-1 justify-center rounded-r-none px-5 text-[15px] sm:min-w-[14.5rem] sm:flex-none"
+          title={aiDefault ? (broke ? 'Saves without an AI line: no credits left' : 'Saves with an AI line, 1 credit') : 'Saves without an AI line'}
+          className="h-11 flex-1 justify-center rounded-r-none px-5 text-[15px]"
         >
-          Save moment{playhead !== null && <> at <span className="tabular">{formatClock(playhead)}</span></>}
+          <span className="max-sm:hidden">Save moment{playhead !== null && ' at'}</span><span className="sm:hidden">Save</span>{playhead !== null && <span className="tabular">{formatClock(playhead)}</span>}
           <kbd className={`${kbd} hidden border-saved-foreground/35 sm:inline`}>S</kbd>
         </Button>
         <Menu onOpenChange={open => { if (open) setMenuWidth(group.current?.offsetWidth); }}>
@@ -128,7 +146,7 @@ export default function CaptureBar({ videoId, currentTime, playhead, onCaptured 
           </MenuTrigger>
           {/* As wide as the whole button, so the menu reads as part of it. */}
           <MenuContent className="min-w-64" style={{ width: menuWidth }}>
-            <SaveOption label="With AI line" cost="1 credit" isDefault={aiDefault} onSelect={() => void capture(true)} />
+            <SaveOption label="With AI line" cost={aiCost} isDefault={aiDefault} onSelect={() => void capture(true)} />
             <SaveOption label="Without AI line" cost="Free" isDefault={!aiDefault} onSelect={() => void capture(false)} />
             <MenuSeparator />
             <MenuItem asChild className="text-xs text-muted-foreground">
@@ -137,6 +155,13 @@ export default function CaptureBar({ videoId, currentTime, playhead, onCaptured 
           </MenuContent>
         </Menu>
       </div>
+      {(
+        <Button ref={noteButton} variant="secondary" size="icon" aria-label={noteOpen ? 'Edit note' : 'Add note'} aria-expanded={noteOpen} title={noteOpen ? 'Edit note' : 'Add note'}
+          onClick={() => setNoteOpen(true)} className={cn('h-11 w-11 shrink-0', noteOpen && 'bg-muted')}>
+          <SquarePen className="size-[18px]" />
+        </Button>
+      )}
     </form>
+    </div>
   );
 }
