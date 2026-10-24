@@ -19,7 +19,7 @@ function highlight(text: string, q: string | null): ReactNode {
 
 export default function VideoRow({ video, to }: { video: LibraryVideo; to?: string }) {
   const [params] = useSearchParams();
-  // Aligned with the L4 header: chats replace questions, the sorted-by count leads, and search matches are marked.
+  // Match the Library controls: emphasize the sorted count and mark search matches.
   const q = params.get('q');
   const sort = params.get('sort');
   const chats = video.chat_count;
@@ -57,4 +57,3 @@ export default function VideoRow({ video, to }: { video: LibraryVideo; to?: stri
     </Link>
   );
 }
-

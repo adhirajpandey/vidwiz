@@ -36,4 +36,3 @@ export default function SortMenu({ sort, onChange }: { sort: LibrarySort; onChan
     </Menu>
   );
 }
-

@@ -14,4 +14,3 @@ export default function DurationThumbnail({ video, className }: { video: Library
     </div>
   );
 }
-

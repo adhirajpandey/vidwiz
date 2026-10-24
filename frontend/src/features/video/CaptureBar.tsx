@@ -118,7 +118,7 @@ export default function CaptureBar({ videoId, currentTime, playhead, onView }: {
       </div>
     )}
     <form
-      // V1 phones: one row, so the pinned block stays short.
+      // Keep the pinned controls to one row on phones.
       className="flex flex-row items-center gap-2"
       onSubmit={event => { event.preventDefault(); void capture(aiDefault); }}
     >
