@@ -1,6 +1,6 @@
 // @vitest-environment jsdom
 import { act, cleanup, render, screen } from '@testing-library/react';
-import { createRef } from 'react';
+import { createRef, StrictMode } from 'react';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import YouTubePlayer from './YouTubePlayer';
 import type { PlayerOptions, YouTubePlayerHandle } from './YouTubePlayer';
@@ -27,6 +27,14 @@ async function setup() {
 }
 
 describe('YouTube Watch behavior', () => {
+  it('plays a deep link requested by the ref before effects, including StrictMode', async () => {
+    render(<StrictMode><YouTubePlayer videoId="abc123DEF45" ref={handle => { handle?.watch(83); }} /></StrictMode>);
+    await act(async () => {});
+    act(() => options.events.onReady());
+    expect(instances.at(-1)!.seekTo).toHaveBeenCalledExactlyOnceWith(81, true);
+    expect(instances.at(-1)!.playVideo).toHaveBeenCalledOnce();
+  });
+
   it('queues only the latest click until ready, then seeks with lead-in and plays', async () => {
     const { ref, player } = await setup();
     act(() => { ref.current!.watch(83); ref.current!.watch(200); });

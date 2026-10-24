@@ -117,6 +117,9 @@ Workers.
   video at the time. Every citation can be saved as a moment.
 - **Guests**: the landing page starts a guest conversation for a pasted link
   and opens the workspace on the Ask tab.
+- **Search links**: moment hits open Moments and highlight the saved moment;
+  passage hits open Transcript. Playback requests made before player setup
+  are queued and retain the existing lead-in and autoplay fallback.
 - **Command palette**: ⌘K / Ctrl+K searches, asks the library, opens a pasted
   YouTube link, or jumps to a page.
 - **PWA**: `public/manifest.webmanifest` with a share target; sharing a YouTube
