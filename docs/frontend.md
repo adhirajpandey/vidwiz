@@ -68,7 +68,9 @@ Workers.
   **View moment** toast action to open and highlight the saved moment.
 - Save moment is a split button. The main part follows the AI line default from
   Settings. The arrow opens a menu listing both ways with their cost and key,
-  the default checked (S); the other is Shift S. Choosing one saves.
+  the default checked (S); the other is Shift S. Choosing one saves. At zero
+  credits, the default AI save shows a notice and existing moments offer
+  Get credits instead of Add AI line.
 
 ## Key Behavior
 - **Auth**: the JWT is stored in `localStorage`, validated on read, and sent by
@@ -111,7 +113,7 @@ Workers.
   arrives. Title captures still resolving show a placeholder; ambiguous ones
   show the candidate videos to pick from.
 - **Overview**: rendered from `overview_status`: writing, failed with a free
-  retry (signed in), no transcript, pending (transcript still loading), or
+  retry (signed in), transcript unavailable, pending (transcript still loading), or
   no overview yet (transcript ready, never queued). While a newer overview is
   written or after it fails, the older one stays visible with a status line.
 - **Video workspace**: desktop shows moments below the player and a separate

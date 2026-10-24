@@ -108,7 +108,7 @@ export default function AskPanel({ video, seek, signedIn, resumeId, onConversati
             <div role="status" className="border-b border-border bg-surface px-4 py-2.5 text-sm font-medium text-foreground">Preparing the transcript…</div>
           )}
           {video.transcript_status === 'unavailable' && (
-            <div role="status" className="border-b border-border bg-muted px-4 py-2.5 text-sm text-muted-foreground">This video has no transcript, so Ask is not available.</div>
+            <div role="status" className="border-b border-border bg-muted px-4 py-2.5 text-sm text-muted-foreground">Transcript unavailable, so Ask is not available for this video.</div>
           )}
         </>
       }

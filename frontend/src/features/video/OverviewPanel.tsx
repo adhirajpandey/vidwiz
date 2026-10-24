@@ -63,7 +63,7 @@ export default function OverviewPanel({ video, signedIn, onSeek, onAsk }: {
           </EmptyState>
         );
       case 'no_transcript':
-        return <EmptyState icon={<FileX className="size-5" />} title="No overview for this video">YouTube has no captions for it, so there is nothing to summarize.</EmptyState>;
+        return <EmptyState icon={<FileX className="size-5" />} title="No overview for this video">Transcript unavailable, so there is nothing to summarize.</EmptyState>;
       default:
         // A transcript but no queued overview, such as older videos the backfill skipped.
         if (video.transcript_status === 'ready') {
@@ -78,7 +78,7 @@ export default function OverviewPanel({ video, signedIn, onSeek, onAsk }: {
       {video.summary && <p className="text-base leading-7">{video.summary}</p>}
       {video.key_points && (
         <section aria-labelledby="key-points">
-          <h3 id="key-points" className="display mb-3 border-t-2 border-foreground pt-3 text-lg">Key points</h3>
+          <h3 id="key-points" className="display mb-3 border-t border-border pt-3 text-lg">Key points</h3>
           <ol className="space-y-2.5">
             {video.key_points.map(point => (
               <li key={`${point.start_seconds}-${point.text}`} className="flex items-start gap-3">
@@ -94,7 +94,7 @@ export default function OverviewPanel({ video, signedIn, onSeek, onAsk }: {
       )}
       {video.suggested_questions && (
         <section aria-labelledby="questions">
-          <h3 id="questions" className="display mb-3 border-t-2 border-foreground pt-3 text-lg">Questions to ask</h3>
+          <h3 id="questions" className="display mb-3 border-t border-border pt-3 text-lg">Questions to ask</h3>
           <ul className="space-y-1.5">
             {video.suggested_questions.map(question => (
               <li key={question}>
