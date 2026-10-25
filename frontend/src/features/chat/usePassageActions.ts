@@ -19,6 +19,11 @@ export function usePassageActions({ videoId, seek, signedIn, videoLabel }: {
   const save = useSavePassage();
   const notify = useNotify();
   return useMemo(() => ({
+    watchHref: (passage: Passage) => {
+      const target = passage.video_id ?? videoId;
+      return target && !(seek && (!passage.video_id || passage.video_id === videoId))
+        ? `/v/${target}?t=${Math.floor(passage.start_seconds)}` : undefined;
+    },
     watch: (passage: Passage) => {
       const target = passage.video_id ?? videoId;
       if (seek && (!passage.video_id || passage.video_id === videoId)) seek(passage.start_seconds);

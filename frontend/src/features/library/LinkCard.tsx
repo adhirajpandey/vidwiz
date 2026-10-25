@@ -1,5 +1,5 @@
 import { useRef, useState } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { Link, useNavigate } from 'react-router-dom';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { Loader2, Plus, RotateCcw } from 'lucide-react';
 import { libraryApi } from '../../api';
@@ -61,7 +61,7 @@ export default function LinkCard({ link, videoId, onClear, onAdded }: { link: st
         <div className="flex items-center justify-between gap-3">
           <p className="text-sm font-semibold">Already in your library</p>
           <div className="flex gap-2">
-            <Button size="sm" variant="primary" onClick={() => navigate(target)}>Open{at}</Button>
+            <Link to={target} className="inline-flex h-8 shrink-0 items-center rounded-[9px] bg-accent px-2.5 text-xs font-semibold text-accent-foreground transition-opacity hover:opacity-90">Open{at}</Link>
             <Button size="sm" variant="ghost" onClick={onClear}>Clear</Button>
           </div>
         </div>

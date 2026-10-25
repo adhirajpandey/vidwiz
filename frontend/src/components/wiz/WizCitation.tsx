@@ -1,5 +1,6 @@
 import { createContext, useContext, useState } from 'react';
 import type { DataMessagePartProps } from '@assistant-ui/react';
+import { Link } from 'react-router-dom';
 import { Bookmark, BookmarkCheck } from 'lucide-react';
 import type { CitationPart, Passage } from '../../api/messageParts';
 import { formatClock } from '../../lib/format';
@@ -8,6 +9,7 @@ import { Tooltip } from '../ui/Tooltip';
 export interface PassageActions {
   /** Play the passage: seek the on-page player, or open its video. */
   watch: (passage: Passage) => void;
+  watchHref?: (passage: Passage) => string | undefined;
   /** Keep the passage as a moment; absent for guests. */
   save?: (passage: Passage) => Promise<void>;
   /** Library answers name the video each passage comes from. */
@@ -44,21 +46,19 @@ function SavePassage({ passage, save }: { passage: Passage; save: (passage: Pass
 }
 
 export function WatchPassage({ passage }: { passage: Passage }) {
-  const { watch, save, videoLabel } = useContext(PassageContext);
+  const { watch, watchHref, save, videoLabel } = useContext(PassageContext);
   const start = formatClock(passage.start_seconds);
   const end = formatClock(passage.end_seconds);
   const video = passage.video_id ? videoLabel?.(passage.video_id) : undefined;
+  const href = watchHref?.(passage);
+  const label = `Watch ${video ? `${video} ` : ''}from ${start} to ${end}`;
+  const content = <><span className="wiz-time">{start}</span>{video ? <span className="wiz-video">{video}</span> : 'Watch'}</>;
   return (
     <span className="wiz-passage">
       <Tooltip label={<>{video && <span className="block">{video}</span>}{start} to {end}, starting 2 seconds early</>}>
-        <button
-          type="button"
-          className="wiz-watch"
-          aria-label={`Watch ${video ? `${video} ` : ''}from ${start} to ${end}`}
-          onClick={() => watch(passage)}
-        >
-          <span className="wiz-time">{start}</span>{video ? <span className="wiz-video">{video}</span> : 'Watch'}
-        </button>
+        {href ? <Link to={href} className="wiz-watch" aria-label={label}>{content}</Link> : (
+          <button type="button" className="wiz-watch" aria-label={label} onClick={() => watch(passage)}>{content}</button>
+        )}
       </Tooltip>
       {save && <SavePassage passage={passage} save={save} />}
     </span>
