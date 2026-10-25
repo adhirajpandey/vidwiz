@@ -1,5 +1,5 @@
 // @vitest-environment jsdom
-import { cleanup, render, screen, waitFor } from '@testing-library/react';
+import { act, cleanup, render, screen, waitFor } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { MemoryRouter } from 'react-router-dom';
@@ -49,4 +49,21 @@ it('allows only one active row and keeps a failed delete available to retry', as
   expect(momentsApi.remove).toHaveBeenCalledWith(2);
   await user.click(screen.getByRole('button', { name: 'Delete' }));
   await waitFor(() => expect(screen.queryByText('Delete this moment?')).toBeNull());
+});
+
+it('keeps a newer delete confirmation and its focus when a pending note save finishes', async () => {
+  let finish!: (value: MomentRead) => void;
+  vi.mocked(momentsApi.update).mockReturnValue(new Promise(resolve => { finish = resolve; }));
+  const user = setup();
+  const actions = screen.getAllByRole('button', { name: 'Moment actions' })[0];
+  await user.click(actions);
+  await user.click(screen.getByRole('menuitem', { name: 'Edit note' }));
+  await user.click(screen.getByRole('button', { name: 'Save' }));
+  await user.click(actions);
+  await user.click(screen.getByRole('menuitem', { name: 'Delete' }));
+  const deleteButton = screen.getByRole('button', { name: 'Delete' });
+  await waitFor(() => expect(document.activeElement).toBe(deleteButton));
+  await act(async () => finish({ id: 1 } as MomentRead));
+  expect(screen.getByText('Delete this moment?')).toBeTruthy();
+  expect(document.activeElement).toBe(deleteButton);
 });

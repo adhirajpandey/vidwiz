@@ -39,9 +39,9 @@ export default function MomentItem({ moment, onSeek, highlighted, showQuote = tr
   const deleteButton = useRef<HTMLButtonElement>(null);
   const noteInput = useRef<HTMLTextAreaElement>(null);
   const [deleteError, setDeleteError] = useState<string | null>(null);
-  useEffect(() => () => clearActiveRow(moment.id), [moment.id]);
+  useEffect(() => () => { clearActiveRow(moment.id); }, [moment.id]);
   const cancelDelete = () => { if (remove.isPending) return; setDeleteError(null); clearActiveRow(moment.id); actionsButton.current?.focus(); };
-  const stopEditing = () => { clearActiveRow(moment.id); actionsButton.current?.focus(); };
+  const stopEditing = () => { if (clearActiveRow(moment.id, 'edit')) actionsButton.current?.focus(); };
   const reallyDelete = () => remove.mutate(moment.id, {
     onSuccess: () => clearActiveRow(moment.id),
     onError: error => setDeleteError(normalizeApiError(error, 'The moment could not be deleted.').message),
