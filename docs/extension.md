@@ -137,7 +137,7 @@ Plain JavaScript modules, no bundler.
     pending, for up to 3 minutes; each refresh keeps keyboard focus on the same
     row and control, or on the row's "…" button if its menu was open. If the
     list fails before anything has loaded, it offers Try again, which keeps
-    focus when it fails again.
+    focus when it fails again and moves it to the first moment when it loads.
 - **Tooltips and cursors**: the brand, profile chip, video card, Save moment,
   its arrow ("Save options"), the note icon, the save menu items, time
   buttons, "…" ("Moment actions"), and the AI line mark ("AI-generated line")

@@ -499,6 +499,8 @@ function paint(tab) {
   const focusKey = active?.closest(".actions") ? "actions" : active?.dataset.focus;
   list.replaceChildren(...moments.map((moment) => momentRow(tab, moment)));
   if (focusRow && focusKey) list.querySelector(`li[data-moment-id="${focusRow}"] [data-focus="${focusKey}"]`)?.focus();
+  // A successful Try again replaces its own button; move to the first moment.
+  else if (active) list.querySelector("[data-focus]")?.focus();
   list.classList.toggle("busy", busy());
   $("moment-count").textContent = moments.length === 1 ? "1 moment" : `${moments.length} moments`;
   if (scrollToHighlight) {
