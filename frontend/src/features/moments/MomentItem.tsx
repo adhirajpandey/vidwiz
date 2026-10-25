@@ -9,6 +9,7 @@ import { Menu, MenuContent, MenuItem, MenuTrigger } from '../../components/ui/Me
 import TimeChip from '../../components/ui/TimeChip';
 import { cn } from '../../lib/utils';
 import { normalizeApiError } from '../../api/errors';
+import { useArrivalTint } from '../../hooks/useArrival';
 import { clearActiveRow, setActiveRow, useActiveRow } from './rowFocus';
 import MomentQuote from './MomentQuote';
 import MomentStatus from './MomentStatus';
@@ -19,17 +20,19 @@ interface Props {
   moment: MomentRead;
   /** Seek an on-page player; without it, the time links to the video page. */
   onSeek?: (seconds: number) => void;
-  highlighted?: boolean;
+  /** When this moment was reached and first shown: `null` until shown, absent when it wasn't reached. */
+  arrivedAt?: number | null;
   showQuote?: boolean;
   className?: string;
 }
 
-export default function MomentItem({ moment, onSeek, highlighted, showQuote = true, className }: Props) {
+export default function MomentItem({ moment, onSeek, arrivedAt, showQuote = true, className }: Props) {
   const [draft, setDraft] = useState(moment.note ?? '');
   const update = useUpdateMoment();
   const remove = useDeleteMoment();
   const requestAi = useRequestAi();
   const notify = useNotify();
+  const arrival = useArrivalTint(arrivedAt);
   const at = moment.at_seconds;
   const activeRow = useActiveRow();
   const editing = activeRow?.id === moment.id && activeRow.mode === 'edit';
@@ -97,7 +100,8 @@ export default function MomentItem({ moment, onSeek, highlighted, showQuote = tr
   return (
     <li
       id={`moment-${moment.id}`}
-      className={cn('moment-anchor group py-3.5 transition-opacity', highlighted && 'rounded-[10px] border-transparent bg-saved/9 shadow-[inset_2px_0_var(--color-saved)]', stepBack && 'opacity-55', className)}
+      style={arrival.style}
+      className={cn('moment-anchor group py-3.5 transition-opacity', arrival.className && ['rounded-[10px] border-transparent', arrival.className], stepBack && 'opacity-55', className)}
     >
       <div className="flex items-start gap-3">
         <div className="w-14 shrink-0 pt-0.5">{time}</div>

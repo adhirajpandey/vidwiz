@@ -1,7 +1,7 @@
 // @vitest-environment jsdom
 import { act, cleanup, fireEvent, render, screen } from '@testing-library/react';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
-import { MemoryRouter, Route, Routes, useLocation } from 'react-router-dom';
+import { MemoryRouter, Route, Routes, useLocation, useNavigate } from 'react-router-dom';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import VideoPage from './VideoPage';
 
@@ -18,8 +18,10 @@ vi.mock('../../components/PageTitle', () => ({
   default: ({ title }: { title: string | string[] }) => <output data-testid="title">{[title].flat().join(' · ')}</output>,
 }));
 vi.mock('../../components/wiz/YouTubePlayer', () => ({ default: () => null }));
-vi.mock('./CaptureBar', () => ({ default: () => null }));
-vi.mock('./MomentsPanel', () => ({ default: () => <div>Saved moments</div> }));
+vi.mock('./CaptureBar', () => ({ default: ({ onView }: { onView: (id: number) => void }) => <button onClick={() => onView(7)}>View moment</button> }));
+vi.mock('./MomentsPanel', () => ({ default: ({ arrival }: { arrival: { target: number; key: number } | null }) => (
+  <div>Saved moments<output data-testid="arrival">{arrival ? `${arrival.target}#${arrival.key}` : 'none'}</output></div>
+) }));
 vi.mock('./TranscriptPanel', () => ({ default: () => <div>Transcript text</div> }));
 vi.mock('./OverviewPanel', () => ({ default: ({ onAsk }: { onAsk: (q: string) => void }) => <button onClick={() => onAsk('Why does this work?')}>Suggested question</button> }));
 vi.mock('./AskPanel', () => ({ default: ({ onConversation, draft }: { onConversation: (id: number) => void; draft?: { text: string } }) => {
@@ -28,7 +30,10 @@ vi.mock('./AskPanel', () => ({ default: ({ onConversation, draft }: { onConversa
 } }));
 afterEach(() => { cleanup(); video = loaded; wideScreen = false; });
 
-function Location() { return <output data-testid="location">{useLocation().search}</output>; }
+function Location() {
+  const navigate = useNavigate();
+  return <><output data-testid="location">{useLocation().search}</output><button onClick={() => navigate('/v/abc123DEF45?m=7')}>Moment link</button></>;
+}
 function setup(query = '') {
   render(<QueryClientProvider client={new QueryClient()}>
     <MemoryRouter initialEntries={[`/v/abc123DEF45${query}`]}>
@@ -106,3 +111,26 @@ describe('video tab title', () => {
   expect(screen.getByRole('tab', { name: 'Ask' }).getAttribute('aria-selected')).toBe('true');
   expect(screen.getByText('Why does this work?')).toBeTruthy();
  });
+
+describe('moment arrivals', () => {
+  const arrival = () => screen.getByTestId('arrival').textContent;
+
+  it('replays for View moment and links to the same moment, but not for panel changes', () => {
+    setup('?m=7&tab=moments');
+    expect(arrival()).toBe('7#1');
+    fireEvent.click(screen.getByText('View moment'));
+    expect(arrival()).toBe('7#2');
+    fireEvent.click(screen.getByText('View moment'));
+    expect(arrival()).toBe('7#3');
+    selectTab('Transcript');
+    selectTab('Moments');
+    expect(arrival()).toBe('7#3');
+    fireEvent.click(screen.getByText('Moment link'));
+    expect(arrival()).toBe('7#4');
+  });
+
+  it('has nothing to show without a moment in the link', () => {
+    setup();
+    expect(arrival()).toBe('none');
+  });
+});
