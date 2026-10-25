@@ -5,7 +5,7 @@ import { cn } from '../../lib/utils';
 export const Tabs = RadixTabs.Root;
 
 export function TabsList({ className, ...props }: ComponentPropsWithoutRef<typeof RadixTabs.List>) {
-  return <RadixTabs.List className={cn('flex gap-1 overflow-x-auto border-b border-border [scrollbar-width:none]', className)} {...props} />;
+  return <RadixTabs.List className={cn('flex gap-1 overflow-x-auto overflow-y-hidden border-b border-border [scrollbar-width:none]', className)} {...props} />;
 }
 
 export function TabsTrigger({ className, ...props }: ComponentPropsWithoutRef<typeof RadixTabs.Trigger>) {

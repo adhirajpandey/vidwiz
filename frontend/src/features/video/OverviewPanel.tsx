@@ -89,9 +89,6 @@ export default function OverviewPanel({ video, signedIn, onSeek, onAsk }: {
           </ol>
         </section>
       )}
-      {video.overview_model && (
-        <p className="text-xs text-muted-foreground">Written by {video.overview_model}</p>
-      )}
       {video.suggested_questions && (
         <section aria-labelledby="questions">
           <h3 id="questions" className="display mb-3 border-t border-border pt-3 text-lg">Questions to ask</h3>

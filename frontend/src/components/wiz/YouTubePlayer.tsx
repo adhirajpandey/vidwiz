@@ -79,6 +79,9 @@ const YouTubePlayer = forwardRef<YouTubePlayerHandle, PlayerProps>(function YouT
     let pending: number | null = null;
     let lastSeconds = 0;
     let timer: ReturnType<typeof setTimeout> | undefined;
+    // YouTube can report blocked autoplay just before playback starts, so the
+    // help waits briefly instead of shifting the controls below the player.
+    let blockedTimer: ReturnType<typeof setTimeout> | undefined;
     // The embed has no time event, so poll it, also while paused or buffering so
     // a seek shows up straight away. Only a new whole second is reported, which
     // keeps re-renders to about one a second during playback.
@@ -98,9 +101,12 @@ const YouTubePlayer = forwardRef<YouTubePlayerHandle, PlayerProps>(function YouT
       try { return player.getCurrentTime(); } catch { return null; }
     };
     const clearTimer = () => { if (timer !== undefined) clearTimeout(timer); timer = undefined; };
+    const clearBlocked = () => { if (blockedTimer !== undefined) clearTimeout(blockedTimer); blockedTimer = undefined; };
+    const isPlaying = () => { try { return player?.getPlayerState() === 1; } catch { return false; } };
     const showFailure = (message: string) => {
       if (disposed) return;
       clearTimer();
+      clearBlocked();
       pending = null;
       setNotice({ message, seconds: lastSeconds });
     };
@@ -122,6 +128,7 @@ const YouTubePlayer = forwardRef<YouTubePlayerHandle, PlayerProps>(function YouT
       pending = seconds;
       setNotice(null);
       clearTimer();
+      clearBlocked();
       const bounds = container.current?.getBoundingClientRect();
       if (bounds && (bounds.top < 0 || bounds.bottom > window.innerHeight)) {
         container.current?.scrollIntoView({
@@ -146,10 +153,17 @@ const YouTubePlayer = forwardRef<YouTubePlayerHandle, PlayerProps>(function YouT
           onStateChange: event => {
             if (disposed) return;
             reportTime();
-            if (event.data === 1) { clearTimer(); setNotice(null); }
+            if (event.data === 1) { clearTimer(); clearBlocked(); setNotice(null); }
           },
           onError: () => { failed = true; showFailure('The video player is unavailable. Watch this passage on YouTube.'); },
-          onAutoplayBlocked: () => showFailure('Press Play in the video to watch this passage, or open YouTube.'),
+          onAutoplayBlocked: () => {
+            if (disposed || failed || isPlaying()) return;
+            clearBlocked();
+            blockedTimer = setTimeout(() => {
+              blockedTimer = undefined;
+              if (!failed && !isPlaying()) showFailure('Press Play in the video to watch this passage, or open YouTube.');
+            }, 500);
+          },
         },
       });
     }).catch(() => { failed = true; showFailure('The video player could not load. Watch this passage on YouTube.'); });
@@ -159,6 +173,7 @@ const YouTubePlayer = forwardRef<YouTubePlayerHandle, PlayerProps>(function YouT
       if (pending !== null) queued.current = { videoId, seconds: pending };
       pending = null;
       clearTimer();
+      clearBlocked();
       clearInterval(ticker);
       currentTime.current = () => null;
       watch.current = seconds => { queued.current = { videoId, seconds }; };
