@@ -170,7 +170,14 @@ Workers.
 - **API errors**: Fetch and SSE failures normalize to a shared error type. Safe
   handled `4xx` messages may be shown; `5xx` and malformed responses use curated
   copy and may include the backend `X-Request-ID`. Action failures use toasts;
-  failed page or section loads render retry states.
+  failed page or section loads render retry states, including credit packs,
+  tokens, recent videos, library chat history, the Ask access check, and the
+  share target. An empty result is shown as empty, not as a failure.
+- **Toasts**: errors are announced as alerts, other toasts politely. A toast's
+  countdown pauses while it is hovered or has focus, so its action can't
+  expire mid-use.
+- **API tokens**: Revoke asks inside the row first, naming the token; Escape or
+  Cancel returns focus to Revoke. A failed copy says so.
 
 ## Development
 - `pnpm dev` with `VITE_API_URL` pointing at an API (for example a local backend
