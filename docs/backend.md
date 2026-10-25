@@ -86,6 +86,15 @@ Describe the FastAPI backend: structure, auth rules, and the request/worker life
   requests AI if the user setting allows it. Remove it once the 3.x extension
   is live.
 
+### Resurfacing
+- `GET /v2/moments/resurface?skip=0` returns `{state: "found", moment: ...}`
+  or `{state: "none"}`. It reads only the signed-in user's resolved moments,
+  strictly older than 60 days at the database day's start. The first non-empty
+  AI line, note, or quote must have at least 15 characters after trimming.
+- Ordering by the hash of moment ID and database date keeps the pick stable
+  for that day. Incrementing `skip` walks the order; past its end returns
+  `none`. No model call, credit charge, or data write is involved.
+
 ### Search
 - Stored transcripts are split into ~45-second passages in `transcript_chunks`
   (written whenever a transcript is stored; `python -m src.management.backfill
@@ -178,11 +187,16 @@ Describe the FastAPI backend: structure, auth rules, and the request/worker life
 - `library_items` records saved videos per user. Capturing a moment or sending
   a chat message saves the video. `PUT /v2/library/{video_id}` saves
   explicitly; `DELETE` removes the item and keeps its moments.
-- `GET /v2/library` returns `moment_count`, `transcript_status`,
-  `overview_status`,
-  `added_at`, and `last_activity_at` (latest of added, opened, moment update,
-  or chat message). Sorts: `activity_desc` (default), `added_desc`,
-  `title_asc`, `title_desc`. `q` (2+ characters) filters titles literally.
+- `GET /v2/library` returns moment and chat counts, a latest-moment preview
+  (note, AI line, or quote), transcript/overview status, `added_at`, and
+  `last_activity_at` (latest of added, opened, moment update, or chat message).
+  A chat counts once when it has a user question; empty chats are excluded.
+- Sorts: `activity_desc` (default), `added_desc`, `title_asc`, `title_desc`,
+  `moments_desc`, and `chats_desc`. Ties use recent activity and video ID.
+- `q` (2+ characters) matches titles and channel names literally, ignoring case,
+  or an exact video ID. `view` selects `all`, `with_moments`, or `with_chats`.
+  Response `counts` includes all three views after search, before the selected
+  view and pagination; `total` and `total_pages` describe the selected view.
 
 ## Async + Workers Integration
 - **Tasks**: Metadata, transcript, and title-resolution tasks are stored in the `tasks` table and polled via `/v2/internal/tasks`.
@@ -317,6 +331,15 @@ a transcript is replaced.
 ### Library
 - `GET /v2/library`
 - `PUT /v2/library/{video_id}`, `DELETE /v2/library/{video_id}`
+
+### Resurfacing
+- `GET /v2/moments/resurface?skip=0` returns `{state: "found", moment: ...}`
+  or `{state: "none"}`. It reads only the signed-in user's resolved moments,
+  strictly older than 60 days at the database day's start. The first non-empty
+  AI line, note, or quote must have at least 15 characters after trimming.
+- Ordering by the hash of moment ID and database date keeps the pick stable
+  for that day. Incrementing `skip` walks the order; past its end returns
+  `none`. No model call, credit charge, or data write is involved.
 
 ### Search
 - `GET /v2/search`

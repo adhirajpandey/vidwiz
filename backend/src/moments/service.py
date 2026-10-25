@@ -25,6 +25,9 @@ from src.moments.schemas import (
     MomentFeed,
     MomentRead,
     PassageSave,
+    ResurfaceFound,
+    ResurfaceNone,
+    ResurfaceResponse,
 )
 from src.videos import service as videos_service
 from src.videos.models import TranscriptStatus, Video
@@ -503,6 +506,39 @@ def feed(db: Session, user_id: int, page: int, per_page: int) -> MomentFeed:
     ]
     return MomentFeed(
         moments=items, page=page, per_page=per_page, has_more=len(rows) > per_page
+    )
+
+
+def resurface(db: Session, user_id: int, skip: int = 0) -> ResurfaceResponse:
+    """One older moment in a stable daily order; skip walks that order."""
+    lead = func.coalesce(
+        func.nullif(func.trim(Moment.ai_text), ""),
+        func.nullif(func.trim(Moment.note), ""),
+        func.nullif(func.trim(Moment.quote), ""),
+        "",
+    )
+    row = db.execute(
+        select(Moment, Video.title, Video.video_metadata)
+        .join(Video, Video.video_id == Moment.video_id)
+        .where(
+            Moment.user_id == user_id,
+            Moment.resolve_status == ResolveStatus.RESOLVED,
+            Moment.created_at < func.current_date() - timedelta(days=60),
+            func.length(lead) >= 15,
+        )
+        .order_by(func.md5(func.concat(Moment.id, func.current_date())), Moment.id)
+        .offset(skip)
+        .limit(1)
+    ).first()
+    if row is None:
+        return ResurfaceNone()
+    moment, title, metadata = row
+    return ResurfaceFound(
+        moment=FeedMoment(
+            **MomentRead.model_validate(moment).model_dump(),
+            video_title=title,
+            video_metadata=metadata,
+        )
     )
 
 

@@ -1,12 +1,18 @@
 import logging
 
-from sqlalchemy import func, select
+from sqlalchemy import case, func, or_, select
 from sqlalchemy.dialects.postgresql import insert
 from sqlalchemy.orm import Session
 
 from src.conversations.models import Conversation, Message
 from src.library.models import LibraryItem
-from src.library.schemas import LibraryParams, LibraryResponse, LibraryVideo
+from src.library.schemas import (
+    LatestMoment,
+    LibraryCounts,
+    LibraryParams,
+    LibraryResponse,
+    LibraryVideo,
+)
 from src.moments.models import Moment
 from src.videos.models import Video
 
@@ -48,12 +54,32 @@ def list_library(db: Session, user_id: int, params: LibraryParams) -> LibraryRes
         select(
             Conversation.video_id,
             func.max(Message.created_at).label("chat_activity"),
+            func.count(func.distinct(Conversation.id))
+            .filter(Message.role == "user")
+            .label("chat_count"),
         )
         .join(Message)
         .where(Conversation.user_id == user_id)
         .group_by(Conversation.video_id)
         .subquery()
     )
+    latest = (
+        select(
+            Moment.video_id,
+            func.coalesce(Moment.note, Moment.ai_text, Moment.quote).label("text"),
+            case(
+                (Moment.note.is_not(None), "note"),
+                (Moment.ai_text.is_not(None), "ai"),
+                else_="quote",
+            ).label("kind"),
+        )
+        .where(Moment.user_id == user_id)
+        .distinct(Moment.video_id)
+        .order_by(Moment.video_id, Moment.created_at.desc(), Moment.id.desc())
+        .subquery()
+    )
+    moment_count = func.coalesce(moments.c.moment_count, 0)
+    chat_count = func.coalesce(chats.c.chat_count, 0)
     # greatest() ignores nulls in PostgreSQL.
     activity = func.greatest(
         LibraryItem.added_at,
@@ -65,16 +91,44 @@ def list_library(db: Session, user_id: int, params: LibraryParams) -> LibraryRes
         select(
             Video,
             LibraryItem.added_at,
-            func.coalesce(moments.c.moment_count, 0),
+            moment_count,
+            chat_count,
+            latest.c.text,
+            latest.c.kind,
             activity,
         )
         .join(LibraryItem, LibraryItem.video_id == Video.video_id)
         .outerjoin(moments, moments.c.video_id == Video.video_id)
         .outerjoin(chats, chats.c.video_id == Video.video_id)
+        .outerjoin(latest, latest.c.video_id == Video.video_id)
         .where(LibraryItem.user_id == user_id)
     )
     if params.q:
-        query = query.where(Video.title.icontains(params.q, autoescape=True))
+        query = query.where(
+            or_(
+                Video.title.icontains(params.q, autoescape=True),
+                Video.video_metadata["uploader"]
+                .as_string()
+                .icontains(params.q, autoescape=True),
+                Video.video_id == params.q,
+            )
+        )
+
+    # Counts follow the search, before applying the selected view or pagination.
+    counts_row = db.execute(
+        query.with_only_columns(
+            func.count(),
+            func.count().filter(moment_count > 0),
+            func.count().filter(chat_count > 0),
+        )
+    ).one()
+    counts = LibraryCounts(
+        all=counts_row[0], with_moments=counts_row[1], with_chats=counts_row[2]
+    )
+    if params.view == "with_moments":
+        query = query.where(moment_count > 0)
+    elif params.view == "with_chats":
+        query = query.where(chat_count > 0)
 
     total = db.scalar(select(func.count()).select_from(query.subquery())) or 0
     order = {
@@ -82,9 +136,13 @@ def list_library(db: Session, user_id: int, params: LibraryParams) -> LibraryRes
         "added_desc": LibraryItem.added_at.desc(),
         "title_asc": Video.title.asc().nulls_last(),
         "title_desc": Video.title.desc().nulls_last(),
+        "moments_desc": moment_count.desc(),
+        "chats_desc": chat_count.desc(),
     }[params.sort]
     rows = db.execute(
-        query.order_by(order, Video.id.desc())
+        query.order_by(
+            (Video.video_id == params.q).desc(), order, activity.desc(), Video.id.desc()
+        )
         .offset((params.page - 1) * params.per_page)
         .limit(params.per_page)
     ).all()
@@ -97,12 +155,15 @@ def list_library(db: Session, user_id: int, params: LibraryParams) -> LibraryRes
                 transcript_status=video.transcript_status,
                 overview_status=video.overview_status,
                 moment_count=count,
+                chat_count=chat_total,
+                latest_moment=LatestMoment(text=text, kind=kind) if text else None,
                 added_at=added_at,
                 last_activity_at=last_activity_at,
             )
-            for video, added_at, count, last_activity_at in rows
+            for video, added_at, count, chat_total, text, kind, last_activity_at in rows
         ],
         total=total,
+        counts=counts,
         page=params.page,
         per_page=params.per_page,
         total_pages=-(-total // params.per_page),

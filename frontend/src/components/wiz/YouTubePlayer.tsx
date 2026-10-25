@@ -59,7 +59,8 @@ interface PlayerProps {
 const YouTubePlayer = forwardRef<YouTubePlayerHandle, PlayerProps>(function YouTubePlayer({ videoId, onTimeUpdate, className }, ref) {
   const container = useRef<HTMLDivElement>(null);
   const mount = useRef<HTMLDivElement>(null);
-  const watch = useRef<(seconds: number) => void>(() => undefined);
+  const queued = useRef<{ videoId: string; seconds: number } | null>(null);
+  const watch = useRef<(seconds: number) => void>(seconds => { queued.current = { videoId, seconds }; });
   const currentTime = useRef<() => number | null>(() => null);
   const onTime = useRef(onTimeUpdate);
   onTime.current = onTimeUpdate;
@@ -131,6 +132,9 @@ const YouTubePlayer = forwardRef<YouTubePlayerHandle, PlayerProps>(function YouT
       timer = setTimeout(() => showFailure('Playback did not start. Press Play in the video or open YouTube.'), 10_000);
       play();
     };
+    const early = queued.current;
+    queued.current = null;
+    if (early?.videoId === videoId) watch.current(early.seconds);
     const element = document.createElement('div');
     mount.current?.appendChild(element);
     void loadYouTubeAPI().then(api => {
@@ -152,11 +156,12 @@ const YouTubePlayer = forwardRef<YouTubePlayerHandle, PlayerProps>(function YouT
     const host = mount.current;
     return () => {
       disposed = true;
+      if (pending !== null) queued.current = { videoId, seconds: pending };
       pending = null;
       clearTimer();
       clearInterval(ticker);
       currentTime.current = () => null;
-      watch.current = () => undefined;
+      watch.current = seconds => { queued.current = { videoId, seconds }; };
       player?.destroy();
       host?.replaceChildren();
     };

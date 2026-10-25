@@ -1,4 +1,4 @@
-import { useCallback } from 'react';
+import { useCallback, useEffect, useRef } from 'react';
 import type { ReactNode } from 'react';
 import {
   AssistantRuntimeProvider, useExternalStoreRuntime, useAui, useAuiState,
@@ -75,7 +75,20 @@ function StarterQuestions({ questions, intro }: { questions?: string[] | null; i
   </div>;
 }
 
+function DraftLoader({ draft }: { draft?: { text: string; id: number } | null }) {
+  const aui = useAui();
+  const applied = useRef<object | null>(null);
+  useEffect(() => {
+    if (draft && applied.current !== draft) {
+      aui.composer.setText(draft.text);
+      applied.current = draft;
+    }
+  }, [aui, draft]);
+  return null;
+}
+
 interface Props {
+  draft?: { text: string; id: number } | null;
   chat: WizChatController;
   isReady: boolean;
   suggestedQuestions?: string[] | null;
@@ -99,7 +112,7 @@ const COPY = {
   },
 };
 
-export default function WizChat({ chat, isReady, suggestedQuestions, passages, statusBanner, scope = 'video', header, className }: Props) {
+export default function WizChat({ chat, isReady, suggestedQuestions, passages, statusBanner, scope = 'video', header, className, draft }: Props) {
   const copy = COPY[scope];
   const { send } = chat;
   const onNew = useCallback(async (message: AppendMessage) => {
@@ -111,6 +124,7 @@ export default function WizChat({ chat, isReady, suggestedQuestions, passages, s
     isRunning: chat.isRunning, isSendDisabled: chat.isSendDisabled,
   });
   return <AssistantRuntimeProvider runtime={runtime}>
+    <DraftLoader draft={draft} />
     <WizPassageProvider value={passages}>
       <ThreadPrimitive.Root className={cn('flex min-h-0 flex-col overflow-hidden', className)}>
         <div className="flex items-center justify-between gap-2 px-4 py-2.5 border-b border-border">

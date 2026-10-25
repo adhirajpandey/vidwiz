@@ -14,7 +14,7 @@ import ChatLimitNotice from '../chat/ChatLimitNotice';
 import { usePassageActions } from '../chat/usePassageActions';
 import { useAskStatus, videoKeys } from './queries';
 
-function Unlock({ cost, onUnlock }: { cost: number; onUnlock: () => void }) {
+function Unlock({ cost, onUnlock, draft }: { cost: number; onUnlock: () => void; draft?: { text: string } | null }) {
   const profile = useProfile();
   const balance = profile.data?.credits_balance;
   const short = balance !== undefined && balance < cost;
@@ -25,6 +25,7 @@ function Unlock({ cost, onUnlock }: { cost: number; onUnlock: () => void }) {
       <p className="mt-1.5 max-w-xs text-sm leading-6 text-muted-foreground">
         Unlocking costs {cost} credits once for this video. Every later question about it is free within your daily limit.
       </p>
+      {draft && <p className="mt-4 rounded-lg border border-border bg-card p-3 text-left text-sm">{draft.text}</p>}
       <Button variant="primary" className="mt-5" disabled={short} onClick={onUnlock}>
         <Sparkles className="size-4" />Unlock for {cost} credits
       </Button>
@@ -58,7 +59,8 @@ function ChatHistory({ videoId, onPick }: { videoId: string; onPick: (id: number
   );
 }
 
-export default function AskPanel({ video, seek, signedIn, resumeId, onConversation }: {
+export default function AskPanel({ video, seek, signedIn, resumeId, onConversation, draft }: {
+  draft?: { text: string; id: number } | null;
   video: VideoRead;
   seek: (seconds: number) => void;
   signedIn: boolean;
@@ -84,15 +86,16 @@ export default function AskPanel({ video, seek, signedIn, resumeId, onConversati
   const passages = usePassageActions({ videoId: video.video_id, seek, signedIn });
 
   if (status.isPending) return <div className="flex justify-center py-10"><Spinner /></div>;
-  if (!unlocked && status.data) return <Unlock cost={status.data.cost} onUnlock={() => setUnlocking(true)} />;
+  if (!unlocked && status.data) return <Unlock cost={status.data.cost} onUnlock={() => setUnlocking(true)} draft={draft} />;
 
   return (
     <WizChat
+      draft={draft}
       chat={chat}
       isReady={video.transcript_status === 'ready'}
       suggestedQuestions={video.suggested_questions}
       passages={passages}
-      className="h-[min(70dvh,640px)] lg:h-[calc(100dvh-13rem)]"
+      className="h-[calc(100dvh-4rem-var(--pinned-h)-3rem-8rem)] min-h-80 lg:h-auto lg:min-h-0 lg:flex-1"
       header={
         <div className="flex items-center gap-1">
           {signedIn && <ChatHistory videoId={video.video_id} onPick={id => { onConversation(id); chat.resume(id); }} />}
@@ -105,7 +108,7 @@ export default function AskPanel({ video, seek, signedIn, resumeId, onConversati
             <div role="status" className="border-b border-border bg-surface px-4 py-2.5 text-sm font-medium text-foreground">Preparing the transcript…</div>
           )}
           {video.transcript_status === 'unavailable' && (
-            <div role="status" className="border-b border-border bg-muted px-4 py-2.5 text-sm text-muted-foreground">This video has no transcript, so Ask is not available.</div>
+            <div role="status" className="border-b border-border bg-muted px-4 py-2.5 text-sm text-muted-foreground">Transcript unavailable, so Ask is not available for this video.</div>
           )}
         </>
       }

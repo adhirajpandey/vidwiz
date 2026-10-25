@@ -193,8 +193,11 @@ export interface PassageSave {
   note?: string | null;
 }
 
+export type ResurfaceResponse = { state: 'found'; moment: FeedMoment } | { state: 'none' };
+
 // Library
-export type LibrarySort = 'activity_desc' | 'added_desc' | 'title_asc' | 'title_desc';
+export type LibrarySort = 'activity_desc' | 'added_desc' | 'title_asc' | 'title_desc' | 'moments_desc' | 'chats_desc';
+export type LibraryView = 'all' | 'with_moments' | 'with_chats';
 
 export interface LibraryVideo {
   video_id: string;
@@ -203,11 +206,14 @@ export interface LibraryVideo {
   transcript_status: TranscriptStatus;
   overview_status: OverviewStatus;
   moment_count: number;
+  chat_count: number;
+  latest_moment: { text: string; kind: 'note' | 'ai' | 'quote' } | null;
   added_at: string;
   last_activity_at: string;
 }
 
 export interface LibraryResponse {
+  counts: Record<LibraryView, number>;
   videos: LibraryVideo[];
   total: number;
   page: number;

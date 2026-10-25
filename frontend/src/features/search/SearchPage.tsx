@@ -86,7 +86,7 @@ export default function SearchPage() {
         </EmptyState>
       )}
       {results.length > 0 && (
-        <ul className="divide-y divide-border border-t-2 border-foreground">
+        <ul className="divide-y divide-border border-t border-border">
           {results.map(result => (
             <ResultRow key={result.kind === 'moment' ? `m${result.moment.id}` : `c${result.chunk_id}`} result={result} />
           ))}

@@ -1,5 +1,6 @@
 import re
 from datetime import datetime
+from typing import Literal
 
 from pydantic import ConfigDict, Field, field_validator, model_validator
 
@@ -175,6 +176,18 @@ class MomentIdPath(ApiModel):
 class FeedMoment(MomentRead):
     video_title: str | None
     video_metadata: dict | None
+
+
+class ResurfaceFound(ApiModel):
+    state: Literal["found"] = "found"
+    moment: FeedMoment
+
+
+class ResurfaceNone(ApiModel):
+    state: Literal["none"] = "none"
+
+
+ResurfaceResponse = ResurfaceFound | ResurfaceNone
 
 
 class MomentFeed(ApiModel):
