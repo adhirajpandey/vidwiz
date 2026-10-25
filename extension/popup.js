@@ -123,11 +123,13 @@ function sparkle() {
 function momentRow(tab, moment) {
   const start = playFrom(moment);
   const item = document.createElement("li");
+  item.dataset.momentId = String(moment.id);
   item.classList.toggle("highlighted", moment.id === highlightId);
   item.classList.toggle("editing", moment.id === editingId);
   item.classList.toggle("confirming", moment.id === confirmingId);
   const time = document.createElement("button");
   time.className = "time tabular";
+  time.dataset.focus = "time";
   time.textContent = formatClock(moment.at_seconds);
   time.setAttribute("aria-label", `Play from ${formatClock(start)}`);
   tooltip(time, `Play from ${formatClock(start)}`);
@@ -199,12 +201,21 @@ const busy = () => editingId !== null || confirmingId !== null;
 
 function setRowState(tab, { editing = null, confirming = null }) {
   if (mutating) return;
+  const previous = editingId ?? confirmingId;
+  const rows = [...$("moments").querySelectorAll("li[data-moment-id]")];
+  const index = rows.findIndex((row) => row.dataset.momentId === String(previous));
   listChanged++;
   editingId = editing;
   confirmingId = confirming;
   paint(tab);
-  const row = $("moments").querySelector(".editing textarea, .confirming .confirm-delete");
-  row?.focus();
+  const list = $("moments");
+  const field = list.querySelector(".editing textarea, .confirming .confirm-delete");
+  if (field) return field.focus();
+  if (previous === null) return;
+  // Back to the row's "…" button, or the row that took a deleted row's place.
+  const remaining = [...list.querySelectorAll("li[data-moment-id]")];
+  const target = remaining.find((row) => row.dataset.momentId === String(previous)) ?? remaining[Math.min(index, remaining.length - 1)];
+  target?.querySelector(".actions-toggle")?.focus();
 }
 
 /** The "…" menu on a moment, like the web app's: add or edit the note, or delete. */
@@ -214,6 +225,7 @@ function momentActions(tab, moment) {
   const toggle = document.createElement("button");
   toggle.type = "button";
   toggle.className = "actions-toggle";
+  toggle.dataset.focus = "actions";
   toggle.setAttribute("aria-label", "Moment actions");
   tooltip(toggle, "Moment actions");
   toggle.setAttribute("aria-haspopup", "menu");
@@ -260,7 +272,18 @@ function momentActions(tab, moment) {
     } else if (event.key === "ArrowDown" || event.key === "ArrowUp") {
       event.preventDefault();
       items[(index + (event.key === "ArrowDown" ? 1 : -1) + items.length) % items.length].focus();
+    } else if (event.key === "Home" || event.key === "End") {
+      event.preventDefault();
+      items[event.key === "Home" ? 0 : items.length - 1].focus();
+    } else if (event.key === "Tab") {
+      event.preventDefault();
+      close();
+      toggle.focus();
     }
+  });
+  // Leaving the menu with focus closes it, like the web app's menus.
+  wrap.addEventListener("focusout", (event) => {
+    if (!menu.classList.contains("hidden") && !wrap.contains(event.relatedTarget)) close();
   });
   wrap.append(toggle, menu);
   return wrap;
@@ -321,6 +344,7 @@ function noteEditor(tab, moment) {
   cancel.addEventListener("click", done);
   field.addEventListener("input", () => fit(field));
   field.addEventListener("keydown", (event) => {
+    if (event.isComposing) return;
     if (event.key === "Escape") {
       event.preventDefault();
       done();
@@ -433,7 +457,16 @@ async function renderMoments(tab, videoId) {
     if (!list.querySelector("li:not(.muted)")) {
       const failed = document.createElement("li");
       failed.className = "muted";
-      failed.textContent = "Couldn't load this video's moments.";
+      failed.textContent = "Couldn't load this video's moments. ";
+      const retry = document.createElement("button");
+      retry.type = "button";
+      retry.className = "link";
+      retry.textContent = "Try again";
+      retry.addEventListener("click", () => {
+        pollUntil = Math.max(pollUntil, Date.now() + POLL_MS);
+        void renderMoments(tab, videoId);
+      });
+      failed.append(retry);
       list.replaceChildren(failed);
     }
     if (Date.now() < pollUntil) pollTimer = setTimeout(() => void renderMoments(tab, videoId), POLL_MS);
@@ -456,7 +489,12 @@ function paint(tab) {
   closeActionsMenu = null;
   const list = $("moments");
   const moments = lastMoments;
+  // Polling redraws every row; keep keyboard focus on the same control.
+  const active = list.contains(document.activeElement) ? document.activeElement : null;
+  const focusRow = active?.closest("li")?.dataset.momentId;
+  const focusKey = active?.dataset.focus;
   list.replaceChildren(...moments.map((moment) => momentRow(tab, moment)));
+  if (focusRow && focusKey) list.querySelector(`li[data-moment-id="${focusRow}"] [data-focus="${focusKey}"]`)?.focus();
   list.classList.toggle("busy", busy());
   $("moment-count").textContent = moments.length === 1 ? "1 moment" : `${moments.length} moments`;
   if (scrollToHighlight) {
@@ -689,9 +727,14 @@ async function init() {
   });
   $("note").addEventListener("input", fitNote);
   $("note").addEventListener("keydown", (event) => {
+    if (event.isComposing) return;
     if (event.key === "Enter" && !event.shiftKey) {
       event.preventDefault();
       $("capture-form").requestSubmit();
+    } else if (event.key === "Escape") {
+      // Like Cancel note; Escape would otherwise close the popup.
+      event.preventDefault();
+      $("cancel-note").click();
     }
   });
 

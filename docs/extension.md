@@ -41,7 +41,8 @@ Plain JavaScript modules, no bundler.
 - **Alt+S**: the background worker asks the content script for the current
   video, posts `POST /v2/captures` with `video`, `title`, `at`, and
   `source: "extension"` (the AI line follows the user's default), and shows a
-  toast: saved, merged into a nearby moment, or the error. During an ad it
+  toast: saved, merged into a nearby moment, or the error. Errors stay 6
+  seconds instead of 2.6. During an ad it
   saves nothing and says to wait for the ad to end. Without a login it opens
   the web login page, at most once a minute. On a YouTube video tab that has no
   content script yet, it shows a red `!` badge whose tooltip asks for a reload.
@@ -109,13 +110,17 @@ Plain JavaScript modules, no bundler.
   - Each moment has the web app's "…" menu with **Add note** or **Edit
     note**, and **Delete**. It opens below the button, or above it near the
     popup's bottom, stays inside the popup rather than the scrolling list,
-    and closes on Escape, a click outside, or scrolling. The note is edited
+    and closes on Escape, Tab, a click outside, focus leaving it, or scrolling;
+    Home and End jump to the first and last item. The note is edited
     in the row (Enter saves, Shift+Enter adds a line, Esc cancels, empty
     removes it) with
     `PATCH /v2/moments/{id}`. Delete asks inside the row first, since there is
     no undo, then calls `DELETE /v2/moments/{id}`. While that request is out,
     the row stays as it is: repeated Enter, Esc, and other rows' actions wait
-    for it. Errors show in the row and keep the draft for a retry.
+    for it. Errors show in the row and keep the draft for a retry. Cancel or
+    Esc returns focus to the row's "…" button; after a delete it moves to the
+    row that took its place. Enter never submits while an input method is
+    composing, and Esc in the capture note works like Cancel note.
     While a row is being edited or confirmed, the list doesn't refresh, so
     nothing being typed is lost. A refresh already loading is discarded and
     fetched again afterwards, so it can't undo the edit or delete either.
@@ -129,7 +134,9 @@ Plain JavaScript modules, no bundler.
     failed, out of credits, or impossible without a transcript. Like the web
     app, only "Writing the AI line…" has a spinner, which stays still under
     reduced motion. The list refreshes every 3 seconds while an AI line is
-    pending, for up to 3 minutes.
+    pending, for up to 3 minutes; each refresh keeps keyboard focus on the same
+    row and control. If the list fails before anything has loaded, it offers
+    Try again.
 - **Tooltips and cursors**: the brand, profile chip, video card, Save moment,
   its arrow ("Save options"), the note icon, the save menu items, time
   buttons, "…" ("Moment actions"), and the AI line mark ("AI-generated line")

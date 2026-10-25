@@ -179,6 +179,7 @@ button.saved:hover:not(:disabled) { filter: brightness(1.05); }
 .moments li.highlighted { margin: 0 -8px; padding: 12px 8px; border-radius: 10px; background: color-mix(in srgb, var(--saved) 32%, transparent); }
 .moments li.highlighted, .moments li.highlighted + li { border-top-color: transparent; }
 .moments li.muted { display: block; }
+.moments li.muted .link { padding: 0; border: 0; background: none; color: var(--fg); font: inherit; font-weight: 600; text-decoration: underline; }
 .moments li + li { border-top: 1px solid var(--border); }
 /* The first and last rows have no line beside them, so they sit as close to the
    count and the popup's bottom as every section's content sits to its divider. */

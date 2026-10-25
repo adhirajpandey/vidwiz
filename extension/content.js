@@ -95,13 +95,15 @@
     toast.setAttribute("role", "status");
     const icon = document.createElement("span");
     icon.className = "icon";
+    icon.setAttribute("aria-hidden", "true");
     icon.textContent = kind === "error" ? "!" : "✓";
     const label = document.createElement("span");
     label.textContent = text;
     toast.append(icon, label);
     root.append(style, toast);
     clearTimeout(showToast.timer);
-    showToast.timer = setTimeout(() => { root.innerHTML = ""; }, 2600);
+    // Errors stay longer: they need reading, and the toast has no close button.
+    showToast.timer = setTimeout(() => { root.innerHTML = ""; }, kind === "error" ? 6000 : 2600);
   }
 
   chrome.runtime.onMessage.addListener((request, _sender, sendResponse) => {
