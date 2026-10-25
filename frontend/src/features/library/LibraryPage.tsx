@@ -86,14 +86,14 @@ export default function LibraryPage() {
       <div className="flex gap-2">
         <label className="relative min-w-0 flex-1">
           <Search className="pointer-events-none absolute left-3 top-1/2 size-4 -translate-y-1/2 text-muted-foreground" />
-          <Input value={filter} onChange={event => setInput({ query: q, value: event.target.value })} aria-invalid={Boolean(link && !pasted)} className={cn('pl-9', link && !pasted && 'border-destructive/60 focus:border-destructive/70')} placeholder="Search or paste a link" aria-label="Search titles and channels, or paste a link" />
+          <Input value={filter} onChange={event => setInput({ query: q, value: event.target.value })} aria-invalid={Boolean(link && !pasted)} aria-describedby={link && !pasted ? 'library-link-error' : undefined} className={cn('pl-9', link && !pasted && 'border-destructive/60 focus:border-destructive/70')} placeholder="Search or paste a link" aria-label="Search titles and channels, or paste a link" />
         </label>
         <SortMenu sort={sort} onChange={value => update('sort', value)} />
       </div>
       {!link && <div role="group" aria-label="Library views" className="-mx-4 flex gap-1 overflow-x-auto border-b border-border px-4 sm:mx-0 sm:px-0">
         {VIEWS.map(v => <button key={v.value} type="button" aria-pressed={view === v.value} onClick={() => update('view', v.value)} className={cn('-mb-px shrink-0 border-b-2 px-3 pb-2 pt-1 text-sm font-semibold', view === v.value ? 'border-foreground text-foreground' : 'border-transparent text-muted-foreground hover:text-foreground')}>{v.label} <span className="ml-0.5 text-xs font-medium text-muted-foreground tabular">{library.data?.counts[v.value] ?? '…'}</span></button>)}
       </div>}
-      {link && !pasted ? <p role="alert" className="-mt-3 text-xs text-destructive">Paste a YouTube video link, like youtube.com/watch?v=… or youtu.be/…</p>
+      {link && !pasted ? <p id="library-link-error" role="alert" className="-mt-3 text-xs text-destructive">Paste a YouTube video link, like youtube.com/watch?v=… or youtu.be/…</p>
         : pasted && link ? <LinkCard key={pasted} link={link} videoId={pasted} onClear={clear} onAdded={id => { arrive(id); setInput({ query: '', value: '' }); setParams({ sort: 'activity_desc' }); }} />
         : <>
           {library.isPending && <div className="flex justify-center py-10"><Spinner /></div>}

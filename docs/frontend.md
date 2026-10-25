@@ -33,7 +33,8 @@ Workers.
 ## Routes
 - `/`: Home when signed in (search on mobile, add a video, a compact Recent videos strip,
   and recent moments grouped once per day and video); the landing page when
-  signed out. The landing page renders without the app header and has its own
+  signed out. The landing page renders without the app header. Its example
+  captures with Alt+S only while focused. It has its own
   styles in `features/landing/landing.css` (Bricolage Grotesque, light and dark
   from the app theme).
 - `/v/:videoId`: the video workspace. Query parameters: `t` (start playback at
@@ -117,6 +118,12 @@ Workers.
   auth-change event that `useSignedIn` subscribes to. A `401` on an
   authenticated request triggers one session-expired notice and a redirect to
   `/login`.
+- **Sign-in forms**: field errors are associated with their input and announced.
+  Google sign-in shows Google's own button in the current theme. If the script
+  fails or is unavailable after five seconds, Retry reloads it; email sign-in
+  stays usable. The client initializes once, and listeners and timers are
+  removed when the form unmounts. Link forms associate invalid links with their
+  error text too.
 - **Server state**: TanStack Query. Moment lists poll every 5 seconds while a
   moment is resolving, queued, or waiting for a transcript; the video polls
   while its `transcript_status` is `pending` or its `overview_status` is
@@ -136,7 +143,9 @@ Workers.
   counts follow the search. A themed menu offers six sorts. A paste card
   checks membership, preserves the link's time, and offers Add and open or
   Add to library. Existing videos open directly; failed checks claim no
-  membership state, and failed saves retry the original action in place.
+  membership state, and failed saves retry the original action in place. Open
+  and library citation Watch actions are links, so they support new tabs.
+  In-video citations still seek the current player.
 - **Resurfacing**: Home shows an older moment in a stable daily order. Another
   advances through the eligible moments and wraps to the first. Empty results
   hide the section; failures show a retry. Imported moments use an approximate
@@ -198,7 +207,8 @@ Workers.
   help waits 500 ms and appears only if playback still has not started, so a
   brief report does not push the controls below the player down.
 - **Command palette**: ⌘K / Ctrl+K searches, asks the library, opens a pasted
-  YouTube link, or jumps to a page.
+  YouTube link, or jumps to a page. The header search shows ⌘K on Apple
+  devices and Ctrl K elsewhere.
 - **PWA**: `public/manifest.webmanifest` with a share target; sharing a YouTube
   video to VidWiz saves and opens it.
 - **API errors**: Fetch and SSE failures normalize to a shared error type. Safe

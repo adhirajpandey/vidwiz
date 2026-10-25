@@ -11,7 +11,7 @@
 }
 .dark .landing { --field: #272B46; --screen: #0C0D1F; --mist: #1C1F35; }
 .landing a { color: inherit; }
-.landing :focus-visible { outline: 3px solid var(--caption); outline-offset: 3px; border-radius: 4px; }
+.landing :focus-visible { outline: 2px solid var(--caption); outline-offset: 3px; border-radius: 4px; }
 .landing .wrap { max-width: 1180px; margin: 0 auto; padding: 0 32px; }
 
 /* Nav */
