@@ -59,6 +59,16 @@ Workers.
   moment button (`Button variant="save"`), the moment strip under the player,
   search matches, and citations. It is always a background behind ink text.
 - AI text has no colour of its own; a small sparkle icon marks it.
+- Arrivals are highlights that point at what you just reached: a moment
+  opened from View moment, search, Home, Resurface, or a link with `m`, and a
+  video just added in the Library. The row gets a 9% caption-yellow tint with
+  no edge for 2.5 seconds after it is first shown, then fades out over 900 ms;
+  reduced motion clears it without fading (`lib/arrival.ts`,
+  `hooks/useArrival.ts`). Polling, rerenders, and remounts continue the same
+  timing. View moment and links to the same moment replay it; switching
+  panels does not. The list scrolls to an arrival once. State highlights
+  (the playing transcript line, the open chat, the chosen sort, search
+  matches, the new API token) follow their state and never fade.
 - Bricolage Grotesque everywhere, with tabular digits for times. Headings use
   the `display` utility (condensed and heavy).
 - Every paid action shows its cost: "Unlock for 5 credits" before the first
@@ -66,7 +76,8 @@ Workers.
 - The note field starts collapsed; the pencil opens it, and Cancel note or
   Escape closes it. Enter saves the note with the moment; Shift+Enter adds a line.
   Saving keeps the selected panel and shows an inline
-  **View moment** toast action to open and highlight the saved moment.
+  **View moment** toast action to open the saved moment and show it as an
+  arrival.
 - Save moment is a split button. The main part follows the AI line default from
   Settings. The capture shortcut saves with that default. The arrow opens a
   menu listing both ways with their cost; the default is checked and shows the
@@ -160,7 +171,7 @@ Workers.
   video at the time. Every citation can be saved as a moment.
 - **Guests**: the landing page starts a guest conversation for a pasted link
   and opens the workspace on the Ask tab.
-- **Search links**: moment hits open Moments and highlight the saved moment;
+- **Search links**: moment hits open Moments at the saved moment as an arrival;
   passage hits open Transcript. Playback requests made before player setup
   are queued and retain the existing lead-in and autoplay fallback.
 - **Playback help**: when YouTube reports blocked autoplay, the Press Play
