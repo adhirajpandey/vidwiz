@@ -376,6 +376,24 @@ async def test_transcript_result_fills_quotes_and_failure_marks_no_transcript(
     assert other.ai_status == AiStatus.NO_TRANSCRIPT
 
 
+def test_new_capture_retries_transcript_for_no_transcript_moments(db_session, user):
+    earlier, _ = capture(db_session, user, ai=True)
+    video = db_session.query(Video).filter_by(video_id=VIDEO_ID).one()
+    video.transcript_status = TranscriptStatus.UNAVAILABLE
+    earlier.ai_status = AiStatus.NO_TRANSCRIPT
+    db_session.query(Task).update({Task.status: TaskStatus.FAILED})
+    db_session.flush()
+    updated_at = earlier.updated_at
+
+    later, _ = capture(db_session, user, ai=True, at=600)
+
+    db_session.refresh(earlier)
+    assert video.transcript_status == TranscriptStatus.PENDING
+    assert earlier.ai_status == AiStatus.WAITING_TRANSCRIPT
+    assert earlier.updated_at == updated_at
+    assert later.ai_status == AiStatus.WAITING_TRANSCRIPT
+
+
 @pytest.mark.asyncio
 async def test_pending_moments_charges_queues_and_flags_missing_credits(
     client, db_session, user
