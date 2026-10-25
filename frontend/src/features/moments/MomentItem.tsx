@@ -21,9 +21,10 @@ interface Props {
   onSeek?: (seconds: number) => void;
   highlighted?: boolean;
   showQuote?: boolean;
+  className?: string;
 }
 
-export default function MomentItem({ moment, onSeek, highlighted, showQuote = true }: Props) {
+export default function MomentItem({ moment, onSeek, highlighted, showQuote = true, className }: Props) {
   const [draft, setDraft] = useState(moment.note ?? '');
   const update = useUpdateMoment();
   const remove = useDeleteMoment();
@@ -96,8 +97,7 @@ export default function MomentItem({ moment, onSeek, highlighted, showQuote = tr
   return (
     <li
       id={`moment-${moment.id}`}
-      // Only a highlighted row reaches past the column, so its tint has room around the text.
-      className={cn('moment-anchor group py-3.5 transition-opacity', highlighted && '-mx-2 rounded-[10px] border-transparent bg-saved-soft px-2', stepBack && 'opacity-55')}
+      className={cn('moment-anchor group py-3.5 transition-opacity', highlighted && 'border-transparent bg-saved/9 shadow-[inset_2px_0_var(--color-saved)]', stepBack && 'opacity-55', className)}
     >
       <div className="flex items-start gap-3">
         <div className="w-14 shrink-0 pt-0.5">{time}</div>
