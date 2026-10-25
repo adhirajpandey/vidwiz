@@ -10,6 +10,7 @@ import Button from '../../components/ui/Button';
 import { Menu, MenuContent, MenuItem, MenuTrigger } from '../../components/ui/Menu';
 import Spinner from '../../components/ui/Spinner';
 import { formatRelative } from '../../lib/format';
+import { cn } from '../../lib/utils';
 import ChatLimitNotice from '../chat/ChatLimitNotice';
 import { usePassageActions } from '../chat/usePassageActions';
 import { useAskStatus, videoKeys } from './queries';
@@ -36,7 +37,7 @@ function Unlock({ cost, onUnlock, draft }: { cost: number; onUnlock: () => void;
   );
 }
 
-function ChatHistory({ videoId, onPick }: { videoId: string; onPick: (id: number) => void }) {
+function ChatHistory({ videoId, activeId, onPick }: { videoId: string; activeId: number | null; onPick: (id: number) => void }) {
   const chats = useQuery({
     queryKey: ['conversations', 'video', videoId],
     queryFn: () => conversationsApi.list({ scope: 'video', video_id: videoId, per_page: 10 }),
@@ -47,9 +48,9 @@ function ChatHistory({ videoId, onPick }: { videoId: string; onPick: (id: number
       <MenuTrigger asChild>
         <Button variant="ghost" size="sm"><History className="size-3.5" />Chat history</Button>
       </MenuTrigger>
-      <MenuContent className="w-72">
+      <MenuContent className="w-72 max-h-80 overflow-y-auto" align="start">
         {chats.data.conversations.map(chat => (
-          <MenuItem key={chat.id} onSelect={() => onPick(chat.id)} className="flex-col items-start gap-0.5">
+          <MenuItem key={chat.id} onSelect={() => onPick(chat.id)} aria-current={chat.id === activeId || undefined} className={cn('flex-col items-start gap-0.5', chat.id === activeId && 'bg-muted')}>
             <span className="line-clamp-1">{chat.title}</span>
             <span className="text-xs text-muted-foreground">{formatRelative(chat.last_message_at)}</span>
           </MenuItem>
@@ -98,7 +99,7 @@ export default function AskPanel({ video, seek, signedIn, resumeId, onConversati
       className="h-[calc(100dvh-4rem-var(--pinned-h)-3rem-8rem)] min-h-80 lg:h-auto lg:min-h-0 lg:flex-1"
       header={
         <div className="flex items-center gap-1">
-          {signedIn && <ChatHistory videoId={video.video_id} onPick={id => { onConversation(id); chat.resume(id); }} />}
+          {signedIn && <ChatHistory videoId={video.video_id} activeId={chat.conversationId} onPick={id => { onConversation(id); chat.resume(id); }} />}
         </div>
       }
       statusBanner={

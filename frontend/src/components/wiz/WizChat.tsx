@@ -5,7 +5,7 @@ import {
   ThreadPrimitive, MessagePrimitive, ComposerPrimitive, ActionBarPrimitive,
 } from '@assistant-ui/react';
 import type { AppendMessage, ThreadMessageLike } from '@assistant-ui/react';
-import { ArrowDown, ArrowUp, Check, Copy, RotateCcw, Sparkles } from 'lucide-react';
+import { ArrowDown, ArrowUp, Check, Copy, MessageSquarePlus, Sparkles } from 'lucide-react';
 import type { WizChatController, WizMessage } from '../../hooks/useWizChat';
 import ErrorState from '../ui/ErrorState';
 import WizMarkdown from './WizMarkdown';
@@ -30,8 +30,8 @@ function convertMessage(message: WizMessage): ThreadMessageLike {
 
 function UserMessage() {
   // The question reads as a heading for the answer below it.
-  return <MessagePrimitive.Root className="border-t-2 border-foreground pt-4 pb-1 mt-4 first:mt-0">
-    <div className="display text-[22px] leading-snug whitespace-pre-wrap break-words">
+  return <MessagePrimitive.Root className="border-t border-border pt-4 pb-1 mt-4 first:mt-0 first:border-t-0 first:pt-2">
+    <div className="text-xl font-semibold leading-snug tracking-tight [font-stretch:90%] whitespace-pre-wrap break-words">
       <MessagePrimitive.Parts />
     </div>
   </MessagePrimitive.Root>;
@@ -127,9 +127,9 @@ export default function WizChat({ chat, isReady, suggestedQuestions, passages, s
     <DraftLoader draft={draft} />
     <WizPassageProvider value={passages}>
       <ThreadPrimitive.Root className={cn('flex min-h-0 flex-col overflow-hidden', className)}>
-        <div className="flex items-center justify-between gap-2 px-4 py-2.5 border-b border-border">
+        <div className="flex min-h-11 items-center justify-between gap-2 px-3 py-1.5 border-b border-border">
           {header ?? <div className="flex items-center gap-2"><Sparkles className="size-4" /><h2 className="text-sm font-bold">Ask</h2></div>}
-          {chat.messages.length > 0 && <button type="button" onClick={chat.newChat} className="inline-flex items-center gap-1.5 rounded-lg px-2.5 py-1.5 text-xs text-muted-foreground hover:text-foreground hover:bg-muted"><RotateCcw className="size-3.5" />New chat</button>}
+          {chat.messages.length > 0 && <button type="button" onClick={chat.newChat} className="inline-flex items-center gap-1.5 rounded-lg px-2.5 py-1.5 text-xs text-muted-foreground hover:text-foreground hover:bg-muted"><MessageSquarePlus className="size-4 shrink-0" />New chat</button>}
         </div>
         {statusBanner}
         <div className="relative flex flex-1 min-h-0 flex-col">
