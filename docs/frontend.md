@@ -117,6 +117,11 @@ Workers.
   `queued`, and the transcript while it is `pending`. Every job ends in an
   explicit state, so polling always stops.
   Mutations invalidate moments, the library, and the profile (credit balance).
+- The moment strip under the player marks each moment on a thin rail. Marks
+  closer than 22px merge into one numbered marker that opens a menu of its
+  moments; each row seeks. Single marks have a 14×24px target and a tooltip
+  with the time and the AI line (or note, or quote). Each marker is one tab
+  stop, and the rail regroups when its width changes (`groupMarks.ts`).
 - Moment timestamps and timeline marks use the saved capture time. Playing a
   moment starts five seconds earlier (clamped at zero), including search and
   exported links; the transcript quote has its own context window.
