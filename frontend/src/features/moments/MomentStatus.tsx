@@ -2,6 +2,7 @@ import { AlertCircle, Clock, Coins, Loader2, RotateCcw, Wand2 } from 'lucide-rea
 import { Link } from 'react-router-dom';
 import type { MomentRead } from '../../api';
 import Button from '../../components/ui/Button';
+import { useProfile } from '../../hooks/useProfile';
 
 /** One line describing the moment's AI work, with the action that fixes it. */
 export default function MomentStatus({ moment, onRequestAi, requesting }: {
@@ -10,13 +11,15 @@ export default function MomentStatus({ moment, onRequestAi, requesting }: {
   requesting?: boolean;
 }) {
   const line = 'flex flex-wrap items-center gap-1.5 text-xs text-muted-foreground';
+  const profile = useProfile();
+  const broke = profile.data?.credits_balance === 0;
   switch (moment.ai_status) {
     case 'queued':
       return <p className={line}><Loader2 className="size-3.5 animate-spin" />Writing the AI line…</p>;
     case 'waiting_transcript':
       return <p className={line}><Clock className="size-3.5" />AI line waits for the transcript</p>;
     case 'no_transcript':
-      return <p className={line}><AlertCircle className="size-3.5" />This video has no transcript, so there is no AI line or quote</p>;
+      return <p className={line}><AlertCircle className="size-3.5" />Transcript unavailable, so there is no AI line</p>;
     case 'insufficient_credits':
       return (
         <p className={line}>
@@ -37,6 +40,14 @@ export default function MomentStatus({ moment, onRequestAi, requesting }: {
         </p>
       );
     case 'not_requested':
+      if (broke && onRequestAi && moment.video_id && !moment.ai_text) {
+        return (
+          <p className={line}>
+            <Coins className="size-3.5 text-warning" />An AI line needs 1 credit. You have none.
+            <Link to="/settings#credits" className="font-medium underline decoration-foreground/30 underline-offset-4 hover:decoration-foreground">Get credits</Link>
+          </p>
+        );
+      }
       return onRequestAi && moment.video_id && !moment.ai_text ? (
         <Button variant="ghost" size="sm" onClick={onRequestAi} disabled={requesting} className="-ml-2.5">
           <Wand2 className="size-3.5" />Add AI line, 1 credit

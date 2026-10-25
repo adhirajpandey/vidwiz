@@ -184,3 +184,10 @@
 .palette-item[data-selected="true"] {
   background: hsl(var(--muted));
 }
+
+/* Short windows use page scrolling so the pinned player leaves room for content. */
+@media (max-height: 719px) {
+  .video-workspace { height: auto; min-height: 0; }
+  .video-pinned, .video-tabs { position: static; }
+  .video-workspace [data-pane="moments"] { overflow-y: visible; }
+}

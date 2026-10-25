@@ -69,7 +69,7 @@ export default function SearchPage() {
 
   return (
     <div className="mx-auto max-w-3xl space-y-4">
-      <PageTitle title={`Search: ${q}`} />
+      <PageTitle title={[`“${q}”`, 'Search']} />
       <SearchForm className="md:hidden" />
       <div className="flex flex-wrap items-baseline justify-between gap-2">
         <h1 className="display text-3xl">Results for “{q}”</h1>
@@ -86,7 +86,7 @@ export default function SearchPage() {
         </EmptyState>
       )}
       {results.length > 0 && (
-        <ul className="divide-y divide-border border-t-2 border-foreground">
+        <ul className="divide-y divide-border border-t border-border">
           {results.map(result => (
             <ResultRow key={result.kind === 'moment' ? `m${result.moment.id}` : `c${result.chunk_id}`} result={result} />
           ))}

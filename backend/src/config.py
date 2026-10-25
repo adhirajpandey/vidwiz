@@ -9,7 +9,8 @@ NonEmptyStr = Annotated[str, StringConstraints(min_length=1)]
 
 class Settings(BaseSettings):
     environment: NonEmptyStr = Field(alias="ENVIRONMENT")
-    db_url: str = Field(default="sqlite:///./vidwiz.db", alias="DB_URL")
+    # PostgreSQL only: migrations and search use PostgreSQL features.
+    db_url: NonEmptyStr = Field(alias="DB_URL")
     secret_key: NonEmptyStr = Field(alias="SECRET_KEY")
     internal_api_admin_token: NonEmptyStr = Field(
         alias="VIDWIZ_INTERNAL_API_ADMIN_TOKEN"

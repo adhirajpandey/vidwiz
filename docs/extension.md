@@ -14,6 +14,7 @@ Plain JavaScript modules, no bundler.
   Shared by the popup and the background worker.
 - `background.js` (module service worker): login and logout sync from the web
   app, the Alt+S capture, and opening the web app on first install.
+- `capture-bridge.js`: the web capture connection and command acknowledgements.
 - `content.js`: reads the video ID (`/watch?v=` and `/shorts/`), title, channel, and
   current time from the main player, and whether an ad is playing; seeks the
   player; shows a toast in a shadow root. The toast sits inside the player, top
@@ -25,6 +26,7 @@ Plain JavaScript modules, no bundler.
 - `tooltip.js`: the popup's one shared tooltip, shown on hover and keyboard
   focus.
 - `build.mjs`: writes a build with other origins, and zips it for the store.
+  `output.mjs` decides whether an `--out` folder is safe to replace.
 
 ## Key Flows
 - **Login sync**: the web app sends `SYNC_TOKEN` and `LOGOUT` with
@@ -43,6 +45,20 @@ Plain JavaScript modules, no bundler.
   saves nothing and says to wait for the ad to end. Without a login it opens
   the web login page, at most once a minute. On a YouTube video tab that has no
   content script yet, it shows a red `!` badge whose tooltip asks for a reload.
+- **Capture on the web** (3.0.1+): a signed-in web video page opens a named
+  runtime connection through the existing `externally_connectable` origin.
+  Capabilities and connections require the exact origin, a tab ID, and frame
+  zero. The background worker forwards the capture command to the active
+  VidWiz video tab; the web page uses its own player time, session, draft,
+  and AI default to save. Other web routes do nothing. A video page without
+  a connection gets a reload badge. YouTube capture still uses the content
+  script and the extension API client.
+  The handshake reports `commands.getAll()`'s actual shortcut; an empty
+  assignment stays empty. Commands wait for their acknowledgement or a
+  30-second timeout before another can be sent. A timeout never retries the
+  save. Replaced or disconnected ports cannot receive new captures.
+  Worker-initiated disconnects remove the connection and its timer immediately;
+  Chrome only sends the disconnect event to the other end of the port.
 - **Popup**: shows the login view, an idle view off YouTube videos, a reload
   view on video tabs without the content script, or the capture view.
   - The video card opens the video in VidWiz. It shows a 64×36 thumbnail,
@@ -62,7 +78,10 @@ Plain JavaScript modules, no bundler.
     current time, updated while it plays. It saves at the time of submitting.
     The arrow beside it opens the same options as the web app: "With AI line,
     1 credit" and "Without AI line, Free", with the default checked, and a link
-    to change the default in Settings. Saving is disabled while an ad plays.
+    to change the default in Settings. Until the profile loads, the arrow shows
+    but is disabled, so Save moment keeps its width. The moments load
+    alongside the profile. While the options are open, the popup grows to
+    fit them. Saving is disabled while an ad plays.
     Save moment's tooltip says what it will do: with an AI line for 1 credit,
     without one (the default, or because no credits are left), saving, paused
     for an ad, or "your AI line default" before the profile loads. Saving
@@ -85,10 +104,14 @@ Plain JavaScript modules, no bundler.
     AI line and links to buying credits; saving still works. A moment that
     missed its AI line for lack of credits shows that in the warning colour.
   - The popup stays within Chrome's 600 px limit: only the moments list
-    scrolls, under a count of the video's moments.
+    scrolls, under a count of the video's moments. Content sits 10px from
+    each divider and from the popup's bottom.
   - Each moment has the web app's "…" menu with **Add note** or **Edit
-    note**, and **Delete**. The note is edited in the row (Enter saves,
-    Shift+Enter adds a line, Esc cancels, empty removes it) with
+    note**, and **Delete**. It opens below the button, or above it near the
+    popup's bottom, stays inside the popup rather than the scrolling list,
+    and closes on Escape, a click outside, or scrolling. The note is edited
+    in the row (Enter saves, Shift+Enter adds a line, Esc cancels, empty
+    removes it) with
     `PATCH /v2/moments/{id}`. Delete asks inside the row first, since there is
     no undo, then calls `DELETE /v2/moments/{id}`. While that request is out,
     the row stays as it is: repeated Enter, Esc, and other rows' actions wait
@@ -103,8 +126,10 @@ Plain JavaScript modules, no bundler.
     5 seconds before it, like the web app; its tooltip names that time ("Play
     from m:ss"). The text is the note, AI line, or
     quote, with the AI line's status in the web app's words when it is pending,
-    failed, out of credits, or impossible without a transcript. The list
-    refreshes every 3 seconds while an AI line is pending, for up to 3 minutes.
+    failed, out of credits, or impossible without a transcript. Like the web
+    app, only "Writing the AI line…" has a spinner, which stays still under
+    reduced motion. The list refreshes every 3 seconds while an AI line is
+    pending, for up to 3 minutes.
 - **Tooltips and cursors**: the brand, profile chip, video card, Save moment,
   its arrow ("Save options"), the note icon, the save menu items, time
   buttons, "…" ("Moment actions"), and the AI line mark ("AI-generated line")
@@ -123,10 +148,19 @@ Plain JavaScript modules, no bundler.
   (output in `extension/dist/prod`, ignored by Git) to package it. Add `--zip`
   to also write `extension/dist/vidwiz-extension-<version>.zip` for the Chrome
   Web Store; this needs the `zip` command.
+- Windows: the unpacked build works the same. Windows has no `zip` command, so
+  `--zip` stops with a message after building. Make the store zip on Linux or
+  macOS and copy it over.
 - Development: `node extension/build.mjs --web <web origin> --api <api base
   URL> --out extension/dist/dev`, then load that folder unpacked. Run the web
   app with `VITE_EXTENSION_ID` set to the unpacked extension's ID so login sync
   reaches it.
+- `--out` is deleted and rewritten on every build. It must be under
+  `extension/dist/` or outside `extension/`. The builder refuses the source
+  folder, any folder that contains it, `dist/` itself, and an existing folder
+  with files that is not an earlier VidWiz build. A folder with `build.mjs`,
+  such as another checkout's `extension/`, never counts as a build. Symlinked
+  parent folders are followed before these checks.
 
 ## Constraints
 - Video detection and title reading depend on YouTube's page structure.
@@ -147,3 +181,20 @@ Bricolage Grotesque from `fonts/` (latin subset, SIL Open Font License), so
 the popup makes no font request. The on-page toast copies the web app's
 toast with system fonts. `build.mjs` copies `icons/` and `fonts/`.
 See [Brand assets](branding.md) for regeneration.
+
+## Capture bridge release and validation
+
+Deploy web bridge support before releasing extension 3.0.1. Older extensions
+still reserve their shortcut and cannot forward it to the web; update the
+extension, then reload the video page. No backend release or additional host
+permissions are needed. Standalone web shortcuts cannot receive keys while
+the cross-origin YouTube iframe has focus.
+
+Run `node --test extension/output.test.mjs extension/capture-bridge.test.mjs`
+and the frontend capture shortcut and CaptureBar tests. Browser acceptance
+must use Chrome with the new unpacked extension and a matching web build:
+check YouTube and web capture, two video tabs, iframe focus, editing, menus,
+remapped and unassigned shortcuts, worker restart, page navigation, and the
+extension disabled. Confirm each accepted command saves once at the current
+player time. Use a test account and mocked capture responses for browser
+checks; do not create production moments as test fixtures.

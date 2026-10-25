@@ -30,7 +30,7 @@ Learning from YouTube is friction-heavy: pausing, losing context, and poor note 
 - Review notes by video and jump to timestamps.
 
 ## Functional Requirements
-- **Auth**: Email/password and Google OAuth; extension auth sync from web login; named personal API tokens for automations.
+- **Auth**: Email/password and Google OAuth; extension auth sync from web login; named personal API tokens, accepted only for captures, for automations.
 - **Moments**: Capture, list, edit, delete; always timed. Nearby captures merge. Title-only captures resolve in the background.
 - **Library**: Explicitly saved videos, including videos used only in chat.
 - **Videos**: Store metadata + transcript availability; list/search; stream readiness.
@@ -47,7 +47,7 @@ Learning from YouTube is friction-heavy: pausing, losing context, and poor note 
 - Clear error messages across clients.
 
 ## MVP Definition
-- Web app: auth, dashboard, video detail, notes list, profile.
+- Web app: auth, home, library, video page with capture, search, Ask, settings.
 - Extension: web-login sync + note capture.
 - Mobile automations: MacroDroid/Shortcuts capture flow.
 - Transcript + metadata helpers.
@@ -60,12 +60,9 @@ Learning from YouTube is friction-heavy: pausing, losing context, and poor note 
 - LLM hallucinations; mitigate with transcript-only prompts.
 
 ## Current Constraints (Product Reality)
-- Web app does not provide note creation; notes are captured via extension/automations.
-- Extension only supports `youtube.com/watch` pages (no Shorts/live/`youtu.be`).
+- Capture works from the web player, the extension (watch pages and Shorts), and phone automations.
 - Extension depends on web-to-extension token sync; extension ID/origin mismatches block auth sync.
 - Wiz chat depends on S3-hosted transcripts; if transcripts are missing, chat returns `processing` or errors.
 
 ## Open Questions
-- Should the web app expose note creation directly?
-- Should long-term tokens have scoped permissions?
-- Do we need dedicated mobile clients beyond automations?
+- Do we need dedicated mobile clients beyond automations and the PWA share target?

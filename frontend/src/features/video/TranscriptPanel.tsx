@@ -138,11 +138,11 @@ export default function TranscriptPanel({ videoId, playhead, onSeek, signedIn }:
     return <EmptyState icon={<Loader2 className="size-5 animate-spin" />} title="Fetching the transcript">This usually takes under a minute.</EmptyState>;
   }
   if (transcript.data.status === 'unavailable' || !segments.length) {
-    return <EmptyState icon={<FileText className="size-5" />} title="No transcript for this video">YouTube has no captions for it, so search, Ask, and AI lines are not available.</EmptyState>;
+    return <EmptyState icon={<FileText className="size-5" />} title="Transcript unavailable">VidWiz could not get a transcript for this video, so search, Ask, and AI lines are not available for it.</EmptyState>;
   }
 
   return (
-    <div className="space-y-2">
+    <div className="space-y-2 lg:flex lg:min-h-0 lg:flex-1 lg:flex-col">
       <div className="flex items-center gap-2">
         <Input value={query} onChange={event => setQuery(event.target.value)} placeholder="Find in transcript" aria-label="Find in transcript" className="h-9" />
         {!following && <button type="button" onClick={() => setFollowing(true)} className="shrink-0 rounded-md px-2 py-1 text-xs font-semibold text-accent hover:bg-accent-soft">Follow playback</button>}
@@ -153,7 +153,7 @@ export default function TranscriptPanel({ videoId, playhead, onSeek, signedIn }:
         role="region"
         aria-label="Transcript lines"
         tabIndex={0}
-        className="transcript-scrollbar h-[60dvh] min-h-48 overflow-y-auto overscroll-contain scroll-auto pr-1 lg:h-[calc(100dvh-15rem)]"
+        className="transcript-scrollbar h-[calc(100dvh-4rem-var(--pinned-h)-3rem-8.5rem)] min-h-48 overflow-y-auto overscroll-contain scroll-auto pr-1 lg:h-auto lg:min-h-0 lg:flex-1"
         onWheel={() => setFollowing(false)}
         onTouchMove={() => setFollowing(false)}
         onPointerDown={event => {

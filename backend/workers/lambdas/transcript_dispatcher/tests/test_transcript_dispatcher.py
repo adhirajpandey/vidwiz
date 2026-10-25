@@ -79,7 +79,8 @@ def test_dispatch_videos_queues_only_ai_lines(monkeypatch):
     assert not hasattr(dispatch_service, "push_summary_to_sqs")
 
 
-def test_collect_pending_moments_uses_configured_request_timeout(monkeypatch):
+def test_collect_pending_moments_preserves_configured_read_timeout(monkeypatch):
+    """Allow slow successful responses while bounding connection setup."""
     monkeypatch.setenv("REQUEST_TIMEOUT", "17")
     dispatch_service = _load_module("dispatch_service.py", monkeypatch)
     calls = []
@@ -99,7 +100,7 @@ def test_collect_pending_moments_uses_configured_request_timeout(monkeypatch):
 
     assert dispatch_service.collect_pending_moments("video-id") == []
     assert calls[0][0][0].endswith("/v2/internal/videos/video-id/pending-moments")
-    assert calls[0][1]["timeout"] == 17
+    assert calls[0][1]["timeout"] == (1, 17)
     assert "response_preview" not in dispatch_service.logger.records[0][2]
 
 
@@ -163,4 +164,111 @@ def test_handler_reraises_dispatch_failure(monkeypatch):
     )
 
     with pytest.raises(RuntimeError, match="dispatch failed"):
+        handler.lambda_handler({"video_ids": ["video-id"]}, object())
+
+
+@pytest.mark.parametrize("conflicts", [1, 2, 4])
+def test_pending_moments_retries_until_ready(monkeypatch, conflicts):
+    """Readiness conflicts back off before returning the jobs unchanged."""
+    service = _load_module("dispatch_service.py", monkeypatch)
+    sleeps = []
+    statuses = iter([409] * conflicts + [200])
+    jobs = [{"id": 1}]
+
+    class Response:
+        def __init__(self):
+            self.status_code = next(statuses)
+
+        def json(self):
+            return {"moments": jobs}
+
+    monkeypatch.setattr(service.requests, "post", lambda *_a, **_k: Response())
+    monkeypatch.setattr(service.time, "sleep", sleeps.append)
+    assert service.collect_pending_moments("video-id") == jobs
+    assert sleeps == [1, 2, 4, 8][:conflicts]
+
+
+def test_exhausted_readiness_retries_fail_invocation(monkeypatch):
+    """Persistent conflicts must escape the handler for AWS to retry."""
+    handler = _load_module("handler.py", monkeypatch)
+    service = handler.dispatch_service
+    calls = []
+    sleeps = []
+
+    class Response:
+        status_code = 409
+
+    monkeypatch.setattr(
+        service.requests,
+        "post",
+        lambda *_a, **_k: calls.append(1) or Response(),
+    )
+    monkeypatch.setattr(service.time, "sleep", sleeps.append)
+    with pytest.raises(RuntimeError, match="Transcript is not ready"):
+        handler.lambda_handler({"video_ids": ["video-id"]}, object())
+    assert len(calls) == 5
+    assert sleeps == [1, 2, 4, 8]
+
+
+def test_other_http_errors_fail_for_lambda_retry_without_sleep(monkeypatch):
+    """Only readiness conflicts use the local backoff loop."""
+    service = _load_module("dispatch_service.py", monkeypatch)
+    sleeps = []
+
+    class Response:
+        status_code = 500
+
+    monkeypatch.setattr(service.requests, "post", lambda *_a, **_k: Response())
+    monkeypatch.setattr(service.time, "sleep", sleeps.append)
+    with pytest.raises(RuntimeError, match="Failed to collect pending moments"):
+        service.collect_pending_moments("video-id")
+    assert sleeps == []
+
+
+def test_read_timeout_fails_invocation_and_next_delivery_sends_jobs(monkeypatch):
+    """A lost collection response triggers Lambda retry instead of silent success."""
+    handler = _load_module("handler.py", monkeypatch)
+    service = handler.dispatch_service
+    sends = []
+
+    def timeout(*_args, **_kwargs):
+        raise service.requests.exceptions.ReadTimeout("private request details")
+
+    monkeypatch.setattr(service.requests, "post", timeout)
+    monkeypatch.setattr(
+        service,
+        "push_moments_to_sqs_batch",
+        lambda jobs: sends.append(jobs) or {"sent": len(jobs), "failed": 0},
+    )
+    with pytest.raises(RuntimeError, match="Failed to collect pending moments"):
+        handler.lambda_handler({"video_ids": ["video-id"]}, object())
+    assert sends == []
+    assert "private request details" not in str(service.logger.records)
+
+    class Response:
+        status_code = 200
+
+        def json(self):
+            return {"moments": [{"id": 1}]}
+
+    monkeypatch.setattr(service.requests, "post", lambda *_a, **_k: Response())
+    handler.lambda_handler({"video_ids": ["video-id"]}, object())
+    assert sends == [[{"id": 1}]]
+
+
+@pytest.mark.parametrize("raises", [False, True])
+def test_sqs_failure_fails_invocation(monkeypatch, raises):
+    """Partial and complete send failures must both trigger Lambda retry."""
+    handler = _load_module("handler.py", monkeypatch)
+    service = handler.dispatch_service
+    monkeypatch.setattr(service, "collect_pending_moments", lambda _id: [{"id": 1}])
+
+    class Sqs:
+        def send_message_batch(self, **_kwargs):
+            if raises:
+                raise RuntimeError("SQS is unavailable")
+            return {"Failed": [{"Id": "0"}]}
+
+    monkeypatch.setattr(service.boto3, "client", lambda _name: Sqs())
+    with pytest.raises(RuntimeError, match="Failed to send AI moments"):
         handler.lambda_handler({"video_ids": ["video-id"]}, object())

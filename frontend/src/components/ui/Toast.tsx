@@ -8,6 +8,7 @@ interface ToastProps {
   type: 'success' | 'error' | 'info';
   durationMs?: number;
   referenceId?: string;
+  action?: { label: string; onClick: () => void };
   onClose: (id: number) => void;
 }
 
@@ -20,6 +21,7 @@ export default function Toast({
   type,
   durationMs,
   referenceId,
+  action,
   onClose,
 }: ToastProps) {
   const [isExiting, setIsExiting] = useState(false);
@@ -99,13 +101,19 @@ export default function Toast({
         {/* Content */}
         <div className="flex-1 min-w-0 pt-0.5">
           <p className="text-sm font-medium text-foreground leading-tight">{title}</p>
-          <p className="mt-0.5 text-[13px] text-muted-foreground leading-snug">{message}</p>
+          {message && <p className="mt-0.5 text-[13px] text-muted-foreground leading-snug">{message}</p>}
           {referenceId && (
             <p className="mt-1 text-[11px] font-mono text-muted-foreground/70 break-all">
               Reference: {referenceId}
             </p>
           )}
         </div>
+
+        {action && (
+          <button type="button" onClick={() => { action.onClick(); handleClose(); }} className="-my-0.5 inline-flex h-7 shrink-0 items-center rounded-[7px] bg-foreground px-2.5 text-xs font-semibold text-background hover:opacity-90">
+            {action.label}
+          </button>
+        )}
 
         {/* Close Button */}
         <button

@@ -6,9 +6,11 @@ import type {
   MomentRead,
   MomentUpdate,
   PassageSave,
+  ResurfaceResponse,
 } from './types';
 
 export const momentsApi = {
+  resurface: (skip = 0) => apiRequest<ResurfaceResponse>('GET', '/moments/resurface', { params: { skip } }),
   capture: (body: CaptureCreate) =>
     apiRequest<CaptureResponse>('POST', '/captures', { body }),
   feed: (page = 1, perPage = 20) =>

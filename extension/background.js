@@ -1,5 +1,8 @@
+import { createCaptureBridge } from "./capture-bridge.js";
 import { CONFIG } from "./config.js";
 import { MESSAGES, capture, formatClock, isVideoUrl, removeToken, setToken, webUrl } from "./api.js";
+
+const webCapture = createCaptureBridge(chrome, CONFIG.WEB_URL);
 
 // Open the web app on first install so it syncs an existing login.
 chrome.runtime.onInstalled.addListener(({ reason }) => {
@@ -11,7 +14,7 @@ chrome.runtime.onInstalled.addListener(({ reason }) => {
 // Login and logout from the web app (externally_connectable).
 chrome.runtime.onMessageExternal.addListener((message, sender, sendResponse) => {
   // externally_connectable already restricts senders; also require an exact origin.
-  if (sender.origin !== CONFIG.WEB_URL) return false;
+  if (sender.origin !== CONFIG.WEB_URL || message?.type === "CAPTURE_CAPABILITIES") return false;
   if (message.type === "SYNC_TOKEN" && message.token) {
     setToken(message.token).then(() => sendResponse({ success: true }));
   } else if (message.type === "LOGOUT") {
@@ -61,6 +64,7 @@ chrome.commands.onCommand.addListener(async (command) => {
   if (command !== "capture-moment") return;
   const [tab] = await chrome.tabs.query({ active: true, currentWindow: true });
   if (!tab?.id) return;
+  if (await webCapture.capture(tab)) return;
   let video;
   try {
     video = await chrome.tabs.sendMessage(tab.id, { action: "getVideo" });

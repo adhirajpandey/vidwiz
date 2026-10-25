@@ -51,19 +51,44 @@ PostgreSQL ←→ Workers + AWS Services
       │           └─ S3 (Transcripts) -> dispatcher Lambda
 ```
 
-Quick start
-Prereqs: Python 3.13, uv 0.8.22, Node.js, running PostgreSQL
+## Quick start
+Prerequisites: Python 3.13, uv 0.8.22, Node.js, pnpm, and PostgreSQL. VidWiz
+runs on PostgreSQL only; its migrations and search use PostgreSQL features.
+Production deployment configuration is kept outside this repository.
+
+### Database
+Run a local PostgreSQL that matches the template's `DB_URL`, for example:
+
+```sh
+docker run -d --name vidwiz-db -p 5432:5432 \
+  -e POSTGRES_USER=vidwiz -e POSTGRES_PASSWORD=change-me -e POSTGRES_DB=vidwiz \
+  pgvector/pgvector:pg17
+```
 
 ### Backend
 1. `cd backend`
 2. Install dependencies: `uv sync --locked`
 3. Copy the root environment template: `cp ../.env.example .env`.
-4. When running the API outside Compose against the Compose PostgreSQL container, change the `DB_URL` host and port from `database:5432` to `localhost:5433`.
-5. Fill the required values documented in `docs/backend.md`.
-6. Apply migrations: `uv run --locked alembic upgrade head`
-7. Start server: `uv run --locked uvicorn src.main:app --host 0.0.0.0 --port 5000`
-8. Open Swagger UI at `http://localhost:5000/docs` or fetch the generated
+4. Fill the required values listed in `docs/backend.md`. The API starts with
+   placeholder AWS and payment values, but features that use them fail.
+5. Apply migrations: `uv run --locked alembic upgrade head`
+6. Start server: `uv run --locked uvicorn src.main:app --host 0.0.0.0 --port 5000`
+7. Open Swagger UI at `http://localhost:5000/docs` or fetch the generated
    OpenAPI schema from `http://localhost:5000/openapi.json`.
+
+Transcripts, metadata, and title resolution come from helpers that poll the
+API. Run the ones you need from `backend/`, each in its own terminal:
+
+```sh
+uv run --locked --env-file .env python workers/scripts/task-helper.py transcript
+uv run --locked --env-file .env python workers/scripts/task-helper.py metadata
+uv run --locked --env-file .env python workers/scripts/task-helper.py resolve_title
+uv run --locked --env-file .env python -m src.management.sweep --every 600
+```
+
+AI lines and overviews run on AWS Lambda through SQS (see
+`docs/aws-infrastructure.md`). Without real queues they stay queued until the
+sweep marks them failed.
 
 Every client captures moments through `POST /v2/captures`, with a video URL or
 ID, or a title when the client cannot see the ID. See `docs/backend.md`.
@@ -74,24 +99,23 @@ ID, or a title when the client cannot see the ID. See `docs/backend.md`.
 3. Start development server: `pnpm dev`
 
 ## Extension setup
-1) Load unpacked from `extension/` in a Chromium browser (`chrome://extensions` → Developer mode → Load unpacked)
-2) Configure deployment URLs in `extension/popup.js`:
-   - `CONSTANTS.API.BASE_URL`
-   - `CONSTANTS.API.API_URL`
-3) Configure your web origin for web-to-extension auth sync:
-   - `extension/manifest.json` → `externally_connectable.matches`
-   - `extension/background.js` → `CONSTANTS.ORIGINS.PROD`
-4) Set the extension ID used by the web app:
-   - `frontend/src/config.ts` → `EXTENSION_ID` (production must be a real ID, not placeholder)
-5) Reload both extension and web app, then log in (or just open the web app if already logged in)
-6) Open the extension popup; it auto-unlocks when token sync succeeds
+1. Build for your local web app and API:
+   `node extension/build.mjs --web http://localhost:5173 --api http://localhost:5000/v2 --out extension/dist/dev`
+2. In a Chromium browser, open `chrome://extensions`, turn on Developer mode,
+   and load `extension/dist/dev` with **Load unpacked**.
+3. Start the web app with `VITE_EXTENSION_ID` set to the unpacked extension's
+   ID, so login sync reaches it.
+4. Log in to the web app. The extension picks up the login and works on
+   YouTube videos and Shorts.
 
-The extension note UI appears on supported YouTube watch pages after sync.
+See `docs/extension.md` for production builds and the Chrome Web Store zip.
 
 ## Running tests
 - Backend: `cd backend && uv sync --locked && uv run --locked ruff format --check src workers && uv run --locked ruff check src workers && TEST_DB_URL=postgresql://user:password@localhost:5432/vidwiz_test uv run --locked pytest`
   - Tests need a disposable PostgreSQL database with pgvector, such as the
-    `pgvector/pgvector:pg17` image. Each run wipes and migrates it.
+    `pgvector/pgvector:pg17` image. Each run drops and recreates its `public`
+    schema, so never point `TEST_DB_URL` at a database you want to keep.
+- Extension builder: `node --test extension/output.test.mjs`
 - Frontend: `cd frontend && pnpm install --frozen-lockfile && pnpm lint && pnpm test && pnpm build`
 - AWS infrastructure: `cd infra && uv sync --locked && npm ci --ignore-scripts && uv run --locked python scripts/validate.py`
 

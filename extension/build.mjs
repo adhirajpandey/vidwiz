@@ -6,11 +6,15 @@
 //     --api http://localhost:5000/v2 --out extension/dist/dev
 //
 // Load the output folder with "Load unpacked". Production builds can also be
-// loaded straight from extension/.
+// loaded straight from extension/. --out must be under extension/dist, or
+// outside the extension, and is wiped first; an existing folder that is not an
+// earlier build is refused. --zip needs the zip command, so on Windows build
+// the unpacked folder and make the store zip on Linux or macOS.
 import { execFileSync } from "node:child_process";
 import { cpSync, mkdirSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { dirname, join, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
+import { unsafeOutput } from "./output.mjs";
 
 const here = dirname(fileURLToPath(import.meta.url));
 const flags = new Set(["zip"]);
@@ -26,7 +30,14 @@ const web = (args.web || "https://vidwiz.online").replace(/\/$/, "");
 const apiUrl = (args.api || "https://api.vidwiz.online/v2").replace(/\/$/, "");
 const out = resolve(args.out || join(here, "dist", "prod"));
 
-const files = ["api.js", "background.js", "content.js", "popup.html", "popup.css", "popup.js", "tooltip.js", "icons", "fonts"];
+const manifest = JSON.parse(readFileSync(join(here, "manifest.json"), "utf8"));
+const unsafe = unsafeOutput(out, here, manifest.name);
+if (unsafe) {
+  console.error(`Refusing to build into ${out}: ${unsafe}.`);
+  process.exit(1);
+}
+
+const files = ["api.js", "background.js", "capture-bridge.js", "content.js", "popup.html", "popup.css", "popup.js", "tooltip.js", "icons", "fonts"];
 rmSync(out, { recursive: true, force: true });
 mkdirSync(out, { recursive: true });
 for (const file of files) cpSync(join(here, file), join(out, file), { recursive: true });
@@ -36,7 +47,6 @@ writeFileSync(
   `export const CONFIG = ${JSON.stringify({ WEB_URL: web, API_URL: apiUrl }, null, 2)};\n`,
 );
 
-const manifest = JSON.parse(readFileSync(join(here, "manifest.json"), "utf8"));
 const apiOrigin = new URL(apiUrl).origin;
 manifest.host_permissions = ["https://*.youtube.com/*", `${apiOrigin}/*`];
 manifest.externally_connectable = { matches: [`${web}/*`] };
@@ -48,6 +58,12 @@ if (args.zip) {
   // The store wants the files at the zip's root.
   const zipPath = join(dirname(out), `vidwiz-extension-${manifest.version}.zip`);
   rmSync(zipPath, { force: true });
-  execFileSync("zip", ["-qr", zipPath, "."], { cwd: out });
+  try {
+    execFileSync("zip", ["-qr", zipPath, "."], { cwd: out });
+  } catch (error) {
+    if (error.code !== "ENOENT") throw error;
+    console.error("  zip: the zip command is not installed. The unpacked build is ready; make the store zip on Linux or macOS.");
+    process.exit(1);
+  }
   console.log(`  zip: ${zipPath}`);
 }

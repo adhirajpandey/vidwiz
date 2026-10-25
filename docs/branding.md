@@ -51,8 +51,10 @@ SVGs contain no live text, imported fonts, or raster images.
 The font comes from the [Google Fonts Bricolage Grotesque directory](https://github.com/google/fonts/tree/main/ofl/bricolagegrotesque).
 The checked-in font has SHA-256
 `413e7357809ddd12fd80a96a8a396de0e401638d4acd3cb3e37532f0472ac682`.
-Its SIL Open Font License is included as `assets/brand/OFL.txt`. Font bytes are
-used only during generation and are not bundled into the web or extension.
+Its SIL Open Font License is included as `assets/brand/OFL.txt`. The generator
+uses that file only to draw the exported assets. The web app loads Bricolage
+Grotesque from Google Fonts. The extension popup bundles a latin subset in
+`extension/fonts/`, with its license, so it makes no font request.
 
 After regeneration, check small icons at actual size, light and dark
 wordmarks, the mobile mask safe zone, and social-card legibility. Run the

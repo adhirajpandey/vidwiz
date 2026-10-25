@@ -7,7 +7,7 @@ from src.database import get_db
 from src.exceptions import NotFoundError
 from src.internal.scheduling import prepare_video
 from src.library import service as library_service
-from src.library.schemas import LibraryParams, LibraryResponse, LibrarySort
+from src.library.schemas import LibraryParams, LibraryResponse, LibrarySort, LibraryView
 from src.models import MessageResponse
 from src.shared.ratelimit import limiter
 from src.videos.dependencies import get_video_id_path
@@ -25,10 +25,11 @@ def list_library(
     page: int = Query(default=1, ge=1),
     per_page: int = Query(default=20, ge=1, le=50),
     sort: LibrarySort = Query(default="activity_desc"),
+    view: LibraryView = Query(default="all"),
     db: Session = Depends(get_db),
     user_id: int = Depends(get_current_user_id),
 ) -> LibraryResponse:
-    params = LibraryParams(q=q, page=page, per_page=per_page, sort=sort)
+    params = LibraryParams(q=q, page=page, per_page=per_page, sort=sort, view=view)
     return library_service.list_library(db, user_id, params)
 
 

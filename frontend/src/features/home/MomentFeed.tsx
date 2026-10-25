@@ -31,8 +31,8 @@ export default function MomentFeed() {
 
   return (
     <section aria-labelledby="recent-moments">
-      <h2 id="recent-moments" className="display mb-4 border-t-2 border-foreground pt-4 text-xl">Recent moments</h2>
-      <div className="space-y-6">
+      <h2 id="recent-moments" className="display mb-3 text-xl">Recent moments</h2>
+      <div className="space-y-4">
         {groups.map((group, index) => (
           <Fragment key={group.key}>
             {(index === 0 || groups[index - 1].day !== group.day) && (
@@ -46,7 +46,7 @@ export default function MomentFeed() {
                 </Link>
               )}
               <ul className="divide-y divide-border">
-                {group.moments.map(moment => <MomentItem key={moment.id} moment={moment} showQuote={false} />)}
+                {group.moments.map(moment => <MomentItem key={moment.id} moment={moment} showQuote={!moment.ai_text && !moment.note} />)}
               </ul>
             </div>
           </Fragment>

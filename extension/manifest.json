@@ -1,8 +1,8 @@
 {
   "manifest_version": 3,
   "name": "VidWiz",
-  "version": "3.0.0",
-  "description": "Capture moments on YouTube in one key and find them again in VidWiz.",
+  "version": "3.0.1",
+  "description": "VidWiz saves timestamped YouTube moments with your notes and optional AI lines, so you can return to the source.",
   "icons": {
     "16": "icons/icon16.png",
     "48": "icons/icon48.png",

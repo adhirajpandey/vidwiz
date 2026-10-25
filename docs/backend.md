@@ -87,6 +87,15 @@ Describe the FastAPI backend: structure, auth rules, and the request/worker life
   requests AI if the user setting allows it. Remove it once the 3.x extension
   is live.
 
+### Resurfacing
+- `GET /v2/moments/resurface?skip=0` returns `{state: "found", moment: ...}`
+  or `{state: "none"}`. It reads only the signed-in user's resolved moments,
+  strictly older than 60 days at the database day's start. The first non-empty
+  AI line, note, or quote must have at least 15 characters after trimming.
+- Ordering by the hash of moment ID and database date keeps the pick stable
+  for that day. Incrementing `skip` walks the order; past its end returns
+  `none`. No model call, credit charge, or data write is involved.
+
 ### Search
 - Stored transcripts are split into ~45-second passages in `transcript_chunks`
   (written whenever a transcript is stored; `python -m src.management.backfill
@@ -179,11 +188,16 @@ Describe the FastAPI backend: structure, auth rules, and the request/worker life
 - `library_items` records saved videos per user. Capturing a moment or sending
   a chat message saves the video. `PUT /v2/library/{video_id}` saves
   explicitly; `DELETE` removes the item and keeps its moments.
-- `GET /v2/library` returns `moment_count`, `transcript_status`,
-  `overview_status`,
-  `added_at`, and `last_activity_at` (latest of added, opened, moment update,
-  or chat message). Sorts: `activity_desc` (default), `added_desc`,
-  `title_asc`, `title_desc`. `q` (2+ characters) filters titles literally.
+- `GET /v2/library` returns moment and chat counts, a latest-moment preview
+  (note, AI line, or quote), transcript/overview status, `added_at`, and
+  `last_activity_at` (latest of added, opened, moment update, or chat message).
+  A chat counts once when it has a user question; empty chats are excluded.
+- Sorts: `activity_desc` (default), `added_desc`, `title_asc`, `title_desc`,
+  `moments_desc`, and `chats_desc`. Ties use recent activity and video ID.
+- `q` (2+ characters) matches titles and channel names literally, ignoring case,
+  or an exact video ID. `view` selects `all`, `with_moments`, or `with_chats`.
+  Response `counts` includes all three views after search, before the selected
+  view and pagination; `total` and `total_pages` describe the selected view.
 
 ## Async + Workers Integration
 - **Tasks**: Metadata, transcript, and title-resolution tasks are stored in the `tasks` table and polled via `/v2/internal/tasks`.
@@ -191,6 +205,12 @@ Describe the FastAPI backend: structure, auth rules, and the request/worker life
 - **Task lifecycle**: On claim, a task is marked `in_progress`, `started_at` is set, and `retry_count` increments. Stale `in_progress` tasks can be reclaimed after a timeout.
 - **Transcript storage**: Transcripts are written to S3 when `S3_TRANSCRIPT_BUCKET_NAME` is configured, using the application's required AWS credentials; the transcript is still marked `ready` when the bucket is not configured.
 - **Sweep**: `python -m src.management.sweep --every 600` runs beside the API and fails jobs that stayed queued past the limits above.
+  It also deletes conversations created over 7 days ago that have no
+  messages. Opening Ask creates a conversation before the first question, so
+  abandoned opens would otherwise pile up. Deleting one does not lock a paid
+  video chat again: the unlock is the `wiz_chat` credits ledger entry for the
+  video. A message saved during the sweep makes the delete fail on the
+  messages foreign key, and the next pass tries again.
 - **Backfills**: `python -m src.management.backfill chunks [--missing-only]` stores search passages; `python -m src.management.backfill overviews --limit N` queues up to N overviews that are missing, failed, or older than key points, most recently used videos first. `python -m src.management.backfill quotes` fills missing moment quotes on transcript-ready videos; use it for bulk imports whose moments arrive after their transcripts. Add `--all` to recompute existing quotes with the current window while preserving each moment's `updated_at`.
 - **Wiz chat**: Requires S3 transcript access and `OPENROUTER_API_KEY`. If transcript is not ready, `POST /v2/conversations/{id}/messages` returns `202 Accepted` with `status=processing`. If the transcript flag is set but S3 data is missing, the request errors with `Transcript data missing`.
 
@@ -313,6 +333,15 @@ a transcript is replaced.
 - `GET /v2/library`
 - `PUT /v2/library/{video_id}`, `DELETE /v2/library/{video_id}`
 
+### Resurfacing
+- `GET /v2/moments/resurface?skip=0` returns `{state: "found", moment: ...}`
+  or `{state: "none"}`. It reads only the signed-in user's resolved moments,
+  strictly older than 60 days at the database day's start. The first non-empty
+  AI line, note, or quote must have at least 15 characters after trimming.
+- Ordering by the hash of moment ID and database date keeps the pick stable
+  for that day. Incrementing `skip` walks the order; past its end returns
+  `none`. No model call, credit charge, or data write is involved.
+
 ### Search
 - `GET /v2/search`
 
@@ -327,6 +356,10 @@ a transcript is replaced.
 - `GET /v2/internal/tasks`
 - `POST /v2/internal/tasks/{id}/result`
 - `POST /v2/internal/videos/{video_id}/pending-moments`
+  returns HTTP 409 while the transcript is `pending`, without charging credits
+  or changing moments. It returns already-queued moments again without charging
+  so dispatch retries can recover lost responses. The dispatcher retries as
+  described in [Workers](workers.md).
 - `POST /v2/internal/videos/{video_id}/transcript`
 - `POST /v2/internal/videos/{video_id}/metadata`
 - `POST /v2/internal/videos/{video_id}/summary`
@@ -344,7 +377,8 @@ a transcript is replaced.
 - Swagger includes public, internal, and payment webhook routes. Protected
   operations still require their existing JWT, guest-session, or admin
   credentials.
-- SQLite is the default when `DB_URL` is not set; Postgres is used in deployed environments.
+- `DB_URL` must point to PostgreSQL in every environment. Migrations and search
+  use PostgreSQL features, so other databases are not supported.
 - CORS allows all origins with credentials enabled and exposes `X-Request-ID`
   and `Retry-After` to browser clients; browsers will reject credentialed
   requests with wildcard origins.
@@ -378,12 +412,14 @@ a transcript is replaced.
 
 ## Startup Requirements
 The server fails on startup if any of the following env vars are missing. `ENVIRONMENT`,
-`SECRET_KEY`, `VIDWIZ_INTERNAL_API_ADMIN_TOKEN`, and `GOOGLE_CLIENT_ID` must also be non-empty:
+`DB_URL`, `SECRET_KEY`, `VIDWIZ_INTERNAL_API_ADMIN_TOKEN`, and `GOOGLE_CLIENT_ID` must also be non-empty:
 - `ENVIRONMENT`
+- `DB_URL`
 - `SECRET_KEY`
 - `VIDWIZ_INTERNAL_API_ADMIN_TOKEN`
 - `GOOGLE_CLIENT_ID`
 - `SQS_AI_NOTE_QUEUE_URL`
+- `SQS_AI_SUMMARY_QUEUE_URL`
 - `AWS_ACCESS_KEY_ID`
 - `AWS_SECRET_ACCESS_KEY`
 - `DODO_PAYMENTS_API_KEY`

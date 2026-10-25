@@ -12,6 +12,7 @@ import SearchPage from './features/search/SearchPage';
 import SettingsPage from './features/settings/SettingsPage';
 import SharePage from './features/share/SharePage';
 import PrivacyPolicyPage from './features/landing/PrivacyPolicyPage';
+import SupportPage from './features/landing/SupportPage';
 import Spinner from './components/ui/Spinner';
 
 // The chat and Markdown libraries are large; load them with the pages that use them.
@@ -51,6 +52,7 @@ export default function App() {
         <Route path="/settings" element={<RequireAuth><SettingsPage /></RequireAuth>} />
         <Route path="/share" element={<SharePage />} />
         <Route path="/privacy" element={<PrivacyPolicyPage />} />
+        <Route path="/support" element={<SupportPage />} />
         <Route path="/dashboard" element={<Navigate to="/library" replace />} />
         <Route path="/dashboard/:videoId" element={<LegacyVideo />} />
         <Route path="/wiz/:videoId" element={<LegacyVideo tab="ask" />} />

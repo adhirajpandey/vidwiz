@@ -31,8 +31,8 @@ Workers.
   `useProfile`, `useTheme`, `useNotify`, `useToast`.
 
 ## Routes
-- `/`: Home when signed in (search on mobile, add a video, Ask entry, continue
-  watching, recent moments grouped by day and video); the landing page when
+- `/`: Home when signed in (search on mobile, add a video, a compact Recent videos strip,
+  and recent moments grouped once per day and video); the landing page when
   signed out. The landing page renders without the app header and has its own
   styles in `features/landing/landing.css` (Bricolage Grotesque, light and dark
   from the app theme).
@@ -41,7 +41,11 @@ Workers.
   (`moments`, `ask`, `transcript`, `overview`).
 - `/library`, `/search?q=`, `/ask` (`c` resumes, `q` asks once), `/settings`.
 - `/login`, `/signup` (`next` returns to an in-app path), `/share` (PWA share
-  target), `/privacy`.
+  target).
+- `/privacy` and `/support`: public text pages that share
+  `features/landing/DocPage.tsx`. The landing footer, the account menu, and
+  Settings link to them. They are the privacy policy and support URLs for the
+  Chrome Web Store listing.
 - Redirects keep 2.x links working: `/dashboard` → `/library`,
   `/dashboard/:id` → `/v/:id`, `/wiz/:id` → `/v/:id?tab=ask`, `/profile` →
   `/settings`.
@@ -59,9 +63,29 @@ Workers.
   the `display` utility (condensed and heavy).
 - Every paid action shows its cost: "Unlock for 5 credits" before the first
   question about a video, and the cost of each way to save in the save menu.
+- The note field starts collapsed; the pencil opens it, and Cancel note or
+  Escape closes it. Enter saves the note with the moment; Shift+Enter adds a line.
+  Saving keeps the selected panel and shows an inline
+  **View moment** toast action to open and highlight the saved moment.
 - Save moment is a split button. The main part follows the AI line default from
-  Settings. The arrow opens a menu listing both ways with their cost and key,
-  the default checked (S); the other is Shift S. Choosing one saves.
+  Settings. The capture shortcut saves with that default. The arrow opens a
+  menu listing both ways with their cost; the default is checked and shows the
+  current shortcut. Choosing one saves. At zero
+  credits, the default AI save shows a notice and existing moments offer
+  Get credits instead of Add AI line.
+  Saves wait for a ready player and never guess a timestamp.
+- **Capture shortcut**: without the extension, Alt+S works while focus is in
+  the web page. With extension 3.0.1 or newer, `useCaptureShortcut` opens a
+  `vidwiz-capture-v1` runtime connection. The extension forwards its command
+  only to the active video tab, including while the YouTube iframe has focus.
+  Both paths use the same Save action, AI default, note draft, and feedback.
+  Typing fields, menus, dialogs, and hidden tabs ignore shortcut captures.
+  The connected web page shows the extension's assigned shortcut, including
+  remapping or no assignment. Focus refreshes that assignment. An older
+  extension shows an update hint; Save remains available.
+  Disconnects retry with bounded backoff and recover on focus or visibility
+  changes. Acknowledgements release pending commands; neither side replays a
+  capture after timeout, navigation, or reconnect.
 
 ## Key Behavior
 - **Auth**: the JWT is stored in `localStorage`, validated on read, and sent by
@@ -78,6 +102,25 @@ Workers.
 - Moment timestamps and timeline marks use the saved capture time. Playing a
   moment starts five seconds earlier (clamped at zero), including search and
   exported links; the transcript quote has its own context window.
+- **Library**: one field searches titles and channels or previews a pasted
+  YouTube video link. Views select All, With moments, or With chats; their
+  counts follow the search. A themed menu offers six sorts. A paste card
+  checks membership, preserves the link's time, and offers Add and open or
+  Add to library. Existing videos open directly; failed checks claim no
+  membership state, and failed saves retry the original action in place.
+- **Resurfacing**: Home shows an older moment in a stable daily order. Another
+  advances through the eligible moments and wraps to the first. Empty results
+  hide the section; failures show a retry. Imported moments use an approximate
+  date label.
+- **Home and video rows**: the four recent videos show thumbnail durations.
+  Library rows separate channel, moment count, chats, activity, and the latest
+  moment text. Feed groups follow capture order, with moments in video-time
+  order inside each group. Quote-only moments keep their text preview.
+- **Moment actions**: note editors use Enter to save, Shift+Enter for a new
+  line, and Escape to cancel, matching the extension. Deleting asks inline
+  before making a request. Escape or
+  Cancel returns focus to the actions button. Only one row can edit a note or
+  confirm deletion at a time; a failed delete stays open with a retry.
 - **Moments**: `MomentItem` shows the AI line, the user's note, the quote, and
   one explicit status line with its fix (retry without a new charge, get
   credits). While the AI line is being written, its status takes the AI line's
@@ -87,11 +130,13 @@ Workers.
   arrives. Title captures still resolving show a placeholder; ambiguous ones
   show the candidate videos to pick from.
 - **Overview**: rendered from `overview_status`: writing, failed with a free
-  retry (signed in), no transcript, pending (transcript still loading), or
+  retry (signed in), transcript unavailable, pending (transcript still loading), or
   no overview yet (transcript ready, never queued). While a newer overview is
   written or after it fails, the older one stays visible with a status line.
-- **Video workspace**: the player is sticky on desktop and above the tabs on
-  mobile. Captures use the player's current time. Timestamps in moments,
+- **Video workspace**: desktop shows moments below the player and a separate
+  scrolling column for Transcript (the default), Ask, and Overview. On phones,
+  the player, moment strip, save controls, and tabs stay pinned. Windows under
+  720px tall use page scrolling. Captures use the player's current time. Timestamps in moments,
   key points, transcript lines, and citations seek the same player. The
   transcript centers the playing line in its own scroll panel, with natural
   clamping at the start and end. Line changes ease over 240 ms; initial entry,
@@ -101,6 +146,8 @@ Workers.
   The panel recenters on seeks, tab entry, and size changes while following,
   without scrolling the page. It also filters by text and saves any line as a
   moment.
+- Overview questions fill the Ask composer without sending. Locked videos show
+  the question above the unlock action and retain it after unlocking.
 - Ask initializes only when its tab is first opened. It stays mounted after
   that so switching panels preserves the chat. Creating a conversation updates
   its URL parameter without changing the selected panel.
@@ -113,6 +160,9 @@ Workers.
   video at the time. Every citation can be saved as a moment.
 - **Guests**: the landing page starts a guest conversation for a pasted link
   and opens the workspace on the Ask tab.
+- **Search links**: moment hits open Moments and highlight the saved moment;
+  passage hits open Transcript. Playback requests made before player setup
+  are queued and retain the existing lead-in and autoplay fallback.
 - **Command palette**: ⌘K / Ctrl+K searches, asks the library, opens a pasted
   YouTube link, or jumps to a page.
 - **PWA**: `public/manifest.webmanifest` with a share target; sharing a YouTube
@@ -126,6 +176,20 @@ Workers.
 - `pnpm dev` with `VITE_API_URL` pointing at an API (for example a local backend
   or a test deployment).
 - `pnpm lint`, `pnpm test`, `pnpm build`.
+
+## Tab titles
+Tab titles name what is open, most specific first, joined with ` · ` and
+ending in `VidWiz`. `documentTitle` in `src/lib/title.ts` builds them; public
+pages pass the result to `Seo`, and signed-in pages use `PageTitle`.
+- The landing page and `index.html` share `LANDING_TITLE`.
+- A video page adds its open panel, as in `<video title> · Ask · VidWiz`.
+  While the video loads, fails, or has no title yet, the title is
+  `Video · VidWiz`; it never shows the video ID.
+- A library chat is named by its first question, shortened, and keeps that
+  name through follow-ups. A new chat is `Ask your library · VidWiz`.
+- Search uses `"<query>" · Search · VidWiz` with curly quotes.
+
+Chat controls are called **New chat** and **Chat history** everywhere.
 
 ## UI Screenshot Workflow
 `scripts/screenshot_pages.py` captures the 2.x pages and still needs updating

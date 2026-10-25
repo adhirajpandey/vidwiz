@@ -22,6 +22,7 @@ from src.moments.schemas import (
     MomentUpdate,
     PassageSave,
     ResolveChoice,
+    ResurfaceResponse,
     parse_seconds,
 )
 from src.videos import service as videos_service
@@ -88,6 +89,19 @@ def list_recent_moments(
     user_id: int = Depends(get_current_user_id),
 ) -> MomentFeed:
     return moments_service.feed(db, user_id, page, per_page)
+
+
+@router.get(
+    "/moments/resurface",
+    response_model=ResurfaceResponse,
+    description="One resolved moment older than 60 days, in stable daily order.",
+)
+def resurface_moment(
+    skip: int = Query(default=0, ge=0),
+    db: Session = Depends(get_db),
+    user_id: int = Depends(get_current_user_id),
+) -> ResurfaceResponse:
+    return moments_service.resurface(db, user_id, skip)
 
 
 @router.get(

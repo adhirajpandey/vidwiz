@@ -26,7 +26,7 @@
 
   <section id="idle-view" class="view hidden">
     <h1 class="title">Open a YouTube video</h1>
-    <p class="muted">Then press <kbd id="shortcut">Alt+S</kbd> or use this popup to save the moment.</p>
+    <p id="shortcut-help" class="muted">Then press <kbd id="shortcut">Alt+S</kbd> or use this popup to save the moment.</p>
   </section>
 
   <section id="reload-view" class="view hidden">
@@ -57,7 +57,7 @@
         <div class="save">
           <div class="split">
             <button type="submit" id="capture" class="saved split-main">Save moment <span id="capture-time" class="tabular"></span></button>
-            <button type="button" id="capture-toggle" class="saved split-toggle hidden" aria-label="Save options" data-tooltip="Save options" aria-haspopup="menu" aria-expanded="false" aria-controls="capture-menu">
+            <button type="button" id="capture-toggle" class="saved split-toggle" disabled aria-label="Save options" data-tooltip="Save options" aria-haspopup="menu" aria-expanded="false" aria-controls="capture-menu">
               <svg viewBox="0 0 16 16" width="14" height="14" aria-hidden="true"><path d="M4 6l4 4 4-4" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"/></svg>
             </button>
           </div>

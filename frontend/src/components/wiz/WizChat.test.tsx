@@ -183,3 +183,20 @@ describe('WizChat', () => {
   });
 });
 
+
+it('loads an Overview draft once, preserves edits, and can select the same question again', async () => {
+  const user = userEvent.setup();
+  const chat = controller();
+  const draft = { text: 'Why does this work?', id: 1 };
+  const makeView = (value: typeof draft) => <WizChat chat={chat} isReady passages={{ watch: vi.fn() }} draft={value} />;
+  const result = render(makeView(draft));
+  const input = screen.getByRole('textbox') as HTMLTextAreaElement;
+  await waitFor(() => expect(input.value).toBe(draft.text));
+  await user.clear(input);
+  await user.type(input, 'My edited question');
+  result.rerender(makeView(draft));
+  expect(input.value).toBe('My edited question');
+  expect(chat.send).not.toHaveBeenCalled();
+  result.rerender(makeView({ ...draft, id: 2 }));
+  await waitFor(() => expect(input.value).toBe(draft.text));
+});

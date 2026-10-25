@@ -1,79 +1,59 @@
-import type { ReactNode } from 'react';
 import Seo from '../../components/Seo';
+import { documentTitle } from '../../lib/title';
+import DocPage, { DocLink, DocSection } from './DocPage';
 
-function Section({ title, children }: { title: string; children: ReactNode }) {
-  return (
-    <section className="border-t-2 border-foreground pt-5">
-      <h2 className="display mb-4 text-2xl">{title}</h2>
-      <div className="space-y-4 leading-7 text-foreground/85">{children}</div>
-    </section>
-  );
-}
+const USER_DATA_POLICY_URL = 'https://developer.chrome.com/docs/webstore/program-policies/policies';
 
 export default function PrivacyPolicyPage() {
   return (
     <>
       <Seo
-        title="Privacy Policy | VidWiz"
-        description="Read how VidWiz handles your data, including account information, Smart Notes, and product usage details."
+        title={documentTitle('Privacy policy')}
+        description="What data the VidWiz website and Chrome extension handle, which services process it, and how to contact us."
         path="/privacy"
       />
-      <article className="mx-auto max-w-2xl py-6 md:py-12">
-        <header className="mb-14">
-          <p className="mb-3 text-sm font-semibold text-muted-foreground">Privacy Policy</p>
-          <h1 className="display text-5xl">Your Privacy Matters</h1>
-          <p className="mt-5 text-lg leading-8 text-muted-foreground">
-            Transparency about how we handle your data is at the core of VidWiz.
+      <DocPage eyebrow="Last updated October 24, 2026" title="Privacy policy" intro="This policy covers the VidWiz website, its API, and the VidWiz Chrome extension.">
+        <DocSection title="What VidWiz handles">
+          <p>
+            VidWiz uses account and saved-video data to provide capture, your library, search and AI features. Google sign-in provides identity details such as your name, email and profile image. Email/password sign-in stores your name, email and a password hash. The web app syncs a session token to the extension, which stores it locally to authenticate API requests.
           </p>
-        </header>
+          <p>
+            On YouTube, the extension reads the current video's ID, title, channel, playback time and ad state. When you save, it sends the video ID, title, timestamp, optional note, AI choice and capture source to VidWiz. Moments and library associations are stored on the server; video metadata and available transcripts are fetched and stored for related features. Web-app questions and answers are also stored.
+          </p>
+        </DocSection>
 
-        <div className="space-y-12">
-          <Section title="Introduction">
-            <p>
-              VidWiz ("we," "our," or "us") is committed to protecting your privacy. This Privacy Policy explains how our extension and services interact with your data. By using the VidWiz extension, you agree to the collection and use of information in accordance with this policy.
-            </p>
-          </Section>
+        <DocSection title="Services that process data">
+          <p>
+            Google handles Google sign-in, and YouTube supplies video metadata, captions and thumbnails. AWS stores transcripts and runs AI background jobs. OpenRouter and its model providers process transcript context for AI lines and overviews, and questions, conversation history and retrieved content for Ask. Library Ask may include your personal notes. Profile images load from their image host. Dodo Payments receives your name and email for web credit checkout; VidWiz stores purchase identifiers, credits and status.
+          </p>
+          <p>
+            Cloudflare hosts the website. Its pages load fonts and the Google sign-in script from Google.
+          </p>
+        </DocSection>
 
-          <Section title="Data Collection and Usage">
-            <div>
-              <h3 className="mb-2 text-lg font-bold text-foreground">User-Generated Content</h3>
-              <p>
-                When you use VidWiz to take notes or generate insights from videos, we process and store this content to provide you with our services. This includes:
-              </p>
-              <ul className="mt-2 list-disc space-y-1 pl-6">
-                <li>Notes you create manually or with AI assistance.</li>
-                <li>Timestamps and associated video metadata.</li>
-                <li>Chat interactions with the Wiz assistant.</li>
-              </ul>
-            </div>
-            <div>
-              <h3 className="mb-2 text-lg font-bold text-foreground">Remote API Interaction</h3>
-              <p>
-                Our extension communicates with our backend servers at <code className="rounded-[5px] bg-surface px-1.5 py-0.5 text-sm">https://api.vidwiz.online/*</code>. This is necessary to:
-              </p>
-              <ul className="mt-2 list-disc space-y-1 pl-6">
-                <li>Authenticate your account.</li>
-                <li>Sync your notes across devices.</li>
-                <li>Process AI requests for video analysis and chat.</li>
-              </ul>
-              <p className="mt-2">We do not sell your personal data or user-generated content to third parties.</p>
-            </div>
-          </Section>
+        <DocSection title="Data use">
+          <p>
+            We use this data to provide, operate and secure VidWiz in accordance with the{' '}
+            <DocLink href={USER_DATA_POLICY_URL}>Chrome Web Store User Data Policy</DocLink>, including its Limited Use requirements.
+          </p>
+        </DocSection>
 
-          <Section title="Data Security">
-            <p>
-              We implement industry-standard security measures to protect your data during transmission and storage. All communication between the extension and our servers is encrypted using simple HTTPS (TLS/SSL). However, please be aware that no method of transmission over the internet is 100% secure.
-            </p>
-          </Section>
+        <DocSection title="Service data and security">
+          <p>
+            VidWiz processes IP addresses for rate limiting. API logs can include request paths, status, timing, device/browser information, account identifiers and limited request/response content. Named credential fields are redacted, but notes and other content can appear in logs. Production API requests use HTTPS.
+          </p>
+        </DocSection>
 
-          <Section title="Contact Us">
-            <p>If you have any questions about this Privacy Policy, please contact us at:</p>
-            <a href="mailto:support@vidwiz.online" className="inline-block font-semibold underline decoration-foreground/30 underline-offset-4 hover:decoration-foreground">
-              support@vidwiz.online
-            </a>
-          </Section>
-        </div>
-      </article>
+        <DocSection title="Your controls and contact">
+          <p>
+            You can edit a personal note or delete an individual moment. Deleting a moment removes its moment record; transcripts, video metadata, logs and other records are stored separately. For privacy questions or requests about your account or data, contact{' '}
+            <DocLink href="mailto:support@vidwiz.online">support@vidwiz.online</DocLink>.
+          </p>
+          <p>
+            For help using VidWiz, see <DocLink to="/support">VidWiz help</DocLink>.
+          </p>
+        </DocSection>
+      </DocPage>
     </>
   );
 }

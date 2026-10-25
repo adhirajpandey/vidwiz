@@ -150,3 +150,112 @@ async def test_api_token_routes(client, user):
     assert (await client.get("/v2/auth/tokens", headers=headers)).json() == []
     again = await client.delete(f"/v2/auth/tokens/{token_id}", headers=headers)
     assert again.status_code == 404
+
+
+@pytest.mark.asyncio
+async def test_library_views_counts_and_latest_preview(client, db_session, user):
+    from src.auth import service as auth_service
+    from src.conversations.models import Message
+    from src.moments.models import CaptureSource, Moment
+
+    other = auth_service.create_user(
+        db_session, "other@example.com", "Other", "pw123456"
+    )
+    for video_id, title in [
+        ("aaaaaaaaaaa", "Alpha"),
+        ("bbbbbbbbbbb", "Beta"),
+        ("ccccccccccc", "Gamma"),
+    ]:
+        add_video(db_session, user, video_id, title)
+    a = db_session.query(Video).filter_by(video_id="aaaaaaaaaaa").one()
+    a.video_metadata = {"uploader": "Useful_Channel%"}
+    old = datetime.now(timezone.utc) - timedelta(days=2)
+    db_session.add_all(
+        [
+            Moment(
+                user_id=user.id,
+                video_id="aaaaaaaaaaa",
+                at_seconds=1,
+                note="Older note",
+                source=CaptureSource.WEB,
+                created_at=old,
+            ),
+            Moment(
+                user_id=user.id,
+                video_id="aaaaaaaaaaa",
+                at_seconds=20,
+                quote="Latest quote",
+                source=CaptureSource.WEB,
+            ),
+            Moment(
+                user_id=other.id,
+                video_id="aaaaaaaaaaa",
+                at_seconds=40,
+                note="Private note",
+                source=CaptureSource.WEB,
+            ),
+        ]
+    )
+    for video_id, owner, roles in [
+        ("bbbbbbbbbbb", user.id, ["user", "assistant", "user"]),
+        ("bbbbbbbbbbb", user.id, ["user"]),
+        ("aaaaaaaaaaa", user.id, []),
+        ("ccccccccccc", user.id, ["assistant"]),
+        ("aaaaaaaaaaa", other.id, ["user"]),
+    ]:
+        chat = Conversation(video_id=video_id, user_id=owner)
+        db_session.add(chat)
+        db_session.flush()
+        db_session.add_all(
+            [
+                Message(conversation_id=chat.id, role=role, content="hello")
+                for role in roles
+            ]
+        )
+    db_session.flush()
+    headers = auth_headers(user)
+    result = (await client.get("/v2/library?sort=moments_desc", headers=headers)).json()
+    assert result["counts"] == {"all": 3, "with_moments": 1, "with_chats": 1}
+    assert result["videos"][0]["moment_count"] == 2
+    assert result["videos"][0]["chat_count"] == 0
+    assert result["videos"][0]["latest_moment"] == {
+        "text": "Latest quote",
+        "kind": "quote",
+    }
+    chats = (await client.get("/v2/library?sort=chats_desc", headers=headers)).json()
+    assert chats["videos"][0]["video_id"] == "bbbbbbbbbbb"
+    assert chats["videos"][0]["chat_count"] == 2  # Conversations, not questions.
+    for view, video_id in [
+        ("with_moments", "aaaaaaaaaaa"),
+        ("with_chats", "bbbbbbbbbbb"),
+    ]:
+        filtered = (
+            await client.get(f"/v2/library?view={view}&per_page=1", headers=headers)
+        ).json()
+        assert filtered["total"] == filtered["total_pages"] == 1
+        assert filtered["videos"][0]["video_id"] == video_id
+        assert filtered["counts"] == result["counts"]
+    for query in ["Useful_Channel%", "aaaaaaaaaaa"]:
+        matched = (
+            await client.get("/v2/library", params={"q": query}, headers=headers)
+        ).json()
+        assert [v["video_id"] for v in matched["videos"]] == ["aaaaaaaaaaa"]
+        assert matched["counts"] == {"all": 1, "with_moments": 1, "with_chats": 0}
+    assert (
+        await client.get("/v2/library", params={"q": "%_"}, headers=headers)
+    ).json()["total"] == 0
+    assert (
+        await client.get("/v2/library?view=unknown", headers=headers)
+    ).status_code == 422
+
+
+def test_exact_video_id_leads_matches_for_link_membership(db_session, user):
+    from src.library.schemas import LibraryParams
+
+    add_video(db_session, user, "aaaaaaaaaaa", "Saved video", added_days_ago=5)
+    add_video(db_session, user, "bbbbbbbbbbb", "A video mentioning aaaaaaaaaaa")
+    result = library_service.list_library(
+        db_session, user.id, LibraryParams(q="aaaaaaaaaaa", per_page=1)
+    )
+    assert result.total == 2
+    assert result.videos[0].video_id == "aaaaaaaaaaa"

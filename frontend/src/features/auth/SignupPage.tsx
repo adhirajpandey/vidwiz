@@ -6,6 +6,7 @@ import config from '../../config';
 import { useNotify } from '../../hooks/useNotify';
 import { setToken } from '../../lib/authUtils';
 import Seo from '../../components/Seo';
+import { documentTitle } from '../../lib/title';
 import Button from '../../components/ui/Button';
 import { Input } from '../../components/ui/Input';
 import AuthCard from './AuthCard';
@@ -51,7 +52,7 @@ export default function SignupPage() {
 
   return (
     <>
-      <Seo title="Sign up | VidWiz" description="Create a VidWiz account to capture YouTube moments and find them again." path="/signup" />
+      <Seo title={documentTitle('Create an account')} description="Create a VidWiz account to capture YouTube moments and find them again." path="/signup" />
       <AuthCard
         title="Create your account"
         subtitle={`Start with ${config.SIGNUP_CREDITS} free credits`}
