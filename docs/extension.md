@@ -57,6 +57,8 @@ Plain JavaScript modules, no bundler.
   assignment stays empty. Commands wait for their acknowledgement or a
   30-second timeout before another can be sent. A timeout never retries the
   save. Replaced or disconnected ports cannot receive new captures.
+  Worker-initiated disconnects remove the connection and its timer immediately;
+  Chrome only sends the disconnect event to the other end of the port.
 - **Popup**: shows the login view, an idle view off YouTube videos, a reload
   view on video tabs without the content script, or the capture view.
   - The video card opens the video in VidWiz. It shows a 64×36 thumbnail,

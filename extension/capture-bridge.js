@@ -5,6 +5,12 @@ const CHANNEL = "vidwiz-capture-v1";
 export function createCaptureBridge(browser, webOrigin) {
   const connections = new Map();
   let sequence = 0;
+  const disconnect = (tabId, connection) => {
+    clearTimeout(connection.timer);
+    if (connections.get(tabId) === connection) connections.delete(tabId);
+    // Chrome only notifies the other end when we disconnect a port ourselves.
+    connection.port.disconnect();
+  };
   const shortcut = async () => (await browser.commands.getAll())
     .find((command) => command.name === "capture-moment")?.shortcut ?? "";
   const trusted = (sender) => sender?.origin === webOrigin
@@ -20,7 +26,7 @@ export function createCaptureBridge(browser, webOrigin) {
     if (port.name !== CHANNEL || !trusted(port.sender)) { port.disconnect(); return; }
     const tabId = port.sender.tab.id;
     const previous = connections.get(tabId);
-    if (previous) previous.port.disconnect();
+    if (previous) disconnect(tabId, previous);
     const connection = { port, pending: null, timer: null };
     connections.set(tabId, connection);
     port.onDisconnect.addListener(() => {
@@ -38,7 +44,7 @@ export function createCaptureBridge(browser, webOrigin) {
         browser.action.setTitle({ tabId, title: "VidWiz" });
         port.postMessage({ type: "READY", protocol: 1, shortcut: key });
       }
-    }).catch(() => port.disconnect());
+    }).catch(() => disconnect(tabId, connection));
   });
 
   return {
@@ -66,7 +72,7 @@ export function createCaptureBridge(browser, webOrigin) {
         connection.timer = setTimeout(() => { connection.pending = null; }, 30_000);
       } catch {
         connection.pending = null;
-        connection.port.disconnect();
+        disconnect(tab.id, connection);
       }
       return true;
     },

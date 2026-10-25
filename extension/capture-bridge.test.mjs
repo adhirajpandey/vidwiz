@@ -21,15 +21,16 @@ function setup(t) {
     const port = {
       name: "vidwiz-capture-v1", sender: { ...sender(id), ...overrides }, messages: [], disconnected: false,
       onMessage: event(), onDisconnect: event(),
-      postMessage(message) { this.messages.push(message); },
-      disconnect() { this.disconnected = true; this.onDisconnect.emit(); },
+      postMessage(message) { if (this.disconnected) throw new Error("Disconnected port"); this.messages.push(message); },
+      disconnect() { this.disconnected = true; },
+      remoteDisconnect() { this.disconnected = true; this.onDisconnect.emit(); },
     };
     ports.push(port);
     browser.runtime.onConnectExternal.emit(port);
     await Promise.resolve();
     return port;
   };
-  t.after(() => ports.forEach((port) => port.disconnect()));
+  t.after(() => ports.forEach((port) => port.remoteDisconnect()));
   return { bridge, browser, sender, connect, badges, setKey: (value) => { key = value; } };
 }
 const tab = (id, url = "https://vidwiz.online/v/aaaaaaaaaaa") => ({ id, url });
@@ -98,12 +99,38 @@ it("does not replay captures after timeout or reconnect", async (t) => {
   await bridge.capture(tab(1));
   t.mock.timers.tick(30_000);
   assert.equal(captures(old).length, 1);
-  old.disconnect();
+  old.remoteDisconnect();
   await bridge.capture(tab(1));
   assert.ok(badges.some((badge) => badge.text === "!"));
   const current = await connect(1);
   assert.equal(captures(current).length, 0);
   await bridge.capture(tab(1));
+  assert.equal(captures(current).length, 1);
+});
+
+it("removes a failed handshake without relying on a local disconnect event", async (t) => {
+  const { bridge, browser, connect, badges } = setup(t);
+  browser.commands.getAll = async () => { throw new Error("Shortcut unavailable"); };
+  const port = await connect(1);
+  await Promise.resolve(); await Promise.resolve();
+  assert.equal(port.disconnected, true);
+  await bridge.capture(tab(1));
+  assert.ok(badges.some((badge) => badge.text === "!"));
+});
+
+it("removes a connection after command failure and allows a fresh connection", async (t) => {
+  const { bridge, browser, connect, badges } = setup(t);
+  const old = await connect(1);
+  const getAll = browser.commands.getAll;
+  browser.commands.getAll = async () => { throw new Error("Shortcut unavailable"); };
+  await bridge.capture(tab(1));
+  assert.equal(old.disconnected, true);
+  await bridge.capture(tab(1));
+  assert.ok(badges.some((badge) => badge.text === "!"));
+  browser.commands.getAll = getAll;
+  const current = await connect(1);
+  await bridge.capture(tab(1));
+  assert.equal(captures(old).length, 0);
   assert.equal(captures(current).length, 1);
 });
 
@@ -124,8 +151,8 @@ it("wires web commands without the login listener swallowing the capability resp
   browser.runtime.onMessageExternal.emit({ type: "CAPTURE_CAPABILITIES" }, sender, (reply) => replies.push(reply));
   await Promise.resolve(); await Promise.resolve();
   assert.deepEqual(replies, [{ protocol: 1, shortcut: "Alt+S" }]);
-  const port = { name: "vidwiz-capture-v1", sender, onMessage: event(), onDisconnect: event(), postMessage: (message) => messages.push(message), disconnect() { this.onDisconnect.emit(); } };
-  t.after(() => port.disconnect());
+  const port = { name: "vidwiz-capture-v1", sender, onMessage: event(), onDisconnect: event(), postMessage: (message) => messages.push(message), disconnect() {} };
+  t.after(() => port.onDisconnect.emit());
   browser.runtime.onConnectExternal.emit(port);
   await Promise.all(browser.commands.onCommand.emit("capture-moment"));
   assert.equal(messages.filter((message) => message.type === "CAPTURE").length, 1);
