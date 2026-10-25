@@ -5,6 +5,7 @@ import { paymentsApi } from '../../api';
 import { useNotify } from '../../hooks/useNotify';
 import { useProfile } from '../../hooks/useProfile';
 import Button from '../../components/ui/Button';
+import ErrorState from '../../components/ui/ErrorState';
 
 export default function CreditsSection() {
   const profile = useProfile();
@@ -53,6 +54,7 @@ export default function CreditsSection() {
           ))}
         </div>
       )}
+      {products.isError && !products.data && <ErrorState compact headingLevel={3} title="Credit packs did not load" message="Check your connection and try again." onRetry={() => void products.refetch()} />}
       {buying && <Button disabled size="sm">Opening checkout…</Button>}
     </div>
   );

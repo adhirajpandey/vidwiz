@@ -1,26 +1,66 @@
-import { useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import type { FormEvent } from 'react';
-import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
+import { useMutation, useMutationState, useQuery, useQueryClient } from '@tanstack/react-query';
 import { Check, Copy, KeyRound, Trash2 } from 'lucide-react';
 import { authApi } from '../../api';
-import type { ApiTokenCreated } from '../../api';
+import type { ApiTokenCreated, ApiTokenRead } from '../../api';
 import config from '../../config';
 import { useNotify } from '../../hooks/useNotify';
 import Button from '../../components/ui/Button';
+import ErrorState from '../../components/ui/ErrorState';
 import { Input } from '../../components/ui/Input';
 import { formatRelative } from '../../lib/format';
 import { phoneCaptureExample } from './phoneCapture';
 
 function CopyButton({ text, label }: { text: string; label: string }) {
   const [copied, setCopied] = useState(false);
+  const notify = useNotify();
   return (
-    <Button size="sm" onClick={async () => {
-      await navigator.clipboard.writeText(text);
-      setCopied(true);
-      setTimeout(() => setCopied(false), 1500);
-    }} aria-label={label}>
-      {copied ? <Check className="size-3.5" /> : <Copy className="size-3.5" />}{copied ? 'Copied' : 'Copy'}
-    </Button>
+    <>
+      <Button size="sm" onClick={async () => {
+        try {
+          await navigator.clipboard.writeText(text);
+        } catch (cause) {
+          notify.error(cause, 'Not copied', 'Select the token and copy it yourself.');
+          return;
+        }
+        setCopied(true);
+        setTimeout(() => setCopied(false), 1500);
+      }} aria-label={label}>
+        {copied ? <Check className="size-3.5" /> : <Copy className="size-3.5" />}{copied ? 'Copied' : 'Copy'}
+      </Button>
+      <span role="status" className="sr-only">{copied ? 'Copied' : ''}</span>
+    </>
+  );
+}
+
+/** A token row. Revoke asks inline first, like deleting a moment. */
+function TokenRow({ token, pending, onRevoke }: { token: ApiTokenRead; pending: boolean; onRevoke: () => void }) {
+  const [confirming, setConfirming] = useState(false);
+  const revokeButton = useRef<HTMLButtonElement>(null);
+  const confirmButton = useRef<HTMLButtonElement>(null);
+  useEffect(() => { if (confirming) confirmButton.current?.focus(); }, [confirming]);
+  const cancel = () => { setConfirming(false); setTimeout(() => revokeButton.current?.focus()); };
+  return (
+    <li className="flex flex-wrap items-center justify-between gap-3 px-3 py-2.5" onKeyDown={event => { if (confirming && !pending && event.key === 'Escape') cancel(); }}>
+      <div className="min-w-0">
+        <p className="truncate text-sm font-medium">{token.name} <span className="font-mono text-xs text-muted-foreground">…{token.token_hint}</span></p>
+        <p className="text-xs text-muted-foreground">
+          Created {formatRelative(token.created_at)}, {token.last_used_at ? `last used ${formatRelative(token.last_used_at)}` : 'never used'}
+        </p>
+      </div>
+      {confirming ? (
+        <div role="group" aria-label={`Revoke ${token.name}`} className="flex items-center gap-2">
+          <p className="text-xs text-muted-foreground">Clients using it stop saving.</p>
+          <Button ref={confirmButton} variant="danger" size="sm" onClick={onRevoke} disabled={pending}>Revoke</Button>
+          <Button variant="ghost" size="sm" onClick={cancel} disabled={pending}>Cancel</Button>
+        </div>
+      ) : (
+        <Button ref={revokeButton} variant="danger" size="sm" onClick={() => setConfirming(true)} aria-label={`Revoke ${token.name}`}>
+          <Trash2 className="size-3.5" />Revoke
+        </Button>
+      )}
+    </li>
   );
 }
 
@@ -40,9 +80,16 @@ export default function TokensSection() {
     onError: error => notify.error(error, 'Token not created', 'The token could not be created.'),
   });
   const revoke = useMutation({
+    mutationKey: ['revokeToken'],
     mutationFn: (id: number) => authApi.revokeToken(id),
     onSuccess: () => void queryClient.invalidateQueries({ queryKey: ['tokens'] }),
     onError: error => notify.error(error, 'Token not revoked', 'The token could not be revoked.'),
+  });
+
+  // Every revoke in flight, not just the latest one.
+  const revoking = useMutationState({
+    filters: { mutationKey: ['revokeToken'], status: 'pending' },
+    select: mutation => mutation.state.variables as number,
   });
 
   const submit = (event: FormEvent) => {
@@ -68,20 +115,13 @@ export default function TokensSection() {
         <Input value={name} onChange={event => setName(event.target.value)} placeholder="Token name, e.g. Phone" aria-label="Token name" maxLength={80} />
         <Button type="submit" variant="primary" disabled={!name.trim() || create.isPending}><KeyRound className="size-4" />Create</Button>
       </form>
+      {tokens.isPending && <p role="status" className="text-sm text-muted-foreground">Loading tokens…</p>}
+      {tokens.isError && <ErrorState compact headingLevel={3} title={tokens.data ? 'Tokens did not refresh' : 'Tokens did not load'} message="Check your connection and try again." onRetry={() => void tokens.refetch()} />}
+      {tokens.data?.length === 0 && <p className="text-sm text-muted-foreground">No tokens yet.</p>}
       {tokens.data && tokens.data.length > 0 && (
         <ul className="divide-y divide-border rounded-lg border border-border">
           {tokens.data.map(token => (
-            <li key={token.id} className="flex items-center justify-between gap-3 px-3 py-2.5">
-              <div className="min-w-0">
-                <p className="truncate text-sm font-medium">{token.name} <span className="font-mono text-xs text-muted-foreground">…{token.token_hint}</span></p>
-                <p className="text-xs text-muted-foreground">
-                  Created {formatRelative(token.created_at)}, {token.last_used_at ? `last used ${formatRelative(token.last_used_at)}` : 'never used'}
-                </p>
-              </div>
-              <Button variant="danger" size="sm" onClick={() => revoke.mutate(token.id)} disabled={revoke.isPending}>
-                <Trash2 className="size-3.5" />Revoke
-              </Button>
-            </li>
+            <TokenRow key={token.id} token={token} pending={revoking.includes(token.id)} onRevoke={() => revoke.mutate(token.id)} />
           ))}
         </ul>
       )}
