@@ -41,7 +41,11 @@ function ExampleVideo() {
   return (
     <div className="demo" role="group" aria-label="Example: a video with its saved moments" tabIndex={-1}
       onKeyDown={event => {
-        if (event.altKey && event.code === 'KeyS' && !event.repeat) { event.preventDefault(); setSaved(true); }
+        if (event.defaultPrevented || event.nativeEvent.isComposing || event.repeat
+          || (event.code !== 'KeyS' && event.key.toLowerCase() !== 's')
+          || !event.altKey || event.ctrlKey || event.metaKey || event.shiftKey) return;
+        event.preventDefault();
+        setSaved(true);
       }}>
       <div className="screen" style={{ backgroundImage: `url(https://i.ytimg.com/vi/${EXAMPLE.videoId}/maxresdefault.jpg)` }}>
         <span className="play" aria-hidden="true" />

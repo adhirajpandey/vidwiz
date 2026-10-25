@@ -1,5 +1,5 @@
 // @vitest-environment jsdom
-import { cleanup, render, screen } from '@testing-library/react';
+import { cleanup, createEvent, fireEvent, render, screen } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { HelmetProvider } from 'react-helmet-async';
 import { MemoryRouter } from 'react-router-dom';
@@ -39,4 +39,13 @@ it('connects an invalid video link to its error', async () => {
   expect(document.getElementById(input.getAttribute('aria-describedby')!)?.textContent).toBe('Paste a YouTube video link.');
   await user.clear(input);
   expect(input.getAttribute('aria-describedby')).toBeNull();
+});
+
+it.each([{ shiftKey: true }, { ctrlKey: true }, { metaKey: true }, { isComposing: true }, { repeat: true }, { prevented: true }])('ignores unsupported shortcut events: %j', extra => {
+  setup();
+  const demo = screen.getByRole('group', { name: 'Example: a video with its saved moments' });
+  const event = createEvent.keyDown(demo, { key: 's', code: 'KeyS', altKey: true, ...extra });
+  if ('prevented' in extra) event.preventDefault();
+  fireEvent(demo, event);
+  expect(saved()).toBeNull();
 });

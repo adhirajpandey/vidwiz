@@ -6,13 +6,14 @@ import { MemoryRouter } from 'react-router-dom';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import type { WizMessage } from '../../hooks/useWizChat';
 import AskPage from './AskPage';
+import { conversationsApi } from '../../api';
 
 let messages: WizMessage[] = [];
 let conversations: { id: number; title: string; last_message_at: string }[] = [];
 let conversationId: number | null = null;
 const resume = vi.fn();
 vi.mock('../../api', () => ({
-  conversationsApi: { list: () => Promise.resolve({ conversations }) },
+  conversationsApi: { list: vi.fn(() => Promise.resolve({ conversations })) },
   videosApi: { getVideo: () => Promise.resolve(null) },
 }));
 vi.mock('../../hooks/useWizChat', () => ({
@@ -23,14 +24,14 @@ vi.mock('../../components/wiz/WizChat', () => ({ default: ({ header }: { header:
 vi.mock('../../components/PageTitle', () => ({
   default: ({ title }: { title: string }) => <output data-testid="title">{title}</output>,
 }));
-afterEach(() => { cleanup(); messages = []; conversations = []; conversationId = null; resume.mockClear(); });
+afterEach(() => { cleanup(); messages = []; conversations = []; conversationId = null; resume.mockClear(); vi.mocked(conversationsApi.list).mockReset().mockImplementation(() => Promise.resolve({ conversations }) as ReturnType<typeof conversationsApi.list>); });
 
 const message = (role: WizMessage['role'], text: string): WizMessage => ({
   id: text, role, parts: [{ type: 'text', text }], createdAt: new Date(),
 });
 
 function setup() {
-  render(<QueryClientProvider client={new QueryClient()}>
+  render(<QueryClientProvider client={new QueryClient({ defaultOptions: { queries: { retry: false } } })}>
     <MemoryRouter initialEntries={['/ask']}><AskPage /></MemoryRouter>
   </QueryClientProvider>);
   return screen.getByTestId('title').textContent;
@@ -78,4 +79,16 @@ describe('library chat history below desktop width', () => {
     await user.click(items[0]);
     expect(resume).toHaveBeenCalledWith(1);
   });
+});
+
+it('retries a failed history request from the compact header', async () => {
+  const user = userEvent.setup();
+  vi.mocked(conversationsApi.list).mockRejectedValueOnce(new Error('Offline'));
+  conversations = [{ id: 1, title: 'Recovered chat', last_message_at: new Date().toISOString() }];
+  setup();
+  const header = screen.getByTestId('chat-header');
+  await user.click(await within(header).findByRole('button', { name: 'Retry history' }));
+  await user.click(await within(header).findByRole('button', { name: 'Chat history' }));
+  expect(await screen.findByRole('menuitem', { name: /Recovered chat/ })).toBeTruthy();
+  expect(conversationsApi.list).toHaveBeenCalledTimes(2);
 });

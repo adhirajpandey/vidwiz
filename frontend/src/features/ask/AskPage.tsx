@@ -58,6 +58,12 @@ function History({ activeId, onPick, onNew }: { activeId: number | null; onPick:
 /** Below desktop width, the sidebar's history as the menu video Ask uses. */
 function CompactHistory({ activeId, onPick }: { activeId: number | null; onPick: (id: number) => void }) {
   const chats = useLibraryChats();
+  if (chats.isError && !chats.data) return (
+    <div className="lg:hidden">
+      <span role="alert" className="sr-only">Chats did not load.</span>
+      <Button size="sm" variant="ghost" className="whitespace-nowrap" disabled={chats.isFetching} onClick={() => void chats.refetch()}>Retry history</Button>
+    </div>
+  );
   return <ChatHistoryMenu chats={chats.data?.conversations} activeId={activeId} onPick={onPick} className="lg:hidden" />;
 }
 
