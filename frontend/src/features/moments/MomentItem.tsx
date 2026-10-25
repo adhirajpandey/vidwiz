@@ -97,7 +97,7 @@ export default function MomentItem({ moment, onSeek, highlighted, showQuote = tr
   return (
     <li
       id={`moment-${moment.id}`}
-      className={cn('moment-anchor group py-3.5 transition-opacity', highlighted && 'border-transparent bg-saved/9 shadow-[inset_2px_0_var(--color-saved)]', stepBack && 'opacity-55', className)}
+      className={cn('moment-anchor group py-3.5 transition-opacity', highlighted && 'rounded-[10px] border-transparent bg-saved/9 shadow-[inset_2px_0_var(--color-saved)]', stepBack && 'opacity-55', className)}
     >
       <div className="flex items-start gap-3">
         <div className="w-14 shrink-0 pt-0.5">{time}</div>

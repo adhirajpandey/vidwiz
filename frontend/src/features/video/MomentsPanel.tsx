@@ -55,7 +55,7 @@ export default function MomentsPanel({ videoId, onSeek, highlightId }: {
       <ul className="divide-y divide-border">
         {moments.data.map(moment => (
           // Every row is inset, so the selected row's tint and corners stay inside the panel.
-          <MomentItem key={moment.id} moment={moment} onSeek={onSeek} highlighted={moment.id === highlightId} className="rounded-[10px] px-2.5" />
+          <MomentItem key={moment.id} moment={moment} onSeek={onSeek} highlighted={moment.id === highlightId} className="px-2.5" />
         ))}
       </ul>
     </div>
