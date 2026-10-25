@@ -177,7 +177,8 @@ Workers.
   countdown pauses while it is hovered or has focus, so its action can't
   expire mid-use.
 - **API tokens**: Revoke asks inside the row first, naming the token; Escape or
-  Cancel returns focus to Revoke. A failed copy says so.
+  Cancel returns focus to Revoke, and the confirmation stays until a pending revoke
+  settles. A failed copy says so.
 
 ## Development
 - `pnpm dev` with `VITE_API_URL` pointing at an API (for example a local backend

@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from 'react';
 import type { FormEvent } from 'react';
-import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
+import { useMutation, useMutationState, useQuery, useQueryClient } from '@tanstack/react-query';
 import { Check, Copy, KeyRound, Trash2 } from 'lucide-react';
 import { authApi } from '../../api';
 import type { ApiTokenCreated, ApiTokenRead } from '../../api';
@@ -42,7 +42,7 @@ function TokenRow({ token, pending, onRevoke }: { token: ApiTokenRead; pending: 
   useEffect(() => { if (confirming) confirmButton.current?.focus(); }, [confirming]);
   const cancel = () => { setConfirming(false); setTimeout(() => revokeButton.current?.focus()); };
   return (
-    <li className="flex flex-wrap items-center justify-between gap-3 px-3 py-2.5" onKeyDown={event => { if (confirming && event.key === 'Escape') cancel(); }}>
+    <li className="flex flex-wrap items-center justify-between gap-3 px-3 py-2.5" onKeyDown={event => { if (confirming && !pending && event.key === 'Escape') cancel(); }}>
       <div className="min-w-0">
         <p className="truncate text-sm font-medium">{token.name} <span className="font-mono text-xs text-muted-foreground">…{token.token_hint}</span></p>
         <p className="text-xs text-muted-foreground">
@@ -80,9 +80,16 @@ export default function TokensSection() {
     onError: error => notify.error(error, 'Token not created', 'The token could not be created.'),
   });
   const revoke = useMutation({
+    mutationKey: ['revokeToken'],
     mutationFn: (id: number) => authApi.revokeToken(id),
     onSuccess: () => void queryClient.invalidateQueries({ queryKey: ['tokens'] }),
     onError: error => notify.error(error, 'Token not revoked', 'The token could not be revoked.'),
+  });
+
+  // Every revoke in flight, not just the latest one.
+  const revoking = useMutationState({
+    filters: { mutationKey: ['revokeToken'], status: 'pending' },
+    select: mutation => mutation.state.variables as number,
   });
 
   const submit = (event: FormEvent) => {
@@ -109,12 +116,12 @@ export default function TokensSection() {
         <Button type="submit" variant="primary" disabled={!name.trim() || create.isPending}><KeyRound className="size-4" />Create</Button>
       </form>
       {tokens.isPending && <p role="status" className="text-sm text-muted-foreground">Loading tokens…</p>}
-      {tokens.isError && !tokens.data && <ErrorState compact headingLevel={3} title="Tokens did not load" message="Check your connection and try again." onRetry={() => void tokens.refetch()} />}
+      {tokens.isError && <ErrorState compact headingLevel={3} title={tokens.data ? 'Tokens did not refresh' : 'Tokens did not load'} message="Check your connection and try again." onRetry={() => void tokens.refetch()} />}
       {tokens.data?.length === 0 && <p className="text-sm text-muted-foreground">No tokens yet.</p>}
       {tokens.data && tokens.data.length > 0 && (
         <ul className="divide-y divide-border rounded-lg border border-border">
           {tokens.data.map(token => (
-            <TokenRow key={token.id} token={token} pending={revoke.isPending && revoke.variables === token.id} onRevoke={() => revoke.mutate(token.id)} />
+            <TokenRow key={token.id} token={token} pending={revoking.includes(token.id)} onRevoke={() => revoke.mutate(token.id)} />
           ))}
         </ul>
       )}

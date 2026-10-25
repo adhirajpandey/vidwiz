@@ -1,5 +1,5 @@
 // @vitest-environment jsdom
-import { cleanup, render, screen, waitFor } from '@testing-library/react';
+import { cleanup, fireEvent, render, screen, waitFor, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { afterEach, expect, it, vi } from 'vitest';
@@ -37,4 +37,20 @@ it('tells failed loading apart from an empty list and retries', async () => {
   const user = setup();
   await user.click(await screen.findByRole('button', { name: 'Try again' }));
   expect(await screen.findByText('No tokens yet.')).toBeTruthy();
+});
+
+it('keeps each pending revoke confirmed and disabled until it settles', async () => {
+  const other = { ...token, id: 8, name: 'Tablet' };
+  vi.mocked(authApi.listTokens).mockResolvedValue([token, other]);
+  vi.mocked(authApi.revokeToken).mockReturnValue(new Promise(() => {}));
+  const user = setup();
+  await user.click(await screen.findByRole('button', { name: 'Revoke Phone' }));
+  await user.click(screen.getByRole('button', { name: 'Revoke' }));
+  await user.click(screen.getByRole('button', { name: 'Revoke Tablet' }));
+  await user.click(within(screen.getByRole('group', { name: 'Revoke Tablet' })).getByRole('button', { name: 'Revoke' }));
+  await waitFor(() => expect(authApi.revokeToken).toHaveBeenCalledWith(8));
+  const phone = screen.getByRole('group', { name: 'Revoke Phone' });
+  expect((within(phone).getByRole('button', { name: 'Revoke' }) as HTMLButtonElement).disabled).toBe(true);
+  fireEvent.keyDown(phone, { key: 'Escape' });
+  expect(screen.getByRole('group', { name: 'Revoke Phone' })).toBeTruthy();
 });
