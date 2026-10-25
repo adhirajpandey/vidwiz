@@ -7,6 +7,7 @@ import './index.css';
 import App from './App.tsx';
 import { queryClient } from './app/queryClient';
 import ToastProvider from './components/ToastProvider';
+import { TooltipProvider } from './components/ui/Tooltip';
 import ScrollToTop from './components/ScrollToTop';
 import SessionExpiredHandler from './components/SessionExpiredHandler';
 import ErrorBoundary from './components/ErrorBoundary';
@@ -22,10 +23,12 @@ createRoot(document.getElementById('root')!).render(
         <BrowserRouter>
           <ScrollToTop />
           <ToastProvider>
-            <ErrorBoundary>
-              <SessionExpiredHandler />
-              <App />
-            </ErrorBoundary>
+            <TooltipProvider>
+              <ErrorBoundary>
+                <SessionExpiredHandler />
+                <App />
+              </ErrorBoundary>
+            </TooltipProvider>
           </ToastProvider>
         </BrowserRouter>
       </QueryClientProvider>

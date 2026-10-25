@@ -25,7 +25,7 @@ export default function SearchForm({ className, shortcut = false }: { className?
         aria-label="Search your moments and videos"
         placeholder="Search moments and transcripts"
         className={cn(
-          'h-10 w-full rounded-[9px] border border-input bg-card pl-9 text-sm placeholder:text-muted-foreground focus:border-foreground/60 focus:outline-none focus:ring-2 focus:ring-foreground/10',
+          'h-10 w-full rounded-[9px] border border-input bg-card pl-9 text-sm placeholder:text-muted-foreground focus:border-foreground/60',
           shortcut ? 'pr-14' : 'pr-3',
         )}
       />

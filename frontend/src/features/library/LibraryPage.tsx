@@ -12,6 +12,7 @@ import Button from '../../components/ui/Button';
 import EmptyState from '../../components/ui/EmptyState';
 import ErrorState from '../../components/ui/ErrorState';
 import { Input } from '../../components/ui/Input';
+import { Tooltip } from '../../components/ui/Tooltip';
 import Spinner from '../../components/ui/Spinner';
 import { downloadText } from '../../lib/download';
 import { extractVideoId } from '../../lib/videoUtils';
@@ -80,12 +81,12 @@ export default function LibraryPage() {
       <PageTitle title="Library" />
       <div className="flex items-end justify-between gap-3">
         <div><h1 className="display text-4xl">Library</h1>{total !== undefined && !link && <p className="mt-1 text-sm text-muted-foreground tabular">{q ? `${total} videos match “${q}”` : `${total} videos`}</p>}</div>
-        <Button size="sm" variant="ghost" aria-label="Export Markdown" title="Export Markdown" onClick={() => void exportAll()} disabled={exporting}><Download className="size-4" /><span className="hidden sm:inline">Export</span></Button>
+        <Tooltip label="Export Markdown"><Button size="sm" variant="ghost" aria-label="Export Markdown" onClick={() => void exportAll()} disabled={exporting}><Download className="size-4" /><span className="hidden sm:inline">Export</span></Button></Tooltip>
       </div>
       <div className="flex gap-2">
         <label className="relative min-w-0 flex-1">
           <Search className="pointer-events-none absolute left-3 top-1/2 size-4 -translate-y-1/2 text-muted-foreground" />
-          <Input value={filter} onChange={event => setInput({ query: q, value: event.target.value })} aria-invalid={Boolean(link && !pasted)} className={cn('pl-9', link && !pasted && 'border-destructive/60 focus:border-destructive/70 focus:ring-destructive/15')} placeholder="Search or paste a link" aria-label="Search titles and channels, or paste a link" />
+          <Input value={filter} onChange={event => setInput({ query: q, value: event.target.value })} aria-invalid={Boolean(link && !pasted)} className={cn('pl-9', link && !pasted && 'border-destructive/60 focus:border-destructive/70')} placeholder="Search or paste a link" aria-label="Search titles and channels, or paste a link" />
         </label>
         <SortMenu sort={sort} onChange={value => update('sort', value)} />
       </div>

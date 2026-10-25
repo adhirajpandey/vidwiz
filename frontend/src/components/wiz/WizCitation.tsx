@@ -3,6 +3,7 @@ import type { DataMessagePartProps } from '@assistant-ui/react';
 import { Bookmark, BookmarkCheck } from 'lucide-react';
 import type { CitationPart, Passage } from '../../api/messageParts';
 import { formatClock } from '../../lib/format';
+import { Tooltip } from '../ui/Tooltip';
 
 export interface PassageActions {
   /** Play the passage: seek the on-page player, or open its video. */
@@ -20,12 +21,12 @@ function SavePassage({ passage, save }: { passage: Passage; save: (passage: Pass
   const [state, setState] = useState<'idle' | 'saving' | 'saved'>('idle');
   const saved = state === 'saved';
   return (
+    <Tooltip label={saved ? 'Saved as a moment' : 'Save as a moment, free'}>
     <button
       type="button"
       className="wiz-save"
       disabled={state !== 'idle'}
       aria-label={saved ? 'Saved as a moment' : 'Save passage as a moment'}
-      title={saved ? 'Saved as a moment' : 'Save as a moment (free)'}
       onClick={async () => {
         setState('saving');
         try {
@@ -38,6 +39,7 @@ function SavePassage({ passage, save }: { passage: Passage; save: (passage: Pass
     >
       {saved ? <BookmarkCheck className="size-3.5" /> : <Bookmark className="size-3.5" />}
     </button>
+    </Tooltip>
   );
 }
 
@@ -48,15 +50,16 @@ export function WatchPassage({ passage }: { passage: Passage }) {
   const video = passage.video_id ? videoLabel?.(passage.video_id) : undefined;
   return (
     <span className="wiz-passage">
-      <button
-        type="button"
-        className="wiz-watch"
-        aria-label={`Watch ${video ? `${video} ` : ''}from ${start} to ${end}`}
-        title={`${video ? `${video}, ` : ''}${start} to ${end}. Playback starts 2 seconds earlier.`}
-        onClick={() => watch(passage)}
-      >
-        <span className="wiz-time">{start}</span>{video ? <span className="wiz-video">{video}</span> : 'Watch'}
-      </button>
+      <Tooltip label={<>{video && <span className="block">{video}</span>}{start} to {end}, starting 2 seconds early</>}>
+        <button
+          type="button"
+          className="wiz-watch"
+          aria-label={`Watch ${video ? `${video} ` : ''}from ${start} to ${end}`}
+          onClick={() => watch(passage)}
+        >
+          <span className="wiz-time">{start}</span>{video ? <span className="wiz-video">{video}</span> : 'Watch'}
+        </button>
+      </Tooltip>
       {save && <SavePassage passage={passage} save={save} />}
     </span>
   );

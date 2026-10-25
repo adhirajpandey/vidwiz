@@ -7,6 +7,7 @@ import Button from '../../components/ui/Button';
 import { TextArea } from '../../components/ui/Input';
 import { Menu, MenuContent, MenuItem, MenuTrigger } from '../../components/ui/Menu';
 import TimeChip from '../../components/ui/TimeChip';
+import { Tooltip } from '../../components/ui/Tooltip';
 import { cn } from '../../lib/utils';
 import { normalizeApiError } from '../../api/errors';
 import { useArrivalTint } from '../../hooks/useArrival';
@@ -108,8 +109,10 @@ export default function MomentItem({ moment, onSeek, arrivedAt, showQuote = true
         <div className="min-w-0 flex-1 space-y-1.5">
           {writing && status}
           {moment.ai_text && (
-            <p className="flex gap-2 text-[15px] leading-6" title={moment.ai_model ? `AI line by ${moment.ai_model}` : 'AI line'}>
-              <Sparkles className="mt-1 size-3.5 shrink-0 text-muted-foreground" aria-label="AI line" />
+            <p className="flex gap-2 text-[15px] leading-6">
+              <Tooltip label="AI-generated line">
+                <span role="img" aria-label="AI-generated line" className="mt-1 shrink-0 text-muted-foreground"><Sparkles className="size-3.5" aria-hidden="true" /></span>
+              </Tooltip>
               <span>{moment.ai_text}</span>
             </p>
           )}
@@ -157,11 +160,13 @@ export default function MomentItem({ moment, onSeek, arrivedAt, showQuote = true
           )}
         </div>
         <Menu>
-          <MenuTrigger asChild>
-            <Button ref={actionsButton} variant="ghost" size="icon" aria-label="Moment actions" className="opacity-60 group-hover:opacity-100">
-              <MoreHorizontal className="size-4" />
-            </Button>
-          </MenuTrigger>
+          <Tooltip label="Edit note or delete">
+            <MenuTrigger asChild>
+              <Button ref={actionsButton} variant="ghost" size="icon" aria-label="Moment actions" className="opacity-60 group-hover:opacity-100">
+                <MoreHorizontal className="size-4" />
+              </Button>
+            </MenuTrigger>
+          </Tooltip>
           <MenuContent onCloseAutoFocus={event => { if (rowActionSelected.current) { event.preventDefault(); (deleteButton.current ?? noteInput.current)?.focus(); } rowActionSelected.current = false; }}>
             <MenuItem onSelect={() => { rowActionSelected.current = true; setDraft(moment.note ?? ''); setActiveRow({ id: moment.id, mode: 'edit' }); }}>
               <Pencil className="size-4" />{moment.note ? 'Edit note' : 'Add note'}

@@ -3,7 +3,7 @@ import type { InputHTMLAttributes, TextareaHTMLAttributes } from 'react';
 import { cn } from '../../lib/utils';
 
 const field =
-  'w-full rounded-[9px] border border-input bg-card px-3 text-sm text-foreground placeholder:text-muted-foreground focus:border-foreground/60 focus:outline-none focus:ring-2 focus:ring-foreground/10 disabled:opacity-60';
+  'w-full rounded-[9px] border border-input bg-card px-3 text-sm text-foreground placeholder:text-muted-foreground focus:border-foreground/60 disabled:opacity-60';
 
 export const Input = forwardRef<HTMLInputElement, InputHTMLAttributes<HTMLInputElement>>(
   function Input({ className, ...props }, ref) {

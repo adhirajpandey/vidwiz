@@ -10,6 +10,7 @@ import { formatClock } from '../../lib/format';
 import { LANDING_TITLE } from '../../lib/title';
 import { extractVideoId } from '../../lib/videoUtils';
 import Seo from '../../components/Seo';
+import { Tooltip } from '../../components/ui/Tooltip';
 import './landing.css';
 
 // Example content comes from a real library: Josh Kaufman's TEDxCSU talk and
@@ -147,9 +148,11 @@ export default function LandingPage() {
             <div className="links">
               <a href="#search">How it works</a>
               <a href="#pricing">Pricing</a>
-              <button type="button" className="theme" aria-label="Toggle theme" onClick={toggle}>
-                {theme === 'dark' ? <Sun className="size-4" /> : <Moon className="size-4" />}
-              </button>
+              <Tooltip label={theme === 'dark' ? 'Light theme' : 'Dark theme'} side="bottom">
+                <button type="button" className="theme" aria-label="Toggle theme" onClick={toggle}>
+                  {theme === 'dark' ? <Sun className="size-4" /> : <Moon className="size-4" />}
+                </button>
+              </Tooltip>
               <Link className="keep" to="/login">Log in</Link>
             </div>
             <Link className="btn yellow small" to="/signup">Start free</Link>

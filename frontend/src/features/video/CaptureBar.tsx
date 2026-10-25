@@ -10,6 +10,7 @@ import { PROFILE_KEY, useProfile } from '../../hooks/useProfile';
 import Button from '../../components/ui/Button';
 import { TextArea } from '../../components/ui/Input';
 import { Menu, MenuContent, MenuItem, MenuSeparator, MenuTrigger } from '../../components/ui/Menu';
+import { Tooltip } from '../../components/ui/Tooltip';
 import { formatClock } from '../../lib/format';
 import { cn } from '../../lib/utils';
 import { momentKeys } from '../moments/queries';
@@ -119,27 +120,30 @@ export default function CaptureBar({ videoId, currentTime, playhead, onView }: {
       onSubmit={event => { event.preventDefault(); void capture(aiDefault); }}
     >
       <div ref={group} className="flex min-w-0 flex-1">
-        <Button
-          type="submit"
-          variant="save"
-          disabled={!ready}
-          title={aiDefault ? (broke ? 'Saves without an AI line: no credits left' : 'Saves with an AI line, 1 credit') : 'Saves without an AI line'}
-          className="h-11 flex-1 justify-center rounded-r-none px-5 text-[15px]"
-        >
-          <span className="max-sm:hidden">Save moment{playhead !== null && ' at'}</span><span className="sm:hidden">Save</span>{playhead !== null && <span className="tabular">{formatClock(playhead)}</span>}
-          {shortcut.shortcut && <kbd className={`${kbd} hidden border-saved-foreground/35 sm:inline`}>{shortcut.shortcut}</kbd>}
-        </Button>
+        <Tooltip label={aiDefault ? (broke ? 'Saves without an AI line: no credits left' : 'Saves with an AI line, 1 credit') : 'Saves without an AI line'}>
+          <Button
+            type="submit"
+            variant="save"
+            disabled={!ready}
+            className="h-11 flex-1 justify-center rounded-r-none px-5 text-[15px]"
+          >
+            <span className="max-sm:hidden">Save moment{playhead !== null && ' at'}</span><span className="sm:hidden">Save</span>{playhead !== null && <span className="tabular">{formatClock(playhead)}</span>}
+            {shortcut.shortcut && <kbd className={`${kbd} hidden border-saved-foreground/35 sm:inline`}>{shortcut.shortcut}</kbd>}
+          </Button>
+        </Tooltip>
         <Menu onOpenChange={open => { if (open) setMenuWidth(group.current?.offsetWidth); }}>
-          <MenuTrigger asChild>
-            <Button
-              variant="save"
-              disabled={!ready}
-              aria-label="Choose how to save"
-              className="h-11 rounded-l-none border-l border-saved-foreground/20 px-2.5"
-            >
-              <ChevronDown className="size-4" />
-            </Button>
-          </MenuTrigger>
+          <Tooltip label="Save options">
+            <MenuTrigger asChild>
+              <Button
+                variant="save"
+                disabled={!ready}
+                aria-label="Save options"
+                className="h-11 rounded-l-none border-l border-saved-foreground/20 px-2.5"
+              >
+                <ChevronDown className="size-4" />
+              </Button>
+            </MenuTrigger>
+          </Tooltip>
           {/* As wide as the whole button, so the menu reads as part of it. */}
           <MenuContent className="min-w-64" style={{ width: menuWidth }}>
             <SaveOption label="With AI line" cost={aiCost} isDefault={aiDefault} shortcut={shortcut.shortcut} onSelect={() => void capture(true)} />
@@ -152,10 +156,12 @@ export default function CaptureBar({ videoId, currentTime, playhead, onView }: {
         </Menu>
       </div>
       {(
-        <Button ref={noteButton} variant="secondary" size="icon" aria-label={noteOpen ? 'Edit note' : 'Add note'} aria-expanded={noteOpen} title={noteOpen ? 'Edit note' : 'Add note'}
-          onClick={() => setNoteOpen(true)} className={cn('h-11 w-11 shrink-0', noteOpen && 'bg-muted')}>
-          <SquarePen className="size-[18px]" />
-        </Button>
+        <Tooltip label={noteOpen ? 'Edit note' : 'Add a note to the next save'}>
+          <Button ref={noteButton} variant="secondary" size="icon" aria-label={noteOpen ? 'Edit note' : 'Add note'} aria-expanded={noteOpen}
+            onClick={() => setNoteOpen(true)} className={cn('h-11 w-11 shrink-0', noteOpen && 'bg-muted')}>
+            <SquarePen className="size-[18px]" />
+          </Button>
+        </Tooltip>
       )}
     </form>
     </div>

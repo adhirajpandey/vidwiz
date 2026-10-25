@@ -145,7 +145,9 @@ Plain JavaScript modules, no bundler.
 - **Tooltips and cursors**: the brand, profile chip, video card, Save moment,
   its arrow ("Save options"), the note icon, the save menu items, time
   buttons, "…" ("Moment actions"), and the AI line mark ("AI-generated line")
-  have tooltips. Controls whose text already says what they do have none.
+  have tooltips, in the web app's inverted ink and semibold text. Controls
+  whose text already says what they do have none. Text fields show the same
+  2px focus outline as buttons.
   Tooltips show after a short hover or at once on keyboard focus, close on
   Escape, a click, or when the pointer leaves, and can be hovered. They sit
   outside the scrolling list, beside a menu rather than over its items, and

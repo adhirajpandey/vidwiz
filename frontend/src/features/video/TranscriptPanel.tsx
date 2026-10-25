@@ -5,6 +5,7 @@ import { useNotify } from '../../hooks/useNotify';
 import EmptyState from '../../components/ui/EmptyState';
 import ErrorState from '../../components/ui/ErrorState';
 import { Input } from '../../components/ui/Input';
+import { Tooltip } from '../../components/ui/Tooltip';
 import Spinner from '../../components/ui/Spinner';
 import { formatClock } from '../../lib/format';
 import { cn } from '../../lib/utils';
@@ -36,11 +37,11 @@ function Line({ segment, active, query, onSeek, signedIn, videoId }: {
       </button>
       <p className="flex-1 text-sm leading-6">{text}</p>
       {signedIn && (
+        <Tooltip label={saved ? 'Saved as a moment' : 'Save as a moment, free'} side="left">
         <button
           type="button"
           disabled={save.isPending || saved}
           aria-label={saved ? 'Saved as a moment' : 'Save line as a moment'}
-          title={saved ? 'Saved as a moment' : 'Save as a moment (free)'}
           onClick={() => save.mutate(
             { video_id: videoId, start_seconds: segment.start_seconds, end_seconds: segment.end_seconds },
             {
@@ -52,6 +53,7 @@ function Line({ segment, active, query, onSeek, signedIn, videoId }: {
         >
           {save.isPending ? <Loader2 className="size-3.5 animate-spin" /> : saved ? <BookmarkCheck className="size-3.5 text-accent" /> : <Bookmark className="size-3.5" />}
         </button>
+        </Tooltip>
       )}
     </li>
   );

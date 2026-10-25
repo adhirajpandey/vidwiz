@@ -69,6 +69,13 @@ Workers.
   panels does not. The list scrolls to an arrival once. State highlights
   (the playing transcript line, the open chat, the chosen sort, search
   matches, the new API token) follow their state and never fade.
+- Icon-only controls get a hint from the shared `Tooltip`
+  (`components/ui/Tooltip.tsx`, Radix): ink inverted from the theme, small
+  semibold text, shown after 400 ms of hover or at once on keyboard focus,
+  and closed by Escape. Focus returned by a click or a closing menu doesn't
+  show it. Controls whose text says what they do have none, and nothing uses
+  the browser's `title`. Fields and the chat composer share the buttons' 2px
+  focus outline.
 - Bricolage Grotesque everywhere, with tabular digits for times. Headings use
   the `display` utility (condensed and heavy).
 - Every paid action shows its cost: "Unlock for 5 credits" before the first
