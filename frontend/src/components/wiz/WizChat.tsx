@@ -147,7 +147,7 @@ export default function WizChat({ chat, isReady, suggestedQuestions, passages, s
         <div className="p-3 md:p-4 border-t border-border">
           <ComposerPrimitive.Root className="flex items-end gap-2 rounded-[12px] border border-input bg-card p-2 focus-within:border-foreground/60 has-[textarea:focus-visible]:outline-2 has-[textarea:focus-visible]:outline-offset-2 has-[textarea:focus-visible]:outline-accent">
             <ComposerPrimitive.Input aria-label="Message Wiz" placeholder={isReady ? copy.placeholder : 'Waiting for the transcript…'} submitMode="enter" rows={1} className="flex-1 min-w-0 max-h-36 resize-none bg-transparent px-2 py-2 text-sm outline-none placeholder:text-muted-foreground" />
-            <Tooltip label="Send"><ComposerPrimitive.Send aria-label="Send message" className="shrink-0 rounded-[9px] bg-accent text-accent-foreground p-2.5 hover:opacity-90 disabled:opacity-40 disabled:cursor-not-allowed"><ArrowUp className="size-4" /></ComposerPrimitive.Send></Tooltip>
+            <Tooltip label="Send"><ComposerPrimitive.Send aria-label="Send message" className="shrink-0 rounded-[9px] bg-accent text-accent-foreground p-2.5 hover:opacity-90 disabled:opacity-40"><ArrowUp className="size-4" /></ComposerPrimitive.Send></Tooltip>
           </ComposerPrimitive.Root>
           <p className="mt-2 text-center text-[11px] text-muted-foreground">{copy.footer}</p>
         </div>

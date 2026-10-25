@@ -2,6 +2,16 @@
 
 @custom-variant dark (&:where(.dark, .dark *));
 
+/* Hover styles never apply to disabled or busy controls, so they don't look
+   clickable. Same media query as Tailwind's own hover variant. */
+@custom-variant hover {
+  @media (hover: hover) {
+    &:not(:disabled, [aria-disabled="true"], [data-disabled]):hover {
+      @slot;
+    }
+  }
+}
+
 @theme {
   --font-sans: "Bricolage Grotesque", ui-sans-serif, system-ui, -apple-system, sans-serif;
   --font-mono: ui-monospace, SFMono-Regular, monospace;
@@ -104,6 +114,20 @@
   :focus-visible {
     outline: 2px solid hsl(var(--accent));
     outline-offset: 2px;
+  }
+
+  /* Anything that acts on a click shows a pointer, including its icons and
+     text; disabled controls keep the arrow. Text and fields keep the I-beam.
+     Zero specificity, so a component can still choose its own cursor. */
+  :where(a[href], button:enabled, summary, select:enabled, label[for],
+    input:is([type="checkbox"], [type="radio"]):enabled,
+    [role="button"], [role="tab"], [role="menuitem"], [role="menuitemradio"],
+    [role="menuitemcheckbox"], [role="option"]) {
+    cursor: pointer;
+  }
+
+  :where(:disabled, [aria-disabled="true"], [data-disabled]) {
+    cursor: default;
   }
 }
 

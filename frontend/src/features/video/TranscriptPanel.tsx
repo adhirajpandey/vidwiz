@@ -151,7 +151,7 @@ export default function TranscriptPanel({ videoId, playhead, onSeek, signedIn }:
         <Input value={query} onChange={event => setQuery(event.target.value)} placeholder="Find in transcript" aria-label="Find in transcript" className="h-9" />
         {!following && <button type="button" onClick={() => setFollowing(true)} className="shrink-0 rounded-md px-2 py-1 text-xs font-semibold text-accent hover:bg-accent-soft">Follow playback</button>}
       </div>
-      {needle.length >= 2 && <p className="px-1 text-xs text-muted-foreground tabular">{visible.length} matching lines</p>}
+      {needle.length >= 2 && <p className="cursor-default px-1 text-xs text-muted-foreground tabular">{visible.length} matching lines</p>}
       <div
         ref={scroller}
         role="region"

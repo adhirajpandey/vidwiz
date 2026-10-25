@@ -126,7 +126,7 @@ export default function TokensSection() {
         </ul>
       )}
       <details className="rounded-lg border border-border p-3 text-sm">
-        <summary className="cursor-pointer font-medium">Capture from your phone</summary>
+        <summary className="font-medium">Capture from your phone</summary>
         <div className="mt-3 space-y-2 text-muted-foreground">
           <p>Send the video title and current time from an automation (for example MacroDroid or iOS Shortcuts). VidWiz finds the video, saves the moment, and adds the AI line if your default is on.</p>
           <pre className="overflow-x-auto rounded-md bg-muted p-3 font-mono text-xs text-foreground">{phoneCaptureExample(config.API_URL)}</pre>

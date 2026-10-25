@@ -124,7 +124,7 @@ export default function Toast({
         {/* Close Button */}
         <button
           onClick={handleClose}
-          className="flex-shrink-0 w-6 h-6 -mt-0.5 -mr-0.5 rounded-md flex items-center justify-center text-foreground/40 hover:text-foreground hover:bg-foreground/5 transition-colors cursor-pointer"
+          className="flex-shrink-0 w-6 h-6 -mt-0.5 -mr-0.5 rounded-md flex items-center justify-center text-foreground/40 hover:text-foreground hover:bg-foreground/5 transition-colors"
           aria-label="Close"
         >
           <X className="w-4 h-4" />

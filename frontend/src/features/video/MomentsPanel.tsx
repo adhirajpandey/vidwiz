@@ -54,7 +54,7 @@ export default function MomentsPanel({ videoId, onSeek, arrival, onArrivalShown 
   return (
     <div>
       <div className="flex items-center justify-between pb-1">
-        <p className="text-xs text-muted-foreground tabular">{moments.data.length} {moments.data.length === 1 ? 'moment' : 'moments'}</p>
+        <p className="cursor-default text-xs text-muted-foreground tabular">{moments.data.length} {moments.data.length === 1 ? 'moment' : 'moments'}</p>
         <Button variant="ghost" size="sm" onClick={() => void exportVideo()} disabled={exporting}><Download className="size-3.5" />Markdown</Button>
       </div>
       <ul className="divide-y divide-border">

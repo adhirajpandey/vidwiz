@@ -80,7 +80,7 @@ export default function LibraryPage() {
     <div className="mx-auto max-w-3xl space-y-5">
       <PageTitle title="Library" />
       <div className="flex items-end justify-between gap-3">
-        <div><h1 className="display text-4xl">Library</h1>{total !== undefined && !link && <p className="mt-1 text-sm text-muted-foreground tabular">{q ? `${total} videos match “${q}”` : `${total} videos`}</p>}</div>
+        <div><h1 className="display text-4xl">Library</h1>{total !== undefined && !link && <p className="mt-1 cursor-default text-sm text-muted-foreground tabular">{q ? `${total} videos match “${q}”` : `${total} videos`}</p>}</div>
         <Tooltip label="Export Markdown"><Button size="sm" variant="ghost" aria-label="Export Markdown" onClick={() => void exportAll()} disabled={exporting}><Download className="size-4" /><span className="hidden sm:inline">Export</span></Button></Tooltip>
       </div>
       <div className="flex gap-2">

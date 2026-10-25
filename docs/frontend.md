@@ -76,6 +76,12 @@ Workers.
   show it. Controls whose text says what they do have none, and nothing uses
   the browser's `title`. Fields and the chat composer share the buttons' 2px
   focus outline.
+- Cursors follow what a thing does, from shared rules in `src/index.css`:
+  links and enabled controls (buttons, menu items, tabs, time chips, timeline
+  markers) show a pointer. Disabled or busy controls keep the arrow, and the
+  `hover` variant skips them, so they don't change on hover. Transcript,
+  answers, notes, and fields keep the text cursor; standalone counts, status
+  lines, and the landing page's example screens use the arrow.
 - Bricolage Grotesque everywhere, with tabular digits for times. Headings use
   the `display` utility (condensed and heavy).
 - Every paid action shows its cost: "Unlock for 5 credits" before the first
