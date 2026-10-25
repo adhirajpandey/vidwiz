@@ -163,6 +163,9 @@ Workers.
 - **Search links**: moment hits open Moments and highlight the saved moment;
   passage hits open Transcript. Playback requests made before player setup
   are queued and retain the existing lead-in and autoplay fallback.
+- **Playback help**: when YouTube reports blocked autoplay, the Press Play
+  help waits 500 ms and appears only if playback still has not started, so a
+  brief report does not push the controls below the player down.
 - **Command palette**: ⌘K / Ctrl+K searches, asks the library, opens a pasted
   YouTube link, or jumps to a page.
 - **PWA**: `public/manifest.webmanifest` with a share target; sharing a YouTube

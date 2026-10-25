@@ -74,10 +74,36 @@ describe('YouTube Watch behavior', () => {
     act(() => options.events.onReady());
     act(() => ref.current!.watch(83));
     act(() => options.events.onAutoplayBlocked());
+    act(() => vi.advanceTimersByTime(499));
+    expect(screen.queryByRole('status')).toBeNull();
+    act(() => vi.advanceTimersByTime(1));
     expect(screen.getByRole('status').textContent).toContain('Press Play');
     act(() => options.events.onError());
     expect(screen.getByRole('status').textContent).toContain('unavailable');
     expect(screen.getByRole('link').getAttribute('href')).toContain('t=81s');
+  });
+
+  it('skips blocked-autoplay help when playback starts or is already running', async () => {
+    const { ref, player } = await setup();
+    act(() => options.events.onReady());
+    act(() => ref.current!.watch(83));
+    act(() => options.events.onAutoplayBlocked());
+    act(() => { vi.advanceTimersByTime(200); options.events.onStateChange({ data: 1 }); });
+    act(() => vi.advanceTimersByTime(500));
+    expect(screen.queryByRole('status')).toBeNull();
+    player.getPlayerState.mockReturnValue(1);
+    act(() => { options.events.onAutoplayBlocked(); vi.advanceTimersByTime(500); });
+    expect(screen.queryByRole('status')).toBeNull();
+  });
+
+  it('cancels pending blocked-autoplay help when a new passage is requested', async () => {
+    const { ref } = await setup();
+    act(() => options.events.onReady());
+    act(() => ref.current!.watch(83));
+    act(() => options.events.onAutoplayBlocked());
+    act(() => { vi.advanceTimersByTime(300); ref.current!.watch(120); });
+    act(() => vi.advanceTimersByTime(300));
+    expect(screen.queryByRole('status')).toBeNull();
   });
 
   it('discards pending requests and callbacks when changing videos or unmounting', async () => {
