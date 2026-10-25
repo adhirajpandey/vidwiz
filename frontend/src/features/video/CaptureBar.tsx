@@ -6,7 +6,7 @@ import { momentsApi } from '../../api';
 import { useNotify } from '../../hooks/useNotify';
 import { PROFILE_KEY, useProfile } from '../../hooks/useProfile';
 import Button from '../../components/ui/Button';
-import { Input } from '../../components/ui/Input';
+import { TextArea } from '../../components/ui/Input';
 import { Menu, MenuContent, MenuItem, MenuSeparator, MenuTrigger } from '../../components/ui/Menu';
 import { formatClock } from '../../lib/format';
 import { cn } from '../../lib/utils';
@@ -17,9 +17,9 @@ const kbd = 'rounded-[5px] border-[1.5px] px-1.5 text-xs font-semibold';
 /**
  * Capture the current playback position with an optional note. Save follows the
  * AI line default from Settings; the arrow offers both ways, default checked.
- * S saves from anywhere on the page, Shift S the other way.
+ * Alt+S saves from the page using the configured default.
  */
-/** One way to save. The default is checked and has the plain S key; the other uses Shift S. */
+/** One way to save. The default is checked and shows the capture shortcut. */
 function SaveOption({ label, cost, isDefault, onSelect }: {
   label: string;
   cost: string;
@@ -31,9 +31,9 @@ function SaveOption({ label, cost, isDefault, onSelect }: {
       <Check className={cn('size-4 shrink-0', !isDefault && 'invisible')} aria-hidden="true" />
       <span className="flex-1 font-medium">{label}{isDefault && <span className="sr-only">, default</span>}</span>
       <span className="text-xs text-muted-foreground">{cost}</span>
-      <span className="hidden w-14 justify-end sm:flex">
-        <kbd className={`${kbd} border-border text-muted-foreground`}>{isDefault ? 'S' : 'Shift S'}</kbd>
-      </span>
+      {isDefault && <span className="hidden justify-end sm:flex">
+        <kbd className={`${kbd} border-border text-muted-foreground`}>Alt+S</kbd>
+      </span>}
     </MenuItem>
   );
 }
@@ -89,12 +89,12 @@ export default function CaptureBar({ videoId, currentTime, playhead, onView }: {
 
   useEffect(() => {
     const onKey = (event: KeyboardEvent) => {
-      if (event.key.toLowerCase() !== 's' || event.metaKey || event.ctrlKey || event.altKey) return;
+      if ((event.code !== 'KeyS' && event.key.toLowerCase() !== 's') || !event.altKey || event.metaKey || event.ctrlKey || event.shiftKey || event.isComposing || event.defaultPrevented) return;
       const target = event.target as HTMLElement;
       if (target.closest('input, textarea, [contenteditable="true"], [role="dialog"], [role="menu"]')) return;
       event.preventDefault();
       if (event.repeat) return;
-      void captureRef.current(event.shiftKey ? !aiDefault : aiDefault);
+      void captureRef.current(aiDefault);
     };
     document.addEventListener('keydown', onKey);
     return () => document.removeEventListener('keydown', onKey);
@@ -110,8 +110,12 @@ export default function CaptureBar({ videoId, currentTime, playhead, onView }: {
     )}
     {noteOpen && (
       <div className="space-y-1">
-        <Input value={note} onChange={event => setNote(event.target.value)} placeholder="Note (optional)" aria-label="Note for this moment" autoFocus className="h-11"
-          onKeyDown={event => { if (event.key === 'Escape') { setNote(''); setNoteOpen(false); noteButton.current?.focus(); } }} />
+        <TextArea rows={1} value={note} onChange={event => setNote(event.target.value)} placeholder="Note (optional)" aria-label="Note for this moment" autoFocus className="min-h-11"
+          onKeyDown={event => {
+            if (event.nativeEvent.isComposing) return;
+            if (event.key === 'Escape') { event.preventDefault(); setNote(''); setNoteOpen(false); noteButton.current?.focus(); }
+            else if (event.key === 'Enter' && !event.shiftKey) { event.preventDefault(); if (!event.repeat) void capture(aiDefault); }
+          }} />
         <div className="flex justify-end">
           <button type="button" onClick={() => { setNote(''); setNoteOpen(false); noteButton.current?.focus(); }} className="text-xs font-medium text-muted-foreground hover:text-foreground">Cancel note</button>
         </div>
@@ -131,7 +135,7 @@ export default function CaptureBar({ videoId, currentTime, playhead, onView }: {
           className="h-11 flex-1 justify-center rounded-r-none px-5 text-[15px]"
         >
           <span className="max-sm:hidden">Save moment{playhead !== null && ' at'}</span><span className="sm:hidden">Save</span>{playhead !== null && <span className="tabular">{formatClock(playhead)}</span>}
-          <kbd className={`${kbd} hidden border-saved-foreground/35 sm:inline`}>S</kbd>
+          <kbd className={`${kbd} hidden border-saved-foreground/35 sm:inline`}>Alt+S</kbd>
         </Button>
         <Menu onOpenChange={open => { if (open) setMenuWidth(group.current?.offsetWidth); }}>
           <MenuTrigger asChild>

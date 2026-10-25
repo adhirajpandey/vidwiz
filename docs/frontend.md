@@ -64,13 +64,19 @@ Workers.
 - Every paid action shows its cost: "Unlock for 5 credits" before the first
   question about a video, and the cost of each way to save in the save menu.
 - The note field starts collapsed; the pencil opens it, and Cancel note or
-  Escape closes it. Saving keeps the selected panel and shows an inline
+  Escape closes it. Enter saves the note with the moment; Shift+Enter adds a line.
+  Saving keeps the selected panel and shows an inline
   **View moment** toast action to open and highlight the saved moment.
 - Save moment is a split button. The main part follows the AI line default from
-  Settings. The arrow opens a menu listing both ways with their cost and key,
-  the default checked (S); the other is Shift S. Choosing one saves. At zero
+  Settings. Alt+S captures with that default, matching the extension. The arrow
+  opens a menu listing both ways with their cost; the default is checked and
+  shows Alt+S. Choosing one saves. At zero
   credits, the default AI save shows a notice and existing moments offer
   Get credits instead of Add AI line.
+  The capture shortcut ignores typing fields, menus, and dialogs. Browser
+  extension commands can reserve Alt+S before the page receives it; if that
+  happens, use Save or reassign the extension command at
+  `chrome://extensions/shortcuts`.
 
 ## Key Behavior
 - **Auth**: the JWT is stored in `localStorage`, validated on read, and sent by
@@ -101,7 +107,9 @@ Workers.
   Library rows separate channel, moment count, chats, activity, and the latest
   moment text. Feed groups follow capture order, with moments in video-time
   order inside each group. Quote-only moments keep their text preview.
-- **Moment actions**: deleting asks inline before making a request. Escape or
+- **Moment actions**: note editors use Enter to save, Shift+Enter for a new
+  line, and Escape to cancel, matching the extension. Deleting asks inline
+  before making a request. Escape or
   Cancel returns focus to the actions button. Only one row can edit a note or
   confirm deletion at a time; a failed delete stays open with a retry.
 - **Moments**: `MomentItem` shows the AI line, the user's note, the quote, and

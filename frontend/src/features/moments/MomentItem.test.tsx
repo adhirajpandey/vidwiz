@@ -21,6 +21,21 @@ function setup() {
   return user;
 }
 
+it('edits notes with Shift+Enter for a newline and Enter to save', async () => {
+  vi.mocked(momentsApi.update).mockResolvedValue({ id: 1 } as MomentRead);
+  const user = setup();
+  await user.click(screen.getAllByRole('button', { name: 'Moment actions' })[0]);
+  await user.click(screen.getByRole('menuitem', { name: 'Edit note' }));
+  await user.clear(screen.getByRole('textbox'));
+  await user.type(screen.getByRole('textbox'), 'First line');
+  await user.keyboard('{Shift>}{Enter}{/Shift}');
+  await user.type(screen.getByRole('textbox'), 'Second line');
+  expect(momentsApi.update).not.toHaveBeenCalled();
+  await user.keyboard('{Enter}');
+  await waitFor(() => expect(momentsApi.update).toHaveBeenCalledWith(1, { note: 'First line\nSecond line' }));
+  await waitFor(() => expect(screen.queryByRole('textbox')).toBeNull());
+});
+
 it('confirms before deleting, focuses Delete, and restores focus on Escape', async () => {
   const user = setup();
   const actions = screen.getAllByRole('button', { name: 'Moment actions' })[0];

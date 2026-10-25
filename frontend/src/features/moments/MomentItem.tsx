@@ -63,6 +63,7 @@ export default function MomentItem({ moment, onSeek, highlighted, showQuote = tr
   );
 
   const saveNote = () => {
+    if (update.isPending) return;
     update.mutate(
       { id: moment.id, body: { note: draft.trim() || null } },
       { onSuccess: stopEditing, onError: error => fail(error, 'The note could not be saved.') },
@@ -118,8 +119,9 @@ export default function MomentItem({ moment, onSeek, highlighted, showQuote = tr
                 aria-label="Your note"
                 placeholder="Add your note"
                 onKeyDown={event => {
-                  if (event.key === 'Enter' && (event.metaKey || event.ctrlKey)) saveNote();
-                  if (event.key === 'Escape') stopEditing();
+                  if (event.nativeEvent.isComposing) return;
+                  if (event.key === 'Enter' && !event.shiftKey) { event.preventDefault(); if (!event.repeat) saveNote(); }
+                  if (event.key === 'Escape') { event.preventDefault(); stopEditing(); }
                 }}
               />
               <div className="flex gap-2">
