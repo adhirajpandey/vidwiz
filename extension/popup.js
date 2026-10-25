@@ -467,7 +467,10 @@ async function renderMoments(tab, videoId) {
         void renderMoments(tab, videoId);
       });
       failed.append(retry);
+      // A failed Try again replaces its own button; keep focus on the new one.
+      const retrying = list.contains(document.activeElement);
       list.replaceChildren(failed);
+      if (retrying) retry.focus();
     }
     if (Date.now() < pollUntil) pollTimer = setTimeout(() => void renderMoments(tab, videoId), POLL_MS);
     return;
@@ -492,7 +495,8 @@ function paint(tab) {
   // Polling redraws every row; keep keyboard focus on the same control.
   const active = list.contains(document.activeElement) ? document.activeElement : null;
   const focusRow = active?.closest("li")?.dataset.momentId;
-  const focusKey = active?.dataset.focus;
+  // An open menu doesn't survive the redraw, so focus goes back to its "…" button.
+  const focusKey = active?.closest(".actions") ? "actions" : active?.dataset.focus;
   list.replaceChildren(...moments.map((moment) => momentRow(tab, moment)));
   if (focusRow && focusKey) list.querySelector(`li[data-moment-id="${focusRow}"] [data-focus="${focusKey}"]`)?.focus();
   list.classList.toggle("busy", busy());

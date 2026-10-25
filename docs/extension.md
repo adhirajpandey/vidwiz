@@ -135,8 +135,9 @@ Plain JavaScript modules, no bundler.
     app, only "Writing the AI line…" has a spinner, which stays still under
     reduced motion. The list refreshes every 3 seconds while an AI line is
     pending, for up to 3 minutes; each refresh keeps keyboard focus on the same
-    row and control. If the list fails before anything has loaded, it offers
-    Try again.
+    row and control, or on the row's "…" button if its menu was open. If the
+    list fails before anything has loaded, it offers Try again, which keeps
+    focus when it fails again.
 - **Tooltips and cursors**: the brand, profile chip, video card, Save moment,
   its arrow ("Save options"), the note icon, the save menu items, time
   buttons, "…" ("Moment actions"), and the AI line mark ("AI-generated line")
