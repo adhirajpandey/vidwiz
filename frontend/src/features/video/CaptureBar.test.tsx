@@ -57,3 +57,23 @@ it('starts with notes collapsed, shows the credit notice, and offers View withou
   expect(onView).toHaveBeenCalledWith(42);
   expect(screen.queryByRole('textbox')).toBeNull();
 });
+
+
+it('never captures at a guessed timestamp before the player is ready', async () => {
+  render(<QueryClientProvider client={new QueryClient()}><MemoryRouter><CaptureBar videoId="aaaaaaaaaaa" playhead={null} currentTime={() => null} /></MemoryRouter></QueryClientProvider>);
+  expect(screen.getByRole('button', { name: /Save moment/ }).hasAttribute('disabled')).toBe(true);
+  await act(async () => fireEvent.keyDown(document.body, { key: 's', altKey: true }));
+  expect(momentsApi.capture).not.toHaveBeenCalled();
+});
+
+it('shares one in-flight save between the shortcut and the Save button', async () => {
+  renderCapture();
+  let finish!: (value: Awaited<ReturnType<typeof momentsApi.capture>>) => void;
+  vi.mocked(momentsApi.capture).mockImplementation(() => new Promise(resolve => { finish = resolve; }));
+  await act(async () => {
+    fireEvent.keyDown(document.body, { key: 's', altKey: true });
+    fireEvent.submit(screen.getByRole('button', { name: /Save moment/ }).closest('form')!);
+  });
+  expect(momentsApi.capture).toHaveBeenCalledTimes(1);
+  await act(async () => finish({ moment: { id: 42 }, merged: false } as Awaited<ReturnType<typeof momentsApi.capture>>));
+});

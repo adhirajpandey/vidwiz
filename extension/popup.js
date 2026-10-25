@@ -486,7 +486,7 @@ const fitNote = () => fit($("note"));
 
 async function shortcutLabel() {
   const commands = await chrome.commands.getAll();
-  return commands.find((command) => command.name === "capture-moment")?.shortcut || "Alt+S";
+  return commands.find((command) => command.name === "capture-moment")?.shortcut ?? "";
 }
 
 /** The save options menu beside Save moment, as in the web app. */
@@ -567,7 +567,9 @@ async function init() {
   onClick("profile", () => openTab("/settings"));
   onClick("brand", () => openTab("/"));
   $("login").addEventListener("click", () => openTab("/login"));
-  $("shortcut").textContent = await shortcutLabel();
+  const shortcut = await shortcutLabel();
+  $("shortcut").textContent = shortcut;
+  if (!shortcut) $("shortcut-help").textContent = "Use this popup to save the moment. Assign Capture the current moment at chrome://extensions/shortcuts to use a keyboard shortcut.";
 
   if (!(await getToken())) {
     showLogin();
