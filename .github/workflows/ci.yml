@@ -155,8 +155,8 @@ jobs:
       - name: Build Frontend
         run: pnpm build
 
-      - name: Test Extension Builder
-        run: node --test ../extension/output.test.mjs
+      - name: Test Extension
+        run: node --test ../extension/output.test.mjs ../extension/capture-bridge.test.mjs
 
       - name: Upload Frontend Build
         if: github.event_name != 'pull_request'

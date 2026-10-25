@@ -14,6 +14,7 @@ Plain JavaScript modules, no bundler.
   Shared by the popup and the background worker.
 - `background.js` (module service worker): login and logout sync from the web
   app, the Alt+S capture, and opening the web app on first install.
+- `capture-bridge.js`: the web capture connection and command acknowledgements.
 - `content.js`: reads the video ID (`/watch?v=` and `/shorts/`), title, channel, and
   current time from the main player, and whether an ad is playing; seeks the
   player; shows a toast in a shadow root. The toast sits inside the player, top
@@ -44,6 +45,18 @@ Plain JavaScript modules, no bundler.
   saves nothing and says to wait for the ad to end. Without a login it opens
   the web login page, at most once a minute. On a YouTube video tab that has no
   content script yet, it shows a red `!` badge whose tooltip asks for a reload.
+- **Capture on the web** (3.0.1+): a signed-in web video page opens a named
+  runtime connection through the existing `externally_connectable` origin.
+  Capabilities and connections require the exact origin, a tab ID, and frame
+  zero. The background worker forwards the capture command to the active
+  VidWiz video tab; the web page uses its own player time, session, draft,
+  and AI default to save. Other web routes do nothing. A video page without
+  a connection gets a reload badge. YouTube capture still uses the content
+  script and the extension API client.
+  The handshake reports `commands.getAll()`'s actual shortcut; an empty
+  assignment stays empty. Commands wait for their acknowledgement or a
+  30-second timeout before another can be sent. A timeout never retries the
+  save. Replaced or disconnected ports cannot receive new captures.
 - **Popup**: shows the login view, an idle view off YouTube videos, a reload
   view on video tabs without the content script, or the capture view.
   - The video card opens the video in VidWiz. It shows a 64×36 thumbnail,
@@ -166,3 +179,20 @@ Bricolage Grotesque from `fonts/` (latin subset, SIL Open Font License), so
 the popup makes no font request. The on-page toast copies the web app's
 toast with system fonts. `build.mjs` copies `icons/` and `fonts/`.
 See [Brand assets](branding.md) for regeneration.
+
+## Capture bridge release and validation
+
+Deploy web bridge support before releasing extension 3.0.1. Older extensions
+still reserve their shortcut and cannot forward it to the web; update the
+extension, then reload the video page. No backend release or additional host
+permissions are needed. Standalone web shortcuts cannot receive keys while
+the cross-origin YouTube iframe has focus.
+
+Run `node --test extension/output.test.mjs extension/capture-bridge.test.mjs`
+and the frontend capture shortcut and CaptureBar tests. Browser acceptance
+must use Chrome with the new unpacked extension and a matching web build:
+check YouTube and web capture, two video tabs, iframe focus, editing, menus,
+remapped and unassigned shortcuts, worker restart, page navigation, and the
+extension disabled. Confirm each accepted command saves once at the current
+player time. Use a test account and mocked capture responses for browser
+checks; do not create production moments as test fixtures.

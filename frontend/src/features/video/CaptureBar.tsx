@@ -1,8 +1,10 @@
-import { useEffect, useRef, useState } from 'react';
+import { useRef, useState } from 'react';
 import { Link } from 'react-router-dom';
 import { useQueryClient } from '@tanstack/react-query';
 import { Check, ChevronDown, Coins, Settings, SquarePen } from 'lucide-react';
 import { momentsApi } from '../../api';
+import { useCaptureShortcut } from '../../hooks/useCaptureShortcut';
+import type { CaptureOutcome } from '../../hooks/useCaptureShortcut';
 import { useNotify } from '../../hooks/useNotify';
 import { PROFILE_KEY, useProfile } from '../../hooks/useProfile';
 import Button from '../../components/ui/Button';
@@ -14,16 +16,12 @@ import { momentKeys } from '../moments/queries';
 
 const kbd = 'rounded-[5px] border-[1.5px] px-1.5 text-xs font-semibold';
 
-/**
- * Capture the current playback position with an optional note. Save follows the
- * AI line default from Settings; the arrow offers both ways, default checked.
- * Alt+S saves from the page using the configured default.
- */
 /** One way to save. The default is checked and shows the capture shortcut. */
-function SaveOption({ label, cost, isDefault, onSelect }: {
+function SaveOption({ label, cost, isDefault, shortcut, onSelect }: {
   label: string;
   cost: string;
   isDefault: boolean;
+  shortcut: string | null;
   onSelect: () => void;
 }) {
   return (
@@ -31,13 +29,14 @@ function SaveOption({ label, cost, isDefault, onSelect }: {
       <Check className={cn('size-4 shrink-0', !isDefault && 'invisible')} aria-hidden="true" />
       <span className="flex-1 font-medium">{label}{isDefault && <span className="sr-only">, default</span>}</span>
       <span className="text-xs text-muted-foreground">{cost}</span>
-      {isDefault && <span className="hidden justify-end sm:flex">
-        <kbd className={`${kbd} border-border text-muted-foreground`}>Alt+S</kbd>
+      {isDefault && shortcut && <span className="hidden justify-end sm:flex">
+        <kbd className={`${kbd} border-border text-muted-foreground`}>{shortcut}</kbd>
       </span>}
     </MenuItem>
   );
 }
 
+/** Save the player position with the current draft and AI line default. */
 export default function CaptureBar({ videoId, currentTime, playhead, onView }: {
   videoId: string;
   currentTime: () => number | null;
@@ -55,16 +54,18 @@ export default function CaptureBar({ videoId, currentTime, playhead, onView }: {
   const queryClient = useQueryClient();
   const notify = useNotify();
   // Saving waits for the profile, so a save never guesses the AI line default.
-  const ready = profile.data !== undefined && !saving;
+  const ready = profile.data !== undefined && playhead !== null && !saving;
   const aiDefault = profile.data?.ai_moments_default ?? false;
   const balance = profile.data?.credits_balance;
   const broke = balance === 0;
   const aiCost = broke ? 'No credits' : '1 credit';
 
-  const capture = async (ai: boolean) => {
-    if (!ready || savingRef.current) return;
+  const capture = async (ai: boolean): Promise<CaptureOutcome> => {
+    if (!ready || savingRef.current) return 'ignored';
+    const seconds = currentTime();
+    if (seconds === null || !Number.isFinite(seconds) || seconds < 0) return 'ignored';
     savingRef.current = true;
-    const at = Math.floor(currentTime() ?? 0);
+    const at = Math.floor(seconds);
     setSaving(true);
     try {
       const result = await momentsApi.capture({
@@ -77,28 +78,16 @@ export default function CaptureBar({ videoId, currentTime, playhead, onView }: {
       void queryClient.invalidateQueries({ queryKey: PROFILE_KEY });
       const title = result.merged ? 'Added to a nearby moment' : `Moment saved at ${formatClock(at)}`;
       notify.success(title, '', { label: 'View moment', onClick: () => onView?.(result.moment.id) });
+      return 'saved';
     } catch (cause) {
       notify.error(cause, 'Moment not saved', 'The moment could not be saved.');
+      return 'failed';
     } finally {
       savingRef.current = false;
       setSaving(false);
     }
   };
-  const captureRef = useRef(capture);
-  captureRef.current = capture;
-
-  useEffect(() => {
-    const onKey = (event: KeyboardEvent) => {
-      if ((event.code !== 'KeyS' && event.key.toLowerCase() !== 's') || !event.altKey || event.metaKey || event.ctrlKey || event.shiftKey || event.isComposing || event.defaultPrevented) return;
-      const target = event.target as HTMLElement;
-      if (target.closest('input, textarea, [contenteditable="true"], [role="dialog"], [role="menu"]')) return;
-      event.preventDefault();
-      if (event.repeat) return;
-      void captureRef.current(aiDefault);
-    };
-    document.addEventListener('keydown', onKey);
-    return () => document.removeEventListener('keydown', onKey);
-  }, [aiDefault]);
+  const shortcut = useCaptureShortcut(() => capture(aiDefault));
 
   return (
     <div className="space-y-2">
@@ -108,6 +97,9 @@ export default function CaptureBar({ videoId, currentTime, playhead, onView }: {
         <Link to="/settings#credits" className="font-semibold underline decoration-foreground/30 underline-offset-4 hover:decoration-foreground">Get credits</Link>
       </p>
     )}
+    {shortcut.state === 'outdated' && <p className="text-xs text-muted-foreground">Update the VidWiz extension to use its capture shortcut here. You can still use Save.</p>}
+    {shortcut.state === 'disconnected' && <p className="text-xs text-muted-foreground">The extension shortcut is unavailable. Reload this page or use Save.</p>}
+    {shortcut.state === 'connected' && !shortcut.shortcut && <p className="text-xs text-muted-foreground">No capture shortcut is assigned. Set Capture the current moment at <code>chrome://extensions/shortcuts</code>.</p>}
     {noteOpen && (
       <div className="space-y-1">
         <TextArea rows={1} value={note} onChange={event => setNote(event.target.value)} placeholder="Note (optional)" aria-label="Note for this moment" autoFocus className="min-h-11"
@@ -135,7 +127,7 @@ export default function CaptureBar({ videoId, currentTime, playhead, onView }: {
           className="h-11 flex-1 justify-center rounded-r-none px-5 text-[15px]"
         >
           <span className="max-sm:hidden">Save moment{playhead !== null && ' at'}</span><span className="sm:hidden">Save</span>{playhead !== null && <span className="tabular">{formatClock(playhead)}</span>}
-          <kbd className={`${kbd} hidden border-saved-foreground/35 sm:inline`}>Alt+S</kbd>
+          {shortcut.shortcut && <kbd className={`${kbd} hidden border-saved-foreground/35 sm:inline`}>{shortcut.shortcut}</kbd>}
         </Button>
         <Menu onOpenChange={open => { if (open) setMenuWidth(group.current?.offsetWidth); }}>
           <MenuTrigger asChild>
@@ -150,8 +142,8 @@ export default function CaptureBar({ videoId, currentTime, playhead, onView }: {
           </MenuTrigger>
           {/* As wide as the whole button, so the menu reads as part of it. */}
           <MenuContent className="min-w-64" style={{ width: menuWidth }}>
-            <SaveOption label="With AI line" cost={aiCost} isDefault={aiDefault} onSelect={() => void capture(true)} />
-            <SaveOption label="Without AI line" cost="Free" isDefault={!aiDefault} onSelect={() => void capture(false)} />
+            <SaveOption label="With AI line" cost={aiCost} isDefault={aiDefault} shortcut={shortcut.shortcut} onSelect={() => void capture(true)} />
+            <SaveOption label="Without AI line" cost="Free" isDefault={!aiDefault} shortcut={shortcut.shortcut} onSelect={() => void capture(false)} />
             <MenuSeparator />
             <MenuItem asChild className="text-xs text-muted-foreground">
               <Link to="/settings#account"><Settings className="size-4" />Change default in Settings</Link>

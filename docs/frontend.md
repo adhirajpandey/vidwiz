@@ -68,15 +68,24 @@ Workers.
   Saving keeps the selected panel and shows an inline
   **View moment** toast action to open and highlight the saved moment.
 - Save moment is a split button. The main part follows the AI line default from
-  Settings. Alt+S captures with that default, matching the extension. The arrow
-  opens a menu listing both ways with their cost; the default is checked and
-  shows Alt+S. Choosing one saves. At zero
+  Settings. The capture shortcut saves with that default. The arrow opens a
+  menu listing both ways with their cost; the default is checked and shows the
+  current shortcut. Choosing one saves. At zero
   credits, the default AI save shows a notice and existing moments offer
   Get credits instead of Add AI line.
-  The capture shortcut ignores typing fields, menus, and dialogs. Browser
-  extension commands can reserve Alt+S before the page receives it; if that
-  happens, use Save or reassign the extension command at
-  `chrome://extensions/shortcuts`.
+  Saves wait for a ready player and never guess a timestamp.
+- **Capture shortcut**: without the extension, Alt+S works while focus is in
+  the web page. With extension 3.0.1 or newer, `useCaptureShortcut` opens a
+  `vidwiz-capture-v1` runtime connection. The extension forwards its command
+  only to the active video tab, including while the YouTube iframe has focus.
+  Both paths use the same Save action, AI default, note draft, and feedback.
+  Typing fields, menus, dialogs, and hidden tabs ignore shortcut captures.
+  The connected web page shows the extension's assigned shortcut, including
+  remapping or no assignment. Focus refreshes that assignment. An older
+  extension shows an update hint; Save remains available.
+  Disconnects retry with bounded backoff and recover on focus or visibility
+  changes. Acknowledgements release pending commands; neither side replays a
+  capture after timeout, navigation, or reconnect.
 
 ## Key Behavior
 - **Auth**: the JWT is stored in `localStorage`, validated on read, and sent by

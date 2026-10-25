@@ -85,6 +85,7 @@ describe("build.mjs", () => {
     const manifest = JSON.parse(readFileSync(join(out, "manifest.json"), "utf8"));
     assert.equal(manifest.name, "VidWiz");
     assert.ok(existsSync(join(out, "config.js")));
+    assert.ok(existsSync(join(out, "capture-bridge.js")));
   });
 
   it("exits without deleting a folder that is not a build", () => {
