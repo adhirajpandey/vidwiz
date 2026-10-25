@@ -226,6 +226,12 @@ pages pass the result to `Seo`, and signed-in pages use `PageTitle`.
 - Search uses `"<query>" · Search · VidWiz` with curly quotes.
 
 Chat controls are called **New chat** and **Chat history** everywhere.
+Library Ask lists its chats in a sidebar on wide screens. Below 1024px the
+same chats open from a Chat history menu in the chat header, the component
+video Ask uses (`features/chat/ChatHistoryMenu.tsx`). The open chat is marked
+with `aria-current` in both. On phones the "Ask your library" title is
+visually hidden to fit both controls; it stays the page heading for screen
+readers.
 
 Every scrolling area uses the slim, theme-colored scrollbar defined in
 `src/index.css`. A component can still hide it with a utility, as the tab strip

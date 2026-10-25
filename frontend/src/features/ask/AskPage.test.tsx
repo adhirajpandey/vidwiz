@@ -1,5 +1,6 @@
 // @vitest-environment jsdom
-import { cleanup, render, screen } from '@testing-library/react';
+import { cleanup, render, screen, within } from '@testing-library/react';
+import userEvent from '@testing-library/user-event';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { MemoryRouter } from 'react-router-dom';
 import { afterEach, describe, expect, it, vi } from 'vitest';
@@ -7,19 +8,22 @@ import type { WizMessage } from '../../hooks/useWizChat';
 import AskPage from './AskPage';
 
 let messages: WizMessage[] = [];
+let conversations: { id: number; title: string; last_message_at: string }[] = [];
+let conversationId: number | null = null;
+const resume = vi.fn();
 vi.mock('../../api', () => ({
-  conversationsApi: { list: () => Promise.resolve({ conversations: [] }) },
+  conversationsApi: { list: () => Promise.resolve({ conversations }) },
   videosApi: { getVideo: () => Promise.resolve(null) },
 }));
 vi.mock('../../hooks/useWizChat', () => ({
-  useWizChat: () => ({ messages, conversationId: null, isSendDisabled: true }),
+  useWizChat: () => ({ messages, conversationId, isSendDisabled: true, resume }),
 }));
 vi.mock('../chat/usePassageActions', () => ({ usePassageActions: () => ({}) }));
-vi.mock('../../components/wiz/WizChat', () => ({ default: () => null }));
+vi.mock('../../components/wiz/WizChat', () => ({ default: ({ header }: { header: React.ReactNode }) => <div data-testid="chat-header">{header}</div> }));
 vi.mock('../../components/PageTitle', () => ({
   default: ({ title }: { title: string }) => <output data-testid="title">{title}</output>,
 }));
-afterEach(() => { cleanup(); messages = []; });
+afterEach(() => { cleanup(); messages = []; conversations = []; conversationId = null; resume.mockClear(); });
 
 const message = (role: WizMessage['role'], text: string): WizMessage => ({
   id: text, role, parts: [{ type: 'text', text }], createdAt: new Date(),
@@ -51,5 +55,27 @@ describe('library chat tab title', () => {
     setup();
     expect(screen.getByRole('button', { name: 'New chat' })).toBeTruthy();
     expect(screen.getByRole('complementary', { name: 'Chat history' })).toBeTruthy();
+  });
+});
+
+describe('library chat history below desktop width', () => {
+  it('offers the sidebar chats as a menu, marks the open chat, and keeps the heading', async () => {
+    const user = userEvent.setup();
+    conversations = [
+      { id: 1, title: 'Staying focused', last_message_at: new Date().toISOString() },
+      { id: 2, title: 'Learning faster', last_message_at: new Date().toISOString() },
+    ];
+    conversationId = 2;
+    setup();
+    const header = screen.getByTestId('chat-header');
+    expect(within(header).getByRole('heading', { level: 1, name: 'Ask your library' })).toBeTruthy();
+    const sidebar = screen.getByRole('complementary', { name: 'Chat history' });
+    expect((await within(sidebar).findByRole('button', { name: /Learning faster/ })).getAttribute('aria-current')).toBe('true');
+
+    await user.click(within(header).getByRole('button', { name: 'Chat history' }));
+    const items = screen.getAllByRole('menuitem');
+    expect(items.map(item => item.getAttribute('aria-current'))).toEqual([null, 'true']);
+    await user.click(items[0]);
+    expect(resume).toHaveBeenCalledWith(1);
   });
 });

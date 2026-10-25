@@ -1,17 +1,15 @@
 import { useState } from 'react';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
-import { History, Lock, Sparkles } from 'lucide-react';
+import { Lock, Sparkles } from 'lucide-react';
 import { conversationsApi } from '../../api';
 import type { VideoRead } from '../../api';
 import { PROFILE_KEY, useProfile } from '../../hooks/useProfile';
 import { useWizChat } from '../../hooks/useWizChat';
 import WizChat from '../../components/wiz/WizChat';
 import Button from '../../components/ui/Button';
-import { Menu, MenuContent, MenuItem, MenuTrigger } from '../../components/ui/Menu';
 import ErrorState from '../../components/ui/ErrorState';
 import Spinner from '../../components/ui/Spinner';
-import { formatRelative } from '../../lib/format';
-import { cn } from '../../lib/utils';
+import ChatHistoryMenu from '../chat/ChatHistoryMenu';
 import ChatLimitNotice from '../chat/ChatLimitNotice';
 import { usePassageActions } from '../chat/usePassageActions';
 import { useAskStatus, videoKeys } from './queries';
@@ -43,22 +41,7 @@ function ChatHistory({ videoId, activeId, onPick }: { videoId: string; activeId:
     queryKey: ['conversations', 'video', videoId],
     queryFn: () => conversationsApi.list({ scope: 'video', video_id: videoId, per_page: 10 }),
   });
-  if (!chats.data?.conversations.length) return null;
-  return (
-    <Menu>
-      <MenuTrigger asChild>
-        <Button variant="ghost" size="sm"><History className="size-3.5" />Chat history</Button>
-      </MenuTrigger>
-      <MenuContent className="w-72 max-h-80 overflow-y-auto" align="start">
-        {chats.data.conversations.map(chat => (
-          <MenuItem key={chat.id} onSelect={() => onPick(chat.id)} aria-current={chat.id === activeId || undefined} className={cn('flex-col items-start gap-0.5', chat.id === activeId && 'bg-muted')}>
-            <span className="line-clamp-1">{chat.title}</span>
-            <span className="text-xs text-muted-foreground">{formatRelative(chat.last_message_at)}</span>
-          </MenuItem>
-        ))}
-      </MenuContent>
-    </Menu>
-  );
+  return <ChatHistoryMenu chats={chats.data?.conversations} activeId={activeId} onPick={onPick} />;
 }
 
 export default function AskPanel({ video, seek, signedIn, resumeId, onConversation, draft }: {

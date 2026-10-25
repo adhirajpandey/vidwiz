@@ -130,7 +130,7 @@ export default function WizChat({ chat, isReady, suggestedQuestions, passages, s
       <ThreadPrimitive.Root className={cn('flex min-h-0 flex-col overflow-hidden', className)}>
         <div className="flex min-h-11 items-center justify-between gap-2 px-3 py-1.5 border-b border-border">
           {header ?? <div className="flex items-center gap-2"><Sparkles className="size-4" /><h2 className="text-sm font-bold">Ask</h2></div>}
-          {chat.messages.length > 0 && <button type="button" onClick={chat.newChat} className="inline-flex items-center gap-1.5 rounded-lg px-2.5 py-1.5 text-xs text-muted-foreground hover:text-foreground hover:bg-muted"><MessageSquarePlus className="size-4 shrink-0" />New chat</button>}
+          {chat.messages.length > 0 && <button type="button" onClick={chat.newChat} className="inline-flex shrink-0 items-center gap-1.5 whitespace-nowrap rounded-lg px-2.5 py-1.5 text-xs text-muted-foreground hover:text-foreground hover:bg-muted"><MessageSquarePlus className="size-4 shrink-0" />New chat</button>}
         </div>
         {statusBanner}
         <div className="relative flex flex-1 min-h-0 flex-col">
