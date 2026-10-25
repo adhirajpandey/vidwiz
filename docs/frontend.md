@@ -168,7 +168,9 @@ Workers.
   resumes it. Searching suspends centering.
   The panel recenters on seeks, tab entry, and size changes while following,
   without scrolling the page. It also filters by text and saves any line as a
-  moment.
+  moment. The save button is a 32px target that appears on hover or keyboard
+  focus within the line on desktop and is always shown on touch screens; a
+  saved line keeps its mark.
 - Overview questions fill the Ask composer without sending. Locked videos show
   the question above the unlock action and retain it after unlocking.
 - Ask initializes only when its tab is first opened. It stays mounted after

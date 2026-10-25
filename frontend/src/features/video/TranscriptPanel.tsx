@@ -37,22 +37,24 @@ function Line({ segment, active, query, onSeek, signedIn, videoId }: {
       </button>
       <p className="flex-1 text-sm leading-6">{text}</p>
       {signedIn && (
+        // A 32px target that keeps the line's height. Desktop shows it on hover or focus in the
+        // line; touch screens always show it. A saved line keeps its mark.
         <Tooltip label={saved ? 'Saved as a moment' : 'Save as a moment, free'} side="left">
-        <button
-          type="button"
-          disabled={save.isPending || saved}
-          aria-label={saved ? 'Saved as a moment' : 'Save line as a moment'}
-          onClick={() => save.mutate(
-            { video_id: videoId, start_seconds: segment.start_seconds, end_seconds: segment.end_seconds },
-            {
-              onSuccess: () => setSaved(true),
-              onError: error => notify.error(error, 'Line not saved', 'The line could not be saved.'),
-            },
-          )}
-          className={cn('rounded-md p-1 text-muted-foreground hover:bg-muted hover:text-foreground', !saved && 'opacity-0 group-hover:opacity-100 focus:opacity-100')}
-        >
-          {save.isPending ? <Loader2 className="size-3.5 animate-spin" /> : saved ? <BookmarkCheck className="size-3.5 text-accent" /> : <Bookmark className="size-3.5" />}
-        </button>
+          <button
+            type="button"
+            disabled={save.isPending || saved}
+            aria-label={saved ? 'Saved as a moment' : 'Save line as a moment'}
+            onClick={() => save.mutate(
+              { video_id: videoId, start_seconds: segment.start_seconds, end_seconds: segment.end_seconds },
+              {
+                onSuccess: () => setSaved(true),
+                onError: error => notify.error(error, 'Line not saved', 'The line could not be saved.'),
+              },
+            )}
+            className={cn('-my-1 grid size-8 shrink-0 place-items-center rounded-md text-muted-foreground hover:bg-muted hover:text-foreground', !saved && 'opacity-0 group-hover:opacity-100 group-focus-within:opacity-100 pointer-coarse:opacity-100')}
+          >
+            {save.isPending ? <Loader2 className="size-3.5 animate-spin" /> : saved ? <BookmarkCheck className="size-3.5 text-accent" /> : <Bookmark className="size-3.5" />}
+          </button>
         </Tooltip>
       )}
     </li>
