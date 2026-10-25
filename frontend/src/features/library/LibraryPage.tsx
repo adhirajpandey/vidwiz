@@ -29,7 +29,7 @@ export default function LibraryPage() {
   const page = Math.max(1, Math.floor(Number(params.get('page')) || 1));
   const q = params.get('q') ?? '';
   const [input, setInput] = useState({ query: q, value: q });
-  if (input.query !== q) setInput({ query: q, value: q });
+  if (input.query !== q) setInput({ query: q, value: input.value.trim() === q ? input.value : q });
   const filter = input.value;
   const link = looksLikeLink(filter) ? filter.trim() : null;
   const pasted = link ? extractVideoId(link) : null;
