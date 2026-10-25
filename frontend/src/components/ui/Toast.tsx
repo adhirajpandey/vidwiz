@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import { Check, X, AlertCircle } from 'lucide-react';
 
 interface ToastProps {
@@ -26,6 +26,12 @@ export default function Toast({
 }: ToastProps) {
   const [isExiting, setIsExiting] = useState(false);
   const [progress, setProgress] = useState(100);
+  // The countdown pauses while the pointer is over the toast or focus is in it,
+  // so its action and close button never expire mid-use.
+  const [hovered, setHovered] = useState(false);
+  const [focused, setFocused] = useState(false);
+  const duration = durationMs ?? (type === 'error' ? 6000 : 4000);
+  const remaining = useRef(duration);
 
   const handleClose = useCallback(() => {
     setIsExiting(true);
@@ -35,24 +41,19 @@ export default function Toast({
   }, [id, onClose]);
 
   useEffect(() => {
-    // Progress bar animation
-    const duration = durationMs ?? (type === 'error' ? 6000 : 4000);
-    const interval = 50;
-    const decrement = (interval / duration) * 100;
-    
-    const progressTimer = setInterval(() => {
-      setProgress((prev) => Math.max(0, prev - decrement));
-    }, interval);
-
-    const closeTimer = setTimeout(() => {
-      handleClose();
-    }, duration);
-
-    return () => {
-      clearInterval(progressTimer);
-      clearTimeout(closeTimer);
-    };
-  }, [durationMs, handleClose, type]);
+    if (hovered || focused) return;
+    const startedAt = Date.now();
+    const startRemaining = remaining.current;
+    const timer = setInterval(() => {
+      remaining.current = Math.max(0, startRemaining - (Date.now() - startedAt));
+      setProgress((remaining.current / duration) * 100);
+      if (remaining.current === 0) {
+        clearInterval(timer);
+        handleClose();
+      }
+    }, 50);
+    return () => clearInterval(timer);
+  }, [duration, handleClose, hovered, focused]);
 
   const typeConfig = {
     success: {
@@ -90,11 +91,16 @@ export default function Toast({
           : 'opacity-100 translate-x-0 scale-100'
         }
       `}
-      role="alert"
+      // Errors interrupt; confirmations and notes wait for a pause.
+      role={type === 'error' ? 'alert' : 'status'}
+      onMouseEnter={() => setHovered(true)}
+      onMouseLeave={() => setHovered(false)}
+      onFocus={() => setFocused(true)}
+      onBlur={event => { if (!event.currentTarget.contains(event.relatedTarget)) setFocused(false); }}
     >
       <div className="flex items-start gap-3 p-4">
         {/* Icon */}
-        <div className={`flex-shrink-0 w-6 h-6 rounded-full ${config.iconBg} flex items-center justify-center text-white`}>
+        <div className={`flex-shrink-0 w-6 h-6 rounded-full ${config.iconBg} flex items-center justify-center text-background`}>
           {config.icon}
         </div>
 
