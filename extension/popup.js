@@ -1,4 +1,5 @@
 import { ApiError, MESSAGES, api, capture, formatClock, getToken, isVideoUrl, playFrom, webUrl } from "./api.js";
+import { ARRIVAL_HOLD_MS, arrivalPhase } from "./arrival.js";
 import { tooltip } from "./tooltip.js";
 
 const $ = (id) => document.getElementById(id);
@@ -124,7 +125,7 @@ function momentRow(tab, moment) {
   const start = playFrom(moment);
   const item = document.createElement("li");
   item.dataset.momentId = String(moment.id);
-  item.classList.toggle("highlighted", moment.id === highlightId);
+  if (moment.id === highlightId) showArrival(item);
   item.classList.toggle("editing", moment.id === editingId);
   item.classList.toggle("confirming", moment.id === confirmingId);
   const time = document.createElement("button");
@@ -407,7 +408,7 @@ function deleteConfirm(tab, moment) {
     try {
       await api(`/moments/${moment.id}`, { method: "DELETE" });
       lastMoments = lastMoments.filter((item) => item.id !== moment.id);
-      if (highlightId === moment.id) highlightId = null;
+      if (highlightId === moment.id) clearArrival();
       mutating = false;
       done();
     } catch (error) {
@@ -424,9 +425,50 @@ const POLL_MS = 3000;
 const POLL_LIMIT_MS = 3 * 60 * 1000;
 let pollTimer = null;
 let pollUntil = 0;
-// The moment just saved, highlighted and scrolled to like on the web app.
+// The moment just saved or merged into: scrolled to and tinted when it first
+// appears, then faded away, like the web app's arrivals. Its clock starts when
+// it is first shown, so the list's polling redraws continue it.
 let highlightId = null;
+let highlightShownAt = null;
+let highlightTimer = null;
 let scrollToHighlight = false;
+
+function arriveAt(id) {
+  clearTimeout(highlightTimer);
+  highlightId = id;
+  highlightShownAt = null;
+  scrollToHighlight = true;
+}
+
+function clearArrival() {
+  clearTimeout(highlightTimer);
+  highlightId = null;
+  highlightShownAt = null;
+}
+
+/** Sets the row's tint for now and returns how long until it changes. */
+function showArrival(item) {
+  const elapsed = highlightShownAt === null ? 0 : Date.now() - highlightShownAt;
+  const { phase, changesIn } = highlightShownAt === null
+    ? { phase: "on", changesIn: null }
+    : arrivalPhase(elapsed, matchMedia("(prefers-reduced-motion: reduce)").matches);
+  // The row keeps its arrival spacing after the fade, so nothing moves.
+  item.classList.add("arrival");
+  item.classList.toggle("tinted", phase === "on");
+  item.classList.toggle("fading", phase === "fading");
+  // A redraw mid-fade continues the fade where it was.
+  item.style.animationDelay = phase === "fading" ? `${ARRIVAL_HOLD_MS - elapsed}ms` : "";
+  return changesIn;
+}
+
+function updateArrival() {
+  clearTimeout(highlightTimer);
+  const item = highlightId === null ? null : $("moments").querySelector(`li[data-moment-id="${highlightId}"]`);
+  if (!item) return;
+  highlightShownAt ??= Date.now();
+  const changesIn = showArrival(item);
+  if (changesIn !== null) highlightTimer = setTimeout(updateArrival, changesIn);
+}
 
 let lastMoments = [];
 // A list response is stale if a newer request was sent, or a row was opened,
@@ -503,9 +545,10 @@ function paint(tab) {
   else if (active) list.querySelector("[data-focus]")?.focus();
   list.classList.toggle("busy", busy());
   $("moment-count").textContent = moments.length === 1 ? "1 moment" : `${moments.length} moments`;
-  if (scrollToHighlight) {
+  updateArrival();
+  if (scrollToHighlight && list.querySelector(".arrival")) {
     scrollToHighlight = false;
-    list.querySelector(".highlighted")?.scrollIntoView({ block: "nearest", behavior: "smooth" });
+    list.querySelector(".arrival").scrollIntoView({ block: "nearest", behavior: "smooth" });
   }
   if (!moments.length) {
     const empty = document.createElement("li");
@@ -697,8 +740,7 @@ async function init() {
       const at = formatClock(latest.seconds);
       // The web app's wording.
       feedback(result.merged ? `Added to your moment near ${at}` : `Moment saved at ${at}`, "success");
-      highlightId = result.moment?.id ?? null;
-      scrollToHighlight = true;
+      arriveAt(result.moment?.id ?? null);
       refreshMoments(tab, video.videoId);
       void refreshCredits();
     } catch (error) {

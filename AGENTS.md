@@ -41,7 +41,7 @@ VidWiz helps users take timestamped notes on YouTube videos, enriches notes with
 - Tests: `cd backend && TEST_DB_URL=<url> uv run --locked pytest`. `TEST_DB_URL` must point to a disposable PostgreSQL database with pgvector (for example the `pgvector/pgvector:pg17` image); each run drops and recreates its `public` schema.
 
 ### Extension
-- Tests: `node --test extension/output.test.mjs extension/capture-bridge.test.mjs`
+- Tests: `node --test extension/output.test.mjs extension/capture-bridge.test.mjs extension/arrival.test.mjs`
 
 ### Frontend
 - Install: `cd frontend && pnpm install --frozen-lockfile`

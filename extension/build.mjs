@@ -37,7 +37,7 @@ if (unsafe) {
   process.exit(1);
 }
 
-const files = ["api.js", "background.js", "capture-bridge.js", "content.js", "popup.html", "popup.css", "popup.js", "tooltip.js", "icons", "fonts"];
+const files = ["api.js", "arrival.js", "background.js", "capture-bridge.js", "content.js", "popup.html", "popup.css", "popup.js", "tooltip.js", "icons", "fonts"];
 rmSync(out, { recursive: true, force: true });
 mkdirSync(out, { recursive: true });
 for (const file of files) cpSync(join(here, file), join(out, file), { recursive: true });

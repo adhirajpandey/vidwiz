@@ -97,8 +97,12 @@ Plain JavaScript modules, no bundler.
     field; a failed save keeps the draft open. Note controls are disabled while
     saving so a completed request cannot erase new edits.
   - After a save, the popup says "Moment saved at m:ss" (or "Added to your
-    moment near m:ss") for 3 seconds, and the list highlights that moment and
-    scrolls to it. Errors stay until the next save.
+    moment near m:ss") for 3 seconds, and the list scrolls to that moment.
+    Like the web app's arrivals, the row gets a soft yellow tint, with no
+    edge, for 2.5 seconds after it first appears, then fades out over 900 ms;
+    with reduced motion it clears without fading. List refreshes continue the
+    same timing, and every save or merge starts it again. Rows are inset 10px,
+    so the tint stays inside the list. Errors stay until the next save.
   - Credits, from the profile's balance and re-read after each save: the menu
     shows "1 credit · N left", or "No credits" at zero. With no credits and the
     AI line as the default, a notice above Save moment says saves won't get an
@@ -198,7 +202,7 @@ extension, then reload the video page. No backend release or additional host
 permissions are needed. Standalone web shortcuts cannot receive keys while
 the cross-origin YouTube iframe has focus.
 
-Run `node --test extension/output.test.mjs extension/capture-bridge.test.mjs`
+Run `node --test extension/output.test.mjs extension/capture-bridge.test.mjs extension/arrival.test.mjs`
 and the frontend capture shortcut and CaptureBar tests. Browser acceptance
 must use Chrome with the new unpacked extension and a matching web build:
 check YouTube and web capture, two video tabs, iframe focus, editing, menus,
