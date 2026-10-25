@@ -7,6 +7,7 @@ import { useWizChat } from '../../hooks/useWizChat';
 import PageTitle from '../../components/PageTitle';
 import WizChat from '../../components/wiz/WizChat';
 import Button from '../../components/ui/Button';
+import ErrorState from '../../components/ui/ErrorState';
 import { formatRelative, videoTitle } from '../../lib/format';
 import { shortTitle } from '../../lib/title';
 import { cn } from '../../lib/utils';
@@ -28,6 +29,9 @@ function History({ activeId, onPick, onNew }: { activeId: number | null; onPick:
   return (
     <aside aria-label="Chat history" className="hidden w-64 shrink-0 lg:block">
       <Button onClick={onNew} className="mb-3 w-full justify-center"><MessageSquarePlus className="size-4" />New chat</Button>
+      {chats.isPending && <p role="status" className="px-2.5 text-sm text-muted-foreground">Loading chats…</p>}
+      {chats.isError && !chats.data && <ErrorState compact headingLevel={3} title="Chats did not load" message="Check your connection and try again." onRetry={() => void chats.refetch()} />}
+      {chats.data?.conversations.length === 0 && <p className="px-2.5 text-sm text-muted-foreground">No chats yet.</p>}
       <ul className="space-y-0.5">
         {chats.data?.conversations.map(chat => (
           <li key={chat.id}>

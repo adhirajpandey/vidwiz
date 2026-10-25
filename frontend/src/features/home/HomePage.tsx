@@ -6,6 +6,7 @@ import config from '../../config';
 import { useProfile } from '../../hooks/useProfile';
 import PageTitle from '../../components/PageTitle';
 import EmptyState from '../../components/ui/EmptyState';
+import ErrorState from '../../components/ui/ErrorState';
 import { Input } from '../../components/ui/Input';
 import AddVideoForm from '../library/AddVideoForm';
 import DurationThumb from '../../components/ui/DurationThumbnail';
@@ -106,6 +107,7 @@ export default function HomePage() {
       <CompactHeader />
       {recent.data?.total === 0 && <Welcome />}
       {videos.length > 0 && <RecentStrip videos={videos} />}
+      {recent.isError && !recent.data && <ErrorState compact headingLevel={3} title="Recent videos did not load" message="Check your connection and try again." onRetry={() => void recent.refetch()} />}
       <Resurface />
       <MomentFeed />
     </div>

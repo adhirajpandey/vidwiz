@@ -8,6 +8,7 @@ import { useWizChat } from '../../hooks/useWizChat';
 import WizChat from '../../components/wiz/WizChat';
 import Button from '../../components/ui/Button';
 import { Menu, MenuContent, MenuItem, MenuTrigger } from '../../components/ui/Menu';
+import ErrorState from '../../components/ui/ErrorState';
 import Spinner from '../../components/ui/Spinner';
 import { formatRelative } from '../../lib/format';
 import ChatLimitNotice from '../chat/ChatLimitNotice';
@@ -86,6 +87,7 @@ export default function AskPanel({ video, seek, signedIn, resumeId, onConversati
   const passages = usePassageActions({ videoId: video.video_id, seek, signedIn });
 
   if (status.isPending) return <div className="flex justify-center py-10"><Spinner /></div>;
+  if (!unlocked && status.isError) return <ErrorState compact title="Ask did not load" message="Check your connection and try again." onRetry={() => void status.refetch()} />;
   if (!unlocked && status.data) return <Unlock cost={status.data.cost} onUnlock={() => setUnlocking(true)} draft={draft} />;
 
   return (
