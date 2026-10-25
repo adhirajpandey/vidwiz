@@ -131,33 +131,37 @@
   scroll-margin-top: 96px;
 }
 
-.transcript-scrollbar {
-  scrollbar-width: thin;
-  scrollbar-color: hsl(var(--muted-foreground) / 0.35) transparent;
-}
-
-.transcript-scrollbar:hover,
-.transcript-scrollbar:focus-within {
-  scrollbar-color: hsl(var(--muted-foreground) / 0.6) transparent;
-}
-
-@supports not (scrollbar-width: thin) {
-  .transcript-scrollbar::-webkit-scrollbar {
-    width: 6px;
+/* One slim, theme-colored scrollbar for every scrolling area. Utilities can still override it. */
+@layer base {
+  * {
+    scrollbar-width: thin;
+    scrollbar-color: hsl(var(--muted-foreground) / 0.35) transparent;
   }
 
-  .transcript-scrollbar::-webkit-scrollbar-track {
-    background: transparent;
+  *:hover,
+  *:focus-within {
+    scrollbar-color: hsl(var(--muted-foreground) / 0.6) transparent;
   }
 
-  .transcript-scrollbar::-webkit-scrollbar-thumb {
-    border-radius: 999px;
-    background: hsl(var(--muted-foreground) / 0.35);
-  }
+  @supports not (scrollbar-width: thin) {
+    ::-webkit-scrollbar {
+      width: 6px;
+      height: 6px;
+    }
 
-  .transcript-scrollbar:hover::-webkit-scrollbar-thumb,
-  .transcript-scrollbar:focus-within::-webkit-scrollbar-thumb {
-    background: hsl(var(--muted-foreground) / 0.6);
+    ::-webkit-scrollbar-track {
+      background: transparent;
+    }
+
+    ::-webkit-scrollbar-thumb {
+      border-radius: 999px;
+      background: hsl(var(--muted-foreground) / 0.35);
+    }
+
+    :hover::-webkit-scrollbar-thumb,
+    :focus-within::-webkit-scrollbar-thumb {
+      background: hsl(var(--muted-foreground) / 0.6);
+    }
   }
 }
 

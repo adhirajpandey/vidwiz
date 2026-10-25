@@ -194,6 +194,10 @@ pages pass the result to `Seo`, and signed-in pages use `PageTitle`.
 
 Chat controls are called **New chat** and **Chat history** everywhere.
 
+Every scrolling area uses the slim, theme-colored scrollbar defined in
+`src/index.css`. A component can still hide it with a utility, as the tab strip
+does.
+
 ## UI Screenshot Workflow
 `scripts/screenshot_pages.py` captures the 2.x pages and still needs updating
 for the v3 routes and states.

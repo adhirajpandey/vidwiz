@@ -153,7 +153,7 @@ export default function TranscriptPanel({ videoId, playhead, onSeek, signedIn }:
         role="region"
         aria-label="Transcript lines"
         tabIndex={0}
-        className="transcript-scrollbar h-[calc(100dvh-4rem-var(--pinned-h)-3rem-8.5rem)] min-h-48 overflow-y-auto overscroll-contain scroll-auto pr-1 lg:h-auto lg:min-h-0 lg:flex-1"
+        className="h-[calc(100dvh-4rem-var(--pinned-h)-3rem-8.5rem)] min-h-48 overflow-y-auto overscroll-contain scroll-auto pr-1 lg:h-auto lg:min-h-0 lg:flex-1"
         onWheel={() => setFollowing(false)}
         onTouchMove={() => setFollowing(false)}
         onPointerDown={event => {

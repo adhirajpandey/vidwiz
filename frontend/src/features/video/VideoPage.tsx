@@ -196,7 +196,7 @@ function Workspace({ videoId }: { videoId: string }) {
         <div className="lg:order-3 lg:shrink-0">{titleEl}</div>
         {signedIn && wideScreen && (
           <section aria-label="Your moments" className="video-moments hidden border-t border-border/70 pt-3 lg:order-5 lg:flex lg:min-h-0 lg:flex-1 lg:flex-col">
-            <div data-pane="moments" className="transcript-scrollbar min-h-0 flex-1 overflow-y-auto overscroll-contain pr-2">
+            <div data-pane="moments" className="min-h-0 flex-1 overflow-y-auto overscroll-contain pr-2">
               <MomentsPanel videoId={videoId} onSeek={seek} highlightId={highlightId} />
             </div>
           </section>
