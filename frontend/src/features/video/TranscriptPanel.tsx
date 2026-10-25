@@ -51,7 +51,7 @@ function Line({ segment, active, query, onSeek, signedIn, videoId }: {
                 onError: error => notify.error(error, 'Line not saved', 'The line could not be saved.'),
               },
             )}
-            className={cn('-my-1 grid size-8 shrink-0 place-items-center rounded-md text-muted-foreground hover:bg-muted hover:text-foreground', !saved && 'opacity-0 group-hover:opacity-100 group-focus-within:opacity-100 pointer-coarse:opacity-100')}
+            className={cn('-my-1 grid size-8 shrink-0 place-items-center rounded-md text-muted-foreground hover:bg-muted hover:text-foreground', !saved && !save.isPending && 'opacity-0 group-hover:opacity-100 group-focus-within:opacity-100 pointer-coarse:opacity-100')}
           >
             {save.isPending ? <Loader2 className="size-3.5 animate-spin" /> : saved ? <BookmarkCheck className="size-3.5 text-accent" /> : <Bookmark className="size-3.5" />}
           </button>

@@ -191,10 +191,6 @@ button.saved:hover:not(:disabled) { filter: brightness(1.05); }
 .moments li.muted { display: block; }
 .moments li.muted .link { padding: 0; border: 0; background: none; color: var(--fg); font: inherit; font-weight: 600; text-decoration: underline; }
 .moments li + li { border-top: 1px solid var(--border); }
-/* The first and last rows have no line beside them, so they sit as close to the
-   count and the popup's bottom as every section's content sits to its divider. */
-.moments li:first-child:not(.arrival) { padding-top: 0; }
-.moments li:last-child:not(.arrival) { padding-bottom: 0; }
 .time {
   justify-self: start; margin-top: 2px; border: 0; border-radius: 5px; padding: 1px 6px; background: var(--saved); color: var(--saved-fg);
   font-size: 12px; font-weight: 700; font-variant-numeric: tabular-nums;
