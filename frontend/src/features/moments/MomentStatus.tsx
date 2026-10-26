@@ -10,7 +10,7 @@ export default function MomentStatus({ moment, onRequestAi, requesting }: {
   onRequestAi?: () => void;
   requesting?: boolean;
 }) {
-  const line = 'flex flex-wrap items-center gap-1.5 text-xs text-muted-foreground';
+  const line = 'flex cursor-default flex-wrap items-center gap-1.5 text-xs text-muted-foreground';
   const profile = useProfile();
   const broke = profile.data?.credits_balance === 0;
   switch (moment.ai_status) {

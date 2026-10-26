@@ -2,6 +2,16 @@
 
 @custom-variant dark (&:where(.dark, .dark *));
 
+/* Hover styles never apply to disabled or busy controls, so they don't look
+   clickable. Same media query as Tailwind's own hover variant. */
+@custom-variant hover {
+  @media (hover: hover) {
+    &:not(:disabled, [aria-disabled="true"], [data-disabled]):hover {
+      @slot;
+    }
+  }
+}
+
 @theme {
   --font-sans: "Bricolage Grotesque", ui-sans-serif, system-ui, -apple-system, sans-serif;
   --font-mono: ui-monospace, SFMono-Regular, monospace;
@@ -105,6 +115,20 @@
     outline: 2px solid hsl(var(--accent));
     outline-offset: 2px;
   }
+
+  /* Anything that acts on a click shows a pointer, including its icons and
+     text; disabled controls keep the arrow. Text and fields keep the I-beam.
+     Zero specificity, so a component can still choose its own cursor. */
+  :where(a[href], button:enabled, summary, select:enabled, label[for],
+    input:is([type="checkbox"], [type="radio"]):enabled,
+    [role="button"], [role="tab"], [role="menuitem"], [role="menuitemradio"],
+    [role="menuitemcheckbox"], [role="option"]) {
+    cursor: pointer;
+  }
+
+  :where(:disabled, [aria-disabled="true"], [data-disabled]) {
+    cursor: default;
+  }
 }
 
 @layer utilities {
@@ -129,6 +153,21 @@
 
 .moment-anchor {
   scroll-margin-top: 96px;
+}
+
+/* What you just reached: a soft caption-yellow tint that fades away completely
+   (timing in lib/arrival.ts). No edge, so the row's size never changes. */
+.arrival {
+  background-color: hsl(var(--saved) / 0.09);
+}
+
+.arrival-fading {
+  animation: arrival-fade 900ms ease-out forwards;
+}
+
+@keyframes arrival-fade {
+  from { background-color: hsl(var(--saved) / 0.09); }
+  to { background-color: transparent; }
 }
 
 /* One slim, theme-colored scrollbar for every scrolling area. Utilities can still override it. */

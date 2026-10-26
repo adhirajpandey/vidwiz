@@ -10,6 +10,7 @@ import { cn } from '../lib/utils';
 import Button from '../components/ui/Button';
 import { Menu, MenuContent, MenuItem, MenuSeparator, MenuTrigger } from '../components/ui/Menu';
 import SearchForm from '../components/SearchForm';
+import { Tooltip } from '../components/ui/Tooltip';
 import CommandPalette from './CommandPalette';
 
 const NAV = [
@@ -40,6 +41,7 @@ function UserMenu() {
   };
   return (
     <Menu>
+      <Tooltip label={name} side="bottom">
       <MenuTrigger asChild>
         <button type="button" aria-label="Account menu" className="flex items-center gap-2 rounded-lg p-1 hover:bg-muted">
           {profile.data?.profile_image_url ? (
@@ -51,6 +53,7 @@ function UserMenu() {
           )}
         </button>
       </MenuTrigger>
+      </Tooltip>
       <MenuContent className="w-60">
         <div className="px-2.5 py-2">
           <p className="truncate text-sm font-medium">{name}</p>
@@ -76,9 +79,11 @@ function SignedOutActions() {
   const { theme, toggle } = useTheme();
   return (
     <div className="flex items-center gap-1">
-      <Button variant="ghost" size="icon" aria-label="Toggle theme" onClick={toggle}>
-        {theme === 'dark' ? <Sun className="size-4" /> : <Moon className="size-4" />}
-      </Button>
+      <Tooltip label={theme === 'dark' ? 'Light theme' : 'Dark theme'} side="bottom">
+        <Button variant="ghost" size="icon" aria-label="Toggle theme" onClick={toggle}>
+          {theme === 'dark' ? <Sun className="size-4" /> : <Moon className="size-4" />}
+        </Button>
+      </Tooltip>
       <Link to="/login" className="rounded-[9px] px-3 py-2 text-sm font-semibold text-muted-foreground hover:text-foreground">Log in</Link>
       <Link to="/signup" className="rounded-[9px] bg-accent px-3.5 py-2 text-sm font-semibold text-accent-foreground hover:opacity-90">Start free</Link>
     </div>

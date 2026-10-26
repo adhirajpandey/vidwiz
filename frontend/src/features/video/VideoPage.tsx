@@ -1,10 +1,11 @@
 import { useCallback, useEffect, useRef, useState, useSyncExternalStore } from 'react';
 import type { CSSProperties } from 'react';
-import { Link, useParams, useSearchParams } from 'react-router-dom';
+import { Link, useLocation, useNavigationType, useParams, useSearchParams } from 'react-router-dom';
 import { useQueryClient } from '@tanstack/react-query';
 import { BookmarkPlus, ExternalLink, FileText, Sparkles, StickyNote } from 'lucide-react';
 import { libraryApi } from '../../api';
 import { ApiError } from '../../api';
+import { useArrival } from '../../hooks/useArrival';
 import { useNotify } from '../../hooks/useNotify';
 import { useSignedIn } from '../../hooks/useSignedIn';
 import PageTitle from '../../components/PageTitle';
@@ -44,6 +45,15 @@ function Workspace({ videoId }: { videoId: string }) {
 
   const startAt = numberParam(params.get('t'));
   const highlightId = numberParam(params.get('m'));
+  // A moment link, a back or forward step to one, or View moment is an arrival; changing panels is not.
+  const { arrival, arrive, shown } = useArrival(highlightId);
+  const location = useLocation();
+  const navigationType = useNavigationType();
+  const [seenLocation, setSeenLocation] = useState(location.key);
+  if (seenLocation !== location.key) {
+    setSeenLocation(location.key);
+    if (navigationType !== 'REPLACE' && highlightId !== null) arrive(highlightId);
+  }
   const resumeId = numberParam(params.get('c'));
   const requested = params.get('tab') as Tab | null;
   const defaultTab: Tab = resumeId !== null ? 'ask' : !signedIn ? 'ask' : 'moments';
@@ -141,6 +151,7 @@ function Workspace({ videoId }: { videoId: string }) {
       currentTime={() => player.current?.currentTime() ?? null}
       playhead={playhead}
       onView={id => {
+        arrive(id);
         setParams(previous => {
           const next = new URLSearchParams(previous);
           if (!wideScreen) next.set('tab', 'moments');
@@ -162,7 +173,7 @@ function Workspace({ videoId }: { videoId: string }) {
       </TabsList>
       {signedIn && (
         <TabsContent value="moments" className={`pt-3 ${pane}`}>
-          <MomentsPanel videoId={videoId} onSeek={seek} highlightId={highlightId} />
+          <MomentsPanel videoId={videoId} onSeek={seek} arrival={arrival} onArrivalShown={shown} />
         </TabsContent>
       )}
       <TabsContent value="ask" className="pt-3 hidden:!hidden lg:flex lg:min-h-0 lg:flex-1 lg:flex-col" forceMount hidden={sideTab !== 'ask'}>
@@ -197,7 +208,7 @@ function Workspace({ videoId }: { videoId: string }) {
         {signedIn && wideScreen && (
           <section aria-label="Your moments" className="video-moments hidden border-t border-border/70 pt-3 lg:order-5 lg:flex lg:min-h-0 lg:flex-1 lg:flex-col">
             <div data-pane="moments" className="min-h-0 flex-1 overflow-y-auto overscroll-contain pr-2">
-              <MomentsPanel videoId={videoId} onSeek={seek} highlightId={highlightId} />
+              <MomentsPanel videoId={videoId} onSeek={seek} arrival={arrival} onArrivalShown={shown} />
             </div>
           </section>
         )}

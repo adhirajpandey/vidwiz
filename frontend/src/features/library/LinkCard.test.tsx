@@ -21,7 +21,7 @@ function setup() {
 it('opens a saved video at the pasted time without saving again', async () => {
   vi.mocked(libraryApi.list).mockResolvedValue({ videos: [{ video_id: 'aaaaaaaaaaa' }] } as Awaited<ReturnType<typeof libraryApi.list>>);
   setup();
-  fireEvent.click(await screen.findByRole('button', { name: 'Open at 1:30' }));
+  fireEvent.click(await screen.findByRole('link', { name: 'Open at 1:30' }));
   expect(screen.getByTestId('location').textContent).toBe('/v/aaaaaaaaaaa?t=90');
   expect(libraryApi.save).not.toHaveBeenCalled();
 });

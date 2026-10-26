@@ -5,6 +5,7 @@ import { useNotify } from '../../hooks/useNotify';
 import EmptyState from '../../components/ui/EmptyState';
 import ErrorState from '../../components/ui/ErrorState';
 import { Input } from '../../components/ui/Input';
+import { Tooltip } from '../../components/ui/Tooltip';
 import Spinner from '../../components/ui/Spinner';
 import { formatClock } from '../../lib/format';
 import { cn } from '../../lib/utils';
@@ -36,22 +37,25 @@ function Line({ segment, active, query, onSeek, signedIn, videoId }: {
       </button>
       <p className="flex-1 text-sm leading-6">{text}</p>
       {signedIn && (
-        <button
-          type="button"
-          disabled={save.isPending || saved}
-          aria-label={saved ? 'Saved as a moment' : 'Save line as a moment'}
-          title={saved ? 'Saved as a moment' : 'Save as a moment (free)'}
-          onClick={() => save.mutate(
-            { video_id: videoId, start_seconds: segment.start_seconds, end_seconds: segment.end_seconds },
-            {
-              onSuccess: () => setSaved(true),
-              onError: error => notify.error(error, 'Line not saved', 'The line could not be saved.'),
-            },
-          )}
-          className={cn('rounded-md p-1 text-muted-foreground hover:bg-muted hover:text-foreground', !saved && 'opacity-0 group-hover:opacity-100 focus:opacity-100')}
-        >
-          {save.isPending ? <Loader2 className="size-3.5 animate-spin" /> : saved ? <BookmarkCheck className="size-3.5 text-accent" /> : <Bookmark className="size-3.5" />}
-        </button>
+        // A 32px target that keeps the line's height. Desktop shows it on hover or focus in the
+        // line; touch screens always show it. A saved line keeps its mark.
+        <Tooltip label={saved ? 'Saved as a moment' : 'Save as a moment, free'} side="left">
+          <button
+            type="button"
+            disabled={save.isPending || saved}
+            aria-label={saved ? 'Saved as a moment' : 'Save line as a moment'}
+            onClick={() => save.mutate(
+              { video_id: videoId, start_seconds: segment.start_seconds, end_seconds: segment.end_seconds },
+              {
+                onSuccess: () => setSaved(true),
+                onError: error => notify.error(error, 'Line not saved', 'The line could not be saved.'),
+              },
+            )}
+            className={cn('-my-1 grid size-8 shrink-0 place-items-center rounded-md text-muted-foreground hover:bg-muted hover:text-foreground', !saved && !save.isPending && 'opacity-0 group-hover:opacity-100 group-focus-within:opacity-100 pointer-coarse:opacity-100')}
+          >
+            {save.isPending ? <Loader2 className="size-3.5 animate-spin" /> : saved ? <BookmarkCheck className="size-3.5 text-accent" /> : <Bookmark className="size-3.5" />}
+          </button>
+        </Tooltip>
       )}
     </li>
   );
@@ -147,7 +151,7 @@ export default function TranscriptPanel({ videoId, playhead, onSeek, signedIn }:
         <Input value={query} onChange={event => setQuery(event.target.value)} placeholder="Find in transcript" aria-label="Find in transcript" className="h-9" />
         {!following && <button type="button" onClick={() => setFollowing(true)} className="shrink-0 rounded-md px-2 py-1 text-xs font-semibold text-accent hover:bg-accent-soft">Follow playback</button>}
       </div>
-      {needle.length >= 2 && <p className="px-1 text-xs text-muted-foreground tabular">{visible.length} matching lines</p>}
+      {needle.length >= 2 && <p className="cursor-default px-1 text-xs text-muted-foreground tabular">{visible.length} matching lines</p>}
       <div
         ref={scroller}
         role="region"

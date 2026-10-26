@@ -7,8 +7,10 @@ import Button from '../../components/ui/Button';
 import { TextArea } from '../../components/ui/Input';
 import { Menu, MenuContent, MenuItem, MenuTrigger } from '../../components/ui/Menu';
 import TimeChip from '../../components/ui/TimeChip';
+import { Tooltip } from '../../components/ui/Tooltip';
 import { cn } from '../../lib/utils';
 import { normalizeApiError } from '../../api/errors';
+import { useArrivalTint } from '../../hooks/useArrival';
 import { clearActiveRow, setActiveRow, useActiveRow } from './rowFocus';
 import MomentQuote from './MomentQuote';
 import MomentStatus from './MomentStatus';
@@ -19,17 +21,19 @@ interface Props {
   moment: MomentRead;
   /** Seek an on-page player; without it, the time links to the video page. */
   onSeek?: (seconds: number) => void;
-  highlighted?: boolean;
+  /** When this moment was reached and first shown: `null` until shown, absent when it wasn't reached. */
+  arrivedAt?: number | null;
   showQuote?: boolean;
   className?: string;
 }
 
-export default function MomentItem({ moment, onSeek, highlighted, showQuote = true, className }: Props) {
+export default function MomentItem({ moment, onSeek, arrivedAt, showQuote = true, className }: Props) {
   const [draft, setDraft] = useState(moment.note ?? '');
   const update = useUpdateMoment();
   const remove = useDeleteMoment();
   const requestAi = useRequestAi();
   const notify = useNotify();
+  const arrival = useArrivalTint(arrivedAt);
   const at = moment.at_seconds;
   const activeRow = useActiveRow();
   const editing = activeRow?.id === moment.id && activeRow.mode === 'edit';
@@ -97,15 +101,18 @@ export default function MomentItem({ moment, onSeek, highlighted, showQuote = tr
   return (
     <li
       id={`moment-${moment.id}`}
-      className={cn('moment-anchor group py-3.5 transition-opacity', highlighted && 'rounded-[10px] border-transparent bg-saved/9 shadow-[inset_2px_0_var(--color-saved)]', stepBack && 'opacity-55', className)}
+      style={arrival.style}
+      className={cn('moment-anchor group py-3.5 transition-opacity', arrival.className && ['rounded-[10px] border-transparent', arrival.className], stepBack && 'opacity-55', className)}
     >
       <div className="flex items-start gap-3">
         <div className="w-14 shrink-0 pt-0.5">{time}</div>
         <div className="min-w-0 flex-1 space-y-1.5">
           {writing && status}
           {moment.ai_text && (
-            <p className="flex gap-2 text-[15px] leading-6" title={moment.ai_model ? `AI line by ${moment.ai_model}` : 'AI line'}>
-              <Sparkles className="mt-1 size-3.5 shrink-0 text-muted-foreground" aria-label="AI line" />
+            <p className="flex gap-2 text-[15px] leading-6">
+              <Tooltip label="AI-generated line">
+                <span role="img" aria-label="AI-generated line" className="mt-1 shrink-0 text-muted-foreground"><Sparkles className="size-3.5" aria-hidden="true" /></span>
+              </Tooltip>
               <span>{moment.ai_text}</span>
             </p>
           )}
@@ -153,11 +160,13 @@ export default function MomentItem({ moment, onSeek, highlighted, showQuote = tr
           )}
         </div>
         <Menu>
-          <MenuTrigger asChild>
-            <Button ref={actionsButton} variant="ghost" size="icon" aria-label="Moment actions" className="opacity-60 group-hover:opacity-100">
-              <MoreHorizontal className="size-4" />
-            </Button>
-          </MenuTrigger>
+          <Tooltip label="Edit note or delete">
+            <MenuTrigger asChild>
+              <Button ref={actionsButton} variant="ghost" size="icon" aria-label="Moment actions" className="opacity-60 group-hover:opacity-100">
+                <MoreHorizontal className="size-4" />
+              </Button>
+            </MenuTrigger>
+          </Tooltip>
           <MenuContent onCloseAutoFocus={event => { if (rowActionSelected.current) { event.preventDefault(); (deleteButton.current ?? noteInput.current)?.focus(); } rowActionSelected.current = false; }}>
             <MenuItem onSelect={() => { rowActionSelected.current = true; setDraft(moment.note ?? ''); setActiveRow({ id: moment.id, mode: 'edit' }); }}>
               <Pencil className="size-4" />{moment.note ? 'Edit note' : 'Add note'}

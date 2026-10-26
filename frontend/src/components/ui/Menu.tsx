@@ -21,7 +21,7 @@ export function MenuContent({ className, align = 'end', ...props }: ComponentPro
 export function MenuItem({ className, ...props }: ComponentPropsWithoutRef<typeof Dropdown.Item>) {
   return (
     <Dropdown.Item
-      className={cn('flex cursor-pointer select-none items-center gap-2 rounded-md px-2.5 py-2 outline-none data-[highlighted]:bg-muted', className)}
+      className={cn('flex select-none items-center gap-2 rounded-md px-2.5 py-2 outline-none data-[highlighted]:bg-muted', className)}
       {...props}
     />
   );

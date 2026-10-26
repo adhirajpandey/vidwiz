@@ -7,7 +7,8 @@ const segments = Array.from({ length: 30 }, (_, index) => ({
   start_seconds: index * 10, end_seconds: index * 10 + 10, text: `Line ${index}`,
 }));
 vi.mock('./queries', () => ({ useTranscript: () => ({ data: { status: 'ready', segments } }) }));
-vi.mock('../moments/queries', () => ({ useSavePassage: () => ({}) }));
+const savePassage = vi.fn((_body: unknown, { onSuccess }: { onSuccess: () => void }) => onSuccess());
+vi.mock('../moments/queries', () => ({ useSavePassage: () => ({ isPending: false, mutate: savePassage }) }));
 vi.mock('../../hooks/useNotify', () => ({ useNotify: () => ({}) }));
 let resize: () => void;
 let height: number;
@@ -148,5 +149,20 @@ describe('transcript auto-follow', () => {
     act(() => nextFrame(performance.now() + 240));
     expect(container.scrollTop).toBe(400);
     expect(screen.getByRole('button', { name: 'Follow playback' })).toBeTruthy();
+  });
+});
+
+describe('saving a line', () => {
+  it('has a 32px target that hides until hover or focus on desktop, shows on touch, and stays once saved', () => {
+    render(<TranscriptPanel videoId="abc123DEF45" signedIn onSeek={vi.fn()} playhead={null} />);
+    const button = screen.getAllByRole('button', { name: 'Save line as a moment' })[0];
+    expect(button.className).toContain('size-8');
+    expect(button.className).toContain('opacity-0');
+    expect(button.className).toContain('group-focus-within:opacity-100');
+    expect(button.className).toContain('pointer-coarse:opacity-100');
+    fireEvent.click(button);
+    expect(savePassage).toHaveBeenCalledWith({ video_id: 'abc123DEF45', start_seconds: 0, end_seconds: 10 }, expect.anything());
+    const saved = screen.getByRole('button', { name: 'Saved as a moment' });
+    expect(saved.className).not.toContain('opacity-0');
   });
 });

@@ -8,6 +8,7 @@ import type { AppendMessage, ThreadMessageLike } from '@assistant-ui/react';
 import { ArrowDown, ArrowUp, Check, Copy, MessageSquarePlus, Sparkles } from 'lucide-react';
 import type { WizChatController, WizMessage } from '../../hooks/useWizChat';
 import ErrorState from '../ui/ErrorState';
+import { Tooltip } from '../ui/Tooltip';
 import WizMarkdown from './WizMarkdown';
 import WizCitation, { WizPassageProvider } from './WizCitation';
 import type { PassageActions } from './WizCitation';
@@ -129,7 +130,7 @@ export default function WizChat({ chat, isReady, suggestedQuestions, passages, s
       <ThreadPrimitive.Root className={cn('flex min-h-0 flex-col overflow-hidden', className)}>
         <div className="flex min-h-11 items-center justify-between gap-2 px-3 py-1.5 border-b border-border">
           {header ?? <div className="flex items-center gap-2"><Sparkles className="size-4" /><h2 className="text-sm font-bold">Ask</h2></div>}
-          {chat.messages.length > 0 && <button type="button" onClick={chat.newChat} className="inline-flex items-center gap-1.5 rounded-lg px-2.5 py-1.5 text-xs text-muted-foreground hover:text-foreground hover:bg-muted"><MessageSquarePlus className="size-4 shrink-0" />New chat</button>}
+          {chat.messages.length > 0 && <button type="button" onClick={chat.newChat} className="inline-flex shrink-0 items-center gap-1.5 whitespace-nowrap rounded-lg px-2.5 py-1.5 text-xs text-muted-foreground hover:text-foreground hover:bg-muted"><MessageSquarePlus className="size-4 shrink-0" />New chat</button>}
         </div>
         {statusBanner}
         <div className="relative flex flex-1 min-h-0 flex-col">
@@ -139,14 +140,14 @@ export default function WizChat({ chat, isReady, suggestedQuestions, passages, s
             {isReady && !chat.conversationError && !chat.isLoadingHistory && <ThreadPrimitive.Empty><StarterQuestions questions={suggestedQuestions} intro={copy.intro} /></ThreadPrimitive.Empty>}
             <ThreadPrimitive.Messages components={{ UserMessage, AssistantMessage }} />
             <div className="sticky bottom-2 flex justify-center pointer-events-none">
-              <ThreadPrimitive.ScrollToBottom aria-label="Scroll to latest message" className="pointer-events-auto rounded-full border border-border bg-card p-2 shadow-md disabled:hidden"><ArrowDown className="size-4" /></ThreadPrimitive.ScrollToBottom>
+              <Tooltip label="Latest message"><ThreadPrimitive.ScrollToBottom aria-label="Scroll to latest message" className="pointer-events-auto rounded-full border border-border bg-card p-2 shadow-md disabled:hidden"><ArrowDown className="size-4" /></ThreadPrimitive.ScrollToBottom></Tooltip>
             </div>
           </ThreadPrimitive.Viewport>
         </div>
         <div className="p-3 md:p-4 border-t border-border">
-          <ComposerPrimitive.Root className="flex items-end gap-2 rounded-[12px] border border-input bg-card p-2 focus-within:border-foreground/60 focus-within:ring-2 focus-within:ring-foreground/10">
+          <ComposerPrimitive.Root className="flex items-end gap-2 rounded-[12px] border border-input bg-card p-2 focus-within:border-foreground/60 has-[textarea:focus-visible]:outline-2 has-[textarea:focus-visible]:outline-offset-2 has-[textarea:focus-visible]:outline-accent">
             <ComposerPrimitive.Input aria-label="Message Wiz" placeholder={isReady ? copy.placeholder : 'Waiting for the transcript…'} submitMode="enter" rows={1} className="flex-1 min-w-0 max-h-36 resize-none bg-transparent px-2 py-2 text-sm outline-none placeholder:text-muted-foreground" />
-            <ComposerPrimitive.Send aria-label="Send message" className="shrink-0 rounded-[9px] bg-accent text-accent-foreground p-2.5 hover:opacity-90 disabled:opacity-40 disabled:cursor-not-allowed"><ArrowUp className="size-4" /></ComposerPrimitive.Send>
+            <Tooltip label="Send"><ComposerPrimitive.Send aria-label="Send message" className="shrink-0 rounded-[9px] bg-accent text-accent-foreground p-2.5 hover:opacity-90 disabled:opacity-40"><ArrowUp className="size-4" /></ComposerPrimitive.Send></Tooltip>
           </ComposerPrimitive.Root>
           <p className="mt-2 text-center text-[11px] text-muted-foreground">{copy.footer}</p>
         </div>

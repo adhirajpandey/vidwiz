@@ -106,6 +106,8 @@ textarea {
 }
 textarea::placeholder { color: var(--muted-fg); }
 textarea:focus { outline: none; border-color: color-mix(in srgb, var(--fg) 55%, transparent); }
+/* Fields show the same 2px outline as buttons, like the web app. */
+textarea:focus-visible { outline: 2px solid var(--fg); outline-offset: 2px; }
 
 /* Ink carries actions. */
 button.primary {
@@ -173,18 +175,22 @@ button.saved:hover:not(:disabled) { filter: brightness(1.05); }
   scrollbar-width: thin; scrollbar-color: color-mix(in srgb, var(--muted-fg) 35%, transparent) transparent;
 }
 .moments:hover { scrollbar-color: color-mix(in srgb, var(--muted-fg) 60%, transparent) transparent; }
-/* A fixed time column, like the web app, so text lines up whatever the chip's width. */
-.moments li { position: relative; display: grid; grid-template-columns: 58px minmax(0, 1fr) 24px; gap: 8px; align-items: start; padding: 12px 0; }
-/* The moment just saved, tinted like the web app's highlighted moment. */
-.moments li.highlighted { margin: 0 -8px; padding: 12px 8px; border-radius: 10px; background: color-mix(in srgb, var(--saved) 32%, transparent); }
-.moments li.highlighted, .moments li.highlighted + li { border-top-color: transparent; }
+/* A fixed time column, like the web app, so text lines up whatever the chip's width.
+   Rows are inset like the web app's, so a tinted row stays inside the list. */
+.moments li { position: relative; display: grid; grid-template-columns: 58px minmax(0, 1fr) 24px; gap: 8px; align-items: start; padding: 12px 10px; }
+/* The moment just saved: the web app's soft tint, no edge, then a full fade
+   (timing in arrival.js). The row keeps its spacing after the fade. */
+.moments li.arrival { border-radius: 10px; }
+.moments li.tinted { background: color-mix(in srgb, var(--saved) 9%, transparent); }
+.moments li.fading { animation: arrival-fade 900ms ease-out forwards; }
+.moments li:is(.tinted, .fading), .moments li:is(.tinted, .fading) + li { border-top-color: transparent; }
+@keyframes arrival-fade {
+  from { background: color-mix(in srgb, var(--saved) 9%, transparent); }
+  to { background: transparent; }
+}
 .moments li.muted { display: block; }
 .moments li.muted .link { padding: 0; border: 0; background: none; color: var(--fg); font: inherit; font-weight: 600; text-decoration: underline; }
 .moments li + li { border-top: 1px solid var(--border); }
-/* The first and last rows have no line beside them, so they sit as close to the
-   count and the popup's bottom as every section's content sits to its divider. */
-.moments li:first-child:not(.highlighted) { padding-top: 0; }
-.moments li:last-child:not(.highlighted) { padding-bottom: 0; }
 .time {
   justify-self: start; margin-top: 2px; border: 0; border-radius: 5px; padding: 1px 6px; background: var(--saved); color: var(--saved-fg);
   font-size: 12px; font-weight: 700; font-variant-numeric: tabular-nums;
@@ -268,7 +274,7 @@ button.small:focus-visible { outline: 2px solid var(--fg); outline-offset: 2px; 
 /* The shared tooltip, in ink like the popup's other actions. */
 .tooltip {
   position: fixed; z-index: 100; max-width: 260px; padding: 5px 9px; border-radius: 7px;
-  background: var(--fg); color: var(--bg); font-size: 12px; font-weight: 500; line-height: 1.4;
+  background: var(--fg); color: var(--bg); font-size: 12px; font-weight: 600; line-height: 1.4;
   box-shadow: 0 6px 18px rgb(0 0 0 / 18%); overflow-wrap: anywhere;
 }
 .tooltip span { display: block; }

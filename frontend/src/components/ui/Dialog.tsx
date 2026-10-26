@@ -2,6 +2,7 @@ import * as RadixDialog from '@radix-ui/react-dialog';
 import { X } from 'lucide-react';
 import type { ReactNode } from 'react';
 import { cn } from '../../lib/utils';
+import { Tooltip } from './Tooltip';
 
 export const Dialog = RadixDialog.Root;
 export const DialogTrigger = RadixDialog.Trigger;
@@ -27,9 +28,11 @@ export function DialogContent({ title, description, children, className }: {
             <RadixDialog.Title className="display text-xl">{title}</RadixDialog.Title>
             {description && <RadixDialog.Description className="mt-1 text-sm text-muted-foreground">{description}</RadixDialog.Description>}
           </div>
-          <RadixDialog.Close aria-label="Close" className="rounded-md p-1 text-muted-foreground hover:bg-muted hover:text-foreground">
-            <X className="size-4" />
-          </RadixDialog.Close>
+          <Tooltip label="Close">
+            <RadixDialog.Close aria-label="Close" className="rounded-md p-1 text-muted-foreground hover:bg-muted hover:text-foreground">
+              <X className="size-4" />
+            </RadixDialog.Close>
+          </Tooltip>
         </div>
         {children}
       </RadixDialog.Content>

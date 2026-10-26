@@ -11,6 +11,7 @@ import ErrorState from '../../components/ui/ErrorState';
 import { formatRelative, videoTitle } from '../../lib/format';
 import { shortTitle } from '../../lib/title';
 import { cn } from '../../lib/utils';
+import ChatHistoryMenu from '../chat/ChatHistoryMenu';
 import ChatLimitNotice from '../chat/ChatLimitNotice';
 import { usePassageActions } from '../chat/usePassageActions';
 import { citedVideoIds } from './citations';
@@ -21,11 +22,14 @@ const STARTERS = [
   'What did I save yesterday?',
 ];
 
+// The sidebar on wide screens and the header menu below them share one list.
+const useLibraryChats = () => useQuery({
+  queryKey: ['conversations', 'library'],
+  queryFn: () => conversationsApi.list({ scope: 'library', per_page: 30 }),
+});
+
 function History({ activeId, onPick, onNew }: { activeId: number | null; onPick: (id: number) => void; onNew: () => void }) {
-  const chats = useQuery({
-    queryKey: ['conversations', 'library'],
-    queryFn: () => conversationsApi.list({ scope: 'library', per_page: 30 }),
-  });
+  const chats = useLibraryChats();
   return (
     <aside aria-label="Chat history" className="hidden w-64 shrink-0 lg:block">
       <Button onClick={onNew} className="mb-3 w-full justify-center"><MessageSquarePlus className="size-4" />New chat</Button>
@@ -38,6 +42,7 @@ function History({ activeId, onPick, onNew }: { activeId: number | null; onPick:
             <button
               type="button"
               onClick={() => onPick(chat.id)}
+              aria-current={chat.id === activeId || undefined}
               className={cn('w-full rounded-lg px-2.5 py-2 text-left hover:bg-muted', chat.id === activeId && 'bg-muted')}
             >
               <span className="line-clamp-2 text-sm">{chat.title}</span>
@@ -48,6 +53,18 @@ function History({ activeId, onPick, onNew }: { activeId: number | null; onPick:
       </ul>
     </aside>
   );
+}
+
+/** Below desktop width, the sidebar's history as the menu video Ask uses. */
+function CompactHistory({ activeId, onPick }: { activeId: number | null; onPick: (id: number) => void }) {
+  const chats = useLibraryChats();
+  if (chats.isError && !chats.data) return (
+    <div className="lg:hidden">
+      <span role="alert" className="sr-only">Chats did not load.</span>
+      <Button size="sm" variant="ghost" className="whitespace-nowrap" disabled={chats.isFetching} onClick={() => void chats.refetch()}>Retry history</Button>
+    </div>
+  );
+  return <ChatHistoryMenu chats={chats.data?.conversations} activeId={activeId} onPick={onPick} className="lg:hidden" />;
 }
 
 export default function AskPage() {
@@ -107,12 +124,13 @@ export default function AskPage() {
   const firstQuestion = chat.messages.find(message => message.role === 'user')?.parts
     .map(part => (part.type === 'citation' ? '' : part.text)).join(' ');
 
+  const pick = (id: number) => { setConversation(id); chat.resume(id); };
   return (
     <div className="flex gap-6">
       <PageTitle title={firstQuestion?.trim() ? shortTitle(firstQuestion) : 'Ask your library'} />
       <History
         activeId={chat.conversationId}
-        onPick={id => { setConversation(id); chat.resume(id); }}
+        onPick={pick}
         onNew={() => { setConversation(null); chat.newChat(); }}
       />
       <div className="min-w-0 flex-1 overflow-hidden rounded-[14px] border border-border bg-card">
@@ -123,7 +141,8 @@ export default function AskPage() {
           suggestedQuestions={STARTERS}
           passages={passages}
           className="h-[calc(100dvh-11rem)] md:h-[calc(100dvh-8.5rem)]"
-          header={<div className="flex items-center gap-2"><Sparkles className="size-4" /><h1 className="display text-lg">Ask your library</h1></div>}
+          // Narrow phones hide the title to fit Chat history and New chat; screen readers keep the heading.
+          header={<div className="flex min-w-0 items-center gap-2"><Sparkles className="size-4 shrink-0" aria-hidden="true" /><h1 className="display truncate text-lg max-sm:sr-only">Ask your library</h1><CompactHistory activeId={chat.conversationId} onPick={pick} /></div>}
           statusBanner={<ChatLimitNotice chat={chat} />}
         />
       </div>

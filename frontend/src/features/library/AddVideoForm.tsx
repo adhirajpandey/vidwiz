@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useId, useState } from 'react';
 import type { FormEvent } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useQueryClient } from '@tanstack/react-query';
@@ -11,6 +11,7 @@ import { Input } from '../../components/ui/Input';
 
 /** Paste a YouTube link: the video is saved and opened. */
 export default function AddVideoForm({ autoFocus = false }: { autoFocus?: boolean }) {
+  const errorId = useId();
   const [value, setValue] = useState('');
   const [error, setError] = useState<string | null>(null);
   const [saving, setSaving] = useState(false);
@@ -47,13 +48,14 @@ export default function AddVideoForm({ autoFocus = false }: { autoFocus?: boolea
           placeholder="Paste a YouTube link"
           aria-label="YouTube link"
           aria-invalid={Boolean(error)}
+          aria-describedby={error ? errorId : undefined}
           autoFocus={autoFocus}
         />
         <Button type="submit" variant="primary" disabled={saving || !value.trim()}>
           <Plus className="size-4" />Add
         </Button>
       </div>
-      {error && <p role="alert" className="text-xs text-destructive">{error}</p>}
+      {error && <p id={errorId} role="alert" className="text-xs text-destructive">{error}</p>}
     </form>
   );
 }

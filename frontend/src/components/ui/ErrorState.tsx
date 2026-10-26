@@ -48,7 +48,7 @@ export default function ErrorState({
         <button
           type="button"
           onClick={onRetry}
-          className="mt-5 rounded-lg bg-secondary px-4 py-2 text-sm font-medium text-secondary-foreground hover:bg-secondary/80 focus-visible:ring-2 focus-visible:ring-ring cursor-pointer"
+          className="mt-5 rounded-lg bg-secondary px-4 py-2 text-sm font-medium text-secondary-foreground hover:bg-secondary/80 focus-visible:ring-2 focus-visible:ring-ring"
         >
           {retryLabel}
         </button>

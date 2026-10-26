@@ -47,13 +47,13 @@ export default function LoginPage() {
         <form onSubmit={submit} className="space-y-3" noValidate>
           <div className="space-y-1">
             <label htmlFor="email" className="text-sm font-medium">Email</label>
-            <Input id="email" type="email" autoComplete="email" value={email} onChange={event => setEmail(event.target.value)} aria-invalid={Boolean(errors.email)} required />
-            {errors.email && <p className="text-xs text-destructive">{errors.email}</p>}
+            <Input id="email" type="email" autoComplete="email" value={email} onChange={event => setEmail(event.target.value)} aria-invalid={Boolean(errors.email)} aria-describedby={errors.email ? 'email-error' : undefined} required />
+            {errors.email && <p id="email-error" role="alert" className="text-xs text-destructive">{errors.email}</p>}
           </div>
           <div className="space-y-1">
             <label htmlFor="password" className="text-sm font-medium">Password</label>
-            <Input id="password" type="password" autoComplete="current-password" value={password} onChange={event => setPassword(event.target.value)} aria-invalid={Boolean(errors.password)} required />
-            {errors.password && <p className="text-xs text-destructive">{errors.password}</p>}
+            <Input id="password" type="password" autoComplete="current-password" value={password} onChange={event => setPassword(event.target.value)} aria-invalid={Boolean(errors.password)} aria-describedby={errors.password ? 'password-error' : undefined} required />
+            {errors.password && <p id="password-error" role="alert" className="text-xs text-destructive">{errors.password}</p>}
           </div>
           <Button type="submit" variant="primary" className="w-full justify-center" disabled={loading || !email || !password}>
             {loading ? 'Logging in…' : 'Log in'}

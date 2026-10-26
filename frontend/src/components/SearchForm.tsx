@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react';
 import type { FormEvent } from 'react';
 import { useLocation, useNavigate } from 'react-router-dom';
 import { Search } from 'lucide-react';
+import { isApplePlatform } from '../lib/platform';
 import { cn } from '../lib/utils';
 
 export default function SearchForm({ className, shortcut = false }: { className?: string; shortcut?: boolean }) {
@@ -25,12 +26,12 @@ export default function SearchForm({ className, shortcut = false }: { className?
         aria-label="Search your moments and videos"
         placeholder="Search moments and transcripts"
         className={cn(
-          'h-10 w-full rounded-[9px] border border-input bg-card pl-9 text-sm placeholder:text-muted-foreground focus:border-foreground/60 focus:outline-none focus:ring-2 focus:ring-foreground/10',
+          'h-10 w-full rounded-[9px] border border-input bg-card pl-9 text-sm placeholder:text-muted-foreground focus:border-foreground/60',
           shortcut ? 'pr-14' : 'pr-3',
         )}
       />
       {shortcut && (
-        <kbd className="pointer-events-none absolute right-2.5 top-1/2 -translate-y-1/2 rounded-[5px] border border-border border-b-2 px-1.5 text-[11px] font-semibold text-muted-foreground">Ctrl K</kbd>
+        <kbd className="pointer-events-none absolute right-2.5 top-1/2 -translate-y-1/2 rounded-[5px] border border-border border-b-2 px-1.5 text-[11px] font-semibold text-muted-foreground">{isApplePlatform() ? '⌘K' : 'Ctrl K'}</kbd>
       )}
     </form>
   );

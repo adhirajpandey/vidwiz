@@ -34,7 +34,7 @@ const Button = forwardRef<HTMLButtonElement, ButtonProps>(function Button(
       ref={ref}
       type={type}
       className={cn(
-        'inline-flex shrink-0 items-center rounded-[9px] font-semibold transition-[color,background-color,filter,opacity] disabled:pointer-events-none disabled:opacity-50',
+        'inline-flex shrink-0 items-center rounded-[9px] font-semibold transition-[color,background-color,filter,opacity] disabled:opacity-50',
         variants[variant],
         sizes[size],
         className,

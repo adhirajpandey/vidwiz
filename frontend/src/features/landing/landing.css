@@ -11,7 +11,7 @@
 }
 .dark .landing { --field: #272B46; --screen: #0C0D1F; --mist: #1C1F35; }
 .landing a { color: inherit; }
-.landing :focus-visible { outline: 3px solid var(--caption); outline-offset: 3px; border-radius: 4px; }
+.landing :focus-visible { outline: 2px solid var(--caption); outline-offset: 3px; border-radius: 4px; }
 .landing .wrap { max-width: 1180px; margin: 0 auto; padding: 0 32px; }
 
 /* Nav */
@@ -22,16 +22,18 @@
 .landing .links a { text-decoration: none; opacity: .85; white-space: nowrap; }
 .landing .links a:hover { opacity: 1; }
 .landing .theme { display: grid; place-items: center; width: 40px; height: 40px; border: 0; border-radius: 10px; background: transparent; color: inherit; cursor: pointer; }
-.landing .theme:hover { background: color-mix(in srgb, var(--on-field) 8%, transparent); }
+.landing .theme:hover:not(:disabled) { background: color-mix(in srgb, var(--on-field) 8%, transparent); }
 
 .landing .btn { display: inline-flex; align-items: center; gap: 10px; height: 48px; padding: 0 22px; border-radius: 10px; font: inherit; font-weight: 650; text-decoration: none; border: 0; cursor: pointer; white-space: nowrap; }
 .landing .btn.yellow { background: var(--caption); color: var(--saved-ink); }
-.landing .btn.yellow:hover { filter: brightness(1.06); }
+.landing .btn.yellow:hover:not(:disabled) { filter: brightness(1.06); }
 .landing .btn.line { background: transparent; color: var(--on-field); box-shadow: inset 0 0 0 1.5px color-mix(in srgb, var(--on-field) 55%, transparent); }
-.landing .btn.line:hover { box-shadow: inset 0 0 0 1.5px var(--on-field); }
+.landing .btn.line:hover:not(:disabled) { box-shadow: inset 0 0 0 1.5px var(--on-field); }
 .landing .btn.ink { background: var(--ink); color: var(--paper); }
 .landing .btn.small { height: 40px; padding: 0 16px; }
 .landing .btn:disabled { opacity: .6; cursor: default; }
+/* The example screens are pictures of the app, not controls. */
+.landing :is(.screen, .tray, .search, .answer) { cursor: default; }
 
 /* Hero */
 .landing .hero { background: var(--field); color: var(--on-field); padding-bottom: 96px; }

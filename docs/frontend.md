@@ -33,7 +33,8 @@ Workers.
 ## Routes
 - `/`: Home when signed in (search on mobile, add a video, a compact Recent videos strip,
   and recent moments grouped once per day and video); the landing page when
-  signed out. The landing page renders without the app header and has its own
+  signed out. The landing page renders without the app header. Its example
+  captures with Alt+S only while focused. It has its own
   styles in `features/landing/landing.css` (Bricolage Grotesque, light and dark
   from the app theme).
 - `/v/:videoId`: the video workspace. Query parameters: `t` (start playback at
@@ -59,6 +60,29 @@ Workers.
   moment button (`Button variant="save"`), the moment strip under the player,
   search matches, and citations. It is always a background behind ink text.
 - AI text has no colour of its own; a small sparkle icon marks it.
+- Arrivals are highlights that point at what you just reached: a moment
+  opened from View moment, search, Home, Resurface, or a link with `m`, and a
+  video just added in the Library. The row gets a 9% caption-yellow tint with
+  no edge for 2.5 seconds after it is first shown, then fades out over 900 ms;
+  reduced motion clears it without fading (`lib/arrival.ts`,
+  `hooks/useArrival.ts`). Polling, rerenders, and remounts continue the same
+  timing. View moment and links to the same moment replay it; switching
+  panels does not. The list scrolls to an arrival once. State highlights
+  (the playing transcript line, the open chat, the chosen sort, search
+  matches, the new API token) follow their state and never fade.
+- Icon-only controls get a hint from the shared `Tooltip`
+  (`components/ui/Tooltip.tsx`, Radix): ink inverted from the theme, small
+  semibold text, shown after 400 ms of hover or at once on keyboard focus,
+  and closed by Escape. Focus returned by a click or a closing menu doesn't
+  show it. Controls whose text says what they do have none, and nothing uses
+  the browser's `title`. Fields and the chat composer share the buttons' 2px
+  focus outline.
+- Cursors follow what a thing does, from shared rules in `src/index.css`:
+  links and enabled controls (buttons, menu items, tabs, time chips, timeline
+  markers) show a pointer. Disabled or busy controls keep the arrow, and the
+  `hover` variant skips them, so they don't change on hover. Transcript,
+  answers, notes, and fields keep the text cursor; standalone counts, status
+  lines, and the landing page's example screens use the arrow.
 - Bricolage Grotesque everywhere, with tabular digits for times. Headings use
   the `display` utility (condensed and heavy).
 - Every paid action shows its cost: "Unlock for 5 credits" before the first
@@ -66,7 +90,8 @@ Workers.
 - The note field starts collapsed; the pencil opens it, and Cancel note or
   Escape closes it. Enter saves the note with the moment; Shift+Enter adds a line.
   Saving keeps the selected panel and shows an inline
-  **View moment** toast action to open and highlight the saved moment.
+  **View moment** toast action to open the saved moment and show it as an
+  arrival.
 - Save moment is a split button. The main part follows the AI line default from
   Settings. The capture shortcut saves with that default. The arrow opens a
   menu listing both ways with their cost; the default is checked and shows the
@@ -93,12 +118,23 @@ Workers.
   auth-change event that `useSignedIn` subscribes to. A `401` on an
   authenticated request triggers one session-expired notice and a redirect to
   `/login`.
+- **Sign-in forms**: field errors are associated with their input and announced.
+  Google sign-in shows Google's own button in the current theme. If the script
+  fails or is unavailable after five seconds, Retry reloads it; email sign-in
+  stays usable. The client initializes once, and listeners and timers are
+  removed when the form unmounts. Link forms associate invalid links with their
+  error text too.
 - **Server state**: TanStack Query. Moment lists poll every 5 seconds while a
   moment is resolving, queued, or waiting for a transcript; the video polls
   while its `transcript_status` is `pending` or its `overview_status` is
   `queued`, and the transcript while it is `pending`. Every job ends in an
   explicit state, so polling always stops.
   Mutations invalidate moments, the library, and the profile (credit balance).
+- The moment strip under the player marks each moment on a thin rail. Marks
+  closer than 22px merge into one numbered marker that opens a menu of its
+  moments; each row seeks. Single marks have a 14×24px target and a tooltip
+  with the time and the AI line (or note, or quote). Each marker is one tab
+  stop, and the rail regroups when its width changes (`groupMarks.ts`).
 - Moment timestamps and timeline marks use the saved capture time. Playing a
   moment starts five seconds earlier (clamped at zero), including search and
   exported links; the transcript quote has its own context window.
@@ -107,7 +143,9 @@ Workers.
   counts follow the search. A themed menu offers six sorts. A paste card
   checks membership, preserves the link's time, and offers Add and open or
   Add to library. Existing videos open directly; failed checks claim no
-  membership state, and failed saves retry the original action in place.
+  membership state, and failed saves retry the original action in place. Open
+  and library citation Watch actions are links, so they support new tabs.
+  In-video citations still seek the current player.
 - **Resurfacing**: Home shows an older moment in a stable daily order. Another
   advances through the eligible moments and wraps to the first. Empty results
   hide the section; failures show a retry. Imported moments use an approximate
@@ -145,7 +183,9 @@ Workers.
   resumes it. Searching suspends centering.
   The panel recenters on seeks, tab entry, and size changes while following,
   without scrolling the page. It also filters by text and saves any line as a
-  moment.
+  moment. The save button is a 32px target that appears on hover or keyboard
+  focus within the line on desktop and is always shown on touch screens; a
+  saved line keeps its mark.
 - Overview questions fill the Ask composer without sending. Locked videos show
   the question above the unlock action and retain it after unlocking.
 - Ask initializes only when its tab is first opened. It stays mounted after
@@ -160,14 +200,15 @@ Workers.
   video at the time. Every citation can be saved as a moment.
 - **Guests**: the landing page starts a guest conversation for a pasted link
   and opens the workspace on the Ask tab.
-- **Search links**: moment hits open Moments and highlight the saved moment;
+- **Search links**: moment hits open Moments at the saved moment as an arrival;
   passage hits open Transcript. Playback requests made before player setup
   are queued and retain the existing lead-in and autoplay fallback.
 - **Playback help**: when YouTube reports blocked autoplay, the Press Play
   help waits 500 ms and appears only if playback still has not started, so a
   brief report does not push the controls below the player down.
 - **Command palette**: ⌘K / Ctrl+K searches, asks the library, opens a pasted
-  YouTube link, or jumps to a page.
+  YouTube link, or jumps to a page. The header search shows ⌘K on Apple
+  devices and Ctrl K elsewhere.
 - **PWA**: `public/manifest.webmanifest` with a share target; sharing a YouTube
   video to VidWiz saves and opens it.
 - **API errors**: Fetch and SSE failures normalize to a shared error type. Safe
@@ -201,6 +242,12 @@ pages pass the result to `Seo`, and signed-in pages use `PageTitle`.
 - Search uses `"<query>" · Search · VidWiz` with curly quotes.
 
 Chat controls are called **New chat** and **Chat history** everywhere.
+Library Ask lists its chats in a sidebar on wide screens. Below 1024px the
+same chats open from a Chat history menu in the chat header, the component
+video Ask uses (`features/chat/ChatHistoryMenu.tsx`). The open chat is marked
+with `aria-current` in both. On phones the "Ask your library" title is
+visually hidden to fit both controls; it stays the page heading for screen
+readers.
 
 Every scrolling area uses the slim, theme-colored scrollbar defined in
 `src/index.css`. A component can still hide it with a utility, as the tab strip

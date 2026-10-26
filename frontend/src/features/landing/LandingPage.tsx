@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useState } from 'react';
 import type { FormEvent, ReactNode } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { Moon, Search, Sun } from 'lucide-react';
@@ -10,6 +10,7 @@ import { formatClock } from '../../lib/format';
 import { LANDING_TITLE } from '../../lib/title';
 import { extractVideoId } from '../../lib/videoUtils';
 import Seo from '../../components/Seo';
+import { Tooltip } from '../../components/ui/Tooltip';
 import './landing.css';
 
 // Example content comes from a real library: Josh Kaufman's TEDxCSU talk and
@@ -36,16 +37,16 @@ function ExampleVideo() {
   const [saved, setSaved] = useState(false);
   const moments = saved ? [NEW_MOMENT, ...SAVED].slice(0, 2) : SAVED;
 
-  useEffect(() => {
-    const onKey = (event: KeyboardEvent) => {
-      if (event.key.toLowerCase() === 's' && !(event.target as HTMLElement).closest('input, textarea')) setSaved(true);
-    };
-    document.addEventListener('keydown', onKey);
-    return () => document.removeEventListener('keydown', onKey);
-  }, []);
-
+  // Like the real shortcut, but only while the example has focus, so typing elsewhere never triggers it.
   return (
-    <div className="demo" aria-label="Example: a video with its saved moments">
+    <div className="demo" role="group" aria-label="Example: a video with its saved moments" tabIndex={-1}
+      onKeyDown={event => {
+        if (event.defaultPrevented || event.nativeEvent.isComposing || event.repeat
+          || (event.code !== 'KeyS' && event.key.toLowerCase() !== 's')
+          || !event.altKey || event.ctrlKey || event.metaKey || event.shiftKey) return;
+        event.preventDefault();
+        setSaved(true);
+      }}>
       <div className="screen" style={{ backgroundImage: `url(https://i.ytimg.com/vi/${EXAMPLE.videoId}/maxresdefault.jpg)` }}>
         <span className="play" aria-hidden="true" />
         <div className="bar">
@@ -58,7 +59,7 @@ function ExampleVideo() {
         </div>
       </div>
       <div className="controls">
-        <button type="button" className="btn yellow save" onClick={() => setSaved(true)}>Save this moment <kbd>S</kbd></button>
+        <button type="button" className="btn yellow save" onClick={() => setSaved(true)}>Save this moment <kbd>Alt+S</kbd></button>
         <span className="hint">{saved ? `Saved at ${formatClock(EXAMPLE.pausedAt)}.` : EXAMPLE.title}</span>
       </div>
       <div className="tray">
@@ -123,10 +124,12 @@ function TryIt() {
           onChange={event => { setValue(event.target.value); setError(null); }}
           placeholder="Paste a YouTube link"
           aria-label="YouTube link"
+          aria-invalid={Boolean(error)}
+          aria-describedby={error ? 'try-link-error' : undefined}
         />
         <button type="submit" className="btn yellow" disabled={loading || !value.trim()}>Ask about it</button>
       </div>
-      {error ? <p role="alert" className="try-note">{error}</p> : <p className="try-note">No account needed to try it.</p>}
+      {error ? <p id="try-link-error" role="alert" className="try-note">{error}</p> : <p className="try-note">No account needed to try it.</p>}
     </form>
   );
 }
@@ -147,9 +150,11 @@ export default function LandingPage() {
             <div className="links">
               <a href="#search">How it works</a>
               <a href="#pricing">Pricing</a>
-              <button type="button" className="theme" aria-label="Toggle theme" onClick={toggle}>
-                {theme === 'dark' ? <Sun className="size-4" /> : <Moon className="size-4" />}
-              </button>
+              <Tooltip label={theme === 'dark' ? 'Light theme' : 'Dark theme'} side="bottom">
+                <button type="button" className="theme" aria-label="Toggle theme" onClick={toggle}>
+                  {theme === 'dark' ? <Sun className="size-4" /> : <Moon className="size-4" />}
+                </button>
+              </Tooltip>
               <Link className="keep" to="/login">Log in</Link>
             </div>
             <Link className="btn yellow small" to="/signup">Start free</Link>

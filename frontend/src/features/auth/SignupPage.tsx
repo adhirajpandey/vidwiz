@@ -45,8 +45,8 @@ export default function SignupPage() {
   const field = (key: keyof typeof form, label: string, type: string, autoComplete: string) => (
     <div className="space-y-1">
       <label htmlFor={key} className="text-sm font-medium">{label}</label>
-      <Input id={key} type={type} autoComplete={autoComplete} value={form[key]} onChange={event => set(key)(event.target.value)} aria-invalid={Boolean(errors[key])} required />
-      {errors[key] && <p className="text-xs text-destructive">{errors[key]}</p>}
+      <Input id={key} type={type} autoComplete={autoComplete} value={form[key]} onChange={event => set(key)(event.target.value)} aria-invalid={Boolean(errors[key])} aria-describedby={errors[key] ? `${key}-error` : undefined} required />
+      {errors[key] && <p id={`${key}-error`} role="alert" className="text-xs text-destructive">{errors[key]}</p>}
     </div>
   );
 
