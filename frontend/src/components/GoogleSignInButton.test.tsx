@@ -65,10 +65,12 @@ it('replaces a failed script on Retry and cancels timers on unmount', () => {
   expect(sdk.initialize).not.toHaveBeenCalled();
   expect(vi.getTimerCount()).toBe(0);
 });
-it('updates the provider theme without reinitializing', async () => {
+it('keeps the light rectangular provider button in both app themes', async () => {
   const sdk = client();
   render(<GoogleSignInButton onSuccess={vi.fn()} onError={vi.fn()} />);
+  expect(sdk.renderButton).toHaveBeenLastCalledWith(expect.any(HTMLElement), expect.objectContaining({ theme: 'outline', shape: 'rectangular' }));
   await act(async () => document.documentElement.classList.add('dark'));
-  expect(sdk.renderButton).toHaveBeenLastCalledWith(expect.any(HTMLElement), expect.objectContaining({ theme: 'filled_black' }));
+  expect(sdk.renderButton).toHaveBeenCalledTimes(1);
+  expect(screen.getByRole('button', { name: 'Continue with Google' }).parentElement?.style.colorScheme).toBe('light');
   expect(sdk.initialize).toHaveBeenCalledTimes(1);
 });

@@ -119,7 +119,8 @@ Workers.
   authenticated request triggers one session-expired notice and a redirect to
   `/login`.
 - **Sign-in forms**: field errors are associated with their input and announced.
-  Google sign-in shows Google's own button in the current theme. If the script
+  Google sign-in shows Google's light rectangular button in both app themes.
+  The control follows the form width and keeps a light color scheme. If the script
   fails or is unavailable after five seconds, Retry reloads it; email sign-in
   stays usable. The client initializes once, and listeners and timers are
   removed when the form unmounts. Link forms associate invalid links with their
