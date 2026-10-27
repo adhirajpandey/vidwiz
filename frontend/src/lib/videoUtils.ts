@@ -37,6 +37,27 @@ export function extractVideoId(input: string): string | null {
   return candidate && VIDEO_ID_PATTERN.test(candidate) ? candidate : null;
 }
 
+/**
+ * The start time a YouTube link asks for, in seconds: `t` or `start` in the query
+ * or `#t=` in the hash, as plain seconds or `1h2m3s`. Returns 0 when there is none.
+ */
+export function extractStartSeconds(input: string): number {
+  const trimmed = input?.trim();
+  if (!trimmed) return 0;
+  let url: URL;
+  try {
+    url = new URL(/^https?:\/\//.test(trimmed) ? trimmed : `https://${trimmed}`);
+  } catch {
+    return 0;
+  }
+  const raw = url.searchParams.get('t') ?? url.searchParams.get('start') ?? url.hash.match(/[#&]t=([^&]+)/)?.[1];
+  if (!raw) return 0;
+  if (/^\d+$/.test(raw)) return Number(raw);
+  const match = raw.match(/^(?:(\d+)h)?(?:(\d+)m)?(?:(\d+)s)?$/);
+  if (!match) return 0;
+  return Number(match[1] ?? 0) * 3600 + Number(match[2] ?? 0) * 60 + Number(match[3] ?? 0);
+}
+
 export function isValidVideoId(value: string): boolean {
   return VIDEO_ID_PATTERN.test(value);
 }

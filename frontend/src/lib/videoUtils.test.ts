@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 
-import { extractVideoId, isValidVideoId } from './videoUtils';
+import { extractStartSeconds, extractVideoId, isValidVideoId } from './videoUtils';
 
 describe('extractVideoId', () => {
   it('normalizes a malformed single-slash HTTPS protocol', () => {
@@ -34,5 +34,21 @@ describe('isValidVideoId', () => {
     expect(isValidVideoId('dQw4w9WgXcQ')).toBe(true);
     expect(isValidVideoId('dQw4w9WgXc')).toBe(false);
     expect(isValidVideoId('https://youtu.be/dQw4w9WgXcQ')).toBe(false);
+  });
+});
+
+describe('extractStartSeconds', () => {
+  it.each([
+    ['https://youtu.be/dQw4w9WgXcQ?t=133', 133],
+    ['https://www.youtube.com/watch?v=dQw4w9WgXcQ&t=2m13s', 133],
+    ['youtube.com/watch?v=dQw4w9WgXcQ&t=1h2m3s', 3723],
+    ['https://www.youtube.com/embed/dQw4w9WgXcQ?start=90', 90],
+    ['https://www.youtube.com/watch?v=dQw4w9WgXcQ#t=45', 45],
+  ])('reads the start time from %s', (input, seconds) => {
+    expect(extractStartSeconds(input)).toBe(seconds);
+  });
+
+  it.each(['https://youtu.be/dQw4w9WgXcQ', 'dQw4w9WgXcQ', 'https://youtu.be/dQw4w9WgXcQ?t=soon', ''])('returns 0 without a usable time: %s', (input) => {
+    expect(extractStartSeconds(input)).toBe(0);
   });
 });
