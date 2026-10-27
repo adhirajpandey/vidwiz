@@ -296,11 +296,39 @@ def request_ai(db: Session, moment: Moment) -> Moment:
 def complete_resolution(
     db: Session, moment: Moment, video_id: str, title: str | None
 ) -> None:
-    """Attach a resolved video to a title-only capture."""
+    """Resolve a title capture and recover earlier matching lookup failures."""
+    failed = []
+    if moment.pending_title:
+        failed = db.scalars(
+            select(Moment)
+            .where(
+                Moment.user_id == moment.user_id,
+                Moment.id < moment.id,
+                Moment.video_id.is_(None),
+                Moment.resolve_status == ResolveStatus.UNRESOLVED,
+                func.lower(func.trim(Moment.pending_title))
+                == moment.pending_title.strip().lower(),
+                Moment.pending_channel == moment.pending_channel,
+            )
+            .order_by(Moment.id)
+        ).all()
+        # Ambiguous captures still need the user's choice.
+        failed = [capture for capture in failed if not capture.resolve_candidates]
+
+    _attach_resolved_video(db, moment, video_id, title)
+    for capture in failed:
+        _attach_resolved_video(db, capture, video_id, title)
+
+
+def _attach_resolved_video(
+    db: Session, moment: Moment, video_id: str, title: str | None
+) -> None:
     logger.debug(
         "Resolved moment video", extra={"moment_id": moment.id, "video_id": video_id}
     )
-    wants_ai = moment.ai_status == AiStatus.WAITING_TRANSCRIPT
+    # A final title-lookup failure marks a pending AI request FAILED. The
+    # capture still has no video, so no AI job or charge has happened yet.
+    wants_ai = moment.ai_status in {AiStatus.WAITING_TRANSCRIPT, AiStatus.FAILED}
     prepare_video(db, video_id, title)
     library_service.save_video(db, moment.user_id, video_id)
 
