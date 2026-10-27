@@ -52,7 +52,7 @@ export default function SignupPage() {
 
   return (
     <>
-      <Seo title={documentTitle('Create an account')} description="Create a VidWiz account to capture YouTube moments and find them again." path="/signup" />
+      <Seo noIndex title={documentTitle('Create an account')} description="Create a VidWiz account to capture YouTube moments and find them again." path="/signup" />
       <AuthCard
         title="Create your account"
         subtitle={`Start with ${config.SIGNUP_CREDITS} free credits`}

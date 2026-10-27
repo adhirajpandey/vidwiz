@@ -3,6 +3,7 @@ import type { FormEvent, ReactNode } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { conversationsApi } from '../../api';
 import config from '../../config';
+import { useHydrated } from '../../hooks/useHydrated';
 import { useNotify } from '../../hooks/useNotify';
 import { formatClock } from '../../lib/format';
 import { LANDING_TITLE } from '../../lib/title';
@@ -12,8 +13,7 @@ import './landing.css';
 
 // Every recording and answer on this page is real: the demo account's library,
 // recorded on vidwiz.online. Phones get the phone recordings; CSS hides the other frame.
-const REDUCED_MOTION = typeof window !== 'undefined' && window.matchMedia?.('(prefers-reduced-motion: reduce)').matches;
-const IS_MAC = typeof navigator !== 'undefined' && /Mac|iPhone|iPad/.test(navigator.platform);
+const prefersReducedMotion = () => typeof window !== 'undefined' && window.matchMedia?.('(prefers-reduced-motion: reduce)').matches;
 
 type Source = { videoId: string; at: number; title: string; short: string };
 const SOURCES: Record<'links' | 'essays' | 'feynman', Source> = {
@@ -25,10 +25,11 @@ const SOURCES: Record<'links' | 'essays' | 'feynman', Source> = {
 /** Fires once when the element first comes into view. */
 function useSeenOnce<T extends Element>(threshold = 0.2) {
   const ref = useRef<T>(null);
-  const [seen, setSeen] = useState(typeof IntersectionObserver === 'undefined');
+  const [seen, setSeen] = useState(false);
   useEffect(() => {
     const node = ref.current;
     if (!node || seen) return;
+    if (typeof IntersectionObserver === 'undefined') { setSeen(true); return; }
     const observer = new IntersectionObserver(([entry]) => {
       if (entry.isIntersecting) { setSeen(true); observer.disconnect(); }
     }, { threshold, rootMargin: '0px 0px -8% 0px' });
@@ -69,7 +70,7 @@ function Clip({ name, ratio, label }: { name: string; ratio: string; label: stri
     const observer = new IntersectionObserver(([entry]) => {
       if (entry.isIntersecting && !node.getAttribute('src')) node.src = `/landing/${name}.mp4`;
       if (entry.isIntersecting && entry.intersectionRatio >= 0.35) {
-        if (!REDUCED_MOTION && !held.current) node.play().catch(() => {});
+        if (!prefersReducedMotion() && !held.current) node.play().catch(() => {});
       } else {
         node.pause();
       }
@@ -163,8 +164,9 @@ function Cite({ source, onOpen }: { source: Source; onOpen: (source: Source) => 
 
 /** A real answer from Ask; the lines arrive one by one the first time it is on screen. */
 function AskCard({ onOpen }: { onOpen: (source: Source) => void }) {
+  const hydrated = useHydrated();
   const [ref, seen] = useSeenOnce<HTMLDivElement>(0.35);
-  const step = (index: number, className = '') => ({ className: `step ${className}`.trim(), style: { transitionDelay: REDUCED_MOTION ? '0s' : `${0.15 + index * 0.32}s` } });
+  const step = (index: number, className = '') => ({ className: `step ${className}`.trim(), style: { transitionDelay: hydrated && prefersReducedMotion() ? '0s' : `${0.15 + index * 0.32}s` } });
   return (
     <div ref={ref} className={`ask${seen ? ' go' : ''}`} role="group" aria-label="An answer from Ask, with its sources">
       <div className="ask-head">{SPARKLE}Ask your library</div>
@@ -273,6 +275,8 @@ function TryIt() {
 }
 
 export default function LandingPage() {
+  const hydrated = useHydrated();
+  const isMac = hydrated && /Mac|iPhone|iPad/.test(navigator.platform);
   const nav = useRef<HTMLElement>(null);
   const stage = useRef<HTMLDivElement>(null);
   const heroCtas = useRef<HTMLDivElement>(null);
@@ -292,7 +296,7 @@ export default function LandingPage() {
       const y = window.scrollY;
       nav.current?.classList.toggle('solid', y > 24);
       if (heroCtas.current) nav.current?.classList.toggle('past', heroCtas.current.getBoundingClientRect().bottom < 64);
-      if (!REDUCED_MOTION) stage.current?.style.setProperty('--tilt', Math.max(0, 1 - y / (window.innerHeight * 0.55)).toFixed(3));
+      if (!prefersReducedMotion()) stage.current?.style.setProperty('--tilt', Math.max(0, 1 - y / (window.innerHeight * 0.55)).toFixed(3));
     };
     const onScroll = () => { if (!ticking) { ticking = true; requestAnimationFrame(update); } };
     update();
@@ -301,10 +305,10 @@ export default function LandingPage() {
   }, []);
 
   return (
-    <div className={`landing${REDUCED_MOTION ? ' manual' : ''}`}>
+    <div className={`landing${hydrated && prefersReducedMotion() ? ' manual' : ''}`}>
       <Seo
         title={LANDING_TITLE}
-        description="Save moments from YouTube, add your own notes, and find what was said later. Ask questions about a video or your library."
+        description="Take timestamped notes on YouTube, find what was said later, and ask AI questions about a video or your library."
         path="/"
       />
 
@@ -320,7 +324,7 @@ export default function LandingPage() {
         <header className="hero" id="top">
           <div className="wrap">
             <Reveal as="h1">Keep the moments <span className="hl mark">worth coming back&nbsp;to.</span></Reveal>
-            <Reveal as="p" delay={1} className="lede">Save moments from YouTube, add your own notes, and find what was said later. Ask questions about a video or your library.</Reveal>
+            <Reveal as="p" delay={1} className="lede">Take timestamped notes on YouTube, find what was said later, and ask AI questions about a video or your library.</Reveal>
             <Reveal delay={2} className="ctas">
               <div ref={heroCtas} className="ctas-row">
                 <a className="btn primary desk-cta" href={config.CHROME_WEBSTORE_URL} target="_blank" rel="noopener noreferrer">{CHROME_ICON}Add to Chrome</a>
@@ -375,7 +379,7 @@ export default function LandingPage() {
                   <span className="ic"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.9" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true"><rect x="2.5" y="4" width="19" height="13" rx="2" /><path d="M8 21h8M12 17v4" /></svg></span>
                   <div>
                     <h3>On your computer</h3>
-                    <p>Press <span className="combo"><kbd>{IS_MAC ? '⌥' : 'Alt'}</kbd><i aria-hidden="true">+</i><kbd>S</kbd></span> on any YouTube video with the Chrome extension.</p>
+                    <p>Press <span className="combo"><kbd>{isMac ? '⌥' : 'Alt'}</kbd><i aria-hidden="true">+</i><kbd>S</kbd></span> on any YouTube video with the Chrome extension.</p>
                     <a href={config.CHROME_WEBSTORE_URL} target="_blank" rel="noopener noreferrer">Add to Chrome</a>
                   </div>
                 </li>

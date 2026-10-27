@@ -1,13 +1,17 @@
 {
   "$schema": "node_modules/wrangler/config-schema.json",
   "name": "vidwiz",
+  "main": "frontend/src/worker.ts",
   "compatibility_date": "2026-04-05",
   "observability": {
     "enabled": true
   },
   "assets": {
     "directory": "frontend/dist",
-    "not_found_handling": "single-page-application"
+    "binding": "ASSETS",
+    "run_worker_first": ["/*", "!/assets/*", "!/landing/*", "!/brand/*"],
+    "html_handling": "none",
+    "not_found_handling": "none"
   },
   "compatibility_flags": [
     "nodejs_compat"

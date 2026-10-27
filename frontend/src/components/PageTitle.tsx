@@ -6,7 +6,7 @@ export default function PageTitle({ title }: { title: string | string[] }) {
   return (
     <Helmet>
       <title>{documentTitle(...[title].flat())}</title>
-      <meta name="robots" content="noindex" />
+      <meta name="robots" content="noindex, follow" />
     </Helmet>
   );
 }

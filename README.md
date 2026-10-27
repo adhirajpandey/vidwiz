@@ -51,6 +51,11 @@ PostgreSQL ←→ Workers + AWS Services
       │           └─ S3 (Transcripts) -> dispatcher Lambda
 ```
 
+The frontend build pre-renders the homepage, support, and privacy pages for
+search engines. Cloudflare serves those pages and routes application deep
+links; unknown addresses return HTTP 404. See
+[public HTML and indexing](docs/frontend.md#public-html-and-indexing).
+
 ## Quick start
 Prerequisites: Python 3.13, uv 0.8.22, Node.js, pnpm, and PostgreSQL. VidWiz
 runs on PostgreSQL only; its migrations and search use PostgreSQL features.
