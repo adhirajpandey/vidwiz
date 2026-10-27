@@ -1,51 +1,71 @@
 // @vitest-environment jsdom
-import { cleanup, createEvent, fireEvent, render, screen } from '@testing-library/react';
+import { cleanup, render, screen } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { HelmetProvider } from 'react-helmet-async';
-import { MemoryRouter } from 'react-router-dom';
-import { afterEach, expect, it, vi } from 'vitest';
+import { MemoryRouter, Route, Routes, useLocation } from 'react-router-dom';
+import { afterEach, beforeAll, expect, it, vi } from 'vitest';
 import LandingPage from './LandingPage';
 
+const createConversation = vi.fn();
+vi.mock('../../api', () => ({ conversationsApi: { createConversation: (...args: unknown[]) => createConversation(...args) } }));
 vi.mock('../../hooks/useNotify', () => ({ useNotify: () => ({ error: vi.fn() }) }));
-afterEach(() => { cleanup(); });
+
+beforeAll(() => {
+  // jsdom has no modal dialogs.
+  HTMLDialogElement.prototype.showModal = function showModal() { this.setAttribute('open', ''); };
+  HTMLDialogElement.prototype.close = function close() { this.removeAttribute('open'); this.dispatchEvent(new Event('close')); };
+});
+afterEach(() => { cleanup(); createConversation.mockReset(); sessionStorage.clear(); });
+
+function Where() {
+  const location = useLocation();
+  return <p data-testid="where">{location.pathname + location.search}</p>;
+}
 
 function setup() {
   const user = userEvent.setup();
-  render(<HelmetProvider><MemoryRouter><LandingPage /></MemoryRouter></HelmetProvider>);
+  render(
+    <HelmetProvider>
+      <MemoryRouter>
+        <Routes>
+          <Route path="/" element={<LandingPage />} />
+          <Route path="/v/:videoId" element={<Where />} />
+        </Routes>
+      </MemoryRouter>
+    </HelmetProvider>,
+  );
   return user;
 }
-const saved = () => screen.queryByText('Saved at 9:47.');
-
-it('saves in the example with Alt+S only while the example has focus', async () => {
-  const user = setup();
-  await user.type(screen.getByRole('textbox', { name: 'YouTube link' }), 'sss');
-  await user.keyboard('{Alt>}s{/Alt}');
-  expect(saved()).toBeNull();
-
-  await user.click(screen.getByRole('group', { name: 'Example: a video with its saved moments' }));
-  await user.keyboard('s');
-  expect(saved()).toBeNull();
-  await user.keyboard('{Alt>}s{/Alt}');
-  expect(saved()).toBeTruthy();
-  expect(screen.getByRole('button', { name: /Save this moment/ }).textContent).toContain('Alt+S');
-});
 
 it('connects an invalid video link to its error', async () => {
   const user = setup();
-  const input = screen.getByRole('textbox', { name: 'YouTube link' });
+  const input = screen.getByRole('textbox', { name: 'YouTube video link' });
   await user.type(input, 'invalid');
   await user.click(screen.getByRole('button', { name: 'Ask about it' }));
   expect(input.getAttribute('aria-invalid')).toBe('true');
-  expect(document.getElementById(input.getAttribute('aria-describedby')!)?.textContent).toBe('Paste a YouTube video link.');
+  expect(document.getElementById(input.getAttribute('aria-describedby')!)?.textContent).toBe('Enter a valid YouTube video link.');
+  expect(createConversation).not.toHaveBeenCalled();
   await user.clear(input);
-  expect(input.getAttribute('aria-describedby')).toBeNull();
+  expect(document.getElementById(input.getAttribute('aria-describedby')!)?.textContent).toBe('No account needed to try it.');
 });
 
-it.each([{ shiftKey: true }, { ctrlKey: true }, { metaKey: true }, { isComposing: true }, { repeat: true }, { prevented: true }])('ignores unsupported shortcut events: %j', extra => {
-  setup();
-  const demo = screen.getByRole('group', { name: 'Example: a video with its saved moments' });
-  const event = createEvent.keyDown(demo, { key: 's', code: 'KeyS', altKey: true, ...extra });
-  if ('prevented' in extra) event.preventDefault();
-  fireEvent(demo, event);
-  expect(saved()).toBeNull();
+it('opens Ask on a pasted video as a guest, keeping its start time', async () => {
+  createConversation.mockResolvedValue({ id: 7 });
+  const user = setup();
+  await user.type(screen.getByRole('textbox', { name: 'YouTube video link' }), 'https://youtu.be/N4YjXJVzoZY?t=2m13s');
+  await user.click(screen.getByRole('button', { name: 'Ask about it' }));
+  expect(createConversation).toHaveBeenCalledWith({ scope: 'video', video_id: 'N4YjXJVzoZY' });
+  expect(sessionStorage.getItem('guestSessionId')).toBeTruthy();
+  expect((await screen.findByTestId('where')).textContent).toBe('/v/N4YjXJVzoZY?tab=ask&c=7&t=133');
+});
+
+it('plays a cited source from the cited second, and closing removes the player', async () => {
+  const user = setup();
+  await user.click(screen.getByRole('button', { name: /16:17\s*Zettelkasten Smart Notes/ }));
+  const frame = screen.getByTitle('Source video');
+  expect(frame.getAttribute('src')).toContain('/embed/ziE6UExsOrs?start=977');
+  expect(screen.getByRole('link', { name: 'Open in VidWiz' }).getAttribute('href')).toBe('/v/ziE6UExsOrs?t=977');
+  document.querySelector('dialog')!.close();
+  expect(await screen.findByRole('button', { name: /4:35\s*Mini Essays/ })).toBeTruthy();
+  expect(screen.queryByTitle('Source video')).toBeNull();
 });

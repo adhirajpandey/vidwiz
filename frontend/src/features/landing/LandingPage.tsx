@@ -1,95 +1,224 @@
-import { useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import type { FormEvent, ReactNode } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
-import { Moon, Search, Sun } from 'lucide-react';
 import { conversationsApi } from '../../api';
 import config from '../../config';
 import { useNotify } from '../../hooks/useNotify';
-import { useTheme } from '../../hooks/useTheme';
 import { formatClock } from '../../lib/format';
 import { LANDING_TITLE } from '../../lib/title';
-import { extractVideoId } from '../../lib/videoUtils';
+import { extractStartSeconds, extractVideoId } from '../../lib/videoUtils';
 import Seo from '../../components/Seo';
-import { Tooltip } from '../../components/ui/Tooltip';
 import './landing.css';
 
-// Example content comes from a real library: Josh Kaufman's TEDxCSU talk and
-// the AI lines VidWiz wrote for moments saved on it.
-const EXAMPLE = {
-  videoId: '5MgBikgcWnY',
-  title: 'The first 20 hours: how to learn anything, Josh Kaufman',
-  duration: 1167,
-  pausedAt: 587,
+// Every recording and answer on this page is real: the demo account's library,
+// recorded on vidwiz.online. Phones get the phone recordings; CSS hides the other frame.
+const REDUCED_MOTION = typeof window !== 'undefined' && window.matchMedia?.('(prefers-reduced-motion: reduce)').matches;
+const IS_MAC = typeof navigator !== 'undefined' && /Mac|iPhone|iPad/.test(navigator.platform);
+
+type Source = { videoId: string; at: number; title: string; short: string };
+const SOURCES: Record<'links' | 'essays' | 'feynman', Source> = {
+  links: { videoId: 'ziE6UExsOrs', at: 977, title: 'Zettelkasten Smart Notes: Step by Step with Obsidian', short: 'Zettelkasten Smart Notes' },
+  essays: { videoId: 'N4YjXJVzoZY', at: 275, title: 'Mini Essays: The Ultimate Learning Tool', short: 'Mini Essays' },
+  feynman: { videoId: 'N4YjXJVzoZY', at: 139, title: 'Mini Essays: The Ultimate Learning Tool', short: 'Mini Essays' },
 };
-const SAVED = [
-  { at: 300, ai: 'The famous 10000 hour rule comes from experts at the top of their fields practicing extensively' },
-  { at: 120, ai: 'He was troubled by the common belief that after having a child you will never have free time again' },
-];
-const NEW_MOMENT = { at: EXAMPLE.pausedAt, ai: 'The first step is to deconstruct the skill and decide exactly what you want to be able to do' };
 
-const pct = (seconds: number) => `${(seconds / EXAMPLE.duration) * 100}%`;
-
-function Time({ seconds }: { seconds: number }) {
-  return <span className="time">{formatClock(seconds)}</span>;
+/** Fires once when the element first comes into view. */
+function useSeenOnce<T extends Element>(threshold = 0.2) {
+  const ref = useRef<T>(null);
+  const [seen, setSeen] = useState(typeof IntersectionObserver === 'undefined');
+  useEffect(() => {
+    const node = ref.current;
+    if (!node || seen) return;
+    const observer = new IntersectionObserver(([entry]) => {
+      if (entry.isIntersecting) { setSeen(true); observer.disconnect(); }
+    }, { threshold, rootMargin: '0px 0px -8% 0px' });
+    observer.observe(node);
+    return () => observer.disconnect();
+  }, [seen, threshold]);
+  return [ref, seen] as const;
 }
 
-function ExampleVideo() {
-  const [saved, setSaved] = useState(false);
-  const moments = saved ? [NEW_MOMENT, ...SAVED].slice(0, 2) : SAVED;
-
-  // Like the real shortcut, but only while the example has focus, so typing elsewhere never triggers it.
+function Reveal({ as: Tag = 'div', delay = 0, className = '', children, ...rest }: {
+  as?: 'div' | 'p' | 'h1' | 'h2'; delay?: 0 | 1 | 2 | 3; className?: string; children: ReactNode; id?: string;
+}) {
+  const [ref, seen] = useSeenOnce<HTMLElement>();
   return (
-    <div className="demo" role="group" aria-label="Example: a video with its saved moments" tabIndex={-1}
-      onKeyDown={event => {
-        if (event.defaultPrevented || event.nativeEvent.isComposing || event.repeat
-          || (event.code !== 'KeyS' && event.key.toLowerCase() !== 's')
-          || !event.altKey || event.ctrlKey || event.metaKey || event.shiftKey) return;
-        event.preventDefault();
-        setSaved(true);
-      }}>
-      <div className="screen" style={{ backgroundImage: `url(https://i.ytimg.com/vi/${EXAMPLE.videoId}/maxresdefault.jpg)` }}>
-        <span className="play" aria-hidden="true" />
-        <div className="bar">
-          <span>{formatClock(EXAMPLE.pausedAt)}</span>
-          <div className="scrub">
-            <span className="done" style={{ width: pct(EXAMPLE.pausedAt) }} />
-            {[...SAVED, ...(saved ? [NEW_MOMENT] : [])].map(moment => <span key={moment.at} className="tick" style={{ left: pct(moment.at) }} />)}
-          </div>
-          <span>{formatClock(EXAMPLE.duration)}</span>
+    <Tag ref={ref as never} className={`rv${delay ? ` d${delay}` : ''}${seen ? ' in' : ''} ${className}`.trim()} {...rest}>
+      {children}
+    </Tag>
+  );
+}
+
+const PLAY = <svg viewBox="0 0 14 16" fill="currentColor" aria-hidden="true"><path d="M1 0l13 8-13 8z" /></svg>;
+const PAUSE = <svg viewBox="0 0 14 16" fill="currentColor" aria-hidden="true"><rect width="4.5" height="16" rx="1" /><rect x="9.5" width="4.5" height="16" rx="1" /></svg>;
+
+/**
+ * A recording that loads as it nears the screen, plays muted while visible and
+ * pauses when it leaves. Tapping pauses or resumes it. With reduced motion it waits for a tap.
+ */
+function Clip({ name, ratio, label }: { name: string; ratio: string; label: string }) {
+  const video = useRef<HTMLVideoElement>(null);
+  const bar = useRef<HTMLElement>(null);
+  const held = useRef(false);
+  const [paused, setPaused] = useState(true);
+  const [flash, setFlash] = useState<{ key: number; playing: boolean } | null>(null);
+
+  useEffect(() => {
+    const node = video.current;
+    if (!node || typeof IntersectionObserver === 'undefined') return;
+    const observer = new IntersectionObserver(([entry]) => {
+      if (entry.isIntersecting && !node.getAttribute('src')) node.src = `/landing/${name}.mp4`;
+      if (entry.isIntersecting && entry.intersectionRatio >= 0.35) {
+        if (!REDUCED_MOTION && !held.current) node.play().catch(() => {});
+      } else {
+        node.pause();
+      }
+    }, { threshold: [0, 0.35], rootMargin: '200px 0px' });
+    observer.observe(node);
+    let frame = 0;
+    const tick = () => {
+      if (bar.current && node.duration) bar.current.style.transform = `scaleX(${node.currentTime / node.duration})`;
+      frame = requestAnimationFrame(tick);
+    };
+    const onPlay = () => { setPaused(false); cancelAnimationFrame(frame); tick(); };
+    const onPause = () => { setPaused(true); cancelAnimationFrame(frame); };
+    node.addEventListener('play', onPlay);
+    node.addEventListener('pause', onPause);
+    return () => {
+      observer.disconnect();
+      cancelAnimationFrame(frame);
+      node.removeEventListener('play', onPlay);
+      node.removeEventListener('pause', onPause);
+    };
+  }, [name]);
+
+  const toggle = () => {
+    const node = video.current;
+    if (!node) return;
+    if (!node.getAttribute('src')) node.src = `/landing/${name}.mp4`;
+    const willPlay = node.paused;
+    held.current = !willPlay;
+    if (willPlay) node.play().catch(() => {}); else node.pause();
+    setFlash({ key: Date.now(), playing: willPlay });
+  };
+
+  return (
+    <div
+      className={`screen${paused ? ' paused' : ''}`}
+      style={{ aspectRatio: ratio }}
+      role="button"
+      tabIndex={0}
+      aria-label={`${label} Press to ${paused ? 'play' : 'pause'}.`}
+      onClick={toggle}
+      onKeyDown={event => { if (event.key === ' ' || event.key === 'Enter') { event.preventDefault(); toggle(); } }}
+    >
+      <video ref={video} poster={`/landing/${name}.jpg`} muted loop playsInline preload="none" aria-hidden="true" />
+      <span className="prog" aria-hidden="true"><i ref={bar} /></span>
+      {flash && <span key={flash.key} className="flash go" aria-hidden="true">{flash.playing ? PLAY : PAUSE}</span>}
+      <span className="playbadge" aria-hidden="true">{PLAY}</span>
+    </div>
+  );
+}
+
+function Browser({ url, children }: { url: string; children: ReactNode }) {
+  return (
+    <figure className="browser">
+      <div className="chrome" aria-hidden="true">
+        <i /><i /><i />
+        <span><svg viewBox="0 0 16 16"><rect x="3" y="7" width="10" height="8" rx="2" fill="currentColor" /><path d="M5 7V5a3 3 0 0 1 6 0v2" fill="none" stroke="currentColor" strokeWidth="1.8" /></svg>{url}</span>
+      </div>
+      {children}
+    </figure>
+  );
+}
+
+function Phone({ children, className = '' }: { children: ReactNode; className?: string }) {
+  return <figure className={`phone ${className}`.trim()}>{children}</figure>;
+}
+
+const CHROME_ICON = (
+  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" aria-hidden="true">
+    <circle cx="12" cy="12" r="9.5" /><circle cx="12" cy="12" r="3.6" /><path d="M12 8.4h8.6M8.9 13.8 4.6 6.4M15.1 13.8l-4.3 7.6" />
+  </svg>
+);
+const SPARKLE = (
+  <svg viewBox="0 0 24 24" fill="currentColor" aria-hidden="true">
+    <path d="M10 2.5l1.7 4.8 4.8 1.7-4.8 1.7L10 15.5l-1.7-4.8L3.5 9l4.8-1.7zM18 13l.9 2.6 2.6.9-2.6.9L18 20l-.9-2.6-2.6-.9 2.6-.9z" />
+  </svg>
+);
+const CHECK = <svg viewBox="0 0 20 20" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true"><path d="M4 10.5l4 4 8-9" /></svg>;
+
+function Eyebrow({ n, children }: { n: string; children: ReactNode }) {
+  return <p className="eyebrow"><b>{n}</b> {children}</p>;
+}
+
+function Cite({ source, onOpen }: { source: Source; onOpen: (source: Source) => void }) {
+  return (
+    <button type="button" className="cite" onClick={() => onOpen(source)}>
+      <span className="t"><svg viewBox="0 0 10 12" fill="currentColor" aria-hidden="true"><path d="M0 0l10 6-10 6z" /></svg>{formatClock(source.at)}</span>
+      {source.short}
+    </button>
+  );
+}
+
+/** A real answer from Ask; the lines arrive one by one the first time it is on screen. */
+function AskCard({ onOpen }: { onOpen: (source: Source) => void }) {
+  const [ref, seen] = useSeenOnce<HTMLDivElement>(0.35);
+  const step = (index: number, className = '') => ({ className: `step ${className}`.trim(), style: { transitionDelay: REDUCED_MOTION ? '0s' : `${0.15 + index * 0.32}s` } });
+  return (
+    <div ref={ref} className={`ask${seen ? ' go' : ''}`} role="group" aria-label="An answer from Ask, with its sources">
+      <div className="ask-head">{SPARKLE}Ask your library</div>
+      <div className="ask-body">
+        <p {...step(0, 'q')}>My notes never stick. What do my videos say I should do differently?</p>
+        <div className="a">
+          <div {...step(1, 'who')}>{SPARKLE}From two videos in your library</div>
+          <p {...step(2)}><strong>Write to test what you understand.</strong> Writing your notes out shows you the links and the gaps in what you know.<br /><Cite source={SOURCES.links} onOpen={onOpen} /></p>
+          <p {...step(3)}><strong>Turn ideas into mini essays.</strong> Putting an idea into your own words forces you to think, and exposes what you haven't understood yet.<br /><Cite source={SOURCES.essays} onOpen={onOpen} /></p>
+          <p {...step(4)}><strong>Explain it back.</strong> Teaching what you read, the Feynman technique, helps you remember it and use it.<br /><Cite source={SOURCES.feynman} onOpen={onOpen} /></p>
         </div>
       </div>
-      <div className="controls">
-        <button type="button" className="btn yellow save" onClick={() => setSaved(true)}>Save this moment <kbd>Alt+S</kbd></button>
-        <span className="hint">{saved ? `Saved at ${formatClock(EXAMPLE.pausedAt)}.` : EXAMPLE.title}</span>
-      </div>
-      <div className="tray">
-        <div className="tray-head"><span>Your moments</span><span>{saved ? 3 : 2} saved</span></div>
-        {moments.map(moment => (
-          <div key={moment.at} className={moment === NEW_MOMENT ? 'moment new' : 'moment'}>
-            <Time seconds={moment.at} />
-            <p>{moment.ai}</p>
-          </div>
-        ))}
-      </div>
     </div>
   );
 }
 
-function Result({ source, at, children }: { source: string; at: number; children: ReactNode }) {
+/** Plays a cited source from the cited second. */
+function SourceDialog({ source, onClose }: { source: Source | null; onClose: () => void }) {
+  const dialog = useRef<HTMLDialogElement>(null);
+  useEffect(() => {
+    const node = dialog.current;
+    if (!node) return;
+    if (source && !node.open) node.showModal?.();
+    if (!source && node.open) node.close();
+  }, [source]);
   return (
-    <div className="result">
-      <span className="src">{source}</span>
-      <Time seconds={at} />
-      <p>{children}</p>
-    </div>
+    <dialog ref={dialog} className="source" aria-labelledby="source-title" onClose={onClose} onClick={event => { if (event.target === dialog.current) onClose(); }}>
+      {source && (
+        <>
+          <div className="dlg-video">
+            <iframe
+              title="Source video"
+              src={`https://www.youtube-nocookie.com/embed/${source.videoId}?start=${source.at}&autoplay=1&rel=0&playsinline=1`}
+              allow="autoplay; encrypted-media; picture-in-picture; fullscreen"
+              allowFullScreen
+            />
+          </div>
+          <div className="dlg-bar">
+            <span className="t">{formatClock(source.at)}</span>
+            <span className="title" id="source-title">{source.title}</span>
+            <span className="acts">
+              <Link className="btn ghost small" to={`/v/${source.videoId}?t=${source.at}`}>Open in VidWiz</Link>
+              <button type="button" className="iconbtn" aria-label="Close" onClick={onClose}>
+                <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" aria-hidden="true"><path d="M3 3l10 10M13 3L3 13" /></svg>
+              </button>
+            </span>
+          </div>
+        </>
+      )}
+    </dialog>
   );
 }
 
-function Cite({ at, title }: { at: number; title: string }) {
-  return <span className="cite"><Time seconds={at} />{title}</span>;
-}
-
-/** Guests can open any video and ask about it without an account. */
+/** Guests can open any video and ask about it without an account. The link's start time carries over. */
 function TryIt() {
   const [value, setValue] = useState('');
   const [error, setError] = useState<string | null>(null);
@@ -101,7 +230,7 @@ function TryIt() {
     event.preventDefault();
     const videoId = extractVideoId(value);
     if (!videoId) {
-      setError('Paste a YouTube video link.');
+      setError('Enter a valid YouTube video link.');
       return;
     }
     setLoading(true);
@@ -109,7 +238,8 @@ function TryIt() {
       // Guests ask through a guest session; starting the chat also prepares the video.
       if (!sessionStorage.getItem('guestSessionId')) sessionStorage.setItem('guestSessionId', crypto.randomUUID());
       const conversation = await conversationsApi.createConversation({ scope: 'video', video_id: videoId });
-      navigate(`/v/${videoId}?tab=ask&c=${conversation.id}`);
+      const start = extractStartSeconds(value);
+      navigate(`/v/${videoId}?tab=ask&c=${conversation.id}${start ? `&t=${start}` : ''}`);
     } catch (cause) {
       notify.error(cause, 'Could not open the video', 'The video could not be opened.');
       setLoading(false);
@@ -117,158 +247,212 @@ function TryIt() {
   };
 
   return (
-    <form onSubmit={submit}>
-      <div className="try">
-        <input
-          value={value}
-          onChange={event => { setValue(event.target.value); setError(null); }}
-          placeholder="Paste a YouTube link"
-          aria-label="YouTube link"
-          aria-invalid={Boolean(error)}
-          aria-describedby={error ? 'try-link-error' : undefined}
-        />
-        <button type="submit" className="btn yellow" disabled={loading || !value.trim()}>Ask about it</button>
-      </div>
-      {error ? <p id="try-link-error" role="alert" className="try-note">{error}</p> : <p className="try-note">No account needed to try it.</p>}
+    <>
+    <form className="tryform" onSubmit={submit} noValidate>
+      <label className="sr" htmlFor="try-link">YouTube video link</label>
+      <input
+        id="try-link"
+        value={value}
+        onChange={event => { setValue(event.target.value); setError(null); }}
+        type="url"
+        inputMode="url"
+        autoComplete="off"
+        autoCapitalize="off"
+        spellCheck={false}
+        placeholder="Paste a YouTube link"
+        aria-invalid={Boolean(error)}
+        aria-describedby={error ? 'try-link-error' : 'try-link-hint'}
+      />
+      <button type="submit" className="btn primary" disabled={loading}>Ask about it</button>
     </form>
+    {error
+      ? <p id="try-link-error" role="alert" className="hint err">{error}</p>
+      : <p id="try-link-hint" className="hint">No account needed to try it.</p>}
+    </>
   );
 }
 
 export default function LandingPage() {
-  const { theme, toggle } = useTheme();
+  const nav = useRef<HTMLElement>(null);
+  const stage = useRef<HTMLDivElement>(null);
+  const heroCtas = useRef<HTMLDivElement>(null);
+  const [source, setSource] = useState<Source | null>(null);
+
+  // The page is always dark, whatever the app theme, so overscroll matches too.
+  useEffect(() => {
+    document.documentElement.classList.add('landing-page');
+    return () => document.documentElement.classList.remove('landing-page');
+  }, []);
+
+  // The nav turns solid once the page moves; the hero frame starts tilted back and settles flat.
+  useEffect(() => {
+    let ticking = false;
+    const update = () => {
+      ticking = false;
+      const y = window.scrollY;
+      nav.current?.classList.toggle('solid', y > 24);
+      if (heroCtas.current) nav.current?.classList.toggle('past', heroCtas.current.getBoundingClientRect().bottom < 64);
+      if (!REDUCED_MOTION) stage.current?.style.setProperty('--tilt', Math.max(0, 1 - y / (window.innerHeight * 0.55)).toFixed(3));
+    };
+    const onScroll = () => { if (!ticking) { ticking = true; requestAnimationFrame(update); } };
+    update();
+    window.addEventListener('scroll', onScroll, { passive: true });
+    return () => window.removeEventListener('scroll', onScroll);
+  }, []);
+
   return (
-    <div className="landing">
+    <div className={`landing${REDUCED_MOTION ? ' manual' : ''}`}>
       <Seo
         title={LANDING_TITLE}
-        description="Save the exact words from any YouTube moment you tap. Search what was said weeks later, and ask questions across everything you have watched."
+        description="Save moments from YouTube, add your own notes, and find what was said later. Ask questions about a video or your library."
         path="/"
       />
-      <header className="hero">
-        <div className="wrap">
-          <nav className="nav" aria-label="Main">
-            <Link className="logo" to="/"><img src="/brand/vidwiz-mark-color.svg" alt="" />VidWiz</Link>
-            <div className="links">
-              <a href="#search">How it works</a>
-              <a href="#pricing">Pricing</a>
-              <Tooltip label={theme === 'dark' ? 'Light theme' : 'Dark theme'} side="bottom">
-                <button type="button" className="theme" aria-label="Toggle theme" onClick={toggle}>
-                  {theme === 'dark' ? <Sun className="size-4" /> : <Moon className="size-4" />}
-                </button>
-              </Tooltip>
-              <Link className="keep" to="/login">Log in</Link>
-            </div>
-            <Link className="btn yellow small" to="/signup">Start free</Link>
-          </nav>
 
-          <div className="hero-grid">
-            <div>
-              <h1>
-                <span className="line"><span className="cap">You just heard something worth keeping.</span></span>
-                <span className="line"><span className="cap">Tap once. Find it later.</span></span>
-              </h1>
-              <p className="lede">
-                VidWiz saves the exact words from any moment you tap on YouTube. Weeks later, search what was said, replay the second it was said, or ask questions across everything you have watched.
-              </p>
-              <div className="ctas">
-                <Link className="btn yellow" to="/signup">Start free</Link>
-                <a className="btn line" href={config.CHROME_WEBSTORE_URL} target="_blank" rel="noopener noreferrer">Add to Chrome</a>
-              </div>
-              <p className="fine">{config.SIGNUP_CREDITS} free credits. Saving and searching never cost anything.</p>
-            </div>
-            <ExampleVideo />
-          </div>
+      <nav ref={nav} className="lnav" aria-label="Main">
+        <div className="wrap">
+          <Link className="logo" to="/"><img src="/brand/vidwiz-mark-color.svg" alt="" />VidWiz</Link>
+          <Link className="login" to="/login">Log in</Link>
+          <a className="btn primary small" href="#try">Try a video</a>
         </div>
-      </header>
+      </nav>
 
       <main>
-        <section className="band" id="search">
-          <div className="wrap split">
-            <div className="copy">
-              <h2>Weeks later, search what was said.</h2>
-              <p>You remember the idea, not the video. Search your moments and every transcript in your library, and open the video at the second it was said.</p>
-            </div>
-            <div className="search" aria-label="Example search">
-              <div className="query"><Search aria-hidden="true" />learning</div>
-              <Result source="Your moment in The secrets of learning a new language" at={300}>
-                Language <mark>learning</mark> sticks when it becomes a pleasant daily activity tailored to your preferences like apps or podcasts
-              </Result>
-              <Result source="Your moment in Learning how to learn" at={300}>
-                <mark>Learning</mark> uses two modes and is explained with a pinball machine analogy
-              </Result>
-              <Result source="Transcript of The first 20 hours" at={670}>
-                So the <mark>learning</mark> becomes a way of getting better at noticing when you're making a mistake.
-              </Result>
-              <Result source="Transcript of The secrets of learning a new language" at={463}>
-                If you <mark>learn</mark> in small chunks every day in a way that you enjoy.
-              </Result>
-            </div>
-          </div>
-        </section>
-
-        <section className="band ask">
-          <div className="wrap split">
-            <div className="copy">
-              <h2>Ask across everything you have watched.</h2>
-              <p>Answers come only from your own videos, with the moment each point came from. Play it, or save it as a new moment.</p>
-            </div>
-            <div>
-              <p className="question">What practical advice do my saved videos give about learning a new skill?</p>
-              <div className="answer">
-                <p>
-                  Break the skill into smaller pieces and practise the most important parts first <Cite at={562} title="The first 20 hours" />. Learn just enough to notice your own mistakes, and don't let collecting books become a way to put off <span className="nowrap">practice <Cite at={657} title="The first 20 hours" />.</span>
-                </p>
-                <p>
-                  Turn learning into something pleasant you can do every day, like apps, podcasts or a show you love <Cite at={269} title="The secrets of learning a new language" />. When you review, recall what you learned instead of rereading <span className="nowrap">it <Cite at={992} title="Learning how to learn" />.</span>
-                </p>
+        <header className="hero" id="top">
+          <div className="wrap">
+            <Reveal as="h1">Keep the moments <span className="hl mark">worth coming back&nbsp;to.</span></Reveal>
+            <Reveal as="p" delay={1} className="lede">Save moments from YouTube, add your own notes, and find what was said later. Ask questions about a video or your library.</Reveal>
+            <Reveal delay={2} className="ctas">
+              <div ref={heroCtas} className="ctas-row">
+                <a className="btn primary desk-cta" href={config.CHROME_WEBSTORE_URL} target="_blank" rel="noopener noreferrer">{CHROME_ICON}Add to Chrome</a>
+                <a className="btn ghost desk-cta" href="#try">Try a video</a>
+                <a className="btn primary phone-cta" href="#try">Try a video</a>
+                <a className="btn ghost phone-cta" href="#find">See how it works</a>
               </div>
-              <p className="note">Answered from three videos in this library. Questions across your library are free.</p>
-            </div>
+            </Reveal>
           </div>
-        </section>
+          <Reveal delay={3} className="stage-wrap">
+            <div ref={stage} className="stage">
+              <div className="only-desk">
+                <Browser url="vidwiz.online"><Clip name="save-desktop" ratio="16 / 10" label="VidWiz playing a video. Alt+S saves the moment at 2:13 and its AI line is written." /></Browser>
+              </div>
+              <Phone className="only-phone"><Clip name="save-phone" ratio="540 / 1040" label="VidWiz on a phone. Tapping Save keeps the moment at 0:42 and its AI line is written." /></Phone>
+            </div>
+          </Reveal>
+        </header>
 
-        <section className="band">
+        <section className="feature" id="find" aria-labelledby="find-h">
           <div className="wrap">
-            <h2>Save from wherever you watch.</h2>
-            <div className="where">
-              <div><span className="big"><kbd>Alt</kbd> <kbd>S</kbd></span><h3>On your computer</h3><p>The Chrome extension saves the moment on any YouTube tab without leaving the video.</p></div>
-              <div><span className="big">One tap</span><h3>On your phone</h3><p>Tap a floating button while YouTube plays, or share the video to VidWiz.</p></div>
-              <div><span className="big">Paste a link</span><h3>On the web</h3><p>Open any video in VidWiz and save from the player, the transcript, or an answer.</p></div>
-            </div>
+            <Reveal className="copy">
+              <Eyebrow n="01">Search</Eyebrow>
+              <h2 id="find-h">Find that part <span className="hl mark">you remember.</span></h2>
+              <p className="body">Search your moments and the transcripts of videos in your library. Open a result to return to that part of the video.</p>
+            </Reveal>
+            <Reveal delay={1} className="media">
+              <div className="only-desk"><Browser url="vidwiz.online/search"><Clip name="search-desktop" ratio="16 / 10" label="Searching for attention. Moments and transcript passages match, and a result opens the video at 13:04." /></Browser></div>
+              <Phone className="only-phone"><Clip name="search-phone" ratio="540 / 1000" label="Searching for attention on a phone. A transcript result opens the video at 13:04." /></Phone>
+            </Reveal>
           </div>
         </section>
 
-        <section className="band" id="pricing" style={{ paddingTop: 0 }}>
-          <div className="wrap split">
-            <div className="copy">
-              <h2>Free to save and search.</h2>
-              <p>Credits are only for AI. You start with {config.SIGNUP_CREDITS}.</p>
-              <div className="ctas"><Link className="btn ink" to="/signup">Create a free account</Link></div>
-            </div>
-            <div className="rows">
-              <div className="prow"><span>Saving moments, search, questions across your library</span><b>Free</b></div>
-              <div className="prow"><span>AI line on a moment</span><b>1 credit</b></div>
-              <div className="prow"><span>Asking about one video, once per video</span><b>5 credits</b></div>
-              <div className="prow total"><span>New accounts start with</span><b>{config.SIGNUP_CREDITS} credits</b></div>
-            </div>
-          </div>
-        </section>
-
-        <section className="closing">
+        <section className="feature flip" id="ask" aria-labelledby="ask-h">
           <div className="wrap">
-            <h2>Try it on a video you are watching.</h2>
-            <TryIt />
+            <Reveal className="copy">
+              <Eyebrow n="02">Ask</Eyebrow>
+              <h2 id="ask-h">Ask your library. <span className="hl mark">Check the source.</span></h2>
+              <p className="body">Ask questions across your saved videos. Every point links to the second it came from, so you can watch it for yourself.</p>
+            </Reveal>
+            <Reveal delay={1} className="media"><AskCard onOpen={setSource} /></Reveal>
+          </div>
+        </section>
+
+        <section className="feature" id="anywhere" aria-labelledby="any-h">
+          <div className="wrap">
+            <Reveal className="copy">
+              <Eyebrow n="03">Anywhere</Eyebrow>
+              <h2 id="any-h">Save from <span className="hl mark">wherever you watch.</span></h2>
+              <ul className="ways">
+                <li>
+                  <span className="ic"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.9" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true"><rect x="2.5" y="4" width="19" height="13" rx="2" /><path d="M8 21h8M12 17v4" /></svg></span>
+                  <div>
+                    <h3>On your computer</h3>
+                    <p>Press <span className="combo"><kbd>{IS_MAC ? '⌥' : 'Alt'}</kbd><i aria-hidden="true">+</i><kbd>S</kbd></span> on any YouTube video with the Chrome extension.</p>
+                    <a href={config.CHROME_WEBSTORE_URL} target="_blank" rel="noopener noreferrer">Add to Chrome</a>
+                  </div>
+                </li>
+                <li>
+                  <span className="ic"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.9" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true"><rect x="6" y="2.5" width="12" height="19" rx="2.5" /><path d="M11 18.5h2" /></svg></span>
+                  <div><h3>On your phone</h3><p>Share a video to VidWiz, or save the moment with a phone shortcut.</p></div>
+                </li>
+                <li>
+                  <span className="ic"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.9" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true"><path d="M10 14a4 4 0 0 0 5.7 0l3-3a4 4 0 0 0-5.7-5.7l-1 1" /><path d="M14 10a4 4 0 0 0-5.7 0l-3 3a4 4 0 0 0 5.7 5.7l1-1" /></svg></span>
+                  <div><h3>On the web</h3><p>Paste a link into VidWiz and save from the player or the transcript.</p></div>
+                </li>
+              </ul>
+            </Reveal>
+            <Reveal delay={1} className="media only-desk">
+              <Phone><Clip name="save-phone" ratio="540 / 1040" label="VidWiz on a phone. Tapping Save keeps the moment at 0:42 and its AI line is written." /></Phone>
+            </Reveal>
+          </div>
+        </section>
+
+        <section className="pricing" id="pricing" aria-labelledby="price-h">
+          <div className="wrap">
+            <Reveal as="h2" id="price-h">Free to save <span className="hl mark">and search.</span></Reveal>
+            <Reveal as="p" delay={1} className="body">Credits cover the extras. Every new account starts with {config.SIGNUP_CREDITS}.</Reveal>
+            <div className="plans">
+              <Reveal delay={1} className="plan free">
+                <h3>Free</h3>
+                <p className="price">$0</p>
+                <ul>
+                  <li>{CHECK}Save moments</li>
+                  <li>{CHECK}Search moments and transcripts</li>
+                  <li>{CHECK}Ask your library</li>
+                </ul>
+              </Reveal>
+              <Reveal delay={2} className="plan">
+                <h3>Credits</h3>
+                <p className="price">{config.SIGNUP_CREDITS} <span>to start</span></p>
+                <ul>
+                  <li>AI line on a moment<b>1 credit</b></li>
+                  <li>Ask about one video<b>5 credits</b></li>
+                </ul>
+                <p className="note">You pay for a video once. Questions after that are free, within a daily limit.</p>
+              </Reveal>
+            </div>
+          </div>
+        </section>
+
+        <section className="try" id="try" aria-labelledby="try-h">
+          <div className="wrap">
+            <Reveal as="h2" id="try-h">Try it on a video <span className="hl mark">you're watching.</span></Reveal>
+            <Reveal delay={1}><TryIt /></Reveal>
+            <Reveal as="p" delay={2} className="alt"><Link to="/signup">Create a free account</Link> to save your own moments.</Reveal>
           </div>
         </section>
       </main>
 
-      <footer>
+      <footer className="lfoot">
         <div className="wrap">
-          <span>VidWiz</span>
-          <Link to="/support">Help</Link>
-          <Link to="/privacy">Privacy</Link>
-          <a href="https://github.com/adhirajpandey/vidwiz" target="_blank" rel="noopener noreferrer">GitHub</a>
+          <div className="foot">
+            <div className="brand">
+              <a className="logo" href="#top" aria-label="VidWiz, back to top"><img src="/brand/vidwiz-mark-color.svg" alt="" />VidWiz</a>
+              <p>Keep the moments worth coming back to.</p>
+              <a className="btn ghost small" href={config.CHROME_WEBSTORE_URL} target="_blank" rel="noopener noreferrer">{CHROME_ICON}Add to Chrome</a>
+            </div>
+            <nav className="cols" aria-label="Footer">
+              <div><h3>Product</h3><a href="#find">Search</a><a href="#ask">Ask</a><a href="#anywhere">Save anywhere</a><a href="#pricing">Pricing</a></div>
+              <div><h3>Get started</h3><a href="#try">Try a video</a><Link to="/signup">Create an account</Link><Link to="/login">Log in</Link></div>
+              <div><h3>More</h3><a href={config.CHROME_WEBSTORE_URL} target="_blank" rel="noopener noreferrer">Chrome extension</a><Link to="/support">Help</Link><Link to="/privacy">Privacy</Link><a href="https://github.com/adhirajpandey/vidwiz" target="_blank" rel="noopener noreferrer">GitHub</a></div>
+            </nav>
+          </div>
+          <div className="legal">
+            <span>© {new Date().getFullYear()} VidWiz</span>
+            <a href="#top">Back to top <svg viewBox="0 0 12 12" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true"><path d="M6 10V2M2.5 5.5 6 2l3.5 3.5" /></svg></a>
+          </div>
         </div>
       </footer>
+
+      <SourceDialog source={source} onClose={() => setSource(null)} />
     </div>
   );
 }

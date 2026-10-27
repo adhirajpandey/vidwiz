@@ -33,10 +33,14 @@ Workers.
 ## Routes
 - `/`: Home when signed in (search on mobile, add a video, a compact Recent videos strip,
   and recent moments grouped once per day and video); the landing page when
-  signed out. The landing page renders without the app header. Its example
-  captures with Alt+S only while focused. It has its own
-  styles in `features/landing/landing.css` (Bricolage Grotesque, light and dark
-  from the app theme).
+  signed out. The landing page renders without the app header and is always
+  dark, whatever the app theme. It shows real recordings of the app from a demo
+  account, served from `public/landing/` (a desktop and a phone cut of Save and
+  Search). Each recording loads as it nears the screen, plays muted while visible,
+  and pauses on tap; with reduced motion it waits for a tap. CSS shows the phone
+  recordings below 760px and the desktop ones above. Its Ask example is a real
+  answer whose citations play the source on YouTube from the cited second. Its
+  styles are in `features/landing/landing.css`, scoped to `.landing`.
 - `/v/:videoId`: the video workspace. Query parameters: `t` (start playback at
   seconds), `m` (highlight a moment), `c` (resume a conversation), `tab`
   (`moments`, `ask`, `transcript`, `overview`).
@@ -200,7 +204,8 @@ Workers.
   library answers carry `video_id`; they show the video title and open that
   video at the time. Every citation can be saved as a moment.
 - **Guests**: the landing page starts a guest conversation for a pasted link
-  and opens the workspace on the Ask tab.
+  and opens the workspace on the Ask tab, at the link's start time (`t`) when
+  it has one.
 - **Search links**: moment hits open Moments at the saved moment as an arrival;
   passage hits open Transcript. Playback requests made before player setup
   are queued and retain the existing lead-in and autoplay fallback.
