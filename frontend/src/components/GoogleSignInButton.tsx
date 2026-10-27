@@ -83,11 +83,10 @@ export default function GoogleSignInButton({ onSuccess, onError }: GoogleSignInB
           initialized.add(client);
         }
         const width = Math.min(400, Math.floor(container.getBoundingClientRect().width));
-        const theme = document.documentElement.classList.contains('dark') ? 'filled_black' : 'outline';
-        const key = `${width}:${theme}`;
+        const key = `${width}`;
         if (rendered !== key) {
           container.replaceChildren();
-          client.renderButton(container, { type: 'standard', theme, size: 'large', text: 'continue_with', shape: 'rectangular', ...(width > 0 ? { width } : {}) });
+          client.renderButton(container, { type: 'standard', theme: 'outline', size: 'large', text: 'continue_with', shape: 'rectangular', ...(width > 0 ? { width } : {}) });
           rendered = key;
         }
         ready = true;
@@ -102,8 +101,6 @@ export default function GoogleSignInButton({ onSuccess, onError }: GoogleSignInB
     script?.addEventListener('error', fail);
     const resize = typeof ResizeObserver !== 'undefined' ? new ResizeObserver(render) : undefined;
     resize?.observe(container);
-    const theme = new MutationObserver(render);
-    theme.observe(document.documentElement, { attributes: true, attributeFilter: ['class'] });
     render();
     return () => {
       stopped = true;
@@ -112,7 +109,6 @@ export default function GoogleSignInButton({ onSuccess, onError }: GoogleSignInB
       script?.removeEventListener('load', render);
       script?.removeEventListener('error', fail);
       resize?.disconnect();
-      theme.disconnect();
       container.replaceChildren();
       if (receiveCredential === receive) receiveCredential = undefined;
     };
@@ -121,7 +117,7 @@ export default function GoogleSignInButton({ onSuccess, onError }: GoogleSignInB
   if (!config.GOOGLE_CLIENT_ID) return null;
   return (
     <div className="space-y-2">
-      <div ref={buttonRef} className="min-h-10 w-full" />
+      <div ref={buttonRef} className="min-h-10 w-full" style={{ colorScheme: 'light' }} />
       {state === 'loading' && <p role="status" className="text-center text-sm text-muted-foreground">Loading Google sign-in…</p>}
       {state === 'unavailable' && <div className="flex flex-wrap items-center justify-center gap-2">
         <p role="status" className="text-sm text-muted-foreground">Google sign-in is unavailable.</p>
