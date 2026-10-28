@@ -77,13 +77,13 @@ html.landing-page, html.landing-page body { background: #07081A; color-scheme: d
 .landing .screen { position: relative; overflow: hidden; background: #0C0D1F; cursor: pointer; -webkit-tap-highlight-color: transparent; }
 .landing .screen video { display: block; width: 100%; height: 100%; object-fit: cover; transform-origin: 100% 0; transition: transform .8s var(--ease); }
 /* Cue: zoom into the top right, where the extension confirms a save. */
-.landing .screen.zoomed video { transform: scale(2); }
+.landing .screen[data-zoomed] video { transform: scale(2); }
 /* Cue: the keys being pressed, since a screen recording can't show the keyboard. */
 .landing .screen .keys { position: absolute; left: 50%; bottom: 26px; z-index: 2; display: flex; align-items: center; gap: 10px; translate: -50% 0; opacity: 0; transform: translateY(10px); transition: opacity .25s, transform .3s var(--ease); pointer-events: none; }
 .landing .screen .keys i { font-style: normal; font-size: 18px; font-weight: 700; color: var(--paper); text-shadow: 0 2px 8px rgb(0 0 0 / .6); }
 .landing .screen .keys kbd { min-width: 58px; height: 58px; display: grid; place-items: center; padding: 0 14px; border-radius: 13px; font-size: 21px; background: #20244F; box-shadow: inset 0 -5px 0 rgb(0 0 0 / .35), 0 0 0 1.5px rgb(255 255 255 / .2), 0 18px 40px rgb(0 0 0 / .55); transition: background .15s, color .15s, transform .15s, box-shadow .15s; }
-.landing .screen.show-keys .keys { opacity: 1; transform: none; }
-.landing .screen.press-keys .keys kbd { background: var(--cap); color: var(--ink); transform: translateY(3px); box-shadow: inset 0 -2px 0 rgb(0 0 0 / .25), 0 0 0 1.5px rgb(255 228 92 / .6), 0 12px 30px rgb(0 0 0 / .5); }
+.landing .screen[data-keys] .keys { opacity: 1; transform: none; }
+.landing .screen[data-pressed] .keys kbd { background: var(--cap); color: var(--ink); transform: translateY(3px); box-shadow: inset 0 -2px 0 rgb(0 0 0 / .25), 0 0 0 1.5px rgb(255 228 92 / .6), 0 12px 30px rgb(0 0 0 / .5); }
 .landing .screen .prog { position: absolute; left: 0; right: 0; bottom: 0; height: 3px; background: rgb(255 255 255 / .08); }
 .landing .phone .screen .prog { left: 26px; right: 26px; bottom: 9px; border-radius: 2px; overflow: hidden; }
 .landing .screen .prog i { display: block; height: 100%; width: 100%; background: var(--cap); transform-origin: 0 50%; transform: scaleX(0); }

@@ -40,8 +40,8 @@ Workers.
   cuts of Save and Search). On wider screens the "Save from wherever you watch"
   ways switch the recording beside them. Each recording loads as it nears the
   screen, plays muted while visible, and pauses on tap; with reduced motion it
-  waits for a tap. A recording can carry time cues, CSS classes that follow its
-  playback, for the pressed keys and the zoom onto the extension's toast. CSS
+  waits for a tap. A recording can carry time cues, data attributes that follow
+  its playback, for the pressed keys and the zoom onto the extension's toast. CSS
   shows the phone recordings below 760px and the desktop ones above. Its Ask example is a real
   answer whose citations play the source on YouTube from the cited second. Its
   styles are in `features/landing/landing.css`, scoped to `.landing`.

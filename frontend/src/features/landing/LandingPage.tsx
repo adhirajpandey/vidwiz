@@ -22,14 +22,14 @@ const SOURCES: Record<'links' | 'essays' | 'feynman', Source> = {
   feynman: { videoId: 'N4YjXJVzoZY', at: 139, title: 'Mini Essays: The Ultimate Learning Tool', short: 'Mini Essays' },
 };
 
-type Cue = { from: number; to?: number; className: string };
+type Cue = { from: number; to?: number; name: string };
 const NO_CUES: Cue[] = [];
 
 // The shortcut recording: Alt+S lands at about 1.9s and the extension's toast at 2.1s.
 const SHORTCUT_CUES: Cue[] = [
-  { from: 1.45, to: 2.75, className: 'show-keys' },
-  { from: 1.85, to: 2.3, className: 'press-keys' },
-  { from: 2.15, className: 'zoomed' },
+  { from: 1.45, to: 2.75, name: 'keys' },
+  { from: 1.85, to: 2.3, name: 'pressed' },
+  { from: 2.15, name: 'zoomed' },
 ];
 
 type Place = 'computer' | 'phone' | 'web';
@@ -113,7 +113,8 @@ function Clip({ name, ratio, label, cues = NO_CUES, children }: { name: string; 
       const t = node.currentTime;
       if (bar.current && node.duration) bar.current.style.transform = `scaleX(${t / node.duration})`;
       // Cues follow the recording's own clock, so overlays stay in step through pauses and loops.
-      for (const cue of cues) screen.current?.classList.toggle(cue.className, t >= cue.from && (cue.to === undefined || t < cue.to));
+      // They are data attributes, which React leaves alone when it re-renders the class list.
+      for (const cue of cues) screen.current?.toggleAttribute(`data-${cue.name}`, t >= cue.from && (cue.to === undefined || t < cue.to));
       frame = requestAnimationFrame(tick);
     };
     const onPlay = () => { setPaused(false); cancelAnimationFrame(frame); tick(); };
