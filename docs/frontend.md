@@ -34,11 +34,15 @@ Workers.
 - `/`: Home when signed in (search on mobile, add a video, a compact Recent videos strip,
   and recent moments grouped once per day and video); the landing page when
   signed out. The landing page renders without the app header and is always
-  dark, whatever the app theme. It shows real recordings of the app from a demo
-  account, served from `public/landing/` (a desktop and a phone cut of Save and
-  Search). Each recording loads as it nears the screen, plays muted while visible,
-  and pauses on tap; with reduced motion it waits for a tap. CSS shows the phone
-  recordings below 760px and the desktop ones above. Its Ask example is a real
+  dark, whatever the app theme. It shows real recordings served from
+  `public/landing/`: the Chrome extension saving on YouTube (the desktop hero,
+  and Alt+S in fullscreen), and the app from a demo account (desktop and phone
+  cuts of Save and Search). On wider screens the "Save from wherever you watch"
+  ways switch the recording beside them. Each recording loads as it nears the
+  screen, plays muted while visible, and pauses on tap; with reduced motion it
+  waits for a tap. A recording can carry time cues, CSS classes that follow its
+  playback, for the pressed keys and the zoom onto the extension's toast. CSS
+  shows the phone recordings below 760px and the desktop ones above. Its Ask example is a real
   answer whose citations play the source on YouTube from the cited second. Its
   styles are in `features/landing/landing.css`, scoped to `.landing`.
 - `/v/:videoId`: the video workspace. Query parameters: `t` (start playback at

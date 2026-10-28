@@ -69,3 +69,15 @@ it('plays a cited source from the cited second, and closing removes the player',
   expect(await screen.findByRole('button', { name: /4:35\s*Mini Essays/ })).toBeTruthy();
   expect(screen.queryByTitle('Source video')).toBeNull();
 });
+
+it('switches the recording beside the ways to save, starting with the extension', async () => {
+  const user = setup();
+  const computer = screen.getByRole('button', { name: 'Show saving on your computer' });
+  const phone = screen.getByRole('button', { name: 'Show saving on your phone' });
+  expect(computer.getAttribute('aria-pressed')).toBe('true');
+  expect(screen.getByRole('button', { name: /Alt\+S saves the moment at 14:19/ })).toBeTruthy();
+  await user.click(phone);
+  expect(phone.getAttribute('aria-pressed')).toBe('true');
+  expect(computer.getAttribute('aria-pressed')).toBe('false');
+  expect(screen.queryByRole('button', { name: /Alt\+S saves the moment at 14:19/ })).toBeNull();
+});
