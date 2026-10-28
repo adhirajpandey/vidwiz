@@ -31,8 +31,9 @@ const SHORTCUT_CUES: Cue[] = [
   { from: 1.75, to: 2.2, name: 'pressed' },
   { from: 2.05, name: 'zoomed' },
 ];
+const KEY_CUES = SHORTCUT_CUES.slice(0, 2);
 // The same save, then the extension's popup with the moment from 5s.
-const EXTENSION_CUES: Cue[] = [...SHORTCUT_CUES.slice(0, 2), { from: 2.05, to: 4.1, name: 'zoomed' }];
+const EXTENSION_CUES: Cue[] = [...KEY_CUES, { from: 2.05, to: 4.1, name: 'zoomed' }];
 const KEYS = <span className="keys" aria-hidden="true"><kbd>{IS_MAC ? '⌥' : 'Alt'}</kbd><i>+</i><kbd>S</kbd></span>;
 
 type Place = 'computer' | 'phone' | 'web';
@@ -447,7 +448,7 @@ export default function LandingPage() {
                       <Window><Clip name="ext-shortcut" ratio="16 / 10" label="Watching fullscreen on YouTube, Alt+S saves the moment at 14:19 and the extension confirms it in the player." cues={SHORTCUT_CUES}>{KEYS}</Clip></Window>
                     </div>
                     <div className="only-phone">
-                      <Window><Clip name="ext-phone" ratio="700 / 1170" label="Watching fullscreen on YouTube, Alt+S saves the moment at 14:19, then the extension shows it with its AI line." cues={EXTENSION_CUES}>{KEYS}</Clip></Window>
+                      <Window><Clip name="ext-phone" ratio="720 / 1280" label="Watching fullscreen on YouTube, Alt+S saves the moment at 14:19, then the extension lists it with its AI line and marks it on the video's timeline." cues={KEY_CUES}>{KEYS}</Clip></Window>
                     </div>
                   </>
                 )}
