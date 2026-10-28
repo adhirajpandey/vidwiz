@@ -313,6 +313,166 @@ async def test_final_resolve_failure_marks_moment_unresolved(client, db_session,
 
 
 @pytest.mark.asyncio
+@pytest.mark.parametrize("trigger", ["lookup", "choice"])
+@pytest.mark.parametrize("wants_ai", [False, True])
+async def test_later_resolution_recovers_failed_capture(
+    client, db_session, user, transcript_ready, sent_jobs, trigger, wants_ai
+):
+    failed, _ = capture(
+        db_session,
+        user,
+        video=None,
+        title="Unknown Talk",
+        channel="Chan",
+        at=100,
+        note="Keep this note",
+        source="phone",
+        ai=wants_ai,
+    )
+    failed_id, created_at = failed.id, failed.created_at
+    task = _claim_resolve_task(db_session)
+    task.retry_count = internal_constants.TASK_MAX_RETRIES
+    db_session.flush()
+    response = await client.post(
+        f"/v2/internal/tasks/{task.id}/result",
+        headers=admin_headers(),
+        json={"success": False, "error_message": "no results"},
+    )
+    assert response.status_code == 200
+
+    later, _ = capture(
+        db_session, user, video=None, title="unknown talk", channel="Chan", at=300
+    )
+    task = (
+        db_session.query(Task)
+        .filter_by(task_type=internal_constants.RESOLVE_TITLE_TASK_TYPE)
+        .order_by(Task.id.desc())
+        .first()
+    )
+    task.status = TaskStatus.IN_PROGRESS
+    task.retry_count = 1
+    db_session.flush()
+    video = {"video_id": VIDEO_ID, "title": "Canonical title"}
+    result = {"resolved": video} if trigger == "lookup" else {"candidates": [video]}
+    response = await client.post(
+        f"/v2/internal/tasks/{task.id}/result",
+        headers=admin_headers(),
+        json={"success": True, **result},
+    )
+    assert response.status_code == 200
+    if trigger == "choice":
+        response = await client.post(
+            f"/v2/moments/{later.id}/resolve",
+            headers=auth_headers(user),
+            json={"video_id": VIDEO_ID},
+        )
+        assert response.status_code == 200
+
+    recovered = db_session.get(Moment, failed_id)
+    db_session.refresh(recovered)
+    assert recovered.video_id == VIDEO_ID
+    assert recovered.resolve_status == ResolveStatus.RESOLVED
+    assert recovered.pending_title is None
+    assert recovered.pending_channel is None
+    assert recovered.at_seconds == 100
+    assert recovered.note == "Keep this note"
+    assert recovered.source == CaptureSource.PHONE
+    assert recovered.created_at == created_at
+    assert recovered.quote
+    assert recovered.ai_status == (
+        AiStatus.QUEUED if wants_ai else AiStatus.NOT_REQUESTED
+    )
+    assert len(charges(db_session, user)) == int(wants_ai)
+    assert len(sent_jobs) == int(wants_ai)
+
+
+def test_recovered_ai_request_waits_for_transcript(db_session, user, sent_jobs):
+    failed, _ = capture(db_session, user, video=None, title="Talk", ai=True)
+    moments_service.fail_resolution(db_session, failed)
+    later, _ = capture(db_session, user, video=None, title="Talk", at=300)
+
+    moments_service.complete_resolution(db_session, later, VIDEO_ID, "Talk")
+
+    db_session.refresh(failed)
+    assert failed.video_id == VIDEO_ID
+    assert failed.ai_status == AiStatus.WAITING_TRANSCRIPT
+    assert not charges(db_session, user)
+    assert not sent_jobs
+
+
+def test_recovery_merges_nearby_capture_without_another_charge(
+    db_session, user, transcript_ready, sent_jobs
+):
+    failed, _ = capture(
+        db_session, user, video=None, title="Talk", at=100, note="earlier", ai=True
+    )
+    failed_id = failed.id
+    moments_service.fail_resolution(db_session, failed)
+    later, _ = capture(
+        db_session, user, video=None, title="Talk", at=104, note="later", ai=True
+    )
+
+    moments_service.complete_resolution(db_session, later, VIDEO_ID, "Talk")
+
+    assert db_session.get(Moment, failed_id) is None
+    db_session.refresh(later)
+    assert later.note == "later\nearlier"
+    assert later.at_seconds == 104
+    assert later.ai_status == AiStatus.QUEUED
+    assert len(charges(db_session, user)) == 1
+    assert len(sent_jobs) == 1
+
+
+def test_recovery_only_attaches_earlier_matching_failures(db_session, user):
+    from src.auth.models import User
+
+    other = User(email="other@example.com", name="Other")
+    db_session.add(other)
+    db_session.flush()
+
+    def unresolved(**overrides):
+        fields = dict(
+            user_id=user.id,
+            at_seconds=100,
+            source=CaptureSource.PHONE,
+            pending_title="  TALK  ",
+            pending_channel="Chan",
+            resolve_status=ResolveStatus.UNRESOLVED,
+            ai_status=AiStatus.NOT_REQUESTED,
+        )
+        fields.update(overrides)
+        moment = Moment(**fields)
+        db_session.add(moment)
+        db_session.flush()
+        return moment
+
+    matching = [unresolved(), unresolved(resolve_candidates=[])]
+    excluded = [
+        unresolved(user_id=other.id),
+        unresolved(pending_title="Different talk"),
+        unresolved(pending_channel="Other channel"),
+        unresolved(pending_channel=None),
+        unresolved(resolve_status=ResolveStatus.RESOLVING),
+        unresolved(resolve_candidates=[{"video_id": VIDEO_ID}]),
+    ]
+    later, _ = capture(
+        db_session, user, video=None, title="talk", channel="Chan", at=300
+    )
+    excluded.append(unresolved())  # A newer capture is not an earlier failure.
+    db_session.commit()
+
+    moments_service.complete_resolution(db_session, later, VIDEO_ID, "Talk")
+
+    # The two matching failures merge because their timestamps are identical.
+    recovered = db_session.get(Moment, matching[0].id)
+    assert recovered.video_id == VIDEO_ID
+    assert db_session.get(Moment, matching[1].id) is None
+    for moment in excluded:
+        db_session.refresh(moment)
+        assert moment.video_id is None
+
+
+@pytest.mark.asyncio
 async def test_resolve_task_requires_resolved_video(client, db_session, user):
     capture(db_session, user, video=None, title="Unknown")
     task = _claim_resolve_task(db_session)
