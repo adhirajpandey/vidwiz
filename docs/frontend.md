@@ -131,6 +131,9 @@ Workers.
   `/login`.
 - **Sign-in forms**: field errors are associated with their input and announced.
   Google sign-in shows Google's light rectangular button in both app themes.
+  It enables FedCM button auto-selection so eligible returning users with an
+  active Google session can skip the account chooser after clicking the button.
+  Google handles account selection when auto-selection is unavailable.
   The control follows the form width and keeps a light color scheme. If the script
   fails or is unavailable after five seconds, Retry reloads it; email sign-in
   stays usable. The client initializes once, and listeners and timers are
@@ -152,7 +155,8 @@ Workers.
   exported links; the transcript quote has its own context window.
 - **Library**: one field searches titles and channels or previews a pasted
   YouTube video link. Views select All, With moments, or With chats; their
-  counts follow the search. A themed menu offers six sorts. A paste card
+  counts follow the search. The view filters wrap on narrow screens without
+  a scroll container. A themed menu offers six sorts. A paste card
   checks membership, preserves the link's time, and offers Add and open or
   Add to library. Existing videos open directly; failed checks claim no
   membership state, and failed saves retry the original action in place. Open

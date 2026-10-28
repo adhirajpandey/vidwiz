@@ -90,8 +90,8 @@ export default function LibraryPage() {
         </label>
         <SortMenu sort={sort} onChange={value => update('sort', value)} />
       </div>
-      {!link && <div role="group" aria-label="Library views" className="-mx-4 flex gap-1 overflow-x-auto border-b border-border px-4 sm:mx-0 sm:px-0">
-        {VIEWS.map(v => <button key={v.value} type="button" aria-pressed={view === v.value} onClick={() => update('view', v.value)} className={cn('-mb-px shrink-0 border-b-2 px-3 pb-2 pt-1 text-sm font-semibold', view === v.value ? 'border-foreground text-foreground' : 'border-transparent text-muted-foreground hover:text-foreground')}>{v.label} <span className="ml-0.5 text-xs font-medium text-muted-foreground tabular">{library.data?.counts[v.value] ?? '…'}</span></button>)}
+      {!link && <div role="group" aria-label="Library views" className="-mx-4 flex flex-wrap gap-1 border-b border-border px-4 sm:mx-0 sm:px-0">
+        {VIEWS.map(v => <button key={v.value} type="button" aria-pressed={view === v.value} onClick={() => update('view', v.value)} className={cn('shrink-0 border-b-2 px-3 pb-2 pt-1 text-sm font-semibold', view === v.value ? 'border-foreground text-foreground' : 'border-transparent text-muted-foreground hover:text-foreground')}>{v.label} <span className="ml-0.5 text-xs font-medium text-muted-foreground tabular">{library.data?.counts[v.value] ?? '…'}</span></button>)}
       </div>}
       {link && !pasted ? <p id="library-link-error" role="alert" className="-mt-3 text-xs text-destructive">Paste a YouTube video link, like youtube.com/watch?v=… or youtu.be/…</p>
         : pasted && link ? <LinkCard key={pasted} link={link} videoId={pasted} onClear={clear} onAdded={id => { arrive(id); setInput({ query: '', value: '' }); setParams({ sort: 'activity_desc' }); }} />
