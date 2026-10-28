@@ -4,6 +4,8 @@ import { StaticRouter } from 'react-router-dom';
 import { HelmetProvider } from 'react-helmet-async';
 import type { HelmetServerState } from 'react-helmet-async';
 import AppContent from './app/AppContent';
+import Application from './app/Application';
+import PublicPages from './app/PublicPages';
 import Seo from './components/Seo';
 
 /** Render only public pages (or the empty, noindex application shell), without API requests. */
@@ -16,7 +18,7 @@ export function renderPage(path: string | null) {
           <Seo title="VidWiz" description="Save and search YouTube moments, and ask questions across your library." noIndex />
         ) : (
           <StaticRouter location={path}>
-            <AppContent />
+            <AppContent application={Application} publicPages={PublicPages} />
           </StaticRouter>
         )}
       </HelmetProvider>

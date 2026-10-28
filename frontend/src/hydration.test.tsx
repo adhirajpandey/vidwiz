@@ -8,6 +8,7 @@ import { HelmetProvider } from 'react-helmet-async';
 import { afterEach, beforeEach, expect, it, vi } from 'vitest';
 import AppContent from './app/AppContent';
 import { renderPage } from './entry-server';
+import { removeToken, setToken } from './lib/authUtils';
 
 // Keep account data out of the hydration test; auth and routing remain real.
 vi.mock('./features/home/HomePage', () => ({ default: () => <h1>Your saved moments</h1> }));
@@ -114,4 +115,18 @@ it.each([null, 'light', 'dark'])('preserves saved theme %s and defaults to dark 
   });
   expect(document.documentElement.classList.contains('dark')).toBe(expected !== 'dark');
   expect(localStorage.getItem('theme')).toBe(expected === 'dark' ? 'light' : 'dark');
+});
+
+it('switches between the landing and workspace runtimes when auth changes', async () => {
+  const errors = await hydrate('/');
+  expect(document.querySelector('.landing')).not.toBeNull();
+  const payload = btoa(JSON.stringify({ user_id: 1, exp: Math.floor(Date.now() / 1000) + 3600 }));
+  await act(async () => setToken(`header.${payload}.signature`));
+  await waitFor(() => expect(document.querySelector('h1')?.textContent).toBe('Your saved moments'));
+  expect(document.querySelector('.landing')).toBeNull();
+  await act(async () => removeToken());
+  await waitFor(() => expect(document.querySelector('.landing')).not.toBeNull());
+  expect(document.title).toBe('YouTube Notes with Timestamps & AI Chat | VidWiz');
+  expect(document.querySelector('meta[name="robots"]')?.getAttribute('content')).toBe('index, follow');
+  expect(errors).not.toHaveBeenCalled();
 });
