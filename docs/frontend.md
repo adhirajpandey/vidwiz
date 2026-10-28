@@ -10,8 +10,9 @@ command palette, and assistant-ui for the chat thread. Deployed to Cloudflare
 Workers.
 
 ## Structure
-- `src/main.tsx`: providers (Helmet, TanStack Query, router, toasts, error
-  boundary, session-expiry handler) and extension auth sync.
+- `src/main.tsx`: browser routing, hydration of pre-rendered pages, and
+  extension auth sync. `src/app/AppContent.tsx` shares the query, toast, tooltip,
+  and error providers between the browser and build-time renderer.
 - `src/App.tsx`: routes. The video and Ask pages are lazy-loaded because they
   carry the chat and Markdown libraries.
 - `src/app/`: the app shell (header, mobile bottom navigation, account menu),
@@ -241,11 +242,64 @@ Workers.
   or a test deployment).
 - `pnpm lint`, `pnpm test`, `pnpm build`.
 
+## Public HTML and indexing
+
+`pnpm build` builds the browser bundle, then a separate Vite SSR bundle used
+only during the build. `scripts/build.mjs` renders `/`, `/support`, and
+`/privacy` through `src/entry-server.tsx`. Each output contains the page's
+content, title, description, canonical, social metadata, and an `index, follow`
+robots directive. The sitemap lists those three public URLs. Builds make no
+API requests and never render account data.
+
+The renderer also writes an empty `app.html` shell and a rendered `404.html`,
+both with `noindex, follow` and no canonical. `scripts/verify-build.mjs` checks
+the finished HTML and sitemap as part of every build. `dist-ssr` is a build
+intermediate; only `dist` is uploaded as static assets.
+
+The browser hydrates roots marked `data-prerendered`. Authentication uses a
+signed-out server snapshot, then restores the stored session after hydration,
+so `/` still becomes Home for signed-in users. Theme, platform-specific
+keyboard labels, and reduced-motion classes preserve the initial server
+markup. Landing content remains visible without JavaScript; reveal animations
+start after mounting.
+
+`Seo` owns public metadata. Its generated tags carry Helmet's ownership marker
+so client navigation replaces them instead of adding duplicates. The app-level
+fallback and account pages use `noindex, follow`; page titles can override the
+fallback title. The pinned Helmet fork has a small pnpm patch in
+`patches/helmet-strict-mode.patch`: its dispatcher re-registers on React Strict
+Mode's development remount. Hydration tests cover metadata retention and
+navigation with Strict Mode enabled.
+
+### Cloudflare routing
+
+`src/worker.ts` selects the built HTML through the `ASSETS` binding in
+`wrangler.jsonc`. It does not render React or contact the backend at runtime.
+
+- `/`, `/support`, and `/privacy` serve their public HTML. Trailing-slash and
+  `.html` variants redirect permanently to the canonical path.
+- Login, signup, library, search, Ask, settings, share, and `/v/:videoId` serve
+  the client-only shell with an `X-Robots-Tag: noindex, follow` header. Query
+  parameters remain in the browser URL for React to use.
+- Legacy routes redirect permanently, preserving query parameters. Old
+  `/wiz/:videoId` links select the Ask tab.
+- Unknown paths return the rendered not-found page with HTTP 404. React also
+  shows it for unknown paths reached through client navigation. Direct requests
+  for `/app.html` and `/404.html` return 404.
+- Static assets retain their normal responses. The asset, landing-recording,
+  and brand directories bypass the Worker. HTML requests support GET and HEAD.
+
+The blanket SPA fallback is disabled. Deploy `wrangler.jsonc`, the Worker,
+and the generated assets together through the existing frontend workflow.
+`pnpm dev` remains Vite's development server; it does not emulate production
+HTTP status codes or redirects. The SSR, hydration, and Worker tests run with
+`pnpm test`.
+
 ## Tab titles
 Tab titles name what is open, most specific first, joined with ` · ` and
 ending in `VidWiz`. `documentTitle` in `src/lib/title.ts` builds them; public
 pages pass the result to `Seo`, and signed-in pages use `PageTitle`.
-- The landing page and `index.html` share `LANDING_TITLE`.
+- The landing page uses `LANDING_TITLE`, including in the generated HTML.
 - A video page adds its open panel, as in `<video title> · Ask · VidWiz`.
   While the video loads, fails, or has no title yet, the title is
   `Video · VidWiz`; it never shows the video ID.

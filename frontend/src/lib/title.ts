@@ -1,7 +1,7 @@
 /** Tab titles name what is open, most specific first, then the product. */
 export const SITE_NAME = 'VidWiz';
-/** The landing page's title; `index.html` repeats it so startup shows no change. */
-export const LANDING_TITLE = `${SITE_NAME} · Keep the moments worth coming back to`;
+/** Shared by the landing page and its build-time HTML. */
+export const LANDING_TITLE = `YouTube Notes with Timestamps & AI Chat | ${SITE_NAME}`;
 
 export function documentTitle(...parts: string[]): string {
   return [...parts, SITE_NAME].join(' · ');

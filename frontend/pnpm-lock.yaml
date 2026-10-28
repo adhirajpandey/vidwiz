@@ -4,6 +4,11 @@ settings:
   autoInstallPeers: true
   excludeLinksFromLockfile: false
 
+patchedDependencies:
+  '@vuer-ai/react-helmet-async@2.0.7':
+    hash: 7e960ea3b11b2161a76d3351d368dcdda4a69a409953070c836a6940bd79a51c
+    path: patches/helmet-strict-mode.patch
+
 importers:
 
   .:
@@ -49,7 +54,7 @@ importers:
         version: 19.2.4(react@19.2.4)
       react-helmet-async:
         specifier: npm:@vuer-ai/react-helmet-async@2.0.7
-        version: '@vuer-ai/react-helmet-async@2.0.7(react@19.2.4)'
+        version: '@vuer-ai/react-helmet-async@2.0.7(patch_hash=7e960ea3b11b2161a76d3351d368dcdda4a69a409953070c836a6940bd79a51c)(react@19.2.4)'
       react-router-dom:
         specifier: ^7.18.4
         version: 7.18.4(react-dom@19.2.4(react@19.2.4))(react@19.2.4)
@@ -4801,7 +4806,7 @@ snapshots:
       convert-source-map: 2.0.0
       tinyrainbow: 3.2.0
 
-  '@vuer-ai/react-helmet-async@2.0.7(react@19.2.4)':
+  '@vuer-ai/react-helmet-async@2.0.7(patch_hash=7e960ea3b11b2161a76d3351d368dcdda4a69a409953070c836a6940bd79a51c)(react@19.2.4)':
     dependencies:
       invariant: 2.2.4
       react: 19.2.4

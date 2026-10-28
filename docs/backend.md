@@ -52,6 +52,12 @@ Describe the FastAPI backend: structure, auth rules, and the request/worker life
   The title helper searches YouTube with yt-dlp, preferring a matching channel,
   then an exact title. On success the moment gets its video (or merges into a
   nearby moment); after the final failed retry it becomes `unresolved`.
+  A later successful title lookup or candidate choice also recovers earlier
+  failed captures for that user with the same captured title (ignoring case
+  and surrounding spaces) and the same channel value, including both absent.
+  Captures still resolving or awaiting a candidate choice are left alone.
+  Recovery uses the same attachment and merge rules and resumes any original
+  AI request, including requests marked `failed` by title-lookup failure.
 - **AI status** is explicit: `not_requested`, `waiting_transcript`, `queued`,
   `ready`, `failed`, `no_transcript`, or `insufficient_credits`.
   - With a transcript, a request charges `AI_MOMENT_COST` once per moment and
