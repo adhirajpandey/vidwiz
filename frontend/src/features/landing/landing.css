@@ -201,7 +201,8 @@ html.landing-page .landing .ask:not(.go) .step { opacity: 0; transform: translat
 .landing .legal svg { width: 12px; height: 12px; }
 
 /* Source player dialog */
-.landing dialog.source { width: min(820px, 100vw - 32px); max-width: none; padding: 0; border: 0; border-radius: 20px; background: #12142F; color: var(--paper); overflow: hidden; box-shadow: 0 0 0 1px rgb(255 255 255 / .12), 0 50px 150px rgb(0 0 0 / .7); }
+/* margin: auto centres the modal; the global reset sets every margin to 0. */
+.landing dialog.source { width: min(820px, 100vw - 32px); max-width: none; margin: auto; padding: 0; border: 0; border-radius: 20px; background: #12142F; color: var(--paper); overflow: hidden; box-shadow: 0 0 0 1px rgb(255 255 255 / .12), 0 50px 150px rgb(0 0 0 / .7); }
 .landing dialog.source::backdrop { background: rgb(4 5 16 / .82); backdrop-filter: blur(6px); }
 .landing dialog.source[open] { animation: landing-pop .35s var(--ease); }
 @keyframes landing-pop { from { opacity: 0; transform: translateY(16px) scale(.97) } }
