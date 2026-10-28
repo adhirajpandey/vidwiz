@@ -3,7 +3,7 @@
 html.landing-page, html.landing-page body { background: #07081A; color-scheme: dark; scroll-behavior: smooth; overflow-x: hidden; overflow-x: clip; }
 
 .landing {
-  --night: #07081A; --ink: #1B1D3A; --cap: #FFE45C; --paper: #F5F5F9; --mute: #A4A7C7; --dim: #6E7199;
+  --night: #07081A; --ink: #1B1D3A; --cap: #FFE45C; --paper: #F5F5F9; --mute: #A4A7C7; --dim: #7B7FA8;
   --line: rgb(255 255 255 / .09); --ease: cubic-bezier(.2, .8, .2, 1);
   position: relative; min-height: 100vh; overflow-x: clip; background: var(--night); color: var(--paper);
   font-size: 17px; line-height: 1.6; -webkit-font-smoothing: antialiased; text-rendering: optimizeLegibility;

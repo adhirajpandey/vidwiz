@@ -85,8 +85,9 @@ Workers.
   links and enabled controls (buttons, menu items, tabs, time chips, timeline
   markers) show a pointer. Disabled or busy controls keep the arrow, and the
   `hover` variant skips them, so they don't change on hover. Transcript,
-  answers, notes, and fields keep the text cursor; standalone counts, status
-  lines, and the landing page's example screens use the arrow.
+  answers, notes, and fields keep the text cursor; standalone counts and status
+  lines use the arrow. The landing page's recordings and citations are controls,
+  so they show a pointer.
 - Bricolage Grotesque everywhere, with tabular digits for times. Headings use
   the `display` utility (condensed and heavy).
 - Every paid action shows its cost: "Unlock for 5 credits" before the first
