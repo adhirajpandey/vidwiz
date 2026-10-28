@@ -407,8 +407,9 @@ export default function LandingPage() {
     const update = () => {
       ticking = false;
       const y = window.scrollY;
+      const past = heroCtas.current ? heroCtas.current.getBoundingClientRect().bottom < 64 : false;
       nav.current?.classList.toggle('solid', y > 24);
-      if (heroCtas.current) nav.current?.classList.toggle('past', heroCtas.current.getBoundingClientRect().bottom < 64);
+      nav.current?.classList.toggle('past', past);
       if (!prefersReducedMotion()) stage.current?.style.setProperty('--tilt', Math.max(0, 1 - y / (window.innerHeight * 0.55)).toFixed(3));
     };
     const onScroll = () => { if (!ticking) { ticking = true; requestAnimationFrame(update); } };

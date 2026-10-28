@@ -11,8 +11,9 @@ Workers.
 
 ## Structure
 - `src/main.tsx`: browser routing, hydration of pre-rendered pages, and
-  extension auth sync. `src/app/AppContent.tsx` shares the query, toast, tooltip,
-  and error providers between the browser and build-time renderer.
+  extension auth sync. `src/app/AppContent.tsx` shares the toast and error
+  providers between the browser and build-time renderer. It keeps the landing
+  page independent of the workspace runtime.
 - `src/App.tsx`: routes. The video and Ask pages are lazy-loaded because they
   carry the chat and Markdown libraries.
 - `src/app/`: the app shell (header, mobile bottom navigation, account menu),
@@ -251,8 +252,17 @@ Workers.
 ## Initial page loading
 
 Account and workspace routes are lazy-loaded, as is the signed-in command
-palette. Public pages remain eager so build-time rendering includes their
-content. A local error boundary isolates command palette loading failures so
+palette. The signed-out landing page loads without the query provider, app
+shell, menus, or tooltips. Public document pages load a separate header and
+route bundle; workspace routes load `app/Application.tsx`, including the query
+and tooltip providers. The build-time renderer supplies eager versions of
+these components so public HTML contains its content before JavaScript runs.
+Hydration keeps the same Suspense boundaries, including when restoring a
+signed-in session on the public homepage.
+
+The client build checks the entry and its static imports to prevent workspace
+and public-document dependencies from returning to landing startup. A local
+error boundary isolates command palette loading failures so
 the workspace stays available. Google Identity Services loads when the sign-in
 button mounts.
 
