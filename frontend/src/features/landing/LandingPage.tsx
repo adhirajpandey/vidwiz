@@ -104,7 +104,8 @@ function Clip({ name, ratio, label, cues = NO_CUES, children }: { name: string; 
 
   useEffect(() => {
     const node = video.current;
-    if (!node || typeof IntersectionObserver === 'undefined') return;
+    const box = screen.current;
+    if (!node || !box || typeof IntersectionObserver === 'undefined') return;
     const observer = new IntersectionObserver(([entry]) => {
       if (entry.isIntersecting && !node.getAttribute('src')) node.src = `/landing/${name}.mp4`;
       if (entry.isIntersecting && entry.intersectionRatio >= 0.35) {
@@ -113,7 +114,9 @@ function Clip({ name, ratio, label, cues = NO_CUES, children }: { name: string; 
         node.pause();
       }
     }, { threshold: [0, 0.35], rootMargin: '200px 0px' });
-    observer.observe(node);
+    // Watch the frame, not the video: the zoom cue scales the video past the frame, which would
+    // drop its visible share below the threshold and pause it.
+    observer.observe(box);
     let frame = 0;
     const tick = () => {
       const t = node.currentTime;
