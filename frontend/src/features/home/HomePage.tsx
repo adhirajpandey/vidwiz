@@ -91,7 +91,7 @@ function RecentStrip({ videos }: { videos: LibraryVideo[] }) {
   return (
     <section aria-labelledby="recent-videos">
       <SectionHead id="recent-videos" title="Recent videos" to="/library" label="All videos" />
-      <div className="-mx-4 flex snap-x scroll-px-4 gap-3 overflow-x-auto px-4 pb-1 sm:mx-0 sm:grid sm:scroll-px-0 sm:grid-cols-4 sm:overflow-visible sm:px-0">
+      <div className="-mx-4 flex snap-x scroll-px-4 gap-3 overflow-x-auto px-4 pb-1 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden sm:mx-0 sm:grid sm:scroll-px-0 sm:grid-cols-4 sm:overflow-visible sm:px-0">
         {videos.slice(0, 4).map(video => <VideoCard key={video.video_id} video={video} />)}
       </div>
     </section>
