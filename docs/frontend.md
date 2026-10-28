@@ -69,7 +69,9 @@ Workers.
 ## Design
 - Paper theme, tokens in `src/index.css`: blue-ink text on cool white, flat
   surfaces, thin borders, and identical layouts in light and dark themes
-  (`.dark` on `<html>`, chosen in `localStorage.theme` or from the OS).
+  (`.dark` on `<html>`). Dark is the default regardless of the OS theme;
+  a saved `localStorage.theme` choice takes precedence. The initial HTML script
+  and React use the same rule, including when storage is unavailable.
 - Ink (`accent`) carries actions: primary buttons, links, the active tab, focus.
 - Caption yellow (`saved`) marks only what the user saved: timestamps, the Save
   moment button (`Button variant="save"`), the moment strip under the player,

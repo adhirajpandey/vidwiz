@@ -1,5 +1,5 @@
 <!doctype html>
-<html lang="en">
+<html lang="en" class="dark">
   <head>
     <meta charset="UTF-8" />
     <link rel="icon" href="/favicon.ico" sizes="16x16 32x32 48x48" />
@@ -13,18 +13,14 @@
     <link rel="apple-touch-icon" sizes="180x180" href="/apple-touch-icon.png" />
     <script>
       (() => {
+        let isDark = true;
         try {
           const stored = localStorage.getItem('theme');
-          const prefersDark = window.matchMedia('(prefers-color-scheme: dark)').matches;
-          const isDark = stored ? stored === 'dark' : prefersDark;
-          if (isDark) {
-            document.documentElement.classList.add('dark');
-          } else {
-            document.documentElement.classList.remove('dark');
-          }
+          isDark = stored !== 'light';
         } catch (_) {
-          /* no-op */
+          /* Keep the dark default when storage is unavailable. */
         }
+        document.documentElement.classList.toggle('dark', isDark);
       })();
     </script>
   </head>

@@ -99,3 +99,19 @@ it('replaces public metadata when navigating to login, then restores it on retur
   expect(document.querySelectorAll('link[rel="canonical"]')).toHaveLength(1);
   expect(document.querySelector('link[rel="canonical"]')?.getAttribute('href')).toBe('https://vidwiz.online/privacy');
 });
+
+
+it.each([null, 'light', 'dark'])('preserves saved theme %s and defaults to dark on a light OS', async saved => {
+  vi.stubGlobal('matchMedia', vi.fn(() => ({ matches: false })));
+  if (saved) localStorage.setItem('theme', saved);
+  const errors = await hydrate('/support');
+  const expected = saved ?? 'dark';
+  await waitFor(() => expect(document.documentElement.classList.contains('dark')).toBe(expected === 'dark'));
+  expect(localStorage.getItem('theme')).toBe(expected);
+  expect(errors).not.toHaveBeenCalled();
+  await act(async () => {
+    document.querySelector<HTMLButtonElement>('button[aria-label="Toggle theme"]')!.click();
+  });
+  expect(document.documentElement.classList.contains('dark')).toBe(expected !== 'dark');
+  expect(localStorage.getItem('theme')).toBe(expected === 'dark' ? 'light' : 'dark');
+});
