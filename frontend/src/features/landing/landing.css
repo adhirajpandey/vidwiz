@@ -3,7 +3,7 @@
 html.landing-page, html.landing-page body { background: #07081A; color-scheme: dark; scroll-behavior: smooth; overflow-x: hidden; overflow-x: clip; }
 
 .landing {
-  --night: #07081A; --ink: #1B1D3A; --cap: #FFE45C; --paper: #F5F5F9; --mute: #A4A7C7; --dim: #6E7199;
+  --night: #07081A; --ink: #1B1D3A; --cap: #FFE45C; --paper: #F5F5F9; --mute: #A4A7C7; --dim: #7B7FA8;
   --line: rgb(255 255 255 / .09); --ease: cubic-bezier(.2, .8, .2, 1);
   position: relative; min-height: 100vh; overflow-x: clip; background: var(--night); color: var(--paper);
   font-size: 17px; line-height: 1.6; -webkit-font-smoothing: antialiased; text-rendering: optimizeLegibility;
@@ -27,6 +27,9 @@ html.landing-page, html.landing-page body { background: #07081A; color-scheme: d
 .landing .logo img { width: 30px; height: 30px; border-radius: 8px; }
 .landing .lnav .login { margin-left: auto; text-decoration: none; color: var(--mute); font-size: 15.5px; font-weight: 550; transition: color .2s; }
 .landing .lnav .login:hover { color: var(--paper); }
+/* The bar shows Log in only, until the hero's own buttons scroll away. */
+.landing .lnav .btn { display: none; }
+.landing .lnav.past .btn { display: inline-flex; animation: landing-nav-in .3s var(--ease); }
 
 /* Buttons */
 .landing .btn { display: inline-flex; align-items: center; justify-content: center; gap: 10px; height: 50px; padding: 0 24px; border-radius: 12px; border: 0;
@@ -75,7 +78,17 @@ html.landing-page, html.landing-page body { background: #07081A; color-scheme: d
   background: linear-gradient(160deg, #2A2E5E, #14163A 40%, #1D2050); box-shadow: 0 0 0 1px rgb(255 255 255 / .1), inset 0 0 0 1px rgb(255 255 255 / .06), 0 50px 120px -20px rgb(0 0 0 / .85), 0 30px 110px -40px rgb(255 228 92 / .25); }
 .landing .phone .screen { border-radius: 37px; }
 .landing .screen { position: relative; overflow: hidden; background: #0C0D1F; cursor: pointer; -webkit-tap-highlight-color: transparent; }
-.landing .screen video { display: block; width: 100%; height: 100%; object-fit: cover; }
+.landing .screen video { display: block; width: 100%; height: 100%; object-fit: cover; transform-origin: 100% 0; transition: transform .8s var(--ease); }
+/* Cue: zoom into the top right, where the extension confirms a save. */
+.landing .screen[data-zoomed] video { transform: scale(2); }
+/* The hero shows the whole fullscreen frame, so it zooms further to show the toast at the same size. */
+.landing .stage .screen[data-zoomed] video { transform: scale(3); }
+/* Cue: the keys being pressed, since a screen recording can't show the keyboard. */
+.landing .screen .keys { position: absolute; left: 50%; bottom: 26px; z-index: 2; display: flex; align-items: center; gap: 10px; translate: -50% 0; opacity: 0; transform: translateY(10px); transition: opacity .25s, transform .3s var(--ease); pointer-events: none; }
+.landing .screen .keys i { font-style: normal; font-size: 18px; font-weight: 700; color: var(--paper); text-shadow: 0 2px 8px rgb(0 0 0 / .6); }
+.landing .screen .keys kbd { min-width: 58px; height: 58px; display: grid; place-items: center; padding: 0 14px; border-radius: 13px; font-size: 21px; background: #20244F; box-shadow: inset 0 -5px 0 rgb(0 0 0 / .35), 0 0 0 1.5px rgb(255 255 255 / .2), 0 18px 40px rgb(0 0 0 / .55); transition: background .15s, color .15s, transform .15s, box-shadow .15s; }
+.landing .screen[data-keys] .keys { opacity: 1; transform: none; }
+.landing .screen[data-pressed] .keys kbd { background: var(--cap); color: var(--ink); transform: translateY(3px); box-shadow: inset 0 -2px 0 rgb(0 0 0 / .25), 0 0 0 1.5px rgb(255 228 92 / .6), 0 12px 30px rgb(0 0 0 / .5); }
 .landing .screen .prog { position: absolute; left: 0; right: 0; bottom: 0; height: 3px; background: rgb(255 255 255 / .08); }
 .landing .phone .screen .prog { left: 26px; right: 26px; bottom: 9px; border-radius: 2px; overflow: hidden; }
 .landing .screen .prog i { display: block; height: 100%; width: 100%; background: var(--cap); transform-origin: 0 50%; transform: scaleX(0); }
@@ -120,7 +133,18 @@ html.landing-page .landing .ask:not(.go) .step { opacity: 0; transform: translat
 
 /* Anywhere */
 .landing .ways { list-style: none; margin: 40px 0 0; padding: 0; display: grid; gap: 14px; }
-.landing .ways li { display: grid; grid-template-columns: 48px 1fr; gap: 18px; align-items: start; padding: 20px; border-radius: 18px; background: rgb(255 255 255 / .03); box-shadow: inset 0 0 0 1px var(--line); }
+.landing .ways li { position: relative; display: grid; grid-template-columns: 48px 1fr; gap: 18px; align-items: start; padding: 20px; border-radius: 18px; background: rgb(255 255 255 / .03); box-shadow: inset 0 0 0 1px var(--line); transition: background .25s, box-shadow .25s; }
+/* Each way is a switch for the recording beside the list. Phones show them as tabs above it. */
+.landing .ways .pick { position: absolute; inset: 0; z-index: 0; border: 0; border-radius: 18px; background: none; cursor: pointer; }
+.landing .ways li > :not(.pick) { position: relative; z-index: 1; pointer-events: none; }
+.landing .ways li a { pointer-events: auto; }
+.landing .ways li:hover { background: rgb(255 255 255 / .05); }
+.landing .ways li.on { background: rgb(255 228 92 / .05); box-shadow: inset 0 0 0 1px rgb(255 228 92 / .45); }
+.landing .places { display: grid; place-items: center; min-height: 600px; }
+.landing .places > * { width: 100%; animation: landing-place .45s var(--ease); }
+.landing .places > .phone { width: min(300px, 78vw); }
+.landing .ways .tab { display: none; }
+@keyframes landing-place { from { opacity: 0; transform: translateY(10px) } }
 .landing .ways .ic { width: 48px; height: 48px; border-radius: 13px; display: grid; place-items: center; background: rgb(255 228 92 / .1); color: var(--cap); }
 .landing .ways .ic svg { width: 22px; height: 22px; }
 .landing .ways h3 { margin: 2px 0 4px; font-size: 18.5px; font-weight: 700; letter-spacing: -.01em; }
@@ -177,7 +201,8 @@ html.landing-page .landing .ask:not(.go) .step { opacity: 0; transform: translat
 .landing .legal svg { width: 12px; height: 12px; }
 
 /* Source player dialog */
-.landing dialog.source { width: min(820px, 100vw - 32px); max-width: none; padding: 0; border: 0; border-radius: 20px; background: #12142F; color: var(--paper); overflow: hidden; box-shadow: 0 0 0 1px rgb(255 255 255 / .12), 0 50px 150px rgb(0 0 0 / .7); }
+/* margin: auto centres the modal; the global reset sets every margin to 0. */
+.landing dialog.source { width: min(820px, 100vw - 32px); max-width: none; margin: auto; padding: 0; border: 0; border-radius: 20px; background: #12142F; color: var(--paper); overflow: hidden; box-shadow: 0 0 0 1px rgb(255 255 255 / .12), 0 50px 150px rgb(0 0 0 / .7); }
 .landing dialog.source::backdrop { background: rgb(4 5 16 / .82); backdrop-filter: blur(6px); }
 .landing dialog.source[open] { animation: landing-pop .35s var(--ease); }
 @keyframes landing-pop { from { opacity: 0; transform: translateY(16px) scale(.97) } }
@@ -209,9 +234,7 @@ html.landing-page .landing .rv:not(.in) { opacity: 0; transform: translateY(28px
   .landing .only-phone { display: block; }
   .landing .lnav .wrap { height: 64px; gap: 16px; }
   .landing .lnav .login { font-size: 15px; }
-  /* Phones get Log in only, until the hero's own buttons scroll away. */
-  .landing .lnav .btn { display: none; height: 36px; padding: 0 14px; font-size: 14.5px; }
-  .landing .lnav.past .btn { display: inline-flex; animation: landing-nav-in .3s var(--ease); }
+  .landing .lnav .btn { height: 36px; padding: 0 14px; font-size: 14.5px; }
   .landing .hero { padding-top: 116px; }
   .landing .lede { margin-top: 20px; }
   .landing .ctas-row { margin-top: 28px; }
@@ -226,8 +249,20 @@ html.landing-page .landing .rv:not(.in) { opacity: 0; transform: translateY(28px
   .landing .ask-body { padding: 20px 16px 22px; }
   .landing .ask-head { padding: 14px 16px; }
   .landing .a p, .landing .q { font-size: 15.5px; }
-  .landing .ways li { grid-template-columns: 42px 1fr; gap: 14px; padding: 18px 16px; }
-  .landing .ways .ic { width: 42px; height: 42px; border-radius: 12px; }
+  .landing .ways { grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 8px; margin-top: 32px; }
+  .landing .ways li { display: flex; align-items: center; justify-content: center; gap: 7px; padding: 12px 6px; border-radius: 14px; }
+  .landing .ways .pick { border-radius: 14px; }
+  .landing .ways .ic { width: auto; height: auto; background: none; }
+  .landing .ways .ic svg { width: 18px; height: 18px; }
+  .landing .ways li > div { display: none; }
+  .landing .ways .tab { display: block; font-weight: 650; font-size: 15px; }
+  .landing .ways li:not(.on) .tab { color: var(--mute); }
+  .landing .places { min-height: 0; }
+  .landing .way-note { margin: 20px 0 0; color: var(--mute); font-size: 16px; line-height: 1.55; }
+  .landing .way-note a { font-weight: 650; color: var(--cap); text-decoration: none; white-space: nowrap; }
+  .landing .screen .keys { bottom: 14px; gap: 6px; }
+  .landing .screen .keys i { font-size: 13px; }
+  .landing .screen .keys kbd { min-width: 36px; height: 36px; padding: 0 9px; border-radius: 9px; font-size: 14px; }
   .landing .plans { grid-template-columns: 1fr; }
   .landing .plan { padding: 24px 22px 22px; }
   .landing .try { padding: 120px 0 96px; }
@@ -251,5 +286,6 @@ html.landing-page .landing .rv:not(.in) { opacity: 0; transform: translateY(28px
   html.landing-page .landing .rv:not(.in), html.landing-page .landing .ask:not(.go) .step, .landing .rv, .landing .ask .step { opacity: 1; transform: none; transition: none; }
   .landing .mark { background-size: 100% .09em; transition: none; }
   .landing .stage .browser { transform: none; }
+  .landing .screen video, .landing .screen .keys, .landing .places > * { transition: none; animation: none; }
   .landing dialog.source[open] { animation: none; }
 }

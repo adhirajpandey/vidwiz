@@ -22,6 +22,51 @@ const SOURCES: Record<'links' | 'essays' | 'feynman', Source> = {
   feynman: { videoId: 'N4YjXJVzoZY', at: 139, title: 'Mini Essays: The Ultimate Learning Tool', short: 'Mini Essays' },
 };
 
+type Cue = { from: number; to?: number; name: string };
+const NO_CUES: Cue[] = [];
+
+// The extension recordings open on fullscreen YouTube: Alt+S lands at about 1.8s and the toast at 2s.
+const SHORTCUT_CUES: Cue[] = [
+  { from: 1.35, to: 2.65, name: 'keys' },
+  { from: 1.75, to: 2.2, name: 'pressed' },
+  { from: 2.05, name: 'zoomed' },
+];
+const KEY_CUES = SHORTCUT_CUES.slice(0, 2);
+// The same save, then the extension's popup with the moment from 5s.
+const EXTENSION_CUES: Cue[] = [...KEY_CUES, { from: 2.05, to: 4.1, name: 'zoomed' }];
+const KEYS = <span className="keys" aria-hidden="true"><ModKey /><i>+</i><kbd>S</kbd></span>;
+
+/** Alt, or Option on a Mac. The prerendered page says Alt until it hydrates. */
+function ModKey() {
+  const hydrated = useHydrated();
+  return <kbd>{hydrated && /Mac|iPhone|iPad/.test(navigator.platform) ? '⌥' : 'Alt'}</kbd>;
+}
+
+type Place = 'computer' | 'phone' | 'web';
+const WAYS: { key: Place; title: string; tab: string; body: ReactNode; icon: ReactNode }[] = [
+  {
+    key: 'computer',
+    title: 'On your computer',
+    tab: 'Computer',
+    body: <>Press <span className="combo"><ModKey /><i aria-hidden="true">+</i><kbd>S</kbd></span> on any YouTube video, even in fullscreen, with the Chrome extension.</>,
+    icon: <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.9" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true"><rect x="2.5" y="4" width="19" height="13" rx="2" /><path d="M8 21h8M12 17v4" /></svg>,
+  },
+  {
+    key: 'phone',
+    title: 'On your phone',
+    tab: 'Phone',
+    body: 'Share a video to VidWiz, or save the moment with a phone shortcut.',
+    icon: <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.9" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true"><rect x="6" y="2.5" width="12" height="19" rx="2.5" /><path d="M11 18.5h2" /></svg>,
+  },
+  {
+    key: 'web',
+    title: 'On the web',
+    tab: 'Web',
+    body: 'Paste a link into VidWiz and save from the player or the transcript.',
+    icon: <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.9" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true"><path d="M10 14a4 4 0 0 0 5.7 0l3-3a4 4 0 0 0-5.7-5.7l-1 1" /><path d="M14 10a4 4 0 0 0-5.7 0l-3 3a4 4 0 0 0 5.7 5.7l1-1" /></svg>,
+  },
+];
+
 /** Fires once when the element first comes into view. */
 function useSeenOnce<T extends Element>(threshold = 0.2) {
   const ref = useRef<T>(null);
@@ -57,7 +102,8 @@ const PAUSE = <svg viewBox="0 0 14 16" fill="currentColor" aria-hidden="true"><r
  * A recording that loads as it nears the screen, plays muted while visible and
  * pauses when it leaves. Tapping pauses or resumes it. With reduced motion it waits for a tap.
  */
-function Clip({ name, ratio, label }: { name: string; ratio: string; label: string }) {
+function Clip({ name, ratio, label, cues = NO_CUES, children }: { name: string; ratio: string; label: string; cues?: Cue[]; children?: ReactNode }) {
+  const screen = useRef<HTMLDivElement>(null);
   const video = useRef<HTMLVideoElement>(null);
   const bar = useRef<HTMLElement>(null);
   const held = useRef(false);
@@ -66,7 +112,8 @@ function Clip({ name, ratio, label }: { name: string; ratio: string; label: stri
 
   useEffect(() => {
     const node = video.current;
-    if (!node || typeof IntersectionObserver === 'undefined') return;
+    const box = screen.current;
+    if (!node || !box || typeof IntersectionObserver === 'undefined') return;
     const observer = new IntersectionObserver(([entry]) => {
       if (entry.isIntersecting && !node.getAttribute('src')) node.src = `/landing/${name}.mp4`;
       if (entry.isIntersecting && entry.intersectionRatio >= 0.35) {
@@ -75,10 +122,16 @@ function Clip({ name, ratio, label }: { name: string; ratio: string; label: stri
         node.pause();
       }
     }, { threshold: [0, 0.35], rootMargin: '200px 0px' });
-    observer.observe(node);
+    // Watch the frame, not the video: the zoom cue scales the video past the frame, which would
+    // drop its visible share below the threshold and pause it.
+    observer.observe(box);
     let frame = 0;
     const tick = () => {
-      if (bar.current && node.duration) bar.current.style.transform = `scaleX(${node.currentTime / node.duration})`;
+      const t = node.currentTime;
+      if (bar.current && node.duration) bar.current.style.transform = `scaleX(${t / node.duration})`;
+      // Cues follow the recording's own clock, so overlays stay in step through pauses and loops.
+      // They are data attributes, which React leaves alone when it re-renders the class list.
+      for (const cue of cues) screen.current?.toggleAttribute(`data-${cue.name}`, t >= cue.from && (cue.to === undefined || t < cue.to));
       frame = requestAnimationFrame(tick);
     };
     const onPlay = () => { setPaused(false); cancelAnimationFrame(frame); tick(); };
@@ -91,7 +144,7 @@ function Clip({ name, ratio, label }: { name: string; ratio: string; label: stri
       node.removeEventListener('play', onPlay);
       node.removeEventListener('pause', onPause);
     };
-  }, [name]);
+  }, [name, cues]);
 
   const toggle = () => {
     const node = video.current;
@@ -105,6 +158,7 @@ function Clip({ name, ratio, label }: { name: string; ratio: string; label: stri
 
   return (
     <div
+      ref={screen}
       className={`screen${paused ? ' paused' : ''}`}
       style={{ aspectRatio: ratio }}
       role="button"
@@ -114,6 +168,7 @@ function Clip({ name, ratio, label }: { name: string; ratio: string; label: stri
       onKeyDown={event => { if (event.key === ' ' || event.key === 'Enter') { event.preventDefault(); toggle(); } }}
     >
       <video ref={video} poster={`/landing/${name}.jpg`} muted loop playsInline preload="none" aria-hidden="true" />
+      {children}
       <span className="prog" aria-hidden="true"><i ref={bar} /></span>
       {flash && <span key={flash.key} className="flash go" aria-hidden="true">{flash.playing ? PLAY : PAUSE}</span>}
       <span className="playbadge" aria-hidden="true">{PLAY}</span>
@@ -131,6 +186,11 @@ function Browser({ url, children }: { url: string; children: ReactNode }) {
       {children}
     </figure>
   );
+}
+
+/** A frame for recordings that already show the real browser toolbar. */
+function Window({ children }: { children: ReactNode }) {
+  return <figure className="browser bare">{children}</figure>;
 }
 
 function Phone({ children, className = '' }: { children: ReactNode; className?: string }) {
@@ -276,11 +336,11 @@ function TryIt() {
 
 export default function LandingPage() {
   const hydrated = useHydrated();
-  const isMac = hydrated && /Mac|iPhone|iPad/.test(navigator.platform);
   const nav = useRef<HTMLElement>(null);
   const stage = useRef<HTMLDivElement>(null);
   const heroCtas = useRef<HTMLDivElement>(null);
   const [source, setSource] = useState<Source | null>(null);
+  const [place, setPlace] = useState<Place>('computer');
 
   // The page is always dark, whatever the app theme, so overscroll matches too.
   useEffect(() => {
@@ -337,7 +397,7 @@ export default function LandingPage() {
           <Reveal delay={3} className="stage-wrap">
             <div ref={stage} className="stage">
               <div className="only-desk">
-                <Browser url="vidwiz.online"><Clip name="save-desktop" ratio="16 / 10" label="VidWiz playing a video. Alt+S saves the moment at 2:13 and its AI line is written." /></Browser>
+                <Window><Clip name="ext-hero" ratio="1920 / 1032" label="The VidWiz Chrome extension on YouTube. In fullscreen, Alt+S saves the moment at 14:19, then the extension lists it with its AI line and marks it on the video's timeline." cues={EXTENSION_CUES}>{KEYS}</Clip></Window>
               </div>
               <Phone className="only-phone"><Clip name="save-phone" ratio="540 / 1040" label="VidWiz on a phone. Tapping Save keeps the moment at 0:42 and its AI line is written." /></Phone>
             </div>
@@ -375,26 +435,41 @@ export default function LandingPage() {
               <Eyebrow n="03">Anywhere</Eyebrow>
               <h2 id="any-h">Save from <span className="hl mark">wherever you watch.</span></h2>
               <ul className="ways">
-                <li>
-                  <span className="ic"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.9" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true"><rect x="2.5" y="4" width="19" height="13" rx="2" /><path d="M8 21h8M12 17v4" /></svg></span>
-                  <div>
-                    <h3>On your computer</h3>
-                    <p>Press <span className="combo"><kbd>{isMac ? '⌥' : 'Alt'}</kbd><i aria-hidden="true">+</i><kbd>S</kbd></span> on any YouTube video with the Chrome extension.</p>
-                    <a href={config.CHROME_WEBSTORE_URL} target="_blank" rel="noopener noreferrer">Add to Chrome</a>
-                  </div>
-                </li>
-                <li>
-                  <span className="ic"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.9" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true"><rect x="6" y="2.5" width="12" height="19" rx="2.5" /><path d="M11 18.5h2" /></svg></span>
-                  <div><h3>On your phone</h3><p>Share a video to VidWiz, or save the moment with a phone shortcut.</p></div>
-                </li>
-                <li>
-                  <span className="ic"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.9" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true"><path d="M10 14a4 4 0 0 0 5.7 0l3-3a4 4 0 0 0-5.7-5.7l-1 1" /><path d="M14 10a4 4 0 0 0-5.7 0l-3 3a4 4 0 0 0 5.7 5.7l1-1" /></svg></span>
-                  <div><h3>On the web</h3><p>Paste a link into VidWiz and save from the player or the transcript.</p></div>
-                </li>
+                {WAYS.map(way => (
+                  <li key={way.key} className={way.key === place ? 'on' : undefined}>
+                    <button type="button" className="pick" aria-pressed={way.key === place} aria-label={`Show saving ${way.title.toLowerCase()}`} onClick={() => setPlace(way.key)} />
+                    <span className="ic">{way.icon}</span>
+                    <span className="tab">{way.tab}</span>
+                    <div>
+                      <h3>{way.title}</h3>
+                      <p>{way.body}</p>
+                      {way.key === 'computer' && <a href={config.CHROME_WEBSTORE_URL} target="_blank" rel="noopener noreferrer">Add to Chrome</a>}
+                    </div>
+                  </li>
+                ))}
               </ul>
             </Reveal>
-            <Reveal delay={1} className="media only-desk">
-              <Phone><Clip name="save-phone" ratio="540 / 1040" label="VidWiz on a phone. Tapping Save keeps the moment at 0:42 and its AI line is written." /></Phone>
+            <Reveal delay={1} className="media">
+              <div className="places" data-place={place}>
+                {place === 'computer' && (
+                  <>
+                    <div className="only-desk">
+                      <Window><Clip name="ext-shortcut" ratio="16 / 10" label="Watching fullscreen on YouTube, Alt+S saves the moment at 14:19 and the extension confirms it in the player." cues={SHORTCUT_CUES}>{KEYS}</Clip></Window>
+                    </div>
+                    <div className="only-phone">
+                      <Window><Clip name="ext-phone" ratio="720 / 1280" label="Watching fullscreen on YouTube, Alt+S saves the moment at 14:19, then the extension lists it with its AI line and marks it on the video's timeline." cues={KEY_CUES}>{KEYS}</Clip></Window>
+                    </div>
+                  </>
+                )}
+                {place === 'phone' && <Phone><Clip name="save-phone" ratio="540 / 1040" label="VidWiz on a phone. Tapping Save keeps the moment at 0:42 and its AI line is written." /></Phone>}
+                {place === 'web' && <Browser url="vidwiz.online"><Clip name="save-desktop" ratio="16 / 10" label="VidWiz playing a video. Alt+S saves the moment at 2:13 and its AI line is written." /></Browser>}
+              </div>
+              {WAYS.filter(way => way.key === place).map(way => (
+                <p key={way.key} className="way-note only-phone">
+                  {way.body}
+                  {way.key === 'computer' && <> <a href={config.CHROME_WEBSTORE_URL} target="_blank" rel="noopener noreferrer">Add to Chrome</a></>}
+                </p>
+              ))}
             </Reveal>
           </div>
         </section>

@@ -35,11 +35,16 @@ Workers.
 - `/`: Home when signed in (search on mobile, add a video, a compact Recent videos strip,
   and recent moments grouped once per day and video); the landing page when
   signed out. The landing page renders without the app header and is always
-  dark, whatever the app theme. It shows real recordings of the app from a demo
-  account, served from `public/landing/` (a desktop and a phone cut of Save and
-  Search). Each recording loads as it nears the screen, plays muted while visible,
-  and pauses on tap; with reduced motion it waits for a tap. CSS shows the phone
-  recordings below 760px and the desktop ones above. Its Ask example is a real
+  dark, whatever the app theme. It shows real recordings served from
+  `public/landing/`: the Chrome extension saving on YouTube (Alt+S in
+  fullscreen, then the moment in the extension's popup), and the app from a demo
+  account (desktop and phone cuts of Save and Search). The "Save from wherever
+  you watch" ways switch the recording beside them; phones show them as tabs
+  above it, with the chosen way's description below. Each recording loads as it nears the
+  screen, plays muted while visible, and pauses on tap; with reduced motion it
+  waits for a tap. A recording can carry time cues, data attributes that follow
+  its playback, for the pressed keys and the zoom onto the extension's toast. CSS
+  shows the phone recordings below 760px and the desktop ones above. Its Ask example is a real
   answer whose citations play the source on YouTube from the cited second. Its
   styles are in `features/landing/landing.css`, scoped to `.landing`.
 - `/v/:videoId`: the video workspace. Query parameters: `t` (start playback at
@@ -86,8 +91,9 @@ Workers.
   links and enabled controls (buttons, menu items, tabs, time chips, timeline
   markers) show a pointer. Disabled or busy controls keep the arrow, and the
   `hover` variant skips them, so they don't change on hover. Transcript,
-  answers, notes, and fields keep the text cursor; standalone counts, status
-  lines, and the landing page's example screens use the arrow.
+  answers, notes, and fields keep the text cursor; standalone counts and status
+  lines use the arrow. The landing page's recordings and citations are controls,
+  so they show a pointer.
 - Bricolage Grotesque everywhere, with tabular digits for times. Headings use
   the `display` utility (condensed and heavy).
 - Every paid action shows its cost: "Unlock for 5 credits" before the first
