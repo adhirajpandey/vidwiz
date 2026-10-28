@@ -11,6 +11,8 @@ declare global {
             client_id: string;
             callback: (response: { credential: string }) => void;
             auto_select?: boolean;
+            use_fedcm_for_button?: boolean;
+            button_auto_select?: boolean;
           }) => void;
           renderButton: (
             element: HTMLElement,
@@ -79,7 +81,12 @@ export default function GoogleSignInButton({ onSuccess, onError }: GoogleSignInB
       if (stopped || !client) return;
       try {
         if (!initialized.has(client)) {
-          client.initialize({ client_id: config.GOOGLE_CLIENT_ID, callback: response => receiveCredential?.(response) });
+          client.initialize({
+            client_id: config.GOOGLE_CLIENT_ID,
+            callback: response => receiveCredential?.(response),
+            use_fedcm_for_button: true,
+            button_auto_select: true,
+          });
           initialized.add(client);
         }
         const width = Math.min(400, Math.floor(container.getBoundingClientRect().width));
