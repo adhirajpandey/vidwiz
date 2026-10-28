@@ -1,8 +1,9 @@
 import { build } from 'vite';
-import { readFile, writeFile } from 'node:fs/promises';
+import { copyFile, readFile, writeFile } from 'node:fs/promises';
 import { renderDocument } from './render-document.mjs';
 
 await build();
+await copyFile('src/assets/fonts/OFL.txt', 'dist/OFL.txt');
 await build({
   build: { ssr: 'src/entry-server.tsx', outDir: 'dist-ssr' },
 });

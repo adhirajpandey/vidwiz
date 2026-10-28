@@ -3,6 +3,7 @@ import { readFile } from 'node:fs/promises';
 import { JSDOM } from 'jsdom';
 
 export async function verifyBuild() {
+  assert.equal(await readFile('dist/OFL.txt', 'utf8'), await readFile('src/assets/fonts/OFL.txt', 'utf8'), 'font license is distributed with the fonts');
   const pages = [['/', 'index.html'], ['/support', 'support.html'], ['/privacy', 'privacy.html']];
   for (const [path, file] of [...pages, [null, 'app.html'], [null, '404.html']]) {
     const html = await readFile(`dist/${file}`, 'utf8');

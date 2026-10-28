@@ -9,6 +9,7 @@ import { useTheme } from '../hooks/useTheme';
 import { removeToken } from '../lib/authUtils';
 import { cn } from '../lib/utils';
 import Button from '../components/ui/Button';
+import ErrorBoundary from '../components/ErrorBoundary';
 import { Menu, MenuContent, MenuItem, MenuSeparator, MenuTrigger } from '../components/ui/Menu';
 import SearchForm from '../components/SearchForm';
 import { Tooltip } from '../components/ui/Tooltip';
@@ -144,7 +145,7 @@ export default function AppShell({ children }: { children: ReactNode }) {
       </header>
       <main className={cn('mx-auto max-w-6xl px-4 py-8', signedIn && 'pb-24 md:pb-12')}>{children}</main>
       {signedIn && <MobileNav />}
-      {signedIn && <Suspense fallback={null}><CommandPalette /></Suspense>}
+      {signedIn && <ErrorBoundary fallback={null}><Suspense fallback={null}><CommandPalette /></Suspense></ErrorBoundary>}
     </div>
   );
 }

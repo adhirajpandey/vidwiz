@@ -252,12 +252,15 @@ Workers.
 
 Account and workspace routes are lazy-loaded, as is the signed-in command
 palette. Public pages remain eager so build-time rendering includes their
-content. Google Identity Services loads when the sign-in button mounts.
+content. A local error boundary isolates command palette loading failures so
+the workspace stays available. Google Identity Services loads when the sign-in
+button mounts.
 
 Bricolage Grotesque is self-hosted in WOFF2 subsets with `font-display: swap`.
 The Latin subset covers ordinary interface text; a separate subset keeps all
 remaining characters supported by the original font. Both retain optical-size
-and width variation and the existing 400-800 weight range.
+and width variation and the existing 400-800 weight range. The build includes
+the font license at `/OFL.txt`.
 
 Run `uv run --python 3.12 scripts/prepare-web-assets.py` from the repository root
 to regenerate the checked-in WebP posters and WOFF2 fonts. Poster originals are

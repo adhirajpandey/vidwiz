@@ -101,7 +101,8 @@ html.landing-page, html.landing-page body { background: #07081A; color-scheme: d
 /* With reduced motion clips wait for a tap, so they show a play badge. */
 .landing .screen .playbadge { display: none; position: absolute; left: 50%; top: 50%; width: 68px; height: 68px; margin: -34px 0 0 -34px; border-radius: 50%; place-items: center; background: var(--cap); color: var(--ink); box-shadow: 0 10px 40px rgb(0 0 0 / .5); }
 .landing .screen .playbadge svg { width: 22px; height: 22px; margin-left: 4px; }
-.landing.manual .screen.paused .playbadge { display: grid; }
+.landing.manual .screen.paused .playbadge,
+.landing .screen.paused.play-blocked .playbadge { display: grid; }
 
 /* Features */
 .landing .feature { padding: 170px 0 0; }

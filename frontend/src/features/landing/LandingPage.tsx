@@ -111,12 +111,13 @@ function Clip({ name, ratio, label, cues = NO_CUES, children, media, priority = 
   const held = useRef(false);
   const [paused, setPaused] = useState(true);
   const [started, setStarted] = useState(false);
+  const [playBlocked, setPlayBlocked] = useState(false);
   const [flash, setFlash] = useState<{ key: number; playing: boolean } | null>(null);
 
   useEffect(() => {
     const node = video.current;
     const box = screen.current;
-    if (!node || !box || typeof IntersectionObserver === 'undefined') return;
+    if (!node || !box) return;
     let visible = false;
     let ready = false;
     let stopped = false;
@@ -127,7 +128,7 @@ function Clip({ name, ratio, label, cues = NO_CUES, children, media, priority = 
       // Set the property as well as the attribute for Safari's autoplay policy.
       node.muted = true;
       if (!node.getAttribute('src')) node.src = mediaUrl(name, 'mp4');
-      node.play().catch(() => {}); // The poster and play control remain if autoplay is blocked.
+      node.play().catch(() => { if (!stopped) setPlayBlocked(true); });
     };
     const afterLoad = () => {
       void Promise.resolve(document.fonts?.ready).then(() => {
@@ -142,13 +143,25 @@ function Clip({ name, ratio, label, cues = NO_CUES, children, media, priority = 
     else window.addEventListener('load', afterLoad, { once: true });
     const onVisibility = () => { if (document.hidden) node.pause(); else playIfReady(); };
     document.addEventListener('visibilitychange', onVisibility);
-    const observer = new IntersectionObserver(([entry]) => {
+    const observer = typeof IntersectionObserver === 'undefined' ? null : new IntersectionObserver(([entry]) => {
       visible = entry.isIntersecting && entry.intersectionRatio >= 0.35;
       if (visible) playIfReady(); else node.pause();
     }, { threshold: [0, 0.35] });
     // Watch the frame, not the video: the zoom cue scales the video past the frame, which would
     // drop its visible share below the threshold and pause it.
-    observer.observe(box);
+    const checkVisibility = () => {
+      const rect = box.getBoundingClientRect();
+      const width = Math.max(0, Math.min(rect.right, window.innerWidth) - Math.max(rect.left, 0));
+      const height = Math.max(0, Math.min(rect.bottom, window.innerHeight) - Math.max(rect.top, 0));
+      visible = rect.width > 0 && rect.height > 0 && width * height / (rect.width * rect.height) >= 0.35;
+      if (visible) playIfReady(); else node.pause();
+    };
+    if (observer) observer.observe(box);
+    else {
+      checkVisibility();
+      window.addEventListener('scroll', checkVisibility, { passive: true });
+      window.addEventListener('resize', checkVisibility);
+    }
     let frame = 0;
     const tick = () => {
       const t = node.currentTime;
@@ -159,7 +172,7 @@ function Clip({ name, ratio, label, cues = NO_CUES, children, media, priority = 
       frame = requestAnimationFrame(tick);
     };
     const onPlay = () => { setPaused(false); cancelAnimationFrame(frame); tick(); };
-    const onPlaying = () => setStarted(true);
+    const onPlaying = () => { setStarted(true); setPlayBlocked(false); };
     const onPause = () => { setPaused(true); cancelAnimationFrame(frame); };
     node.addEventListener('play', onPlay);
     node.addEventListener('playing', onPlaying);
@@ -171,7 +184,9 @@ function Clip({ name, ratio, label, cues = NO_CUES, children, media, priority = 
       cancelAnimationFrame(firstFrame);
       cancelAnimationFrame(secondFrame);
       node.pause();
-      observer.disconnect();
+      observer?.disconnect();
+      window.removeEventListener('scroll', checkVisibility);
+      window.removeEventListener('resize', checkVisibility);
       cancelAnimationFrame(frame);
       node.removeEventListener('play', onPlay);
       node.removeEventListener('playing', onPlaying);
@@ -186,14 +201,14 @@ function Clip({ name, ratio, label, cues = NO_CUES, children, media, priority = 
     if (!node.getAttribute('src')) node.src = mediaUrl(name, 'mp4');
     const willPlay = node.paused;
     held.current = !willPlay;
-    if (willPlay) node.play().catch(() => {}); else node.pause();
+    if (willPlay) node.play().catch(() => setPlayBlocked(true)); else node.pause();
     setFlash({ key: Date.now(), playing: willPlay });
   };
 
   return (
     <div
       ref={screen}
-      className={`screen${paused ? ' paused' : ''}`}
+      className={`screen${paused ? ' paused' : ''}${playBlocked ? ' play-blocked' : ''}`}
       style={{ aspectRatio: ratio }}
       role="button"
       tabIndex={0}

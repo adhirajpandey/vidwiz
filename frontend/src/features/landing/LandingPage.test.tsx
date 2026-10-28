@@ -85,7 +85,7 @@ it('switches the recording beside the ways to save, starting with the extension'
   expect(places.getByRole('button', { name: /Tapping Save keeps the moment at 0:42/ })).toBeTruthy();
 });
 
-function playbackSetup(reducedMotion = false) {
+function playbackSetup(reducedMotion = false, withoutObserver = false) {
   const callbacks = new Map<Element, (entry: { isIntersecting: boolean; intersectionRatio: number }) => void>();
   vi.stubGlobal('IntersectionObserver', class {
     callback: (entries: unknown[]) => void;
@@ -93,6 +93,7 @@ function playbackSetup(reducedMotion = false) {
     observe(target: Element) { callbacks.set(target, entry => this.callback([entry])); }
     disconnect() {}
   });
+  if (withoutObserver) vi.stubGlobal('IntersectionObserver', undefined);
   vi.stubGlobal('matchMedia', () => ({ matches: reducedMotion }));
   vi.spyOn(document, 'readyState', 'get').mockReturnValue('loading');
   vi.spyOn(document, 'hidden', 'get').mockReturnValue(false);
@@ -142,10 +143,13 @@ it('keeps the poster and allows a tap when Safari rejects autoplay', async () =>
   intersect(true);
   await loaded();
   expect(box.querySelector('.clip-poster.played')).toBeNull();
+  expect(box.classList.contains('play-blocked')).toBe(true);
   expect(box.getAttribute('aria-label')).toContain('Press to play');
   play.mockResolvedValue();
   fireEvent.click(box);
   expect(play).toHaveBeenCalledTimes(2);
+  fireEvent.playing(video);
+  expect(box.classList.contains('play-blocked')).toBe(false);
   expect(video.muted).toBe(true);
 });
 
@@ -166,4 +170,28 @@ it('does not start a video that scrolled away before initial load completed', as
   await loaded();
   expect(video.getAttribute('src')).toBeNull();
   expect(play).not.toHaveBeenCalled();
+});
+
+it('updates playback and removes the poster without IntersectionObserver', () => {
+  const { box, video, play } = playbackSetup(false, true);
+  fireEvent.click(box);
+  expect(play).toHaveBeenCalledTimes(1);
+  fireEvent.play(video);
+  fireEvent.playing(video);
+  expect(box.querySelector('.clip-poster.played')).not.toBeNull();
+  expect(box.getAttribute('aria-label')).toContain('Press to pause');
+  fireEvent.pause(video);
+  expect(box.getAttribute('aria-label')).toContain('Press to play');
+});
+
+it('checks viewport visibility for autoplay without IntersectionObserver', async () => {
+  const { box, play, pause, loaded } = playbackSetup(false, true);
+  vi.spyOn(box, 'getBoundingClientRect').mockReturnValue({ left: 0, top: 0, right: 100, bottom: 100, width: 100, height: 100, x: 0, y: 0, toJSON() {} });
+  fireEvent.scroll(window);
+  await loaded();
+  expect(play).toHaveBeenCalledTimes(1);
+  pause.mockClear();
+  vi.mocked(box.getBoundingClientRect).mockReturnValue({ left: 0, top: -200, right: 100, bottom: -100, width: 100, height: 100, x: 0, y: -200, toJSON() {} });
+  fireEvent.scroll(window);
+  expect(pause).toHaveBeenCalled();
 });

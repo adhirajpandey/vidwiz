@@ -6,6 +6,7 @@ import {
 
 interface ErrorBoundaryProps {
   children: ReactNode;
+  fallback?: ReactNode;
 }
 
 interface ErrorBoundaryState {
@@ -28,6 +29,8 @@ export default class ErrorBoundary extends Component<
 
   render() {
     if (!this.state.hasError) return this.props.children;
+
+    if (this.props.fallback !== undefined) return this.props.fallback;
 
     return (
       <main className="flex min-h-screen items-center justify-center bg-background p-6 text-foreground">
