@@ -36,13 +36,18 @@ Workers.
   and recent moments grouped once per day and video); the landing page when
   signed out. The landing page renders without the app header and is always
   dark, whatever the app theme. It shows real recordings served from
-  `public/landing/`: the Chrome extension saving on YouTube (Alt+S in
+  `src/assets/landing/`: the Chrome extension saving on YouTube (Alt+S in
   fullscreen, then the moment in the extension's popup), and the app from a demo
   account (desktop and phone cuts of Save and Search). The "Save from wherever
   you watch" ways switch the recording beside them; phones show them as tabs
-  above it, with the chosen way's description below. Each recording loads as it nears the
-  screen, plays muted while visible, and pauses on tap; with reduced motion it
-  waits for a tap. A recording can carry time cues, data attributes that follow
+  above it, with the chosen way's description below. The hero text, buttons, and
+  poster appear immediately. Responsive WebP pictures request only the matching
+  desktop or phone poster; other posters are lazy-loaded. Videos wait for the
+  initial page and fonts to load and paint, then play when at least 35% of their
+  frame is visible. Playback is muted and inline, including on iPhone, and pauses
+  offscreen or in a hidden tab. Reduced motion waits for a tap. If the browser
+  blocks autoplay, the poster and play control remain available. A recording can
+  carry time cues, data attributes that follow
   its playback, for the pressed keys and the zoom onto the extension's toast. CSS
   shows the phone recordings below 760px and the desktop ones above. Its Ask example is a real
   answer whose citations play the source on YouTube from the cited second. Its
@@ -241,6 +246,22 @@ Workers.
   Cancel returns focus to Revoke, and the confirmation stays until a pending revoke
   settles. A failed copy says so.
 
+## Initial page loading
+
+Account and workspace routes are lazy-loaded, as is the signed-in command
+palette. Public pages remain eager so build-time rendering includes their
+content. Google Identity Services loads when the sign-in button mounts.
+
+Bricolage Grotesque is self-hosted in WOFF2 subsets with `font-display: swap`.
+The Latin subset covers ordinary interface text; a separate subset keeps all
+remaining characters supported by the original font. Both retain optical-size
+and width variation and the existing 400-800 weight range.
+
+Run `uv run --python 3.12 scripts/prepare-web-assets.py` from the repository root
+to regenerate the checked-in WebP posters and WOFF2 fonts. Poster originals are
+in `assets/landing/`; conversion preserves their resolution for readable text
+on high-density screens. Recordings retain their existing MP4 encoding.
+
 ## Development
 - `pnpm dev` with `VITE_API_URL` pointing at an API (for example a local backend
   or a test deployment).
@@ -264,8 +285,8 @@ The browser hydrates roots marked `data-prerendered`. Authentication uses a
 signed-out server snapshot, then restores the stored session after hydration,
 so `/` still becomes Home for signed-in users. Theme, platform-specific
 keyboard labels, and reduced-motion classes preserve the initial server
-markup. Landing content remains visible without JavaScript; reveal animations
-start after mounting.
+markup. Landing content remains visible without JavaScript; below-the-fold reveal
+animations start after mounting. The hero has no entrance animation.
 
 `Seo` owns public metadata. Its generated tags carry Helmet's ownership marker
 so client navigation replaces them instead of adding duplicates. The app-level
@@ -290,8 +311,10 @@ navigation with Strict Mode enabled.
 - Unknown paths return the rendered not-found page with HTTP 404. React also
   shows it for unknown paths reached through client navigation. Direct requests
   for `/app.html` and `/404.html` return 404.
-- Static assets retain their normal responses. The asset, landing-recording,
-  and brand directories bypass the Worker. HTML requests support GET and HEAD.
+- Static assets retain their normal responses. The asset and brand directories
+  bypass the Worker. Vite fingerprints imported recordings, posters, and fonts
+  under `/assets/`; `public/_headers` gives that directory a one-year immutable
+  browser cache. HTML still revalidates and supports GET and HEAD.
 
 The blanket SPA fallback is disabled. Deploy `wrangler.jsonc`, the Worker,
 and the generated assets together through the existing frontend workflow.

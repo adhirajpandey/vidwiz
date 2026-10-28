@@ -1,5 +1,7 @@
 import { useEffect, useRef, useState } from 'react';
 import type { FormEvent, ReactNode } from 'react';
+import { Helmet } from 'react-helmet-async';
+import { DESKTOP_MEDIA, EMPTY_POSTER, MOBILE_MEDIA, mediaUrl } from './media';
 import { Link, useNavigate } from 'react-router-dom';
 import { conversationsApi } from '../../api';
 import config from '../../config';
@@ -99,29 +101,51 @@ const PLAY = <svg viewBox="0 0 14 16" fill="currentColor" aria-hidden="true"><pa
 const PAUSE = <svg viewBox="0 0 14 16" fill="currentColor" aria-hidden="true"><rect width="4.5" height="16" rx="1" /><rect x="9.5" width="4.5" height="16" rx="1" /></svg>;
 
 /**
- * A recording that loads as it nears the screen, plays muted while visible and
+ * A recording that loads after initial content, plays muted while visible and
  * pauses when it leaves. Tapping pauses or resumes it. With reduced motion it waits for a tap.
  */
-function Clip({ name, ratio, label, cues = NO_CUES, children }: { name: string; ratio: string; label: string; cues?: Cue[]; children?: ReactNode }) {
+function Clip({ name, ratio, label, cues = NO_CUES, children, media, priority = false }: { name: string; ratio: string; label: string; cues?: Cue[]; children?: ReactNode; media?: string; priority?: boolean }) {
   const screen = useRef<HTMLDivElement>(null);
   const video = useRef<HTMLVideoElement>(null);
   const bar = useRef<HTMLElement>(null);
   const held = useRef(false);
   const [paused, setPaused] = useState(true);
+  const [started, setStarted] = useState(false);
   const [flash, setFlash] = useState<{ key: number; playing: boolean } | null>(null);
 
   useEffect(() => {
     const node = video.current;
     const box = screen.current;
     if (!node || !box || typeof IntersectionObserver === 'undefined') return;
+    let visible = false;
+    let ready = false;
+    let stopped = false;
+    let firstFrame = 0;
+    let secondFrame = 0;
+    const playIfReady = () => {
+      if (!ready || !visible || document.hidden || held.current || prefersReducedMotion()) return;
+      // Set the property as well as the attribute for Safari's autoplay policy.
+      node.muted = true;
+      if (!node.getAttribute('src')) node.src = mediaUrl(name, 'mp4');
+      node.play().catch(() => {}); // The poster and play control remain if autoplay is blocked.
+    };
+    const afterLoad = () => {
+      void Promise.resolve(document.fonts?.ready).then(() => {
+        if (stopped) return;
+        // Let the loaded poster and text paint before starting a competing video request.
+        firstFrame = requestAnimationFrame(() => {
+          secondFrame = requestAnimationFrame(() => { ready = true; playIfReady(); });
+        });
+      });
+    };
+    if (document.readyState === 'complete') afterLoad();
+    else window.addEventListener('load', afterLoad, { once: true });
+    const onVisibility = () => { if (document.hidden) node.pause(); else playIfReady(); };
+    document.addEventListener('visibilitychange', onVisibility);
     const observer = new IntersectionObserver(([entry]) => {
-      if (entry.isIntersecting && !node.getAttribute('src')) node.src = `/landing/${name}.mp4`;
-      if (entry.isIntersecting && entry.intersectionRatio >= 0.35) {
-        if (!prefersReducedMotion() && !held.current) node.play().catch(() => {});
-      } else {
-        node.pause();
-      }
-    }, { threshold: [0, 0.35], rootMargin: '200px 0px' });
+      visible = entry.isIntersecting && entry.intersectionRatio >= 0.35;
+      if (visible) playIfReady(); else node.pause();
+    }, { threshold: [0, 0.35] });
     // Watch the frame, not the video: the zoom cue scales the video past the frame, which would
     // drop its visible share below the threshold and pause it.
     observer.observe(box);
@@ -135,13 +159,22 @@ function Clip({ name, ratio, label, cues = NO_CUES, children }: { name: string; 
       frame = requestAnimationFrame(tick);
     };
     const onPlay = () => { setPaused(false); cancelAnimationFrame(frame); tick(); };
+    const onPlaying = () => setStarted(true);
     const onPause = () => { setPaused(true); cancelAnimationFrame(frame); };
     node.addEventListener('play', onPlay);
+    node.addEventListener('playing', onPlaying);
     node.addEventListener('pause', onPause);
     return () => {
+      stopped = true;
+      window.removeEventListener('load', afterLoad);
+      document.removeEventListener('visibilitychange', onVisibility);
+      cancelAnimationFrame(firstFrame);
+      cancelAnimationFrame(secondFrame);
+      node.pause();
       observer.disconnect();
       cancelAnimationFrame(frame);
       node.removeEventListener('play', onPlay);
+      node.removeEventListener('playing', onPlaying);
       node.removeEventListener('pause', onPause);
     };
   }, [name, cues]);
@@ -149,7 +182,8 @@ function Clip({ name, ratio, label, cues = NO_CUES, children }: { name: string; 
   const toggle = () => {
     const node = video.current;
     if (!node) return;
-    if (!node.getAttribute('src')) node.src = `/landing/${name}.mp4`;
+    node.muted = true;
+    if (!node.getAttribute('src')) node.src = mediaUrl(name, 'mp4');
     const willPlay = node.paused;
     held.current = !willPlay;
     if (willPlay) node.play().catch(() => {}); else node.pause();
@@ -167,7 +201,11 @@ function Clip({ name, ratio, label, cues = NO_CUES, children }: { name: string; 
       onClick={toggle}
       onKeyDown={event => { if (event.key === ' ' || event.key === 'Enter') { event.preventDefault(); toggle(); } }}
     >
-      <video ref={video} poster={`/landing/${name}.jpg`} muted loop playsInline preload="none" aria-hidden="true" />
+      <video ref={video} muted loop playsInline preload="none" aria-hidden="true" />
+      <picture className={`clip-poster${started ? ' played' : ''}`}>
+        <source media={media} srcSet={mediaUrl(name, 'webp')} type="image/webp" />
+        <img src={EMPTY_POSTER} alt="" loading={priority ? 'eager' : 'lazy'} fetchPriority={priority ? 'high' : 'auto'} />
+      </picture>
       {children}
       <span className="prog" aria-hidden="true"><i ref={bar} /></span>
       {flash && <span key={flash.key} className="flash go" aria-hidden="true">{flash.playing ? PLAY : PAUSE}</span>}
@@ -372,6 +410,11 @@ export default function LandingPage() {
         path="/"
       />
 
+      <Helmet defer={false}>
+        <link rel="preload" as="image" href={mediaUrl('save-phone', 'webp')} media={MOBILE_MEDIA} fetchPriority="high" />
+        <link rel="preload" as="image" href={mediaUrl('ext-hero', 'webp')} media={DESKTOP_MEDIA} fetchPriority="high" />
+      </Helmet>
+
       <nav ref={nav} className="lnav" aria-label="Main">
         <div className="wrap">
           <Link className="logo" to="/"><img src="/brand/vidwiz-mark-color.svg" alt="" />VidWiz</Link>
@@ -383,25 +426,25 @@ export default function LandingPage() {
       <main>
         <header className="hero" id="top">
           <div className="wrap">
-            <Reveal as="h1">Keep the moments <span className="hl mark">worth coming back&nbsp;to.</span></Reveal>
-            <Reveal as="p" delay={1} className="lede">Take timestamped notes on YouTube, find what was said later, and ask AI questions about a video or your library.</Reveal>
-            <Reveal delay={2} className="ctas">
+            <h1>Keep the moments <span className="hl mark">worth coming back&nbsp;to.</span></h1>
+            <p className="lede">Take timestamped notes on YouTube, find what was said later, and ask AI questions about a video or your library.</p>
+            <div className="ctas">
               <div ref={heroCtas} className="ctas-row">
                 <a className="btn primary desk-cta" href={config.CHROME_WEBSTORE_URL} target="_blank" rel="noopener noreferrer">{CHROME_ICON}Add to Chrome</a>
                 <a className="btn ghost desk-cta" href="#try">Try a video</a>
                 <a className="btn primary phone-cta" href="#try">Try a video</a>
                 <a className="btn ghost phone-cta" href="#find">See how it works</a>
               </div>
-            </Reveal>
+            </div>
           </div>
-          <Reveal delay={3} className="stage-wrap">
+          <div className="stage-wrap">
             <div ref={stage} className="stage">
               <div className="only-desk">
-                <Window><Clip name="ext-hero" ratio="1920 / 1032" label="The VidWiz Chrome extension on YouTube. In fullscreen, Alt+S saves the moment at 14:19, then the extension lists it with its AI line and marks it on the video's timeline." cues={EXTENSION_CUES}>{KEYS}</Clip></Window>
+                <Window><Clip priority media={DESKTOP_MEDIA} name="ext-hero" ratio="1920 / 1032" label="The VidWiz Chrome extension on YouTube. In fullscreen, Alt+S saves the moment at 14:19, then the extension lists it with its AI line and marks it on the video's timeline." cues={EXTENSION_CUES}>{KEYS}</Clip></Window>
               </div>
-              <Phone className="only-phone"><Clip name="save-phone" ratio="540 / 1040" label="VidWiz on a phone. Tapping Save keeps the moment at 0:42 and its AI line is written." /></Phone>
+              <Phone className="only-phone"><Clip priority media={MOBILE_MEDIA} name="save-phone" ratio="540 / 1040" label="VidWiz on a phone. Tapping Save keeps the moment at 0:42 and its AI line is written." /></Phone>
             </div>
-          </Reveal>
+          </div>
         </header>
 
         <section className="feature" id="find" aria-labelledby="find-h">
@@ -412,8 +455,8 @@ export default function LandingPage() {
               <p className="body">Search your moments and the transcripts of videos in your library. Open a result to return to that part of the video.</p>
             </Reveal>
             <Reveal delay={1} className="media">
-              <div className="only-desk"><Browser url="vidwiz.online/search"><Clip name="search-desktop" ratio="16 / 10" label="Searching for attention. Moments and transcript passages match, and a result opens the video at 13:04." /></Browser></div>
-              <Phone className="only-phone"><Clip name="search-phone" ratio="540 / 1000" label="Searching for attention on a phone. A transcript result opens the video at 13:04." /></Phone>
+              <div className="only-desk"><Browser url="vidwiz.online/search"><Clip media={DESKTOP_MEDIA} name="search-desktop" ratio="16 / 10" label="Searching for attention. Moments and transcript passages match, and a result opens the video at 13:04." /></Browser></div>
+              <Phone className="only-phone"><Clip media={MOBILE_MEDIA} name="search-phone" ratio="540 / 1000" label="Searching for attention on a phone. A transcript result opens the video at 13:04." /></Phone>
             </Reveal>
           </div>
         </section>
@@ -454,10 +497,10 @@ export default function LandingPage() {
                 {place === 'computer' && (
                   <>
                     <div className="only-desk">
-                      <Window><Clip name="ext-shortcut" ratio="16 / 10" label="Watching fullscreen on YouTube, Alt+S saves the moment at 14:19 and the extension confirms it in the player." cues={SHORTCUT_CUES}>{KEYS}</Clip></Window>
+                      <Window><Clip media={DESKTOP_MEDIA} name="ext-shortcut" ratio="16 / 10" label="Watching fullscreen on YouTube, Alt+S saves the moment at 14:19 and the extension confirms it in the player." cues={SHORTCUT_CUES}>{KEYS}</Clip></Window>
                     </div>
                     <div className="only-phone">
-                      <Window><Clip name="ext-phone" ratio="720 / 1280" label="Watching fullscreen on YouTube, Alt+S saves the moment at 14:19, then the extension lists it with its AI line and marks it on the video's timeline." cues={KEY_CUES}>{KEYS}</Clip></Window>
+                      <Window><Clip media={MOBILE_MEDIA} name="ext-phone" ratio="720 / 1280" label="Watching fullscreen on YouTube, Alt+S saves the moment at 14:19, then the extension lists it with its AI line and marks it on the video's timeline." cues={KEY_CUES}>{KEYS}</Clip></Window>
                     </div>
                   </>
                 )}

@@ -85,6 +85,8 @@ it('replaces public metadata when navigating to login, then restores it on retur
     document.querySelector<HTMLAnchorElement>('a[href="/login"]')!.click();
   });
   await waitFor(() => expect(window.location.pathname).toBe('/login'));
+  // The URL changes before the lazy route module has mounted its metadata.
+  await waitFor(() => expect(document.querySelector('link[rel="canonical"]')?.getAttribute('href')).toBe('https://vidwiz.online/login'));
   expect(document.querySelectorAll('meta[name="robots"]')).toHaveLength(1);
   expect(document.querySelector('meta[name="robots"]')?.getAttribute('content')).toBe('noindex, follow');
   expect(document.querySelector('link[rel="canonical"]')?.getAttribute('href')).toBe('https://vidwiz.online/login');

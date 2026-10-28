@@ -1,5 +1,5 @@
 // @vitest-environment jsdom
-import { cleanup, render, screen, within } from '@testing-library/react';
+import { act, cleanup, fireEvent, render, screen, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { HelmetProvider } from 'react-helmet-async';
 import { MemoryRouter, Route, Routes, useLocation } from 'react-router-dom';
@@ -15,7 +15,7 @@ beforeAll(() => {
   HTMLDialogElement.prototype.showModal = function showModal() { this.setAttribute('open', ''); };
   HTMLDialogElement.prototype.close = function close() { this.removeAttribute('open'); this.dispatchEvent(new Event('close')); };
 });
-afterEach(() => { cleanup(); createConversation.mockReset(); sessionStorage.clear(); });
+afterEach(() => { cleanup(); createConversation.mockReset(); sessionStorage.clear(); vi.restoreAllMocks(); vi.unstubAllGlobals(); });
 
 function Where() {
   const location = useLocation();
@@ -83,4 +83,87 @@ it('switches the recording beside the ways to save, starting with the extension'
   expect(computer.getAttribute('aria-pressed')).toBe('false');
   expect(places.queryByRole('button', { name: /Alt\+S saves the moment at 14:19/ })).toBeNull();
   expect(places.getByRole('button', { name: /Tapping Save keeps the moment at 0:42/ })).toBeTruthy();
+});
+
+function playbackSetup(reducedMotion = false) {
+  const callbacks = new Map<Element, (entry: { isIntersecting: boolean; intersectionRatio: number }) => void>();
+  vi.stubGlobal('IntersectionObserver', class {
+    callback: (entries: unknown[]) => void;
+    constructor(callback: (entries: unknown[]) => void) { this.callback = callback; }
+    observe(target: Element) { callbacks.set(target, entry => this.callback([entry])); }
+    disconnect() {}
+  });
+  vi.stubGlobal('matchMedia', () => ({ matches: reducedMotion }));
+  vi.spyOn(document, 'readyState', 'get').mockReturnValue('loading');
+  vi.spyOn(document, 'hidden', 'get').mockReturnValue(false);
+  const frames = new Map<number, FrameRequestCallback>();
+  let id = 0;
+  vi.stubGlobal('requestAnimationFrame', (callback: FrameRequestCallback) => { frames.set(++id, callback); return id; });
+  vi.stubGlobal('cancelAnimationFrame', (key: number) => frames.delete(key));
+  const play = vi.spyOn(HTMLMediaElement.prototype, 'play').mockResolvedValue();
+  const pause = vi.spyOn(HTMLMediaElement.prototype, 'pause').mockImplementation(() => {});
+  setup();
+  const box = document.querySelector<HTMLElement>('.stage .only-phone .screen')!;
+  const video = box.querySelector('video')!;
+  const intersect = (visible: boolean) => act(() => callbacks.get(box)!({ isIntersecting: visible, intersectionRatio: visible ? 0.5 : 0 }));
+  const loaded = async () => {
+    await act(async () => { window.dispatchEvent(new Event('load')); });
+    for (let i = 0; i < 2; i++) {
+      await act(async () => {
+        const pending = [...frames.values()]; frames.clear();
+        pending.forEach(callback => callback(0));
+      });
+    }
+  };
+  return { box, video, play, pause, intersect, loaded };
+}
+
+it('waits for initial load and paint before muted inline autoplay, then pauses offscreen', async () => {
+  const { box, video, play, pause, intersect, loaded } = playbackSetup();
+  intersect(true);
+  expect(video.getAttribute('src')).toBeNull();
+  expect(play).not.toHaveBeenCalled();
+  await loaded();
+  expect(video.src).toContain('save-phone.mp4');
+  expect(video.muted).toBe(true);
+  expect(video.playsInline).toBe(true);
+  expect(play).toHaveBeenCalledTimes(1);
+  expect(box.querySelector('.clip-poster.played')).toBeNull();
+  fireEvent.playing(video);
+  expect(box.querySelector('.clip-poster.played')).not.toBeNull();
+  pause.mockClear();
+  intersect(false);
+  expect(pause).toHaveBeenCalledTimes(1);
+});
+
+it('keeps the poster and allows a tap when Safari rejects autoplay', async () => {
+  const { box, video, play, intersect, loaded } = playbackSetup();
+  play.mockRejectedValue(new DOMException('Autoplay blocked', 'NotAllowedError'));
+  intersect(true);
+  await loaded();
+  expect(box.querySelector('.clip-poster.played')).toBeNull();
+  expect(box.getAttribute('aria-label')).toContain('Press to play');
+  play.mockResolvedValue();
+  fireEvent.click(box);
+  expect(play).toHaveBeenCalledTimes(2);
+  expect(video.muted).toBe(true);
+});
+
+it('does not fetch video for reduced motion until a tap', async () => {
+  const { box, video, play, intersect, loaded } = playbackSetup(true);
+  intersect(true);
+  await loaded();
+  expect(video.getAttribute('src')).toBeNull();
+  expect(play).not.toHaveBeenCalled();
+  fireEvent.click(box);
+  expect(play).toHaveBeenCalledTimes(1);
+});
+
+it('does not start a video that scrolled away before initial load completed', async () => {
+  const { video, play, intersect, loaded } = playbackSetup();
+  intersect(true);
+  intersect(false);
+  await loaded();
+  expect(video.getAttribute('src')).toBeNull();
+  expect(play).not.toHaveBeenCalled();
 });

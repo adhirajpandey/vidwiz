@@ -51,9 +51,11 @@ SVGs contain no live text, imported fonts, or raster images.
 The font comes from the [Google Fonts Bricolage Grotesque directory](https://github.com/google/fonts/tree/main/ofl/bricolagegrotesque).
 The checked-in font has SHA-256
 `413e7357809ddd12fd80a96a8a396de0e401638d4acd3cb3e37532f0472ac682`.
-Its SIL Open Font License is included as `assets/brand/OFL.txt`. The generator
-uses that file only to draw the exported assets. The web app loads Bricolage
-Grotesque from Google Fonts. The extension popup bundles a latin subset in
+Its SIL Open Font License is included as `assets/brand/OFL.txt`. The brand generator
+uses that file to draw the exported assets. The web app self-hosts subsets of
+the same font in `frontend/src/assets/fonts/`, with the license. Regenerate them
+with `uv run --python 3.12 scripts/prepare-web-assets.py`. The extension popup
+bundles a latin subset in
 `extension/fonts/`, with its license, so it makes no font request.
 
 After regeneration, check small icons at actual size, light and dark
