@@ -78,6 +78,8 @@ html.landing-page, html.landing-page body { background: #07081A; color-scheme: d
 .landing .screen video { display: block; width: 100%; height: 100%; object-fit: cover; transform-origin: 100% 0; transition: transform .8s var(--ease); }
 /* Cue: zoom into the top right, where the extension confirms a save. */
 .landing .screen[data-zoomed] video { transform: scale(2); }
+/* The hero shows the whole fullscreen frame, so it zooms further to show the toast at the same size. */
+.landing .stage .screen[data-zoomed] video { transform: scale(3); }
 /* Cue: the keys being pressed, since a screen recording can't show the keyboard. */
 .landing .screen .keys { position: absolute; left: 50%; bottom: 26px; z-index: 2; display: flex; align-items: center; gap: 10px; translate: -50% 0; opacity: 0; transform: translateY(10px); transition: opacity .25s, transform .3s var(--ease); pointer-events: none; }
 .landing .screen .keys i { font-style: normal; font-size: 18px; font-weight: 700; color: var(--paper); text-shadow: 0 2px 8px rgb(0 0 0 / .6); }

@@ -387,7 +387,7 @@ export default function LandingPage() {
           <Reveal delay={3} className="stage-wrap">
             <div ref={stage} className="stage">
               <div className="only-desk">
-                <Window><Clip name="ext-hero" ratio="16 / 10" label="The VidWiz Chrome extension on YouTube. In fullscreen, Alt+S saves the moment at 14:19, then the extension shows it with its AI line." cues={EXTENSION_CUES}>{KEYS}</Clip></Window>
+                <Window><Clip name="ext-hero" ratio="1920 / 1032" label="The VidWiz Chrome extension on YouTube. In fullscreen, Alt+S saves the moment at 14:19, then the extension lists it with its AI line and marks it on the video's timeline." cues={EXTENSION_CUES}>{KEYS}</Clip></Window>
               </div>
               <Phone className="only-phone"><Clip name="save-phone" ratio="540 / 1040" label="VidWiz on a phone. Tapping Save keeps the moment at 0:42 and its AI line is written." /></Phone>
             </div>
