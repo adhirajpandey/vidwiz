@@ -27,6 +27,9 @@ html.landing-page, html.landing-page body { background: #07081A; color-scheme: d
 .landing .logo img { width: 30px; height: 30px; border-radius: 8px; }
 .landing .lnav .login { margin-left: auto; text-decoration: none; color: var(--mute); font-size: 15.5px; font-weight: 550; transition: color .2s; }
 .landing .lnav .login:hover { color: var(--paper); }
+/* The bar shows Log in only, until the hero's own buttons scroll away. */
+.landing .lnav .btn { display: none; }
+.landing .lnav.past .btn { display: inline-flex; animation: landing-nav-in .3s var(--ease); }
 
 /* Buttons */
 .landing .btn { display: inline-flex; align-items: center; justify-content: center; gap: 10px; height: 50px; padding: 0 24px; border-radius: 12px; border: 0;
@@ -228,9 +231,7 @@ html.landing-page, html.landing-page body { background: #07081A; color-scheme: d
   .landing .only-phone { display: block; }
   .landing .lnav .wrap { height: 64px; gap: 16px; }
   .landing .lnav .login { font-size: 15px; }
-  /* Phones get Log in only, until the hero's own buttons scroll away. */
-  .landing .lnav .btn { display: none; height: 36px; padding: 0 14px; font-size: 14.5px; }
-  .landing .lnav.past .btn { display: inline-flex; animation: landing-nav-in .3s var(--ease); }
+  .landing .lnav .btn { height: 36px; padding: 0 14px; font-size: 14.5px; }
   .landing .hero { padding-top: 116px; }
   .landing .lede { margin-top: 20px; }
   .landing .ctas-row { margin-top: 28px; }
