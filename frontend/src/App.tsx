@@ -13,6 +13,8 @@ import SettingsPage from './features/settings/SettingsPage';
 import SharePage from './features/share/SharePage';
 import PrivacyPolicyPage from './features/landing/PrivacyPolicyPage';
 import SupportPage from './features/landing/SupportPage';
+import Seo from './components/Seo';
+import NotFoundPage from './features/landing/NotFoundPage';
 import Spinner from './components/ui/Spinner';
 
 // The chat and Markdown libraries are large; load them with the pages that use them.
@@ -40,6 +42,7 @@ export default function App() {
   const signedIn = useSignedIn();
   return (
     <AppShell>
+      <Seo title="VidWiz" description="Save and search YouTube moments, and ask questions across your library." noIndex />
       <Suspense fallback={<div className="flex justify-center py-16"><Spinner /></div>}>
       <Routes>
         <Route path="/" element={signedIn ? <HomePage /> : <LandingPage />} />
@@ -59,7 +62,7 @@ export default function App() {
         <Route path="/wiz" element={<Navigate to="/" replace />} />
         <Route path="/profile" element={<Navigate to="/settings" replace />} />
         <Route path="/help" element={<Navigate to="/settings#tokens" replace />} />
-        <Route path="*" element={<Navigate to="/" replace />} />
+        <Route path="*" element={<NotFoundPage />} />
       </Routes>
       </Suspense>
     </AppShell>

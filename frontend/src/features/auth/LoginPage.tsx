@@ -38,7 +38,7 @@ export default function LoginPage() {
 
   return (
     <>
-      <Seo title={documentTitle('Log in')} description="Log in to VidWiz to search and ask across the YouTube moments you saved." path="/login" />
+      <Seo noIndex title={documentTitle('Log in')} description="Log in to VidWiz to search and ask across the YouTube moments you saved." path="/login" />
       <AuthCard
         title="Welcome back"
         subtitle="Log in to your library"
