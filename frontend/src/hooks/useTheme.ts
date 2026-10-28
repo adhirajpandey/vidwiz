@@ -4,18 +4,18 @@ import { useHydrated } from './useHydrated';
 type Theme = 'light' | 'dark';
 
 function initialTheme(): Theme {
-  if (typeof window === 'undefined') return 'light';
+  if (typeof window === 'undefined') return 'dark';
   try {
     const saved = localStorage.getItem('theme');
     if (saved === 'light' || saved === 'dark') return saved;
   } catch { /* storage unavailable */ }
-  return window.matchMedia?.('(prefers-color-scheme: dark)').matches ? 'dark' : 'light';
+  return 'dark';
 }
 
 export function useTheme() {
   const hydrated = useHydrated();
   const [preferredTheme, setTheme] = useState<Theme>(initialTheme);
-  const theme = hydrated ? preferredTheme : 'light';
+  const theme = hydrated ? preferredTheme : 'dark';
   useEffect(() => {
     if (!hydrated) return;
     document.documentElement.classList.toggle('dark', theme === 'dark');

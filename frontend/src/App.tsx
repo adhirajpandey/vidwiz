@@ -3,21 +3,21 @@ import type { ReactNode } from 'react';
 import { Navigate, Route, Routes, useLocation, useParams } from 'react-router-dom';
 import AppShell from './app/AppShell';
 import { useSignedIn } from './hooks/useSignedIn';
-import LoginPage from './features/auth/LoginPage';
-import SignupPage from './features/auth/SignupPage';
-import HomePage from './features/home/HomePage';
+const LoginPage = lazy(() => import('./features/auth/LoginPage'));
+const SignupPage = lazy(() => import('./features/auth/SignupPage'));
+const HomePage = lazy(() => import('./features/home/HomePage'));
 import LandingPage from './features/landing/LandingPage';
-import LibraryPage from './features/library/LibraryPage';
-import SearchPage from './features/search/SearchPage';
-import SettingsPage from './features/settings/SettingsPage';
-import SharePage from './features/share/SharePage';
+const LibraryPage = lazy(() => import('./features/library/LibraryPage'));
+const SearchPage = lazy(() => import('./features/search/SearchPage'));
+const SettingsPage = lazy(() => import('./features/settings/SettingsPage'));
+const SharePage = lazy(() => import('./features/share/SharePage'));
 import PrivacyPolicyPage from './features/landing/PrivacyPolicyPage';
 import SupportPage from './features/landing/SupportPage';
 import Seo from './components/Seo';
 import NotFoundPage from './features/landing/NotFoundPage';
 import Spinner from './components/ui/Spinner';
 
-// The chat and Markdown libraries are large; load them with the pages that use them.
+// Account and workspace pages load only when their route is opened.
 const VideoPage = lazy(() => import('./features/video/VideoPage'));
 const AskPage = lazy(() => import('./features/ask/AskPage'));
 

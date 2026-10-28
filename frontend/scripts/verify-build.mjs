@@ -3,6 +3,7 @@ import { readFile } from 'node:fs/promises';
 import { JSDOM } from 'jsdom';
 
 export async function verifyBuild() {
+  assert.equal(await readFile('dist/OFL.txt', 'utf8'), await readFile('src/assets/fonts/OFL.txt', 'utf8'), 'font license is distributed with the fonts');
   const pages = [['/', 'index.html'], ['/support', 'support.html'], ['/privacy', 'privacy.html']];
   for (const [path, file] of [...pages, [null, 'app.html'], [null, '404.html']]) {
     const html = await readFile(`dist/${file}`, 'utf8');
@@ -26,6 +27,21 @@ export async function verifyBuild() {
     assert.ok(document.querySelector('script[type="module"][src^="/assets/"]'), `${file}: built client entry`);
     assert.ok(document.querySelector('link[rel="stylesheet"][href^="/assets/"]'), `${file}: built CSS`);
     assert.ok(!html.includes('<!--seo-head-->'));
+    assert.equal(document.querySelector('script[src*="accounts.google.com"]'), null, `${file}: sign-in loads on demand`);
+    assert.equal(document.querySelector('link[href*="fonts.googleapis.com"]'), null, `${file}: fonts are self-hosted`);
+    if (file === 'index.html') {
+      assert.equal(root.querySelectorAll('.hero .rv').length, 0, 'hero is visible without reveal effects');
+      assert.equal(root.querySelectorAll('video[poster], video[src]').length, 0, 'no eager video or hidden poster requests');
+      const preloads = [...document.querySelectorAll('link[rel="preload"][as="image"][media]')];
+      assert.equal(preloads.length, 2, 'one hero preload per viewport');
+      for (const preload of preloads) {
+        assert.match(preload.getAttribute('href'), /^\/assets\/.+-[\w-]+\.webp$/);
+        await readFile(`dist${preload.getAttribute('href')}`);
+      }
+      for (const source of root.querySelectorAll('picture source')) {
+        await readFile(`dist${source.getAttribute('srcset')}`);
+      }
+    }
   }
   const sitemap = new JSDOM(await readFile('dist/sitemap.xml', 'utf8'), { contentType: 'text/xml' });
   assert.deepEqual([...sitemap.window.document.querySelectorAll('loc')].map(node => node.textContent).sort(),

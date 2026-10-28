@@ -85,6 +85,8 @@ it('replaces public metadata when navigating to login, then restores it on retur
     document.querySelector<HTMLAnchorElement>('a[href="/login"]')!.click();
   });
   await waitFor(() => expect(window.location.pathname).toBe('/login'));
+  // The URL changes before the lazy route module has mounted its metadata.
+  await waitFor(() => expect(document.querySelector('link[rel="canonical"]')?.getAttribute('href')).toBe('https://vidwiz.online/login'));
   expect(document.querySelectorAll('meta[name="robots"]')).toHaveLength(1);
   expect(document.querySelector('meta[name="robots"]')?.getAttribute('content')).toBe('noindex, follow');
   expect(document.querySelector('link[rel="canonical"]')?.getAttribute('href')).toBe('https://vidwiz.online/login');
@@ -96,4 +98,20 @@ it('replaces public metadata when navigating to login, then restores it on retur
   expect(document.querySelector('meta[name="robots"]')?.getAttribute('content')).toBe('index, follow');
   expect(document.querySelectorAll('link[rel="canonical"]')).toHaveLength(1);
   expect(document.querySelector('link[rel="canonical"]')?.getAttribute('href')).toBe('https://vidwiz.online/privacy');
+});
+
+
+it.each([null, 'light', 'dark'])('preserves saved theme %s and defaults to dark on a light OS', async saved => {
+  vi.stubGlobal('matchMedia', vi.fn(() => ({ matches: false })));
+  if (saved) localStorage.setItem('theme', saved);
+  const errors = await hydrate('/support');
+  const expected = saved ?? 'dark';
+  await waitFor(() => expect(document.documentElement.classList.contains('dark')).toBe(expected === 'dark'));
+  expect(localStorage.getItem('theme')).toBe(expected);
+  expect(errors).not.toHaveBeenCalled();
+  await act(async () => {
+    document.querySelector<HTMLButtonElement>('button[aria-label="Toggle theme"]')!.click();
+  });
+  expect(document.documentElement.classList.contains('dark')).toBe(expected !== 'dark');
+  expect(localStorage.getItem('theme')).toBe(expected === 'dark' ? 'light' : 'dark');
 });

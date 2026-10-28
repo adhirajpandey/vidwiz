@@ -1,3 +1,4 @@
+import { lazy, Suspense } from 'react';
 import type { ReactNode } from 'react';
 import { Link, NavLink, useLocation, useNavigate } from 'react-router-dom';
 import { Home, LifeBuoy, Library, LogOut, Moon, Search, Settings, Sparkles, Sun } from 'lucide-react';
@@ -8,10 +9,11 @@ import { useTheme } from '../hooks/useTheme';
 import { removeToken } from '../lib/authUtils';
 import { cn } from '../lib/utils';
 import Button from '../components/ui/Button';
+import ErrorBoundary from '../components/ErrorBoundary';
 import { Menu, MenuContent, MenuItem, MenuSeparator, MenuTrigger } from '../components/ui/Menu';
 import SearchForm from '../components/SearchForm';
 import { Tooltip } from '../components/ui/Tooltip';
-import CommandPalette from './CommandPalette';
+const CommandPalette = lazy(() => import('./CommandPalette'));
 
 const NAV = [
   { to: '/', label: 'Home', icon: Home, end: true },
@@ -143,7 +145,7 @@ export default function AppShell({ children }: { children: ReactNode }) {
       </header>
       <main className={cn('mx-auto max-w-6xl px-4 py-8', signedIn && 'pb-24 md:pb-12')}>{children}</main>
       {signedIn && <MobileNav />}
-      {signedIn && <CommandPalette />}
+      {signedIn && <ErrorBoundary fallback={null}><Suspense fallback={null}><CommandPalette /></Suspense></ErrorBoundary>}
     </div>
   );
 }
