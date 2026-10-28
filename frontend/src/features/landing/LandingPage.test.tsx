@@ -1,5 +1,5 @@
 // @vitest-environment jsdom
-import { cleanup, render, screen } from '@testing-library/react';
+import { cleanup, render, screen, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { HelmetProvider } from 'react-helmet-async';
 import { MemoryRouter, Route, Routes, useLocation } from 'react-router-dom';
@@ -74,10 +74,13 @@ it('switches the recording beside the ways to save, starting with the extension'
   const user = setup();
   const computer = screen.getByRole('button', { name: 'Show saving on your computer' });
   const phone = screen.getByRole('button', { name: 'Show saving on your phone' });
+  const places = within(document.querySelector<HTMLElement>('.places')!);
   expect(computer.getAttribute('aria-pressed')).toBe('true');
-  expect(screen.getByRole('button', { name: /Alt\+S saves the moment at 14:19/ })).toBeTruthy();
+  // A wide cut for computers and a tall one for phones; CSS shows one.
+  expect(places.getAllByRole('button', { name: /Alt\+S saves the moment at 14:19/ })).toHaveLength(2);
   await user.click(phone);
   expect(phone.getAttribute('aria-pressed')).toBe('true');
   expect(computer.getAttribute('aria-pressed')).toBe('false');
-  expect(screen.queryByRole('button', { name: /Alt\+S saves the moment at 14:19/ })).toBeNull();
+  expect(places.queryByRole('button', { name: /Alt\+S saves the moment at 14:19/ })).toBeNull();
+  expect(places.getByRole('button', { name: /Tapping Save keeps the moment at 0:42/ })).toBeTruthy();
 });

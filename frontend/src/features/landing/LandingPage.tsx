@@ -25,30 +25,36 @@ const SOURCES: Record<'links' | 'essays' | 'feynman', Source> = {
 type Cue = { from: number; to?: number; name: string };
 const NO_CUES: Cue[] = [];
 
-// The shortcut recording: Alt+S lands at about 1.9s and the extension's toast at 2.1s.
+// The extension recordings open on fullscreen YouTube: Alt+S lands at about 1.8s and the toast at 2s.
 const SHORTCUT_CUES: Cue[] = [
-  { from: 1.45, to: 2.75, name: 'keys' },
-  { from: 1.85, to: 2.3, name: 'pressed' },
-  { from: 2.15, name: 'zoomed' },
+  { from: 1.35, to: 2.65, name: 'keys' },
+  { from: 1.75, to: 2.2, name: 'pressed' },
+  { from: 2.05, name: 'zoomed' },
 ];
+// The same save, then the extension's popup with the moment from 5s.
+const EXTENSION_CUES: Cue[] = [...SHORTCUT_CUES.slice(0, 2), { from: 2.05, to: 4.1, name: 'zoomed' }];
+const KEYS = <span className="keys" aria-hidden="true"><kbd>{IS_MAC ? '⌥' : 'Alt'}</kbd><i>+</i><kbd>S</kbd></span>;
 
 type Place = 'computer' | 'phone' | 'web';
-const WAYS: { key: Place; title: string; body: ReactNode; icon: ReactNode }[] = [
+const WAYS: { key: Place; title: string; tab: string; body: ReactNode; icon: ReactNode }[] = [
   {
     key: 'computer',
     title: 'On your computer',
+    tab: 'Computer',
     body: <>Press <span className="combo"><kbd>{IS_MAC ? '⌥' : 'Alt'}</kbd><i aria-hidden="true">+</i><kbd>S</kbd></span> on any YouTube video, even in fullscreen, with the Chrome extension.</>,
     icon: <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.9" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true"><rect x="2.5" y="4" width="19" height="13" rx="2" /><path d="M8 21h8M12 17v4" /></svg>,
   },
   {
     key: 'phone',
     title: 'On your phone',
+    tab: 'Phone',
     body: 'Share a video to VidWiz, or save the moment with a phone shortcut.',
     icon: <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.9" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true"><rect x="6" y="2.5" width="12" height="19" rx="2.5" /><path d="M11 18.5h2" /></svg>,
   },
   {
     key: 'web',
     title: 'On the web',
+    tab: 'Web',
     body: 'Paste a link into VidWiz and save from the player or the transcript.',
     icon: <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.9" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true"><path d="M10 14a4 4 0 0 0 5.7 0l3-3a4 4 0 0 0-5.7-5.7l-1 1" /><path d="M14 10a4 4 0 0 0-5.7 0l-3 3a4 4 0 0 0 5.7 5.7l1-1" /></svg>,
   },
@@ -378,7 +384,7 @@ export default function LandingPage() {
           <Reveal delay={3} className="stage-wrap">
             <div ref={stage} className="stage">
               <div className="only-desk">
-                <Window><Clip name="ext-save" ratio="16 / 10" label="The VidWiz Chrome extension on YouTube. Saving the moment at 4:26 from the toolbar, then its AI line." /></Window>
+                <Window><Clip name="ext-hero" ratio="16 / 10" label="The VidWiz Chrome extension on YouTube. In fullscreen, Alt+S saves the moment at 14:19, then the extension shows it with its AI line." cues={EXTENSION_CUES}>{KEYS}</Clip></Window>
               </div>
               <Phone className="only-phone"><Clip name="save-phone" ratio="540 / 1040" label="VidWiz on a phone. Tapping Save keeps the moment at 0:42 and its AI line is written." /></Phone>
             </div>
@@ -420,6 +426,7 @@ export default function LandingPage() {
                   <li key={way.key} className={way.key === place ? 'on' : undefined}>
                     <button type="button" className="pick" aria-pressed={way.key === place} aria-label={`Show saving ${way.title.toLowerCase()}`} onClick={() => setPlace(way.key)} />
                     <span className="ic">{way.icon}</span>
+                    <span className="tab">{way.tab}</span>
                     <div>
                       <h3>{way.title}</h3>
                       <p>{way.body}</p>
@@ -429,18 +436,27 @@ export default function LandingPage() {
                 ))}
               </ul>
             </Reveal>
-            <Reveal delay={1} className="media only-desk">
+            <Reveal delay={1} className="media">
               <div className="places" data-place={place}>
                 {place === 'computer' && (
-                  <Window>
-                    <Clip name="ext-shortcut" ratio="16 / 10" label="Watching fullscreen on YouTube, Alt+S saves the moment at 14:19 and the extension confirms it in the player." cues={SHORTCUT_CUES}>
-                      <span className="keys" aria-hidden="true"><kbd>{IS_MAC ? '⌥' : 'Alt'}</kbd><i>+</i><kbd>S</kbd></span>
-                    </Clip>
-                  </Window>
+                  <>
+                    <div className="only-desk">
+                      <Window><Clip name="ext-shortcut" ratio="16 / 10" label="Watching fullscreen on YouTube, Alt+S saves the moment at 14:19 and the extension confirms it in the player." cues={SHORTCUT_CUES}>{KEYS}</Clip></Window>
+                    </div>
+                    <div className="only-phone">
+                      <Window><Clip name="ext-phone" ratio="700 / 1170" label="Watching fullscreen on YouTube, Alt+S saves the moment at 14:19, then the extension shows it with its AI line." cues={EXTENSION_CUES}>{KEYS}</Clip></Window>
+                    </div>
+                  </>
                 )}
                 {place === 'phone' && <Phone><Clip name="save-phone" ratio="540 / 1040" label="VidWiz on a phone. Tapping Save keeps the moment at 0:42 and its AI line is written." /></Phone>}
                 {place === 'web' && <Browser url="vidwiz.online"><Clip name="save-desktop" ratio="16 / 10" label="VidWiz playing a video. Alt+S saves the moment at 2:13 and its AI line is written." /></Browser>}
               </div>
+              {WAYS.filter(way => way.key === place).map(way => (
+                <p key={way.key} className="way-note only-phone">
+                  {way.body}
+                  {way.key === 'computer' && <> <a href={config.CHROME_WEBSTORE_URL} target="_blank" rel="noopener noreferrer">Add to Chrome</a></>}
+                </p>
+              ))}
             </Reveal>
           </div>
         </section>

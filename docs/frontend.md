@@ -35,10 +35,11 @@ Workers.
   and recent moments grouped once per day and video); the landing page when
   signed out. The landing page renders without the app header and is always
   dark, whatever the app theme. It shows real recordings served from
-  `public/landing/`: the Chrome extension saving on YouTube (the desktop hero,
-  and Alt+S in fullscreen), and the app from a demo account (desktop and phone
-  cuts of Save and Search). On wider screens the "Save from wherever you watch"
-  ways switch the recording beside them. Each recording loads as it nears the
+  `public/landing/`: the Chrome extension saving on YouTube (Alt+S in
+  fullscreen, then the moment in the extension's popup), and the app from a demo
+  account (desktop and phone cuts of Save and Search). The "Save from wherever
+  you watch" ways switch the recording beside them; phones show them as tabs
+  above it, with the chosen way's description below. Each recording loads as it nears the
   screen, plays muted while visible, and pauses on tap; with reduced motion it
   waits for a tap. A recording can carry time cues, data attributes that follow
   its playback, for the pressed keys and the zoom onto the extension's toast. CSS
