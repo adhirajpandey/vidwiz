@@ -80,9 +80,10 @@ chrome.commands.onCommand.addListener(async (command) => {
     toast(tab.id, MESSAGES.ad, "error");
     return;
   }
+  const at = formatClock(video.seconds);
+  toast(tab.id, `Saving moment at ${at}…`, "pending");
   try {
     const result = await capture(video);
-    const at = formatClock(video.seconds);
     toast(tab.id, result.merged ? `Added to your moment near ${at}` : `Moment saved at ${at}`, "success");
   } catch (error) {
     if (error.status === 401) {

@@ -40,9 +40,11 @@ Plain JavaScript modules, no bundler.
   login view.
 - **Alt+S**: the background worker asks the content script for the current
   video, posts `POST /v2/captures` with `video`, `title`, `at`, and
-  `source: "extension"` (the AI line follows the user's default), and shows a
-  toast: saved, merged into a nearby moment, or the error. Errors stay 6
-  seconds instead of 2.6. During an ad it
+  `source: "extension"` (the AI line follows the user's default). A "Saving
+  moment" toast shows as soon as the request starts, then gives way to the
+  result: saved, merged into a nearby moment, or the error. Errors stay 6
+  seconds instead of 2.6, and a "Saving" toast with no result clears after 30
+  seconds. During an ad it
   saves nothing and says to wait for the ad to end. Without a login it opens
   the web login page, at most once a minute. On a YouTube video tab that has no
   content script yet, it shows a red `!` badge whose tooltip asks for a reload.

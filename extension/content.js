@@ -89,21 +89,27 @@
         box-shadow: 0 10px 28px rgb(0 0 0 / 35%); border: 1px solid hsl(234 24% 23%); }
       .icon { width: 20px; height: 20px; border-radius: 50%; flex: none; display: grid; place-items: center;
         background: hsl(152 45% 58%); color: hsl(234 33% 12%); font-size: 12px; font-weight: 800; }
-      .error .icon { background: hsl(0 75% 66%); }`;
+      .error .icon { background: hsl(0 75% 66%); }
+      .pending .icon { box-sizing: border-box; background: none; border: 2px solid hsl(233 31% 94% / 30%);
+        border-top-color: hsl(233 31% 94%); animation: spin 800ms linear infinite; }
+      @keyframes spin { to { transform: rotate(360deg); } }
+      @media (prefers-reduced-motion: reduce) { .pending .icon { animation: none; } }`;
     const toast = document.createElement("div");
-    toast.className = `toast ${kind === "error" ? "error" : ""}`;
+    toast.className = `toast ${kind === "error" || kind === "pending" ? kind : ""}`;
     toast.setAttribute("role", "status");
     const icon = document.createElement("span");
     icon.className = "icon";
     icon.setAttribute("aria-hidden", "true");
-    icon.textContent = kind === "error" ? "!" : "✓";
+    icon.textContent = kind === "error" ? "!" : kind === "pending" ? "" : "✓";
     const label = document.createElement("span");
     label.textContent = text;
     toast.append(icon, label);
     root.append(style, toast);
     clearTimeout(showToast.timer);
     // Errors stay longer: they need reading, and the toast has no close button.
-    showToast.timer = setTimeout(() => { root.innerHTML = ""; }, kind === "error" ? 6000 : 2600);
+    // A pending toast waits for its result, but goes away if none ever comes.
+    const duration = kind === "pending" ? 30000 : kind === "error" ? 6000 : 2600;
+    showToast.timer = setTimeout(() => { root.innerHTML = ""; }, duration);
   }
 
   chrome.runtime.onMessage.addListener((request, _sender, sendResponse) => {
