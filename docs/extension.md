@@ -44,7 +44,8 @@ Plain JavaScript modules, no bundler.
   moment" toast shows as soon as the request starts, then gives way to the
   result: saved, merged into a nearby moment, or the error. Errors stay 6
   seconds instead of 2.6, and a "Saving" toast with no result clears after 30
-  seconds. During an ad it
+  seconds. While a newer press is saving, an older press shows only its error.
+  During an ad it
   saves nothing and says to wait for the ad to end. Without a login it opens
   the web login page, at most once a minute. On a YouTube video tab that has no
   content script yet, it shows a red `!` badge whose tooltip asks for a reload.

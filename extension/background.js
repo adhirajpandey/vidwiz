@@ -59,6 +59,9 @@ function openLogin() {
   return openingLogin;
 }
 
+// Each tab's newest Alt+S save, so an older one can't clear its "Saving" toast.
+const latestCapture = new Map();
+
 // Alt+S: capture the current moment without opening the popup.
 chrome.commands.onCommand.addListener(async (command) => {
   if (command !== "capture-moment") return;
@@ -81,16 +84,23 @@ chrome.commands.onCommand.addListener(async (command) => {
     return;
   }
   const at = formatClock(video.seconds);
+  const current = {};
+  latestCapture.set(tab.id, current);
   toast(tab.id, `Saving moment at ${at}…`, "pending");
   try {
     const result = await capture(video);
-    toast(tab.id, result.merged ? `Added to your moment near ${at}` : `Moment saved at ${at}`, "success");
+    if (latestCapture.get(tab.id) === current) {
+      toast(tab.id, result.merged ? `Added to your moment near ${at}` : `Moment saved at ${at}`, "success");
+    }
   } catch (error) {
+    // Errors always show: an older save that failed still lost its moment.
     if (error.status === 401) {
       toast(tab.id, "Log in to VidWiz to capture moments.", "error");
       await openLogin();
     } else {
       toast(tab.id, error.message, "error");
     }
+  } finally {
+    if (latestCapture.get(tab.id) === current) latestCapture.delete(tab.id);
   }
 });

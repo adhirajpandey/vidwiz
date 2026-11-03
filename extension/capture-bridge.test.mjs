@@ -157,3 +157,69 @@ it("wires web commands without the login listener swallowing the capability resp
   await Promise.all(browser.commands.onCommand.emit("capture-moment"));
   assert.equal(messages.filter((message) => message.type === "CAPTURE").length, 1);
 });
+
+function youtubeCapture(t) {
+  const previous = { chrome: globalThis.chrome, fetch: globalThis.fetch };
+  const payload = btoa(JSON.stringify({ exp: Math.floor(Date.now() / 1000) + 3600 }));
+  const toasts = [];
+  const requests = [];
+  const seconds = [10, 30];
+  globalThis.chrome = {
+    runtime: { onMessageExternal: event(), onConnectExternal: event(), onInstalled: event() },
+    commands: { getAll: async () => [], onCommand: event() },
+    storage: { local: { get: async () => ({ token: `header.${payload}.signature` }) } },
+    tabs: {
+      query: async () => [{ id: 1, url: "https://www.youtube.com/watch?v=abc123DEF45" }],
+      onUpdated: event(),
+      sendMessage: async (_tabId, message) => {
+        if (message.action === "toast") { toasts.push(message); return true; }
+        return { videoId: "abc123DEF45", title: "Video", seconds: seconds.shift(), ad: false };
+      },
+    },
+    action: { setBadgeText: () => {}, setTitle: () => {} },
+  };
+  globalThis.fetch = () => new Promise((resolve) => requests.push(resolve));
+  t.after(() => {
+    globalThis.fetch = previous.fetch;
+    if (previous.chrome === undefined) delete globalThis.chrome; else globalThis.chrome = previous.chrome;
+  });
+  const settle = () => new Promise((resolve) => setImmediate(resolve));
+  const press = async () => {
+    const count = requests.length;
+    const done = Promise.all(globalThis.chrome.commands.onCommand.emit("capture-moment"));
+    while (requests.length === count) await settle();
+    return { done };
+  };
+  return { toasts, requests, settle, press };
+}
+const reply = (status, body) => new Response(JSON.stringify(body), { status });
+
+it("keeps a newer save's toast when an older save succeeds", async (t) => {
+  const { toasts, requests, settle, press } = youtubeCapture(t);
+  await import(`./background.js?stale-success=${Date.now()}`);
+  const first = await press();
+  const second = await press();
+  assert.deepEqual(toasts.map(({ text, kind }) => [text, kind]), [
+    ["Saving moment at 0:10…", "pending"],
+    ["Saving moment at 0:30…", "pending"],
+  ]);
+  requests[0](reply(201, { merged: false }));
+  await first.done; await settle();
+  assert.equal(toasts.length, 2);
+  requests[1](reply(201, { merged: false }));
+  await second.done;
+  assert.deepEqual(toasts.at(-1), { action: "toast", text: "Moment saved at 0:30", kind: "success" });
+});
+
+it("shows an older save's error while a newer save is running", async (t) => {
+  const { toasts, requests, press } = youtubeCapture(t);
+  await import(`./background.js?stale-error=${Date.now()}`);
+  const first = await press();
+  const second = await press();
+  requests[0](reply(500, { error: { message: "Could not save" } }));
+  await first.done;
+  assert.deepEqual(toasts.at(-1), { action: "toast", text: "Could not save", kind: "error" });
+  requests[1](reply(201, { merged: false }));
+  await second.done;
+  assert.equal(toasts.at(-1).text, "Moment saved at 0:30");
+});
