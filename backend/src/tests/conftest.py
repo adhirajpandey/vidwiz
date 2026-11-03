@@ -56,6 +56,7 @@ from src import database  # noqa: E402
 from src.database import get_db  # noqa: E402
 from src.main import create_app  # noqa: E402
 from src.config import CreditProductConfig, settings  # noqa: E402
+from src.shared import aws  # noqa: E402
 
 BACKEND_DIR = Path(__file__).resolve().parents[2]
 
@@ -88,6 +89,9 @@ def setup_settings() -> None:
 
 @pytest.fixture(autouse=True)
 def mock_external_services(monkeypatch):
+    # Clients are cached, so each test builds its own from its own fake.
+    monkeypatch.setattr(aws, "_clients", {})
+
     class FakeS3Client:
         def get_object(self, *_args, **_kwargs):
             from io import BytesIO

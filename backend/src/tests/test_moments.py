@@ -1,5 +1,6 @@
 from datetime import datetime, timezone
 
+import boto3
 import jwt
 import pytest
 
@@ -13,7 +14,7 @@ from src.library.models import LibraryItem
 from src.moments import service as moments_service
 from src.moments.models import AiStatus, CaptureSource, Moment, ResolveStatus
 from src.moments.schemas import CaptureCreate, parse_seconds
-from src.shared import queues
+from src.shared import aws
 from src.videos.models import TranscriptStatus, Video
 
 VIDEO_ID = "abc123DEF45"
@@ -49,7 +50,7 @@ def sent_jobs(monkeypatch):
             jobs.append(MessageBody)
             return {}
 
-    monkeypatch.setattr(queues.boto3, "client", lambda *_a, **_k: Sqs())
+    monkeypatch.setattr(boto3, "client", lambda *_a, **_k: Sqs())
     return jobs
 
 
@@ -188,13 +189,14 @@ def test_failed_queue_marks_moment_failed_and_retry_does_not_recharge(
         def send_message(self, **_kwargs):
             raise RuntimeError("queue down")
 
-    monkeypatch.setattr(queues.boto3, "client", lambda *_a, **_k: BrokenSqs())
+    monkeypatch.setattr(boto3, "client", lambda *_a, **_k: BrokenSqs())
     moment, _ = capture(db_session, user, ai=True)
     assert moment.ai_status == AiStatus.FAILED
 
     jobs = []
+    aws._clients.clear()
     monkeypatch.setattr(
-        queues.boto3,
+        boto3,
         "client",
         lambda *_a, **_k: type(
             "Sqs", (), {"send_message": lambda self, **k: jobs.append(k)}

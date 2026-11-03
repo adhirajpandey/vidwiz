@@ -4,9 +4,6 @@ import json
 import logging
 import math
 
-import boto3
-
-
 logger = logging.getLogger(__name__)
 
 # A moment's quote covers what was said just before the capture, since people
@@ -21,14 +18,9 @@ CHUNK_TARGET_SECONDS = 45
 
 
 def _s3_client():
-    from src.config import settings
+    from src.shared.aws import aws_client
 
-    return boto3.client(
-        "s3",
-        aws_access_key_id=settings.aws_access_key_id,
-        aws_secret_access_key=settings.aws_secret_access_key,
-        region_name=settings.aws_region,
-    )
+    return aws_client("s3")
 
 
 def _key(video_id: str) -> str:
