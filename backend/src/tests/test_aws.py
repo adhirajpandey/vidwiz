@@ -22,7 +22,7 @@ def test_client_is_built_once_per_service_with_timeouts(monkeypatch):
     config = built[0][1]
     assert config.connect_timeout == 2
     assert config.read_timeout == 5
-    assert config.retries["mode"] == "standard"
+    assert config.retries == {"total_max_attempts": 2, "mode": "standard"}
 
 
 def test_concurrent_first_use_builds_one_client(monkeypatch):

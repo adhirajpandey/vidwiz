@@ -9,7 +9,7 @@ from src.config import settings
 _CONFIG = Config(
     connect_timeout=2,
     read_timeout=5,
-    retries={"max_attempts": 2, "mode": "standard"},
+    retries={"total_max_attempts": 2, "mode": "standard"},
 )
 
 _clients = {}
