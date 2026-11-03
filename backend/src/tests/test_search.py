@@ -79,6 +79,7 @@ def library(db_session, user):
         CaptureCreate(
             video="aaaaaaaaaaa", at=25, note="Index column ordering", ai=False
         ),
+        lambda *_: None,
     )
     moment.quote_start_seconds = 10
     db_session.flush()

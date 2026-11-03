@@ -1,9 +1,13 @@
+import asyncio
+import json
 from datetime import datetime, timezone
 
+import boto3
 import jwt
 import pytest
+from sqlalchemy.orm import sessionmaker
 
-from src import transcripts
+from src import database, transcripts
 from src.auth import service as auth_service
 from src.config import settings
 from src.credits.models import CreditsLedger
@@ -13,7 +17,7 @@ from src.library.models import LibraryItem
 from src.moments import service as moments_service
 from src.moments.models import AiStatus, CaptureSource, Moment, ResolveStatus
 from src.moments.schemas import CaptureCreate, parse_seconds
-from src.shared import queues
+from src.shared import aws
 from src.videos.models import TranscriptStatus, Video
 
 VIDEO_ID = "abc123DEF45"
@@ -49,7 +53,7 @@ def sent_jobs(monkeypatch):
             jobs.append(MessageBody)
             return {}
 
-    monkeypatch.setattr(queues.boto3, "client", lambda *_a, **_k: Sqs())
+    monkeypatch.setattr(boto3, "client", lambda *_a, **_k: Sqs())
     return jobs
 
 
@@ -64,6 +68,29 @@ def transcript_ready(db_session, monkeypatch):
     monkeypatch.setattr(transcripts, "load_transcript", lambda _video_id: TRANSCRIPT)
 
 
+@pytest.fixture
+def job_session(db_session, monkeypatch):
+    """Lets a job's own session see this test's uncommitted rows."""
+    monkeypatch.setattr(
+        database,
+        "SessionLocal",
+        sessionmaker(
+            bind=db_session.connection(),
+            autoflush=False,
+            join_transaction_mode="create_savepoint",
+        ),
+    )
+
+
+def broken_sqs(monkeypatch):
+    class BrokenSqs:
+        def send_message(self, **_kwargs):
+            raise RuntimeError("queue down")
+
+    aws._clients.clear()
+    monkeypatch.setattr(boto3, "client", lambda *_a, **_k: BrokenSqs())
+
+
 def charges(db_session, user) -> list[CreditsLedger]:
     return (
         db_session.query(CreditsLedger)
@@ -76,7 +103,12 @@ def capture(db_session, user, **fields):
     fields.setdefault("video", VIDEO_ID)
     fields.setdefault("at", 100)
     fields.setdefault("ai", False)
-    return moments_service.capture(db_session, user.id, CaptureCreate(**fields))
+    return moments_service.capture(
+        db_session,
+        user.id,
+        CaptureCreate(**fields),
+        lambda job, *args: job(*args),
+    )
 
 
 @pytest.mark.parametrize(
@@ -182,19 +214,17 @@ def test_dedupe_window_merges_notes_within_ten_seconds(db_session, user):
 
 
 def test_failed_queue_marks_moment_failed_and_retry_does_not_recharge(
-    db_session, user, transcript_ready, monkeypatch
+    db_session, user, transcript_ready, job_session, monkeypatch
 ):
-    class BrokenSqs:
-        def send_message(self, **_kwargs):
-            raise RuntimeError("queue down")
-
-    monkeypatch.setattr(queues.boto3, "client", lambda *_a, **_k: BrokenSqs())
+    broken_sqs(monkeypatch)
     moment, _ = capture(db_session, user, ai=True)
+    db_session.refresh(moment)
     assert moment.ai_status == AiStatus.FAILED
 
     jobs = []
+    aws._clients.clear()
     monkeypatch.setattr(
-        queues.boto3,
+        boto3,
         "client",
         lambda *_a, **_k: type(
             "Sqs", (), {"send_message": lambda self, **k: jobs.append(k)}
@@ -205,6 +235,131 @@ def test_failed_queue_marks_moment_failed_and_retry_does_not_recharge(
     assert retried.ai_status == AiStatus.QUEUED
     assert len(jobs) == 1
     assert len(charges(db_session, user)) == 1
+
+
+def test_capture_saves_before_its_ai_job_is_sent(
+    db_session, user, transcript_ready, sent_jobs
+):
+    deferred = []
+    moment, _ = moments_service.capture(
+        db_session,
+        user.id,
+        CaptureCreate(video=VIDEO_ID, at=100, ai=True),
+        lambda job, *args: deferred.append((job, args)),
+    )
+
+    assert moment.ai_status == AiStatus.QUEUED
+    assert sent_jobs == []
+    assert len(deferred) == 1
+
+    job, args = deferred[0]
+    job(*args)
+    assert json.loads(sent_jobs[0])["id"] == moment.id
+
+
+def test_merged_capture_defers_its_ai_job(
+    db_session, user, transcript_ready, sent_jobs
+):
+    moment, _ = capture(db_session, user, ai=False)
+    deferred = []
+    merged, was_merged = moments_service.capture(
+        db_session,
+        user.id,
+        CaptureCreate(video=VIDEO_ID, at=105, ai=True),
+        lambda job, *args: deferred.append((job, args)),
+    )
+
+    assert was_merged is True
+    assert merged.id == moment.id
+    assert sent_jobs == []
+    assert len(deferred) == 1
+
+    job, args = deferred[0]
+    job(*args)
+    assert json.loads(sent_jobs[0])["id"] == moment.id
+
+
+def test_failed_send_leaves_a_finished_line_alone(
+    db_session, user, transcript_ready, job_session, sent_jobs, monkeypatch
+):
+    moment, _ = capture(db_session, user, ai=True)
+    moments_service.save_ai_text(db_session, moment, "Finished line")
+    broken_sqs(monkeypatch)
+
+    moments_service.send_ai_job(moments_service.queue_payload(moment))
+
+    db_session.refresh(moment)
+    assert moment.ai_status == AiStatus.READY
+    assert moment.ai_text == "Finished line"
+
+
+@pytest.mark.asyncio
+async def test_capture_response_is_sent_before_its_ai_job(
+    app, db_session, user, transcript_ready, monkeypatch
+):
+    # An HTTP test client waits for background tasks, so this speaks ASGI directly.
+    events = []
+
+    class Sqs:
+        def send_message(self, **_kwargs):
+            events.append("job")
+
+    aws._clients.clear()
+    monkeypatch.setattr(boto3, "client", lambda *_a, **_k: Sqs())
+    body = json.dumps(
+        {"video": VIDEO_ID, "at": 100, "ai": True, "source": "extension"}
+    ).encode()
+    token = auth_headers(user)["Authorization"].encode()
+    scope = {
+        "type": "http",
+        "asgi": {"version": "3.0"},
+        "http_version": "1.1",
+        "method": "POST",
+        "scheme": "http",
+        "path": "/v2/captures",
+        "raw_path": b"/v2/captures",
+        "query_string": b"",
+        "root_path": "",
+        "headers": [
+            (b"content-type", b"application/json"),
+            (b"authorization", token),
+        ],
+        "client": ("127.0.0.1", 1),
+        "server": ("test", 80),
+    }
+    received = [{"type": "http.request", "body": body, "more_body": False}]
+
+    async def receive():
+        if received:
+            return received.pop()
+        await asyncio.Event().wait()
+
+    async def send(message):
+        if message["type"] == "http.response.body" and not message.get("more_body"):
+            events.append("response")
+
+    await app(scope, receive, send)
+
+    assert events == ["response", "job"]
+
+
+@pytest.mark.asyncio
+async def test_capture_route_reports_queued_then_failed_send_marks_it(
+    client, db_session, user, transcript_ready, job_session, monkeypatch
+):
+    broken_sqs(monkeypatch)
+
+    response = await client.post(
+        "/v2/captures",
+        headers=auth_headers(user),
+        json={"video": VIDEO_ID, "at": 100, "ai": True, "source": "extension"},
+    )
+
+    assert response.status_code == 201
+    assert response.json()["moment"]["ai_status"] == "queued"
+    moment = db_session.get(Moment, response.json()["moment"]["id"])
+    db_session.refresh(moment)
+    assert moment.ai_status == AiStatus.FAILED
 
 
 def test_title_capture_resolves_from_library_instantly(db_session, user):
