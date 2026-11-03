@@ -50,9 +50,7 @@ def create_capture(
     db: Session = Depends(get_db),
     user_id: int = Depends(get_current_user_id_or_api_token),
 ) -> CaptureResponse:
-    moment, merged = moments_service.capture(
-        db, user_id, payload, background.add_task
-    )
+    moment, merged = moments_service.capture(db, user_id, payload, background.add_task)
     if merged:
         response.status_code = status.HTTP_200_OK
     return CaptureResponse(moment=MomentRead.model_validate(moment), merged=merged)
