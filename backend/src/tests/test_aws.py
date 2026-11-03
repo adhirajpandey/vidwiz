@@ -2,6 +2,7 @@ import threading
 
 import boto3
 
+from src.config import settings
 from src.shared import queues
 from src.shared.aws import aws_client
 
@@ -10,7 +11,7 @@ def test_client_is_built_once_per_service_with_timeouts(monkeypatch):
     built = []
 
     def fake_client(service, **kwargs):
-        built.append((service, kwargs["config"]))
+        built.append((service, kwargs))
         return object()
 
     monkeypatch.setattr(boto3, "client", fake_client)
@@ -19,7 +20,11 @@ def test_client_is_built_once_per_service_with_timeouts(monkeypatch):
     assert aws_client("sqs") is sqs
     assert aws_client("s3") is not sqs
     assert [service for service, _ in built] == ["sqs", "s3"]
-    config = built[0][1]
+    kwargs = built[0][1]
+    assert kwargs["region_name"] == settings.aws_region
+    assert kwargs["aws_access_key_id"] == settings.aws_access_key_id
+    assert kwargs["aws_secret_access_key"] == settings.aws_secret_access_key
+    config = kwargs["config"]
     assert config.connect_timeout == 2
     assert config.read_timeout == 5
     assert config.retries == {"total_max_attempts": 2, "mode": "standard"}

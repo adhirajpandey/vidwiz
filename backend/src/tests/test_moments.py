@@ -274,6 +274,10 @@ def test_merged_capture_defers_its_ai_job(
     assert sent_jobs == []
     assert len(deferred) == 1
 
+    job, args = deferred[0]
+    job(*args)
+    assert json.loads(sent_jobs[0])["id"] == moment.id
+
 
 def test_failed_send_leaves_a_finished_line_alone(
     db_session, user, transcript_ready, job_session, sent_jobs, monkeypatch
