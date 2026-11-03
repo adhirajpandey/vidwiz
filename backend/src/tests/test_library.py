@@ -30,10 +30,16 @@ async def test_library_lists_counts_sorts_and_searches(client, db_session, user)
     add_video(db_session, user, "aaaaaaaaaaa", "Alpha talk", added_days_ago=3)
     add_video(db_session, user, "bbbbbbbbbbb", "Beta talk", added_days_ago=2)
     moments_service.capture(
-        db_session, user.id, CaptureCreate(video="aaaaaaaaaaa", at=5, ai=False)
+        db_session,
+        user.id,
+        CaptureCreate(video="aaaaaaaaaaa", at=5, ai=False),
+        lambda *_: None,
     )
     moments_service.capture(
-        db_session, user.id, CaptureCreate(video="aaaaaaaaaaa", at=50, ai=False)
+        db_session,
+        user.id,
+        CaptureCreate(video="aaaaaaaaaaa", at=50, ai=False),
+        lambda *_: None,
     )
     headers = auth_headers(user)
 

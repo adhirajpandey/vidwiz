@@ -1,4 +1,5 @@
 import logging
+from collections.abc import Callable
 from datetime import timedelta
 
 from sqlalchemy import func, select
@@ -6,7 +7,7 @@ from sqlalchemy import update as sql_update
 from sqlalchemy.orm import Session
 from sqlalchemy.orm.attributes import flag_modified
 
-from src import transcripts
+from src import database, transcripts
 from src.auth import service as auth_service
 from src.auth.models import User
 from src.config import settings
@@ -46,8 +47,16 @@ AI_REQUESTABLE = {
 }
 
 
-def capture(db: Session, user_id: int, payload: CaptureCreate) -> tuple[Moment, bool]:
-    """Save a capture as a new moment or merge it into a nearby one."""
+def capture(
+    db: Session,
+    user_id: int,
+    payload: CaptureCreate,
+    run_later: Callable[..., None],
+) -> tuple[Moment, bool]:
+    """Save a capture as a new moment or merge it into a nearby one.
+
+    The AI job goes through `run_later`, so the saved moment does not wait on SQS.
+    """
     user = db.get(User, user_id)
     wants_ai = payload.ai if payload.ai is not None else _ai_default(user)
     logger.debug(
@@ -74,7 +83,7 @@ def capture(db: Session, user_id: int, payload: CaptureCreate) -> tuple[Moment, 
         db.commit()
         db.refresh(existing)
         if enqueue:
-            push_moment_to_sqs(db, existing)
+            run_later(send_ai_job, queue_payload(existing))
         return existing, True
 
     moment = Moment(
@@ -92,7 +101,7 @@ def capture(db: Session, user_id: int, payload: CaptureCreate) -> tuple[Moment, 
     db.commit()
     db.refresh(moment)
     if enqueue:
-        push_moment_to_sqs(db, moment)
+        run_later(send_ai_job, queue_payload(moment))
     return moment, False
 
 
@@ -277,6 +286,29 @@ def push_moment_to_sqs(db: Session, moment: Moment) -> None:
         )
         moment.ai_status = AiStatus.FAILED
         db.commit()
+
+
+def send_ai_job(payload: dict) -> None:
+    """Send a capture's AI job after its response, on a session of its own."""
+    try:
+        send_job(settings.sqs_ai_note_queue_url, payload)
+        logger.info("Queued AI moment", extra={"moment_id": payload["id"]})
+    except Exception as exc:
+        # The charge stays recorded once, so a retry does not charge again.
+        logger.error(
+            "Failed to queue AI moment",
+            extra={"moment_id": payload["id"], "error": str(exc)},
+        )
+        db = database.SessionLocal()
+        try:
+            db.execute(
+                sql_update(Moment)
+                .where(Moment.id == payload["id"], Moment.ai_status == AiStatus.QUEUED)
+                .values(ai_status=AiStatus.FAILED)
+            )
+            db.commit()
+        finally:
+            db.close()
 
 
 def request_ai(db: Session, moment: Moment) -> Moment:

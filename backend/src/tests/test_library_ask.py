@@ -48,7 +48,10 @@ def use_plan(monkeypatch, terms, since=None, until=None, topic=True):
 
 def capture_at(db_session, user, video_id, at, note, created_at):
     moment, _ = moments_service.capture(
-        db_session, user.id, CaptureCreate(video=video_id, at=at, note=note, ai=False)
+        db_session,
+        user.id,
+        CaptureCreate(video=video_id, at=at, note=note, ai=False),
+        lambda *_: None,
     )
     moment.created_at = created_at
     db_session.flush()

@@ -69,8 +69,11 @@ Describe the FastAPI backend: structure, auth rules, and the request/worker life
     queues those moments. A transcript task that fails for the last time marks
     them `no_transcript`. A later capture of the video fetches the transcript
     again and puts its `no_transcript` moments back to `waiting_transcript`.
+  - A capture sends its job after the response, so a saved moment does not wait
+    on SQS. The response says `queued` even if the send then fails.
   - If sending the job to SQS fails, the moment becomes `failed`. Requesting AI
-    again (`POST /v2/moments/{id}/ai`) does not charge again.
+    again (`POST /v2/moments/{id}/ai`) does not charge again. That request sends
+    its job before responding, so the retry shows the result right away.
   - The worker stores its result through `PUT /v2/internal/moments/{id}/ai`;
     `ai_text: null` marks a queued generation `failed` and leaves a ready line
     alone.

@@ -1,4 +1,4 @@
-from fastapi import APIRouter, Depends, Query, Response, status
+from fastapi import APIRouter, BackgroundTasks, Depends, Query, Response, status
 from fastapi.responses import PlainTextResponse
 from sqlalchemy.orm import Session
 
@@ -46,10 +46,13 @@ router = APIRouter(prefix="/v2", tags=["Moments"])
 def create_capture(
     payload: CaptureCreate,
     response: Response,
+    background: BackgroundTasks,
     db: Session = Depends(get_db),
     user_id: int = Depends(get_current_user_id_or_api_token),
 ) -> CaptureResponse:
-    moment, merged = moments_service.capture(db, user_id, payload)
+    moment, merged = moments_service.capture(
+        db, user_id, payload, background.add_task
+    )
     if merged:
         response.status_code = status.HTTP_200_OK
     return CaptureResponse(moment=MomentRead.model_validate(moment), merged=merged)
@@ -185,6 +188,7 @@ def delete_moment(
 )
 def create_legacy_note(
     payload: LegacyNoteCreate,
+    background: BackgroundTasks,
     path: VideoIdPath = Depends(get_video_id_path),
     db: Session = Depends(get_db),
     user_id: int = Depends(get_current_user_id_or_api_token),
@@ -202,7 +206,7 @@ def create_legacy_note(
         ai=None if payload.text is None else False,
         source=CaptureSource.EXTENSION,
     )
-    moment, _ = moments_service.capture(db, user_id, capture)
+    moment, _ = moments_service.capture(db, user_id, capture, background.add_task)
     return MomentRead.model_validate(moment)
 
 
