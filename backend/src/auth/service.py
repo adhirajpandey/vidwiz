@@ -13,6 +13,7 @@ from werkzeug.security import check_password_hash, generate_password_hash
 
 from src.auth.models import ApiToken, User
 from src.credits import service as credits_service
+from src.logging import log_event, record_request_auth
 
 logger = logging.getLogger(__name__)
 
@@ -45,9 +46,21 @@ def authenticate_user(db: Session, email: str, password: str) -> User | None:
         logger.debug(
             "Authentication failed (missing user/password)", extra={"email": email}
         )
+        log_event(
+            "auth.login_failed",
+            method="password",
+            reason="no_password" if user else "unknown_email",
+            user_id=user.id if user else None,
+        )
         return None
     if not check_password_hash(user.password_hash, password):
         logger.debug("Authentication failed (invalid password)", extra={"email": email})
+        log_event(
+            "auth.login_failed",
+            method="password",
+            reason="wrong_password",
+            user_id=user.id,
+        )
         return None
     logger.debug("Authentication successful", extra={"user_id": user.id})
     return user
@@ -137,6 +150,9 @@ def authenticate_api_token(db: Session, token: str) -> int | None:
         return None
     api_token.last_used_at = datetime.now(timezone.utc)
     db.commit()
+    record_request_auth(
+        "api_token", user_id=api_token.user_id, api_token_id=api_token.id
+    )
     return api_token.user_id
 
 
@@ -235,5 +251,6 @@ def upsert_google_user(
     db.refresh(user)
     if created:
         credits_service.grant_signup_credits(db, user)
+        log_event("auth.registered", method="google", user_id=user.id)
     logger.debug("Upserted Google user", extra={"user_id": user.id, "created": created})
     return user

@@ -13,6 +13,7 @@ from src.exceptions import (
     NotFoundError,
     UnauthorizedError,
 )
+from src.logging import log_event
 from src.payments.models import (
     CreditPurchase,
     PURCHASE_STATUS_CANCELLED,
@@ -169,6 +170,12 @@ def handle_webhook_event(db: Session, payload: dict[str, Any]) -> None:
         purchase.provider_payment_id = payment_id
         db.commit()
         logger.debug("Purchase completed", extra={"purchase_id": purchase.id})
+        log_event(
+            "purchase.completed",
+            user_id=purchase.user_id,
+            purchase_id=purchase.id,
+            credits=purchase.credits_amount,
+        )
         return
 
     purchase.status = (

@@ -8,6 +8,7 @@ from src.auth.models import User
 from src.config import settings
 from src.credits.models import CreditsLedger
 from src.exceptions import ForbiddenError, NotFoundError
+from src.logging import log_event
 
 REASON_SIGNUP_GRANT = "signup_grant"
 REASON_WIZ_CHAT = "wiz_chat"
@@ -92,6 +93,16 @@ def _apply_once(
     except IntegrityError:
         db.rollback()
         db.refresh(user)
+    else:
+        if delta < 0:
+            log_event(
+                "credits.charged",
+                user_id=user_id,
+                credits=-delta,
+                reason=reason,
+                ref_type=ref_type,
+                ref_id=ref_id,
+            )
     return True
 
 

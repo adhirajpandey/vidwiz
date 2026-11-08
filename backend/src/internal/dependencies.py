@@ -9,6 +9,7 @@ from src.exceptions import (
 )
 from src.internal import constants as internal_constants
 from src.internal.schemas import TaskPollParams
+from src.logging import record_request_auth
 
 
 admin_auth = HTTPBearer(
@@ -27,6 +28,7 @@ def require_admin_token(
     token = authorization.credentials
     if token != settings.internal_api_admin_token:
         raise ForbiddenError("Invalid admin token")
+    record_request_auth("admin")
 
 
 def get_task_poll_params(

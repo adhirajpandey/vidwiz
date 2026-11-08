@@ -23,10 +23,21 @@ from src.exceptions import (
     NotFoundError,
     UnauthorizedError,
 )
+from src.logging import hash_guest_id, log_event
 from src.shared.ratelimit import limiter
 
 
 router = APIRouter(prefix="/v2", tags=["Auth"])
+
+
+def _log_login_succeeded(request: Request, user_id: int, method: str) -> None:
+    """Record the sign-in with its guest ID, which ties earlier guest chats to the user."""
+    log_event(
+        "auth.login_succeeded",
+        method=method,
+        user_id=user_id,
+        guest_id_hash=hash_guest_id(request.headers.get("X-Guest-Session-ID")),
+    )
 
 
 @router.post(
@@ -42,10 +53,17 @@ def register(
     payload: AuthRegisterRequest,
     db: Session = Depends(get_db),
 ) -> MessageResponse:
-    if auth_service.find_user_by_email(db, payload.email):
+    existing_user = auth_service.find_user_by_email(db, payload.email)
+    if existing_user:
+        log_event(
+            "auth.registration_failed",
+            reason="email_exists",
+            user_id=existing_user.id,
+        )
         raise ConflictError("Email already exists")
 
-    auth_service.create_user(db, payload.email, payload.name, payload.password)
+    user = auth_service.create_user(db, payload.email, payload.name, payload.password)
+    log_event("auth.registered", method="password", user_id=user.id)
     return MessageResponse(message="User created successfully")
 
 
@@ -71,6 +89,7 @@ def login(
         settings.secret_key,
         settings.jwt_expiry_hours,
     )
+    _log_login_succeeded(request, user.id, "password")
     return LoginResponse(token=token)
 
 
@@ -96,6 +115,7 @@ def google_login(
         google_id = idinfo["sub"]
         email = idinfo.get("email")
         if not email:
+            log_event("auth.login_failed", method="google", reason="email_missing")
             raise BadRequestError("Email is required for Google Sign-In")
 
         name = idinfo.get("name", email.split("@", 1)[0])
@@ -108,8 +128,10 @@ def google_login(
             settings.secret_key,
             settings.jwt_expiry_hours,
         )
+        _log_login_succeeded(request, user.id, "google")
         return LoginResponse(token=token)
     except ValueError:
+        log_event("auth.login_failed", method="google", reason="invalid_credential")
         raise UnauthorizedError("Invalid Google credential")
 
 

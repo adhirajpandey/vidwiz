@@ -1,23 +1,79 @@
 import contextvars
+import hashlib
 import json
 import logging
 import sys
+from dataclasses import dataclass
 from datetime import datetime, timezone
 from logging.handlers import QueueHandler, QueueListener
 from queue import Queue
-from typing import Any
+from typing import Any, Literal
 
 
 request_id_var: contextvars.ContextVar[str | None] = contextvars.ContextVar(
     "request_id", default=None
 )
 
+AuthKind = Literal["jwt", "api_token", "guest", "admin", "anonymous", "invalid_token"]
+
+
+@dataclass
+class RequestAuth:
+    """How the current request authenticated, filled in by the auth dependencies."""
+
+    kind: AuthKind = "anonymous"
+    user_id: int | None = None
+    guest_id_hash: str | None = None
+    api_token_id: int | None = None
+
+
+# The middleware owns this object. Sync dependencies run in a copied context, so
+# they change its fields instead of setting the variable.
+request_auth_var: contextvars.ContextVar[RequestAuth | None] = contextvars.ContextVar(
+    "request_auth", default=None
+)
+
+_events_logger = logging.getLogger("vidwiz.events")
+
 _listener: QueueListener | None = None
 _configured = False
 
 LOKI_EXCLUDED_PATHS = {
+    "/health",
     "/v2/internal/tasks",
 }
+
+
+def hash_guest_id(guest_session_id: str | None) -> str | None:
+    """Return a stable log identifier; the raw ID grants access to guest chats."""
+    if not guest_session_id:
+        return None
+    return hashlib.sha256(guest_session_id.encode("utf-8")).hexdigest()[:16]
+
+
+def record_request_auth(
+    kind: AuthKind,
+    *,
+    user_id: int | None = None,
+    guest_session_id: str | None = None,
+    api_token_id: int | None = None,
+) -> None:
+    auth = request_auth_var.get()
+    if auth is None:
+        return
+    auth.kind = kind
+    auth.user_id = user_id
+    auth.guest_id_hash = hash_guest_id(guest_session_id)
+    auth.api_token_id = api_token_id
+
+
+def log_event(event: str, **fields: Any) -> None:
+    """Log a named business event. Fields must be IDs or labels, never content."""
+    present = {key: value for key, value in fields.items() if value is not None}
+    details = " ".join(f"{key}={value}" for key, value in present.items())
+    message = f"{event} {details}" if details else event
+    _events_logger.info(message, extra={"event": event, **present})
+
 
 _STANDARD_ATTRS = {
     "name",
@@ -50,10 +106,14 @@ _EXTRA_EXCLUDE_KEYS = {
     "endpoint_line",
     "request_id",
     "user_id",
-    "user_email",
     "message",
+    "event",
+    "auth_kind",
+    "guest_id_hash",
+    "api_token_id",
     "http_method",
     "http_path",
+    "http_route",
     "http_query",
     "http_status",
     "duration_ms",
@@ -93,12 +153,14 @@ class JsonFormatter(logging.Formatter):
         user_id = getattr(record, "user_id", None)
         if user_id is not None:
             payload["user_id"] = user_id
-        user_email = getattr(record, "user_email", None)
-        if user_email:
-            payload["user_email"] = user_email
         for key in (
+            "event",
+            "auth_kind",
+            "guest_id_hash",
+            "api_token_id",
             "http_method",
             "http_path",
+            "http_route",
             "http_query",
             "http_status",
             "duration_ms",

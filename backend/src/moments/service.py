@@ -18,6 +18,7 @@ from src.internal.models import Task, TaskStatus
 from src.internal.scheduling import prepare_video
 from src.library import service as library_service
 from src.library.models import LibraryItem
+from src.logging import log_event
 from src.shared.queues import send_job
 from src.moments.models import AiStatus, CaptureSource, Moment, ResolveStatus
 from src.moments.schemas import (
@@ -278,11 +279,18 @@ def push_moment_to_sqs(db: Session, moment: Moment) -> None:
     try:
         send_job(settings.sqs_ai_note_queue_url, queue_payload(moment))
         logger.info("Queued AI moment", extra={"moment_id": moment.id})
+        log_event("moment_ai.queued", user_id=moment.user_id, moment_id=moment.id)
     except Exception as exc:
         # The charge stays recorded once, so a retry does not charge again.
         logger.error(
             "Failed to queue AI moment",
             extra={"moment_id": moment.id, "error": str(exc)},
+        )
+        log_event(
+            "moment_ai.failed",
+            user_id=moment.user_id,
+            moment_id=moment.id,
+            reason="queue_error",
         )
         moment.ai_status = AiStatus.FAILED
         db.commit()
@@ -293,11 +301,20 @@ def send_ai_job(payload: dict) -> None:
     try:
         send_job(settings.sqs_ai_note_queue_url, payload)
         logger.info("Queued AI moment", extra={"moment_id": payload["id"]})
+        log_event(
+            "moment_ai.queued", user_id=payload["user_id"], moment_id=payload["id"]
+        )
     except Exception as exc:
         # The charge stays recorded once, so a retry does not charge again.
         logger.error(
             "Failed to queue AI moment",
             extra={"moment_id": payload["id"], "error": str(exc)},
+        )
+        log_event(
+            "moment_ai.failed",
+            user_id=payload["user_id"],
+            moment_id=payload["id"],
+            reason="queue_error",
         )
         db = database.SessionLocal()
         try:
@@ -418,9 +435,17 @@ def choose_candidate(db: Session, moment: Moment, video_id: str) -> Moment:
 def fail_resolution(db: Session, moment: Moment) -> None:
     logger.debug("Title resolution failed", extra={"moment_id": moment.id})
     moment.resolve_status = ResolveStatus.UNRESOLVED
-    if moment.ai_status == AiStatus.WAITING_TRANSCRIPT:
+    ai_failed = moment.ai_status == AiStatus.WAITING_TRANSCRIPT
+    if ai_failed:
         moment.ai_status = AiStatus.FAILED
     db.commit()
+    if ai_failed:
+        log_event(
+            "moment_ai.failed",
+            user_id=moment.user_id,
+            moment_id=moment.id,
+            reason="title_unresolved",
+        )
 
 
 def on_transcript_stored(
@@ -505,14 +530,29 @@ def save_ai_text(
     db: Session, moment: Moment, ai_text: str | None, ai_model: str | None = None
 ) -> Moment:
     """Store the worker result; null marks a queued generation as failed."""
+    ai_failed = not ai_text and moment.ai_status == AiStatus.QUEUED
     if ai_text:
         moment.ai_text = ai_text
         moment.ai_model = ai_model
         moment.ai_status = AiStatus.READY
-    elif moment.ai_status == AiStatus.QUEUED:
+    elif ai_failed:
         moment.ai_status = AiStatus.FAILED
     db.commit()
     db.refresh(moment)
+    if ai_text:
+        log_event(
+            "moment_ai.completed",
+            user_id=moment.user_id,
+            moment_id=moment.id,
+            model=ai_model,
+        )
+    elif ai_failed:
+        log_event(
+            "moment_ai.failed",
+            user_id=moment.user_id,
+            moment_id=moment.id,
+            reason="worker_failed",
+        )
     return moment
 
 
@@ -522,16 +562,21 @@ def sweep_stale_ai(db: Session, older_than: timedelta) -> int:
     The worker reports its own failures; this covers jobs whose report never
     arrived. A failed line can be requested again without a new charge.
     """
-    result = db.execute(
+    failed = db.execute(
         sql_update(Moment)
         .where(
             Moment.ai_status == AiStatus.QUEUED,
             Moment.updated_at < func.now() - older_than,
         )
         .values(ai_status=AiStatus.FAILED)
-    )
+        .returning(Moment.id, Moment.user_id)
+    ).all()
     db.commit()
-    return result.rowcount
+    for moment_id, user_id in failed:
+        log_event(
+            "moment_ai.failed", user_id=user_id, moment_id=moment_id, reason="stale"
+        )
+    return len(failed)
 
 
 def list_for_video(db: Session, user_id: int, video_id: str) -> list[Moment]:
