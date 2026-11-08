@@ -1,5 +1,6 @@
 import asyncio
 import json
+import logging
 from datetime import datetime, timezone
 
 import boto3
@@ -1024,7 +1025,37 @@ async def test_title_result_needs_exactly_one_outcome(client, db_session, user):
     assert both.status_code == 400
 
 
-def test_sweep_fails_only_stale_queued_ai_lines(db_session, user):
+@pytest.mark.parametrize(
+    ("ai_status", "report_outcome"),
+    [
+        (AiStatus.QUEUED, lambda db, m: moments_service.save_ai_text(db, m, "Done")),
+        (AiStatus.QUEUED, lambda db, m: moments_service.save_ai_text(db, m, None)),
+        (AiStatus.WAITING_TRANSCRIPT, moments_service.fail_resolution),
+    ],
+)
+def test_ai_outcome_is_not_logged_when_commit_fails(
+    db_session, user, monkeypatch, caplog, ai_status, report_outcome
+):
+    moment, _ = capture(db_session, user)
+    moment.ai_status = ai_status
+    db_session.commit()
+
+    def failing_commit():
+        raise RuntimeError("commit failed")
+
+    monkeypatch.setattr(db_session, "commit", failing_commit)
+    with caplog.at_level(logging.INFO), pytest.raises(RuntimeError):
+        report_outcome(db_session, moment)
+    db_session.rollback()
+
+    assert not [
+        record
+        for record in caplog.records
+        if getattr(record, "event", "").startswith("moment_ai.")
+    ]
+
+
+def test_sweep_fails_only_stale_queued_ai_lines(db_session, user, caplog):
     from datetime import datetime, timedelta
 
     from sqlalchemy import update
@@ -1047,11 +1078,17 @@ def test_sweep_fails_only_stale_queued_ai_lines(db_session, user):
     )
     db_session.commit()
 
-    assert moments_service.sweep_stale_ai(db_session, timedelta(minutes=30)) == 1
+    with caplog.at_level(logging.INFO):
+        assert moments_service.sweep_stale_ai(db_session, timedelta(minutes=30)) == 1
     db_session.refresh(stale)
     db_session.refresh(fresh)
     assert stale.ai_status == AiStatus.FAILED
     assert fresh.ai_status == AiStatus.QUEUED
+    assert [
+        (record.user_id, record.moment_id, record.reason)
+        for record in caplog.records
+        if getattr(record, "event", None) == "moment_ai.failed"
+    ] == [(user.id, stale.id, "stale")]
 
 
 def test_backfill_quotes_fills_imported_moments(db_session, user, monkeypatch):

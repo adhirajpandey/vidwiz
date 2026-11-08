@@ -77,6 +77,30 @@ async def test_failed_request_body_redacts_credentials(client, caplog):
 
 
 @pytest.mark.asyncio
+@pytest.mark.parametrize(
+    ("content_type", "content"),
+    [
+        ("text/plain", "my private note"),
+        ("application/json", '{"note": "my private note"'),
+    ],
+)
+async def test_failed_request_body_that_cannot_be_redacted_is_skipped(
+    client, caplog, content_type, content
+):
+    with caplog.at_level(logging.INFO, logger="vidwiz.api"):
+        response = await client.post(
+            "/v2/payments/checkout",
+            content=content,
+            headers={"Content-Type": content_type},
+        )
+
+    assert response.status_code >= 400
+    record = _find_request_log(caplog, "/v2/payments/checkout")
+    assert record is not None
+    assert record.request_body == "<skipped: unparseable body>"
+
+
+@pytest.mark.asyncio
 async def test_failed_request_body_truncation(client, caplog):
     with caplog.at_level(logging.INFO, logger="vidwiz.api"):
         await client.post("/v2/payments/checkout", json={"data": "a" * 10000})

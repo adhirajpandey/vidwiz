@@ -113,8 +113,7 @@ def _serialize_body(
             truncated, was_truncated = _truncate_text(serialized, max_bytes)
             return truncated, was_truncated, None
 
-        truncated, was_truncated = _truncate_text(decoded, max_bytes)
-        return truncated, was_truncated, None
+        return "<skipped: unparseable body>", False, None
 
     return f"<skipped: {content_type}>", False, None
 
