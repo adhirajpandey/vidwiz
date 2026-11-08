@@ -196,7 +196,9 @@ Describe the FastAPI backend: structure, auth rules, and the request/worker life
 ### Library
 - `library_items` records saved videos per user. Capturing a moment or sending
   a chat message saves the video. `PUT /v2/library/{video_id}` saves
-  explicitly; `DELETE` removes the item and keeps its moments.
+  explicitly. `DELETE` removes the item with that user's moments and video
+  chats in one transaction. The shared video, transcript, and overview stay, as
+  does the `wiz_chat` ledger entry, so saving the video again costs no credits.
 - `GET /v2/library` returns moment and chat counts, a latest-moment preview
   (note, AI line, or quote), transcript/overview status, `added_at`, and
   `last_activity_at` (latest of added, opened, moment update, or chat message).

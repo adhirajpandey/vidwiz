@@ -1,12 +1,15 @@
 from datetime import datetime, timedelta, timezone
 
 import pytest
+from sqlalchemy import func, select
 
 from src.conversations import service as conversations_service
-from src.conversations.models import Conversation
+from src.conversations.models import Conversation, ConversationScope, Message
+from src.credits import service as credits_service
 from src.library import service as library_service
 from src.library.models import LibraryItem
 from src.moments import service as moments_service
+from src.moments.models import Moment
 from src.moments.schemas import CaptureCreate
 from src.tests.test_moments import auth_headers
 from src.videos.models import Video
@@ -95,6 +98,75 @@ async def test_library_save_and_remove(client, db_session, user):
     missing = await client.delete("/v2/library/ccccccccccc", headers=headers)
     assert removed.status_code == 200
     assert missing.status_code == 404
+
+
+def _seed_video_activity(db_session, owner, video_id):
+    moments_service.capture(
+        db_session,
+        owner.id,
+        CaptureCreate(video=video_id, at=5, ai=False),
+        lambda *_: None,
+    )
+    conversation = conversations_service.create_conversation(
+        db_session, video_id, owner.id, None
+    )
+    db_session.add(
+        Message(conversation_id=conversation.id, role="user", content="Question")
+    )
+    db_session.commit()
+
+
+def _activity_counts(db_session, owner_id):
+    db_session.expire_all()
+    moments = db_session.scalar(
+        select(func.count()).select_from(Moment).where(Moment.user_id == owner_id)
+    )
+    chats = db_session.scalar(
+        select(func.count())
+        .select_from(Conversation)
+        .where(Conversation.user_id == owner_id)
+    )
+    messages = db_session.scalar(
+        select(func.count())
+        .select_from(Message)
+        .join(Conversation)
+        .where(Conversation.user_id == owner_id)
+    )
+    return moments, chats, messages
+
+
+@pytest.mark.asyncio
+async def test_remove_deletes_only_this_users_data_for_the_video(
+    client, db_session, user
+):
+    from src.auth import service as auth_service
+
+    other = auth_service.create_user(db_session, "o@example.com", "Other", "pw123456")
+    add_video(db_session, user, "eeeeeeeeeee", "Removed")
+    add_video(db_session, user, "fffffffffff", "Kept")
+    _seed_video_activity(db_session, user, "eeeeeeeeeee")
+    _seed_video_activity(db_session, user, "fffffffffff")
+    _seed_video_activity(db_session, other, "eeeeeeeeeee")
+    library_chat = conversations_service.create_conversation(
+        db_session, None, user.id, None, ConversationScope.LIBRARY
+    )
+    credits_service.charge_wiz_chat_for_video(db_session, user.id, "eeeeeeeeeee")
+
+    response = await client.delete(
+        "/v2/library/eeeeeeeeeee", headers=auth_headers(user)
+    )
+
+    assert response.status_code == 200
+    # One moment, one video chat with its message, and the library chat remain.
+    assert _activity_counts(db_session, user.id) == (1, 2, 1)
+    assert db_session.get(Conversation, library_chat.id) is not None
+    assert db_session.get(LibraryItem, (user.id, "eeeeeeeeeee")) is None
+    assert db_session.get(LibraryItem, (user.id, "fffffffffff")) is not None
+    # Another user's copy and the shared video are untouched.
+    assert _activity_counts(db_session, other.id) == (1, 1, 1)
+    assert db_session.get(LibraryItem, (other.id, "eeeeeeeeeee")) is not None
+    assert db_session.scalar(select(Video).where(Video.video_id == "eeeeeeeeeee"))
+    assert credits_service.wiz_chat_unlocked(db_session, user.id, "eeeeeeeeeee")
 
 
 def test_library_is_per_user(db_session, user):
