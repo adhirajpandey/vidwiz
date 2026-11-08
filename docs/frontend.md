@@ -178,6 +178,9 @@ Workers.
   Library rows separate channel, moment count, chats, activity, and the latest
   moment text. Feed groups follow capture order, with moments in video-time
   order inside each group. Quote-only moments keep their text preview.
+- **Video actions**: each Library row has a menu with Delete. A dialog states
+  how many moments and chats go with the video, starts on Cancel, and has no
+  undo. Deleting the only row on the final page moves to the page before it.
 - **Moment actions**: note editors use Enter to save, Shift+Enter for a new
   line, and Escape to cancel, matching the extension. Deleting asks inline
   before making a request. Escape or

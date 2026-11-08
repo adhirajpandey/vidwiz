@@ -19,6 +19,7 @@ import { extractVideoId } from '../../lib/videoUtils';
 import { cn } from '../../lib/utils';
 import LinkCard from './LinkCard';
 import SortMenu from './SortMenu';
+import VideoActions from './VideoActions';
 import VideoRow from './VideoRow';
 import { looksLikeLink } from './links';
 import { useLibrary } from './queries';
@@ -62,7 +63,16 @@ export default function LibraryPage() {
     return () => clearTimeout(timer);
   }, [filter, link, q, params, setParams]);
 
-  const update = (key: string, value: string) => {
+  // Deleting the only row on the final page would otherwise leave an empty page.
+  const lastPage = library.data && !library.isPlaceholderData ? Math.max(library.data.total_pages, 1) : null;
+  useEffect(() => {
+    if (lastPage === null || page <= lastPage) return;
+    const next = new URLSearchParams(params);
+    if (lastPage > 1) next.set('page', String(lastPage)); else next.delete('page');
+    setParams(next, { replace: true });
+  }, [lastPage, page, params, setParams]);
+
+  const update =(key: string, value: string) => {
     const next = new URLSearchParams(params);
     next.set(key, value);
     if (key !== 'page') next.delete('page');
@@ -100,7 +110,10 @@ export default function LibraryPage() {
           {library.isError && <ErrorState title="The library did not load" message="Check your connection and try again." onRetry={() => void library.refetch()} />}
           {library.data && total === 0 && <EmptyState icon={<LibraryIcon className="size-5" />} title={q ? 'No titles or channels match' : view === 'all' ? 'No saved videos yet' : 'No videos in this view'}>{q ? 'Try a shorter search, or search inside transcripts from the search bar.' : 'Paste a YouTube link above, or capture a moment while you watch.'}</EmptyState>}
           {library.data && <div className="divide-y divide-border/70" aria-busy={library.isFetching}>
-            {library.data.videos.map(video => video.video_id === justAdded?.target ? <JustAdded key={video.video_id} arrival={justAdded} onShown={shown}><VideoRow video={video} /></JustAdded> : <VideoRow key={video.video_id} video={video} />)}
+            {library.data.videos.map(video => {
+              const row = <VideoRow key={video.video_id} video={video} actions={<VideoActions video={video} />} />;
+              return video.video_id === justAdded?.target ? <JustAdded key={video.video_id} arrival={justAdded} onShown={shown}>{row}</JustAdded> : row;
+            })}
           </div>}
           {library.data && library.data.total_pages > 1 && <div className="flex items-center justify-between gap-3 text-sm">
             <Button disabled={page <= 1 || library.isPlaceholderData} onClick={() => update('page', String(page - 1))}>Previous</Button>

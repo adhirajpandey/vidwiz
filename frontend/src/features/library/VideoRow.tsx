@@ -3,9 +3,8 @@ import type { ReactNode } from 'react';
 import { Sparkles, StickyNote, Quote } from 'lucide-react';
 import type { LibraryVideo } from '../../api';
 import DurationThumbnail from '../../components/ui/DurationThumbnail';
-import { formatRelative, videoTitle } from '../../lib/format';
-
-const plural = (count: number, word: string) => `${count} ${count === 1 ? word : `${word}s`}`;
+import { formatRelative, plural, videoTitle } from '../../lib/format';
+import { cn } from '../../lib/utils';
 
 const KIND_ICON = { note: StickyNote, ai: Sparkles, quote: Quote };
 
@@ -17,7 +16,7 @@ function highlight(text: string, q: string | null): ReactNode {
   return <>{text.slice(0, at)}<mark className="rounded-[3px] bg-saved/60 px-0.5 text-foreground">{text.slice(at, at + q.length)}</mark>{highlight(text.slice(at + q.length), q)}</>;
 }
 
-export default function VideoRow({ video, to }: { video: LibraryVideo; to?: string }) {
+export default function VideoRow({ video, to, actions }: { video: LibraryVideo; to?: string; actions?: ReactNode }) {
   const [params] = useSearchParams();
   // Match the Library controls: emphasize the sorted count and mark search matches.
   const q = params.get('q');
@@ -26,8 +25,8 @@ export default function VideoRow({ video, to }: { video: LibraryVideo; to?: stri
   const channel = video.metadata?.uploader;
   const latest = video.latest_moment;
   const LatestIcon = latest ? KIND_ICON[latest.kind] : null;
-  return (
-    <Link to={to ?? `/v/${video.video_id}`} className="flex items-start gap-4 rounded-[12px] p-2 hover:bg-muted">
+  const row = (
+    <Link to={to ?? `/v/${video.video_id}`} className={cn('flex items-start gap-4 rounded-[12px] p-2', actions ? 'pr-11' : 'hover:bg-muted')}>
       <DurationThumbnail video={video} className="w-32 sm:w-40" />
       <div className="min-w-0 flex-1 py-0.5">
         <p className="line-clamp-2 text-[15px] font-semibold leading-snug">{highlight(videoTitle(video.title, video.video_id), q)}</p>
@@ -56,4 +55,7 @@ export default function VideoRow({ video, to }: { video: LibraryVideo; to?: stri
       </div>
     </Link>
   );
+  if (!actions) return row;
+  // Beside the link, not inside it: a menu cannot be nested in a link.
+  return <div className="group relative rounded-[12px] hover:bg-muted">{row}<div className="absolute right-1 top-1">{actions}</div></div>;
 }
