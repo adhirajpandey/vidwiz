@@ -1,7 +1,9 @@
 from datetime import datetime, timedelta, timezone
 
 import pytest
-from sqlalchemy import func, select
+from sqlalchemy import delete, event, func, insert, select, text
+from sqlalchemy.exc import OperationalError
+from sqlalchemy.orm import sessionmaker
 
 from src.conversations import service as conversations_service
 from src.conversations.models import Conversation, ConversationScope, Message
@@ -167,6 +169,71 @@ async def test_remove_deletes_only_this_users_data_for_the_video(
     assert db_session.get(LibraryItem, (other.id, "eeeeeeeeeee")) is not None
     assert db_session.scalar(select(Video).where(Video.video_id == "eeeeeeeeeee"))
     assert credits_service.wiz_chat_unlocked(db_session, user.id, "eeeeeeeeeee")
+
+
+def test_remove_survives_a_message_arriving_mid_delete(engine):
+    """Uses real commits: the race needs a second connection to see the chat."""
+    from src.auth import service as auth_service
+
+    make_session = sessionmaker(bind=engine, autocommit=False, autoflush=False)
+    video_id = "ggggggggggg"
+    with make_session() as db:
+        owner = auth_service.create_user(db, "race@example.com", "Race", "pw123456")
+        user_id = owner.id
+        db.add(Video(video_id=video_id, title="Race"))
+        db.flush()
+        db.add(LibraryItem(user_id=user_id, video_id=video_id))
+        conversation = Conversation(video_id=video_id, user_id=user_id)
+        db.add(conversation)
+        db.flush()
+        conversation_id = conversation.id
+        db.add(Message(conversation_id=conversation_id, role="user", content="First"))
+        db.commit()
+
+    fired = []
+
+    def send_message_mid_delete(_conn, _cursor, statement, *_):
+        if fired or not statement.startswith("DELETE FROM conversations"):
+            return
+        fired.append(True)
+        with engine.connect() as other:
+            other.execute(text("SET LOCAL lock_timeout = '200ms'"))
+            try:
+                other.execute(
+                    insert(Message).values(
+                        conversation_id=conversation_id, role="user", content="Late"
+                    )
+                )
+                other.commit()
+            except OperationalError:
+                # The delete holds the chat, so this write waits and gives up.
+                other.rollback()
+
+    event.listen(engine, "before_cursor_execute", send_message_mid_delete)
+    try:
+        with make_session() as db:
+            assert library_service.remove_video(db, user_id, video_id) is True
+        assert fired
+        with make_session() as db:
+            assert db.get(Conversation, conversation_id) is None
+            assert db.get(LibraryItem, (user_id, video_id)) is None
+    finally:
+        event.remove(engine, "before_cursor_execute", send_message_mid_delete)
+        with engine.begin() as connection:
+            connection.execute(
+                delete(Message).where(Message.conversation_id == conversation_id)
+            )
+            connection.execute(
+                delete(Conversation).where(Conversation.id == conversation_id)
+            )
+            connection.execute(
+                delete(LibraryItem).where(LibraryItem.user_id == user_id)
+            )
+            connection.execute(delete(Video).where(Video.video_id == video_id))
+            connection.execute(
+                text("DELETE FROM credits_ledger WHERE user_id = :u"), {"u": user_id}
+            )
+            connection.execute(text("DELETE FROM users WHERE id = :u"), {"u": user_id})
 
 
 def test_library_is_per_user(db_session, user):

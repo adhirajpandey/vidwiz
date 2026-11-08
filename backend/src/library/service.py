@@ -40,18 +40,26 @@ def remove_video(db: Session, user_id: int, video_id: str) -> bool:
     if item is None:
         return False
     logger.debug("Removing video", extra={"user_id": user_id, "video_id": video_id})
-    conversations = select(Conversation.id).where(
-        Conversation.user_id == user_id, Conversation.video_id == video_id
+    # Lock the chats so a message sent during the delete waits for it, instead of
+    # making the conversation delete fail on the messages foreign key.
+    conversation_ids = (
+        db.execute(
+            select(Conversation.id)
+            .where(Conversation.user_id == user_id, Conversation.video_id == video_id)
+            .with_for_update()
+        )
+        .scalars()
+        .all()
     )
     # Messages go first: their foreign key has no database cascade.
     db.execute(
         delete(Message)
-        .where(Message.conversation_id.in_(conversations))
+        .where(Message.conversation_id.in_(conversation_ids))
         .execution_options(synchronize_session=False)
     )
     db.execute(
         delete(Conversation)
-        .where(Conversation.user_id == user_id, Conversation.video_id == video_id)
+        .where(Conversation.id.in_(conversation_ids))
         .execution_options(synchronize_session=False)
     )
     db.execute(
