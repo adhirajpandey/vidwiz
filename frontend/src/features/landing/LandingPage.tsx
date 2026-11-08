@@ -535,8 +535,8 @@ export default function LandingPage() {
 
         <section className="pricing" id="pricing" aria-labelledby="price-h">
           <div className="wrap">
-            <Reveal as="h2" id="price-h">Free to save <span className="hl mark">and search.</span></Reveal>
-            <Reveal as="p" delay={1} className="body">Credits cover the extras. Every new account starts with {config.SIGNUP_CREDITS}.</Reveal>
+            <Reveal as="h2" id="price-h">Start free. <span className="hl mark">Pay only for the AI extras.</span></Reveal>
+            <Reveal as="p" delay={1} className="body">Your first {config.SIGNUP_CREDITS} credits are on us. That's {config.SIGNUP_CREDITS} AI notes, or {config.SIGNUP_CREDITS / 5} videos to ask about.</Reveal>
             <div className="plans">
               <Reveal delay={1} className="plan free">
                 <h3>Free</h3>
@@ -544,17 +544,17 @@ export default function LandingPage() {
                 <ul>
                   <li>{CHECK}Save moments</li>
                   <li>{CHECK}Search moments and transcripts</li>
-                  <li>{CHECK}Ask your library</li>
+                  <li>{CHECK}Ask your library, within a daily limit</li>
                 </ul>
               </Reveal>
               <Reveal delay={2} className="plan">
                 <h3>Credits</h3>
-                <p className="price">{config.SIGNUP_CREDITS} <span>to start</span></p>
+                <p className="price">{config.SIGNUP_CREDITS} <span>free</span></p>
                 <ul>
-                  <li>AI line on a moment<b>1 credit</b></li>
-                  <li>Ask about one video<b>5 credits</b></li>
+                  <li>AI note on a moment<b>1 credit</b></li>
+                  <li>Chat with a video<b>5 credits</b></li>
                 </ul>
-                <p className="note">You pay for a video once. Questions after that are free, within a daily limit.</p>
+                <p className="note">Each video costs credits only once. Run out? Buy more anytime.</p>
               </Reveal>
             </div>
           </div>
