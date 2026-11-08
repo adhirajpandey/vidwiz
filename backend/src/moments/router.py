@@ -8,6 +8,7 @@ from src.auth.dependencies import (
 )
 from src.database import get_db
 from src.exceptions import BadRequestError, NotFoundError
+from src.logging import log_event
 from src.models import MessageResponse
 from src.moments import export
 from src.moments import service as moments_service
@@ -51,6 +52,14 @@ def create_capture(
     user_id: int = Depends(get_current_user_id_or_api_token),
 ) -> CaptureResponse:
     moment, merged = moments_service.capture(db, user_id, payload, background.add_task)
+    log_event(
+        "capture.created",
+        user_id=user_id,
+        moment_id=moment.id,
+        video_id=moment.video_id,
+        source=payload.source.value,
+        merged=merged,
+    )
     if merged:
         response.status_code = status.HTTP_200_OK
     return CaptureResponse(moment=MomentRead.model_validate(moment), merged=merged)

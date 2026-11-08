@@ -1,23 +1,30 @@
 import inspect
 import json
 import logging
+import re
 import time
 from typing import Any
 from uuid import uuid4
 from urllib.parse import parse_qs
 
-import jwt
 from fastapi import status
 from fastapi.responses import JSONResponse
 
-from src.config import settings
 from src.exceptions import ErrorCode
 from src.models import ErrorPayload, ErrorResponse
-from src.logging import request_id_var
+from src.logging import RequestAuth, request_auth_var, request_id_var
 
+
+# These routes carry credentials, chats, notes, transcripts, or payment details,
+# so their bodies are never logged, even on failure.
+NO_BODY_PATHS = re.compile(
+    r"^/v2/(auth/|users/|conversations|moments|captures|internal/"
+    r"|payments/webhooks/|videos/[^/]+/(moments|notes)(/|$))"
+)
 
 REDACT_FIELDS = {
     "password",
+    "credential",
     "token",
     "access_token",
     "refresh_token",
@@ -139,32 +146,15 @@ def _build_log_message(
     return f"{method} {path} {status} {duration_ms}ms"
 
 
-def _extract_user_info(
-    headers: dict[str, str],
-) -> dict[str, Any]:
-    authorization = headers.get("authorization")
-    if not authorization or not authorization.startswith("Bearer "):
-        return {}
-    token = authorization.split(" ", 1)[1]
-    try:
-        payload = jwt.decode(token, settings.secret_key, algorithms=["HS256"])
-    except Exception:
-        return {}
-
-    user_fields: dict[str, Any] = {}
-    user_id = payload.get("user_id")
-    if user_id is not None:
-        try:
-            user_fields["user_id"] = int(user_id)
-        except (TypeError, ValueError):
-            user_fields["user_id"] = user_id
-    user_email = payload.get("email")
-    if user_email:
-        user_fields["user_email"] = user_email
-    return user_fields
+def _should_log_bodies(path: str | None, status_code: int) -> bool:
+    return status_code >= 400 and not NO_BODY_PATHS.match(path or "")
 
 
 def _extract_client_ip(scope, headers: dict[str, str]) -> str | None:
+    cloudflare_ip = headers.get("cf-connecting-ip")
+    if cloudflare_ip:
+        return cloudflare_ip.strip()
+
     forwarded_for = headers.get("x-forwarded-for")
     if forwarded_for:
         return forwarded_for.split(",", 1)[0].strip()
@@ -185,10 +175,16 @@ def _build_base_fields(
     endpoint_name: str | None,
     endpoint_file: str | None,
     endpoint_line: int | None,
+    auth: RequestAuth,
 ) -> dict[str, Any]:
     return {
+        "auth_kind": auth.kind,
+        "user_id": auth.user_id,
+        "guest_id_hash": auth.guest_id_hash,
+        "api_token_id": auth.api_token_id,
         "http_method": scope.get("method"),
         "http_path": scope.get("path"),
+        "http_route": getattr(scope.get("route"), "path", None),
         "http_query": scope.get("query_string", b"").decode("latin-1"),
         "http_status": status_code,
         "duration_ms": duration_ms,
@@ -205,10 +201,11 @@ def _build_request_body_fields(
     body: bytes,
     content_type: str | None,
     max_bytes: int,
+    log_body: bool,
 ) -> dict[str, Any]:
     request_body_text = None
     request_body_truncated = False
-    if body:
+    if body and log_body:
         request_body_text, request_body_truncated, _ = _serialize_body(
             body,
             content_type,
@@ -229,13 +226,18 @@ def _build_response_body_fields(
     max_bytes: int,
     response_headers: dict[str, str],
     response_body_truncated: bool,
+    log_body: bool,
 ) -> dict[str, Any]:
-    response_body_text, response_body_text_truncated, _ = _serialize_body(
-        body,
-        content_type,
-        max_bytes,
+    response_body_text, response_body_text_truncated = None, False
+    if log_body:
+        response_body_text, response_body_text_truncated, _ = _serialize_body(
+            body,
+            content_type,
+            max_bytes,
+        )
+    response_body_truncated = log_body and (
+        response_body_truncated or response_body_text_truncated
     )
-    response_body_truncated = response_body_truncated or response_body_text_truncated
     return {
         "response_content_type": content_type,
         "response_body": response_body_text,
@@ -270,9 +272,10 @@ class RequestLoggingMiddleware:
             key.decode("latin-1").lower(): value.decode("latin-1")
             for key, value in scope.get("headers", [])
         }
-        user_fields = _extract_user_info(headers)
         request_id = headers.get("x-request-id") or uuid4().hex
         token = request_id_var.set(request_id)
+        auth = RequestAuth()
+        auth_token = request_auth_var.set(auth)
 
         body = b""
         stored_messages = []
@@ -340,8 +343,8 @@ class RequestLoggingMiddleware:
                 endpoint_name=endpoint_name,
                 endpoint_file=endpoint_file,
                 endpoint_line=endpoint_line,
+                auth=auth,
             )
-            base_fields.update(user_fields)
             self.logger.exception(
                 "Unhandled exception during request", extra=base_fields
             )
@@ -351,6 +354,7 @@ class RequestLoggingMiddleware:
                 body=body,
                 content_type=request_content_type,
                 max_bytes=self.max_request_body,
+                log_body=_should_log_bodies(scope.get("path"), 500),
             )
             response_fields = {
                 "response_content_type": None,
@@ -394,12 +398,14 @@ class RequestLoggingMiddleware:
                 endpoint_name=endpoint_name,
                 endpoint_file=endpoint_file,
                 endpoint_line=endpoint_line,
+                auth=auth,
             )
-            base_fields.update(user_fields)
+            log_body = _should_log_bodies(scope.get("path"), status_code)
             request_fields = _build_request_body_fields(
                 body=body,
                 content_type=request_content_type,
                 max_bytes=self.max_request_body,
+                log_body=log_body,
             )
             response_fields = _build_response_body_fields(
                 body=bytes(response_body),
@@ -407,6 +413,7 @@ class RequestLoggingMiddleware:
                 max_bytes=self.max_response_body,
                 response_headers=response_headers,
                 response_body_truncated=response_body_truncated,
+                log_body=log_body,
             )
 
             level = logging.INFO
@@ -423,4 +430,5 @@ class RequestLoggingMiddleware:
                 extra={**base_fields, **request_fields, **response_fields},
             )
         finally:
+            request_auth_var.reset(auth_token)
             request_id_var.reset(token)
