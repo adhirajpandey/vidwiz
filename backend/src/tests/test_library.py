@@ -1,12 +1,17 @@
 from datetime import datetime, timedelta, timezone
 
 import pytest
+from sqlalchemy import delete, event, func, insert, select, text
+from sqlalchemy.exc import OperationalError
+from sqlalchemy.orm import sessionmaker
 
 from src.conversations import service as conversations_service
-from src.conversations.models import Conversation
+from src.conversations.models import Conversation, ConversationScope, Message
+from src.credits import service as credits_service
 from src.library import service as library_service
 from src.library.models import LibraryItem
 from src.moments import service as moments_service
+from src.moments.models import Moment
 from src.moments.schemas import CaptureCreate
 from src.tests.test_moments import auth_headers
 from src.videos.models import Video
@@ -95,6 +100,140 @@ async def test_library_save_and_remove(client, db_session, user):
     missing = await client.delete("/v2/library/ccccccccccc", headers=headers)
     assert removed.status_code == 200
     assert missing.status_code == 404
+
+
+def _seed_video_activity(db_session, owner, video_id):
+    moments_service.capture(
+        db_session,
+        owner.id,
+        CaptureCreate(video=video_id, at=5, ai=False),
+        lambda *_: None,
+    )
+    conversation = conversations_service.create_conversation(
+        db_session, video_id, owner.id, None
+    )
+    db_session.add(
+        Message(conversation_id=conversation.id, role="user", content="Question")
+    )
+    db_session.commit()
+
+
+def _activity_counts(db_session, owner_id):
+    db_session.expire_all()
+    moments = db_session.scalar(
+        select(func.count()).select_from(Moment).where(Moment.user_id == owner_id)
+    )
+    chats = db_session.scalar(
+        select(func.count())
+        .select_from(Conversation)
+        .where(Conversation.user_id == owner_id)
+    )
+    messages = db_session.scalar(
+        select(func.count())
+        .select_from(Message)
+        .join(Conversation)
+        .where(Conversation.user_id == owner_id)
+    )
+    return moments, chats, messages
+
+
+@pytest.mark.asyncio
+async def test_remove_deletes_only_this_users_data_for_the_video(
+    client, db_session, user
+):
+    from src.auth import service as auth_service
+
+    other = auth_service.create_user(db_session, "o@example.com", "Other", "pw123456")
+    add_video(db_session, user, "eeeeeeeeeee", "Removed")
+    add_video(db_session, user, "fffffffffff", "Kept")
+    _seed_video_activity(db_session, user, "eeeeeeeeeee")
+    _seed_video_activity(db_session, user, "fffffffffff")
+    _seed_video_activity(db_session, other, "eeeeeeeeeee")
+    library_chat = conversations_service.create_conversation(
+        db_session, None, user.id, None, ConversationScope.LIBRARY
+    )
+    credits_service.charge_wiz_chat_for_video(db_session, user.id, "eeeeeeeeeee")
+
+    response = await client.delete(
+        "/v2/library/eeeeeeeeeee", headers=auth_headers(user)
+    )
+
+    assert response.status_code == 200
+    # One moment, one video chat with its message, and the library chat remain.
+    assert _activity_counts(db_session, user.id) == (1, 2, 1)
+    assert db_session.get(Conversation, library_chat.id) is not None
+    assert db_session.get(LibraryItem, (user.id, "eeeeeeeeeee")) is None
+    assert db_session.get(LibraryItem, (user.id, "fffffffffff")) is not None
+    # Another user's copy and the shared video are untouched.
+    assert _activity_counts(db_session, other.id) == (1, 1, 1)
+    assert db_session.get(LibraryItem, (other.id, "eeeeeeeeeee")) is not None
+    assert db_session.scalar(select(Video).where(Video.video_id == "eeeeeeeeeee"))
+    assert credits_service.wiz_chat_unlocked(db_session, user.id, "eeeeeeeeeee")
+
+
+def test_remove_survives_a_message_arriving_mid_delete(engine):
+    """Uses real commits: the race needs a second connection to see the chat."""
+    from src.auth import service as auth_service
+
+    make_session = sessionmaker(bind=engine, autocommit=False, autoflush=False)
+    video_id = "ggggggggggg"
+    with make_session() as db:
+        owner = auth_service.create_user(db, "race@example.com", "Race", "pw123456")
+        user_id = owner.id
+        db.add(Video(video_id=video_id, title="Race"))
+        db.flush()
+        db.add(LibraryItem(user_id=user_id, video_id=video_id))
+        conversation = Conversation(video_id=video_id, user_id=user_id)
+        db.add(conversation)
+        db.flush()
+        conversation_id = conversation.id
+        db.add(Message(conversation_id=conversation_id, role="user", content="First"))
+        db.commit()
+
+    fired = []
+
+    def send_message_mid_delete(_conn, _cursor, statement, *_):
+        if fired or not statement.startswith("DELETE FROM conversations"):
+            return
+        fired.append(True)
+        with engine.connect() as other:
+            other.execute(text("SET LOCAL lock_timeout = '200ms'"))
+            try:
+                other.execute(
+                    insert(Message).values(
+                        conversation_id=conversation_id, role="user", content="Late"
+                    )
+                )
+                other.commit()
+            except OperationalError:
+                # The delete holds the chat, so this write waits and gives up.
+                other.rollback()
+
+    event.listen(engine, "before_cursor_execute", send_message_mid_delete)
+    try:
+        with make_session() as db:
+            assert library_service.remove_video(db, user_id, video_id) is True
+        assert fired
+        with make_session() as db:
+            assert db.get(Conversation, conversation_id) is None
+            assert db.get(LibraryItem, (user_id, video_id)) is None
+    finally:
+        event.remove(engine, "before_cursor_execute", send_message_mid_delete)
+        with engine.begin() as connection:
+            connection.execute(
+                delete(Message).where(Message.conversation_id == conversation_id)
+            )
+            connection.execute(
+                delete(Conversation).where(Conversation.id == conversation_id)
+            )
+            connection.execute(
+                delete(LibraryItem).where(LibraryItem.user_id == user_id)
+            )
+            connection.execute(delete(Video).where(Video.video_id == video_id))
+            connection.execute(
+                text("DELETE FROM credits_ledger WHERE user_id = :u"), {"u": user_id}
+            )
+            connection.execute(text("DELETE FROM users WHERE id = :u"), {"u": user_id})
 
 
 def test_library_is_per_user(db_session, user):

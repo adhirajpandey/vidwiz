@@ -1,6 +1,6 @@
 import * as RadixDialog from '@radix-ui/react-dialog';
 import { X } from 'lucide-react';
-import type { ReactNode } from 'react';
+import type { ComponentPropsWithoutRef, ReactNode } from 'react';
 import { cn } from '../../lib/utils';
 import { Tooltip } from './Tooltip';
 
@@ -8,16 +8,17 @@ export const Dialog = RadixDialog.Root;
 export const DialogTrigger = RadixDialog.Trigger;
 export const DialogClose = RadixDialog.Close;
 
-export function DialogContent({ title, description, children, className }: {
+export function DialogContent({ title, description, children, className, ...props }: {
   title: string;
   description?: string;
   children: ReactNode;
   className?: string;
-}) {
+} & Pick<ComponentPropsWithoutRef<typeof RadixDialog.Content>, 'onOpenAutoFocus' | 'onCloseAutoFocus'>) {
   return (
     <RadixDialog.Portal>
       <RadixDialog.Overlay className="fixed inset-0 z-50 bg-[hsl(236_36%_10%/0.45)]" />
       <RadixDialog.Content
+        {...props}
         className={cn(
           'fixed left-1/2 top-1/2 z-50 w-[calc(100%-2rem)] max-w-md -translate-x-1/2 -translate-y-1/2 rounded-xl border border-border bg-card p-5 shadow-xl focus:outline-none',
           className,

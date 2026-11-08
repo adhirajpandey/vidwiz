@@ -7,6 +7,8 @@ export function formatClock(seconds: number): string {
   return hours ? `${hours}:${String(minutes).padStart(2, '0')}:${rest}` : `${minutes}:${rest}`;
 }
 
+export const plural = (count: number, word: string) => `${count} ${count === 1 ? word : `${word}s`}`;
+
 export function thumbnailUrl(videoId: string): string {
   return `https://i.ytimg.com/vi/${videoId}/mqdefault.jpg`;
 }

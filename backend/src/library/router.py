@@ -53,7 +53,7 @@ def save_video(
 @router.delete(
     "/{video_id}",
     response_model=MessageResponse,
-    description="Remove a video from the library. Its moments are kept.",
+    description="Delete a video from the library with your moments and chats for it.",
 )
 def remove_video(
     path: VideoIdPath = Depends(get_video_id_path),

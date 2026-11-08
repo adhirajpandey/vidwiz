@@ -46,7 +46,7 @@ export default function PrivacyPolicyPage() {
 
         <DocSection title="Your controls and contact">
           <p>
-            You can edit a personal note or delete an individual moment. Deleting a moment removes its moment record; transcripts, video metadata, logs and other records are stored separately. For privacy questions or requests about your account or data, contact{' '}
+            You can edit a personal note, delete an individual moment or delete a video from your library. Deleting a moment removes its moment record. Deleting a video removes your moments and chats for that video. Transcripts, video metadata, logs and other records are stored separately. For privacy questions or requests about your account or data, contact{' '}
             <DocLink href="mailto:support@vidwiz.online">support@vidwiz.online</DocLink>.
           </p>
           <p>
