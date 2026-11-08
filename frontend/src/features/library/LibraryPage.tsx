@@ -64,7 +64,8 @@ export default function LibraryPage() {
   }, [filter, link, q, params, setParams]);
 
   // Deleting the only row on the final page would otherwise leave an empty page.
-  const lastPage = library.data && !library.isPlaceholderData ? Math.max(library.data.total_pages, 1) : null;
+  // Wait for the fetch to end: until then the count can be another page's or an old one.
+  const lastPage = library.data && !library.isFetching ? Math.max(library.data.total_pages, 1) : null;
   useEffect(() => {
     if (lastPage === null || page <= lastPage) return;
     const next = new URLSearchParams(params);
