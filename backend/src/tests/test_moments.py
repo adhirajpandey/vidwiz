@@ -100,6 +100,12 @@ def charges(db_session, user) -> list[CreditsLedger]:
     )
 
 
+def logged_events(caplog, event: str) -> list[logging.LogRecord]:
+    return [
+        record for record in caplog.records if getattr(record, "event", None) == event
+    ]
+
+
 def capture(db_session, user, **fields):
     fields.setdefault("video", VIDEO_ID)
     fields.setdefault("at", 100)
@@ -1053,6 +1059,27 @@ def test_ai_outcome_is_not_logged_when_commit_fails(
         for record in caplog.records
         if getattr(record, "event", "").startswith("moment_ai.")
     ]
+
+
+def test_resolution_failure_event_uses_ids_read_before_commit(
+    db_session, user, monkeypatch, caplog
+):
+    moment, _ = capture(db_session, user, video=None, title="Talk", ai=True)
+    moment_id, user_id = moment.id, user.id
+    real_commit = db_session.commit
+
+    def commit_then_detach():
+        real_commit()
+        db_session.expunge(moment)
+
+    monkeypatch.setattr(db_session, "commit", commit_then_detach)
+    with caplog.at_level(logging.INFO):
+        moments_service.fail_resolution(db_session, moment)
+
+    [event] = logged_events(caplog, "moment_ai.failed")
+    assert event.user_id == user_id
+    assert event.moment_id == moment_id
+    assert event.reason == "title_unresolved"
 
 
 def test_sweep_fails_only_stale_queued_ai_lines(db_session, user, caplog):

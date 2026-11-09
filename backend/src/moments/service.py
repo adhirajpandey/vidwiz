@@ -438,12 +438,13 @@ def fail_resolution(db: Session, moment: Moment) -> None:
     ai_failed = moment.ai_status == AiStatus.WAITING_TRANSCRIPT
     if ai_failed:
         moment.ai_status = AiStatus.FAILED
+    user_id, moment_id = moment.user_id, moment.id
     db.commit()
     if ai_failed:
         log_event(
             "moment_ai.failed",
-            user_id=moment.user_id,
-            moment_id=moment.id,
+            user_id=user_id,
+            moment_id=moment_id,
             reason="title_unresolved",
         )
 
