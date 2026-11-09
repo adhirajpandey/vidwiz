@@ -438,12 +438,13 @@ def fail_resolution(db: Session, moment: Moment) -> None:
     ai_failed = moment.ai_status == AiStatus.WAITING_TRANSCRIPT
     if ai_failed:
         moment.ai_status = AiStatus.FAILED
+    user_id, moment_id = moment.user_id, moment.id
     db.commit()
     if ai_failed:
         log_event(
             "moment_ai.failed",
-            user_id=moment.user_id,
-            moment_id=moment.id,
+            user_id=user_id,
+            moment_id=moment_id,
             reason="title_unresolved",
         )
 
@@ -519,10 +520,17 @@ def collect_pending_ai(db: Session, video_id: str) -> list[Moment]:
         .all()
     )
     queued = []
+    newly_queued = []
     for moment in waiting:
-        if moment.ai_status == AiStatus.QUEUED or _request_ai(db, moment):
+        if moment.ai_status == AiStatus.QUEUED:
             queued.append(moment)
+        elif _request_ai(db, moment):
+            queued.append(moment)
+            newly_queued.append((moment.user_id, moment.id))
     db.commit()
+    # Moments that were already queued got their event when they were queued.
+    for user_id, moment_id in newly_queued:
+        log_event("moment_ai.queued", user_id=user_id, moment_id=moment_id)
     return queued
 
 

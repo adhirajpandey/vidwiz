@@ -415,10 +415,12 @@ class RequestLoggingMiddleware:
                 log_body=log_body,
             )
 
+            # A 404 that matched no route is scanner noise, not a failed request.
+            unrouted_404 = status_code == 404 and endpoint_name is None
             level = logging.INFO
             if status_code >= 500:
                 level = logging.ERROR
-            elif status_code >= 400:
+            elif status_code >= 400 and not unrouted_404:
                 level = logging.WARNING
 
             self.logger.log(

@@ -3,6 +3,7 @@ import logging
 from uuid import uuid4
 
 import pytest
+from fastapi import HTTPException
 from httpx import ASGITransport, AsyncClient
 
 from src.auth import service as auth_service
@@ -438,3 +439,39 @@ async def test_status_level_mapping(caplog):
     record = _find_request_log(caplog, "/_test_500")
     assert record is not None
     assert record.levelname == "ERROR"
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize(
+    ("method", "path", "status_code", "level"),
+    [
+        ("GET", "/.env", 404, "INFO"),
+        ("GET", "/_test_404", 404, "WARNING"),
+        ("GET", "/_test_400", 400, "WARNING"),
+        ("POST", "/_test_404", 405, "WARNING"),
+    ],
+)
+async def test_only_unrouted_404s_are_downgraded(
+    caplog, method, path, status_code, level
+):
+    app = create_app()
+
+    @app.get("/_test_404")
+    async def _test_404():
+        raise HTTPException(status_code=404, detail="missing")
+
+    @app.get("/_test_400")
+    async def _test_400():
+        raise HTTPException(status_code=400, detail="bad")
+
+    async with AsyncClient(
+        transport=ASGITransport(app=app),
+        base_url="http://test",
+    ) as client:
+        with caplog.at_level(logging.INFO, logger="vidwiz.api"):
+            response = await client.request(method, path)
+
+    assert response.status_code == status_code
+    record = _find_request_log(caplog, path)
+    assert record is not None
+    assert record.levelname == level
