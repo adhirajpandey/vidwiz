@@ -520,10 +520,17 @@ def collect_pending_ai(db: Session, video_id: str) -> list[Moment]:
         .all()
     )
     queued = []
+    newly_queued = []
     for moment in waiting:
-        if moment.ai_status == AiStatus.QUEUED or _request_ai(db, moment):
+        if moment.ai_status == AiStatus.QUEUED:
             queued.append(moment)
+        elif _request_ai(db, moment):
+            queued.append(moment)
+            newly_queued.append((moment.user_id, moment.id))
     db.commit()
+    # Moments that were already queued got their event when they were queued.
+    for user_id, moment_id in newly_queued:
+        log_event("moment_ai.queued", user_id=user_id, moment_id=moment_id)
     return queued
 
 

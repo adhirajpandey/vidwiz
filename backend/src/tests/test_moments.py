@@ -718,7 +718,7 @@ def test_new_capture_retries_transcript_for_no_transcript_moments(db_session, us
 
 @pytest.mark.asyncio
 async def test_pending_moments_charges_queues_and_flags_missing_credits(
-    client, db_session, user
+    client, db_session, user, caplog
 ):
     poor = auth_service.create_user(db_session, "poor@example.com", "Poor", "pw123456")
     poor.credits_balance = 0
@@ -730,9 +730,10 @@ async def test_pending_moments_charges_queues_and_flags_missing_credits(
     ).one().transcript_status = TranscriptStatus.READY
     db_session.flush()
 
-    response = await client.post(
-        f"/v2/internal/videos/{VIDEO_ID}/pending-moments", headers=admin_headers()
-    )
+    with caplog.at_level(logging.INFO):
+        response = await client.post(
+            f"/v2/internal/videos/{VIDEO_ID}/pending-moments", headers=admin_headers()
+        )
 
     assert response.status_code == 200
     assert response.json() == {
@@ -746,6 +747,10 @@ async def test_pending_moments_charges_queues_and_flags_missing_credits(
     assert mine.ai_status == AiStatus.QUEUED
     assert theirs.ai_status == AiStatus.INSUFFICIENT_CREDITS
     assert len(charges(db_session, user)) == 1
+    assert [
+        (record.user_id, record.moment_id)
+        for record in logged_events(caplog, "moment_ai.queued")
+    ] == [(user.id, mine.id)]
 
 
 @pytest.mark.asyncio
@@ -1080,6 +1085,70 @@ def test_resolution_failure_event_uses_ids_read_before_commit(
     assert event.user_id == user_id
     assert event.moment_id == moment_id
     assert event.reason == "title_unresolved"
+
+
+@pytest.mark.asyncio
+async def test_collected_moment_logs_queued_event_once_across_retries(
+    client, db_session, user, caplog
+):
+    moment, _ = capture(db_session, user, ai=True)
+    moment_id = moment.id
+    db_session.query(Video).filter_by(
+        video_id=VIDEO_ID
+    ).one().transcript_status = TranscriptStatus.READY
+    db_session.flush()
+
+    with caplog.at_level(logging.INFO):
+        for _ in range(2):
+            response = await client.post(
+                f"/v2/internal/videos/{VIDEO_ID}/pending-moments",
+                headers=admin_headers(),
+            )
+            assert response.status_code == 200
+            assert [item["id"] for item in response.json()["moments"]] == [moment_id]
+
+    [event] = logged_events(caplog, "moment_ai.queued")
+    assert event.user_id == user.id
+    assert event.moment_id == moment_id
+
+
+@pytest.mark.asyncio
+async def test_collecting_a_capture_queued_moment_logs_no_second_event(
+    client, db_session, user, transcript_ready, sent_jobs, caplog
+):
+    with caplog.at_level(logging.INFO):
+        moment, _ = capture(db_session, user, ai=True)
+        response = await client.post(
+            f"/v2/internal/videos/{VIDEO_ID}/pending-moments", headers=admin_headers()
+        )
+
+    assert [item["id"] for item in response.json()["moments"]] == [moment.id]
+    assert len(sent_jobs) == 1
+    assert len(logged_events(caplog, "moment_ai.queued")) == 1
+
+
+def test_collected_moment_is_not_logged_when_commit_fails(
+    db_session, user, monkeypatch, caplog
+):
+    capture(db_session, user, ai=True)
+    db_session.query(Video).filter_by(
+        video_id=VIDEO_ID
+    ).one().transcript_status = TranscriptStatus.READY
+    db_session.flush()
+    # The charge commits on its own; only the final commit should fail here.
+    monkeypatch.setattr(
+        moments_service.credits_service, "charge_ai_moment", lambda *_args: None
+    )
+
+    def failing_commit():
+        raise RuntimeError("commit failed")
+
+    monkeypatch.setattr(db_session, "commit", failing_commit)
+    with caplog.at_level(logging.INFO), pytest.raises(RuntimeError):
+        moments_service.collect_pending_ai(db_session, VIDEO_ID)
+    db_session.rollback()
+
+    assert not logged_events(caplog, "moment_ai.queued")
 
 
 def test_sweep_fails_only_stale_queued_ai_lines(db_session, user, caplog):
