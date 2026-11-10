@@ -92,11 +92,95 @@ def test_helper_submits_result_payload(monkeypatch):
         return DummyResponse()
 
     monkeypatch.setattr(module.requests, "post", fake_post)
-    helper.send_task_result(7, {"video_id": "abc123DEF45", "success": True})
+    accepted = helper.send_task_result(7, {"video_id": "abc123DEF45", "success": True})
 
+    assert accepted is True
     assert captured["url"] == "http://api.example/v2/internal/tasks/7/result"
     assert captured["kwargs"]["headers"] == {"Authorization": "Bearer token"}
     assert captured["kwargs"]["json"] == {"video_id": "abc123DEF45", "success": True}
+
+
+def _run_one_task(helper, monkeypatch, details):
+    """Run the helper loop for one task, then stop it."""
+    tasks = iter([{"task_id": 7, "task_details": details}])
+
+    def next_task():
+        try:
+            return next(tasks)
+        except StopIteration:
+            raise KeyboardInterrupt from None
+
+    monkeypatch.setattr(helper, "get_task", next_task)
+    with pytest.raises(KeyboardInterrupt):
+        helper.run()
+
+
+def test_rejected_result_is_not_reported_as_processed(monkeypatch, caplog):
+    module = _load_helper()
+    helper = module.TaskHelper("metadata", "token", 30, "http://api.example/")
+    monkeypatch.setitem(
+        module.TASKS, "metadata", lambda details: {"video_id": details["video_id"]}
+    )
+    helper.fetch = module.TASKS["metadata"]
+    rejected = module.requests.Response()
+    rejected.status_code = 500
+    rejected._content = b"private response body"
+    rejected.url = "http://api.example/v2/internal/tasks/7/result"
+    monkeypatch.setattr(module.requests, "post", lambda *_args, **_kwargs: rejected)
+
+    with caplog.at_level("INFO", logger="vidwiz.task_helper"):
+        _run_one_task(helper, monkeypatch, {"video_id": "abc123DEF45"})
+
+    messages = [record.getMessage() for record in caplog.records]
+    assert "Result not accepted for task: 7" in messages
+    assert not any("Successfully processed" in message for message in messages)
+    assert not any("private response body" in message for message in messages)
+
+
+def test_failed_task_logs_ids_and_traceback(monkeypatch, caplog):
+    module = _load_helper()
+    helper = module.TaskHelper("metadata", "token", 30, "http://api.example/")
+
+    def fail(_details):
+        raise RuntimeError("fetch failed")
+
+    helper.fetch = fail
+    sent = []
+    monkeypatch.setattr(
+        helper,
+        "send_task_result",
+        lambda task_id, data: sent.append((task_id, data)) or True,
+    )
+
+    with caplog.at_level("INFO", logger="vidwiz.task_helper"):
+        _run_one_task(helper, monkeypatch, {"video_id": "abc123DEF45", "moment_id": 9})
+
+    [record] = [record for record in caplog.records if record.levelname == "ERROR"]
+    assert (
+        record.getMessage()
+        == "Failed to process task 7 video_id=abc123DEF45 moment_id=9"
+    )
+    assert record.exc_info is not None
+    assert sent == [
+        (
+            7,
+            {
+                "video_id": "abc123DEF45",
+                "success": False,
+                "error_message": "fetch failed",
+            },
+        )
+    ]
+
+
+def test_unresolved_title_error_does_not_quote_the_title(monkeypatch):
+    module = _load_helper()
+    _fake_search(monkeypatch, module, [])
+
+    with pytest.raises(LookupError) as exc_info:
+        module.TASKS["resolve_title"]({"title": "A private capture"})
+
+    assert "A private capture" not in str(exc_info.value)
 
 
 def _fake_search(monkeypatch, module, entries):

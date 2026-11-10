@@ -138,7 +138,7 @@ def resolve_title(title: str, channel: str | None = None) -> dict:
     """
     candidates = search_titles(title)
     if not candidates:
-        raise LookupError(f"No YouTube results for title: {title}")
+        raise LookupError("No YouTube results for this title")
 
     by_channel = [c for c in candidates if _same(c["channel"], channel)]
     exact = [c for c in (by_channel or candidates) if _same(c["title"], title)]
@@ -230,8 +230,8 @@ class TaskHelper:
             time.sleep(POLL_ERROR_BACKOFF_SECONDS)
             return None
 
-    def send_task_result(self, task_id: int, data: dict) -> None:
-        """Send a result payload: the task fields on success, or an error."""
+    def send_task_result(self, task_id: int, data: dict) -> bool:
+        """Send a result payload and return whether the API accepted it."""
         logger.info(
             f"Sending task result for task_id={task_id}, success={data['success']}"
         )
@@ -243,10 +243,11 @@ class TaskHelper:
             logger.info(
                 f"Task result submitted successfully: {response.json().get('status')}"
             )
+            return True
         except requests.RequestException as e:
-            logger.error(f"Failed to submit task result: {e}")
-            if e.response is not None:
-                logger.error(f"Response content: {e.response.text}")
+            # The error names the URL and status; the response body may hold user data.
+            logger.error(f"Failed to submit result for task {task_id}: {e}")
+            return False
 
     def run(self) -> None:
         """Continuously poll for tasks and process them."""
@@ -265,10 +266,17 @@ class TaskHelper:
                 logger.info(f"Received task: {task_id}, details: {sorted(details)}")
                 try:
                     result = self.fetch(details)
-                    self.send_task_result(task_id, {**result, "success": True})
-                    logger.info(f"Successfully processed task: {task_id}")
+                    if self.send_task_result(task_id, {**result, "success": True}):
+                        logger.info(f"Successfully processed task: {task_id}")
+                    else:
+                        logger.error(f"Result not accepted for task: {task_id}")
                 except Exception as e:  # noqa: BLE001
-                    logger.error(f"Failed to process task {task_id}: {e}")
+                    logger.exception(
+                        "Failed to process task %s video_id=%s moment_id=%s",
+                        task_id,
+                        details.get("video_id"),
+                        details.get("moment_id"),
+                    )
                     self.send_task_result(
                         task_id,
                         {
