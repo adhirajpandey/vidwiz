@@ -19,6 +19,7 @@ from sqlalchemy.orm import Session
 
 from src.config import settings
 from src.exceptions import BadRequestError
+from src.logging import log_event
 from src.shared.queues import send_job
 from src.moments.models import Moment
 from src.videos.models import OverviewStatus, TranscriptStatus, Video
@@ -96,16 +97,25 @@ def sweep(db: Session, older_than: timedelta) -> int:
     The worker reports its own failures; this covers jobs whose report never
     arrived, for example when the API was unreachable.
     """
-    result = db.execute(
-        update(Video)
-        .where(
-            Video.overview_status == OverviewStatus.QUEUED,
-            Video.overview_status_at < func.now() - older_than,
+    failed = (
+        db.execute(
+            update(Video)
+            .where(
+                Video.overview_status == OverviewStatus.QUEUED,
+                Video.overview_status_at < func.now() - older_than,
+            )
+            .values(
+                overview_status=OverviewStatus.FAILED, overview_status_at=func.now()
+            )
+            .returning(Video.video_id)
         )
-        .values(overview_status=OverviewStatus.FAILED, overview_status_at=func.now())
+        .scalars()
+        .all()
     )
     db.commit()
-    return result.rowcount
+    for video_id in failed:
+        log_event("overview.failed", video_id=video_id, reason="stale")
+    return len(failed)
 
 
 def backfill_candidates(db: Session, limit: int) -> list[Video]:
