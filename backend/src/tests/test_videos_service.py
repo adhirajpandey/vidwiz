@@ -1,3 +1,4 @@
+import logging
 from datetime import datetime, timedelta
 
 import pytest
@@ -131,7 +132,7 @@ def test_retry_queues_only_failed_overviews_with_a_transcript(db_session, jobs):
         overview.retry(db_session, no_transcript)
 
 
-def test_sweep_fails_only_stale_queued_overviews(db_session):
+def test_sweep_fails_only_stale_queued_overviews(db_session, caplog):
     stale = seed_video(db_session, "stale123456", overview_status=OverviewStatus.QUEUED)
     fresh = seed_video(db_session, "fresh123456", overview_status=OverviewStatus.QUEUED)
     db_session.execute(
@@ -141,11 +142,19 @@ def test_sweep_fails_only_stale_queued_overviews(db_session):
     )
     db_session.commit()
 
-    assert overview.sweep(db_session, timedelta(hours=2)) == 1
+    with caplog.at_level(logging.INFO):
+        assert overview.sweep(db_session, timedelta(hours=2)) == 1
     db_session.refresh(stale)
     db_session.refresh(fresh)
     assert stale.overview_status == OverviewStatus.FAILED
     assert fresh.overview_status == OverviewStatus.QUEUED
+    [event] = [
+        record
+        for record in caplog.records
+        if getattr(record, "event", None) == "overview.failed"
+    ]
+    assert event.video_id == "stale123456"
+    assert event.reason == "stale"
 
 
 def test_backfill_candidates_pick_missing_failed_and_legacy(db_session, user):
