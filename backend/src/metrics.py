@@ -248,6 +248,9 @@ class Metrics:
             self.llm_budget_checked,
         ):
             gauge.set(float("nan"))
+        # AI moments have no completion timestamp; user edits move updated_at.
+        # Once this process sees a generation succeed, that time wins.
+        self._ai_success_at: float | None = None
         self._database_checked_at: float | None = None
         self.database_ready.set(-1)
         self.snapshot_success.set(-1)
@@ -270,6 +273,8 @@ class Metrics:
                 return
         if amount > 0:
             self.events.labels(workflow, event, reason).inc(amount)
+            if (workflow, event) == ("ai_moment", "ai_ready"):
+                self._ai_success_at = time.time()
 
     def helper_polled(self, workflow: str) -> None:
         if workflow in HELPER_WORKFLOWS:
@@ -343,8 +348,9 @@ class Metrics:
     ) -> dict[str, float | None]:
         """Latest completion per workflow, read from the database so restarts keep it.
 
-        AI moment time uses the row's update time, which other edits can move
-        forward; the rest use exact completion or creation times.
+        AI moment time uses the row's update time, which user edits can move
+        forward; collect_snapshot prefers a success this process observed. The
+        rest use exact completion or creation times.
         """
         times: dict[str, float | None] = {}
         rows = db.execute(
@@ -568,6 +574,8 @@ class Metrics:
             for (workflow, state), (count, age) in snapshot.items():
                 self.backlog.labels(workflow, state).set(count)
                 self.oldest_age.labels(workflow, state).set(age)
+            if self._ai_success_at is not None:
+                last_success["ai_moment"] = self._ai_success_at
             for workflow in SUCCESS_WORKFLOWS:
                 at = last_success.get(workflow)
                 self.last_success.labels(workflow).set(

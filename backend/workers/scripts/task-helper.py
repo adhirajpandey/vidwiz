@@ -191,19 +191,34 @@ TASKS = {
 }
 
 
-def error_kind(error: Exception) -> str:
-    """Name the dependency that broke, using the API's bounded failure kinds."""
+def _causes(error: Exception, depth: int = 5):
+    """The error and what it wraps: yt-dlp keeps the original in exc_info."""
+    seen = set()
+    while error is not None and depth > 0 and id(error) not in seen:
+        seen.add(id(error))
+        yield error
+        exc_info = getattr(error, "exc_info", None)
+        wrapped = (
+            exc_info[1] if isinstance(exc_info, tuple) and len(exc_info) > 1 else None
+        )
+        error = wrapped or error.__cause__ or error.__context__
+        depth -= 1
+
+
+def _kind(error: Exception) -> str | None:
     name = type(error).__name__
+    text = str(error)
     if name in ("IpBlocked", "RequestBlocked", "AgeRestricted") or (
-        "Sign in to confirm" in str(error)
+        "Sign in to confirm" in text
     ):
         return "youtube_blocked"
-    text = str(error)
     if isinstance(error, requests.exceptions.ProxyError) or (
         "ProxyError" in text or "Unable to connect to proxy" in text
     ):
         return "proxy_error"
-    if isinstance(error, (requests.exceptions.Timeout, TimeoutError)):
+    if isinstance(error, (requests.exceptions.Timeout, TimeoutError)) or (
+        "timed out" in text.lower()
+    ):
         return "timeout"
     if isinstance(error, LookupError) or name in (
         "VideoUnavailable",
@@ -215,6 +230,15 @@ def error_kind(error: Exception) -> str:
         return "not_found"
     if isinstance(error, requests.exceptions.HTTPError):
         return "provider_error"
+    return None
+
+
+def error_kind(error: Exception) -> str:
+    """Name the dependency that broke, using the API's bounded failure kinds."""
+    for cause in _causes(error):
+        kind = _kind(cause)
+        if kind is not None:
+            return kind
     return "worker_error"
 
 

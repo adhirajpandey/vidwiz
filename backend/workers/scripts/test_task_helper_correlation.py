@@ -148,3 +148,26 @@ def test_error_kind_names_the_broken_dependency():
     assert module.error_kind(LookupError("No YouTube results")) == "not_found"
     assert module.error_kind(NoTranscriptFound("x")) == "not_found"
     assert module.error_kind(ValueError("other")) == "worker_error"
+
+
+def test_error_kind_reads_errors_wrapped_by_yt_dlp():
+    import requests
+
+    module = _load_task_helper()
+
+    class DownloadError(Exception):
+        def __init__(self, message, exc_info):
+            super().__init__(message)
+            self.exc_info = exc_info
+
+    timeout = requests.exceptions.ReadTimeout("read")
+    wrapped = DownloadError("ERROR: unable to download", (type(timeout), timeout, None))
+    assert module.error_kind(wrapped) == "timeout"
+
+    try:
+        try:
+            raise requests.exceptions.ProxyError("proxy down")
+        except requests.exceptions.ProxyError as cause:
+            raise RuntimeError("fetch failed") from cause
+    except RuntimeError as chained:
+        assert module.error_kind(chained) == "proxy_error"

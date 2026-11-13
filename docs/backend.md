@@ -426,7 +426,7 @@ The application metrics have bounded label values:
 | `vidwiz_database_ready` | none | `-1` unknown, `0` last connectivity check failed, `1` `SELECT 1` succeeded. |
 | `vidwiz_metrics_snapshot_success` | none | `-1` unknown, `0` latest aggregate snapshot failed, `1` latest snapshot completed. |
 | `vidwiz_metrics_snapshot_timestamp_seconds` | none | Unix timestamp of last successful snapshot. |
-| `vidwiz_workflow_last_success_timestamp_seconds` | `workflow` | Latest completion per workflow, read from the database in each snapshot so it survives restarts. `NaN` until a snapshot finds one. Tasks use `completed_at`, overviews `overview_status_at`, Wiz the newest assistant message, and AI moments the row's `updated_at`, which other edits can move forward. |
+| `vidwiz_workflow_last_success_timestamp_seconds` | `workflow` | Latest completion per workflow, read from the database in each snapshot so it survives restarts. `NaN` until a snapshot finds one. Tasks use `completed_at`, overviews `overview_status_at`, Wiz the newest assistant message, and AI moments the time this API process last saw a generation succeed. Until it sees one after a restart, AI moments fall back to the newest ready row's `updated_at`, which user edits can move forward. |
 | `vidwiz_helper_last_poll_timestamp_seconds` | `workflow` | When a helper of this task type (`title_resolution`, `metadata`, `transcript`) last asked for work. Helpers long-poll, so a healthy helper refreshes it about every 30 seconds. Per API process. |
 | `vidwiz_llm_budget_limit_usd`, `vidwiz_llm_budget_remaining_usd` | none | The OpenRouter key's spending limit and what remains in the current period, read every 5 minutes from OpenRouter's key endpoint. `NaN` when unknown or when the key has no limit. A failed read keeps the last values. The API and the AI workers share this key. |
 | `vidwiz_llm_budget_checked_timestamp_seconds` | none | When the budget was last read successfully. |
@@ -438,7 +438,7 @@ with each failed task result, recorded as the reason on `task_retrying` and
 The AI note and overview workers report each failed attempt to
 `POST /v2/internal/workflows/{ai_moment|overview}/attempt-failures` before SQS
 retries it; the API counts it as `attempt_failed` with `provider_quota`
-(OpenRouter 402/403, the key is out of budget or credit),
+(OpenRouter 402, or a 403 whose error names a limit or credit),
 `provider_rate_limit` (429), `provider_error`, `timeout`, `invalid_output`, or
 `worker_error`. Reporting never changes how the job is handled.
 

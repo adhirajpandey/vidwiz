@@ -482,3 +482,16 @@ def test_llm_budget_is_read_from_the_key_and_kept_on_failure(monkeypatch):
     calls.clear()
     _REAL_REFRESH_LLM_BUDGET(metrics, None, "https://openrouter.example/api/v1")
     assert calls == []
+
+
+def test_ai_last_success_prefers_an_observed_generation_over_row_edits(db_session):
+    import time as time_module
+
+    metrics = Metrics()
+    metrics.collect_snapshot(lambda: db_session)
+    assert str(metrics.last_success.labels("ai_moment")._value.get()) == "nan"
+
+    before = time_module.time()
+    metrics.event("ai_moment", "ai_ready")
+    metrics.collect_snapshot(lambda: db_session)
+    assert metrics.last_success.labels("ai_moment")._value.get() >= before

@@ -228,7 +228,7 @@ def test_fail_overview_posts_to_the_internal_route():
 @pytest.mark.parametrize(
     ("status_code", "kind"),
     [
-        (403, "provider_quota"),
+        (403, "provider_error"),
         (402, "provider_quota"),
         (429, "provider_rate_limit"),
         (500, "provider_error"),
@@ -289,4 +289,75 @@ def test_report_attempt_failure_posts_bounded_fields(settings):
             {"reason": "provider_quota", "attempt": 2, "final": False},
             "c-1",
         )
+    ]
+
+
+@pytest.mark.parametrize(
+    ("error", "kind"),
+    [
+        (
+            {"code": 403, "message": "Key limit exceeded (weekly limit)"},
+            "provider_quota",
+        ),
+        (
+            {"code": 403, "message": "Input flagged", "metadata": {"reasons": ["x"]}},
+            "provider_error",
+        ),
+    ],
+)
+def test_a_403_is_quota_only_when_the_provider_names_a_limit(settings, error, kind):
+    import requests
+
+    class Response:
+        status_code = 403
+
+        def raise_for_status(self):
+            failure = requests.HTTPError("rejected")
+            failure.response = self
+            raise failure
+
+        def json(self):
+            return {"error": error}
+
+    class Session:
+        def post(self, *_args, **_kwargs):
+            return Response()
+
+    client = OpenRouterClient(settings, FakeLogger(), model="m", session=Session())
+    assert client.complete("prompt") is None
+    assert client.last_failure_kind == kind
+
+    class BodyResponse:
+        def raise_for_status(self):
+            pass
+
+        def json(self):
+            return {"error": error}
+
+    class BodySession:
+        def post(self, *_args, **_kwargs):
+            return BodyResponse()
+
+    client = OpenRouterClient(settings, FakeLogger(), model="m", session=BodySession())
+    assert client.complete("prompt") is None
+    assert client.last_failure_kind == kind
+
+
+def test_rejected_attempt_report_is_logged_without_the_body(settings):
+    from types import SimpleNamespace
+
+    warnings = []
+
+    class Logger(FakeLogger):
+        def warning(self, message, **kwargs):
+            warnings.append((message, kwargs.get("extra", {})))
+
+    class Session:
+        def post(self, *_args, **_kwargs):
+            return SimpleNamespace(status_code=404, text="secret body")
+
+    client = InternalApiClient(settings, Logger(), session=Session())
+    assert not client.report_attempt_failure("overview", "provider_error", 1, False)
+    assert warnings == [
+        ("Attempt report was rejected", {"workflow": "overview", "status": 404})
     ]

@@ -104,7 +104,13 @@ class InternalApiClient:
                 headers=self._headers(correlation_id),
                 timeout=self._settings.request_timeout,
             )
-            return response.status_code == 204
+            if response.status_code == 204:
+                return True
+            self._logger.warning(
+                "Attempt report was rejected",
+                extra={"workflow": workflow, "status": response.status_code},
+            )
+            return False
         except Exception as error:
             self._logger.warning(
                 "Could not report failed attempt",
@@ -224,7 +230,9 @@ class OpenRouterClient:
                         else {}
                     ),
                 )
-                self.last_failure_kind = provider_failure_kind(error_code)
+                self.last_failure_kind = provider_failure_kind(
+                    error_code, provider_error
+                )
                 return None
             choices = data.get("choices", [])
             message = choices[0].get("message") if choices else None
@@ -241,19 +249,42 @@ class OpenRouterClient:
             self.last_failure_kind = (
                 "timeout"
                 if isinstance(error, requests.Timeout)
-                else provider_failure_kind(status_code)
+                else provider_failure_kind(status_code, _error_body(error))
             )
             return None
 
 
-def provider_failure_kind(status_code: Any) -> str:
-    """402/403 mean the key is out of budget or credit; 429 is rate limiting."""
+def _error_body(error: Exception) -> Any:
+    """The provider's error object, or None. Used for classification only."""
+    try:
+        return error.response.json().get("error")
+    except Exception:
+        return None
+
+
+QUOTA_TERMS = ("limit", "credit", "budget", "quota", "afford")
+
+
+def provider_failure_kind(status_code: Any, provider_error: Any = None) -> str:
+    """402 means no credit and 429 is rate limiting. A 403 is a quota failure
+    only when the provider says a limit or credit caused it; moderation and
+    permission 403s are provider errors."""
     try:
         code = int(status_code)
     except (TypeError, ValueError):
         return "provider_error"
-    if code in (402, 403):
+    if code == 402:
         return "provider_quota"
+    if code == 403:
+        detail = ""
+        if isinstance(provider_error, dict):
+            detail = f"{provider_error.get('message', '')} {provider_error.get('metadata', '')}"
+        detail = detail.lower()
+        return (
+            "provider_quota"
+            if any(term in detail for term in QUOTA_TERMS)
+            else "provider_error"
+        )
     if code == 429:
         return "provider_rate_limit"
     return "provider_error"
