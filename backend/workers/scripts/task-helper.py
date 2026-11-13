@@ -8,13 +8,14 @@ import time
 
 import requests
 import yt_dlp
-from youtube_transcript_api import YouTubeTranscriptApi
+from youtube_transcript_api import NoTranscriptFound, YouTubeTranscriptApi
 
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger("vidwiz.task_helper")
 INTERNAL_API_URL_ENV_VAR = "VIDWIZ_INTERNAL_API_BASE_URL"
 INTERNAL_API_TOKEN_ENV_VAR = "VIDWIZ_INTERNAL_API_ADMIN_TOKEN"
 POLL_ERROR_BACKOFF_SECONDS = 5
+TRANSCRIPT_LANGUAGES = ("en", "hi")
 METADATA_FIELDS = (
     "id",
     "title",
@@ -29,15 +30,26 @@ METADATA_FIELDS = (
 )
 
 
-def fetch_transcript(video_id: str) -> list[dict]:
-    """Fetch an English or Hindi transcript, renaming `start` to `offset`."""
-    transcript = (
-        YouTubeTranscriptApi().fetch(video_id, languages=["en", "hi"]).to_raw_data()
-    )
+def pick_track(tracks):
+    """Pick the English or Hindi track, else a regional variant such as en-GB."""
+    try:
+        return tracks.find_transcript(TRANSCRIPT_LANGUAGES)
+    except NoTranscriptFound:
+        for language in TRANSCRIPT_LANGUAGES:
+            for track in tracks:
+                if track.language_code.split("-")[0] == language:
+                    return track
+        raise
+
+
+def fetch_transcript(video_id: str) -> dict:
+    """Fetch the transcript and its language code, renaming `start` to `offset`."""
+    track = pick_track(YouTubeTranscriptApi().list(video_id))
+    transcript = track.fetch().to_raw_data()
     for item in transcript:
         if "start" in item:
             item["offset"] = item.pop("start")
-    return transcript
+    return {"transcript": transcript, "transcript_language": track.language_code}
 
 
 def fetch_metadata(video_id: str) -> dict:
@@ -167,7 +179,7 @@ def _resolved(candidate: dict) -> dict:
 TASKS = {
     "transcript": lambda details: {
         "video_id": details["video_id"],
-        "transcript": fetch_transcript(details["video_id"]),
+        **fetch_transcript(details["video_id"]),
     },
     "metadata": lambda details: {
         "video_id": details["video_id"],

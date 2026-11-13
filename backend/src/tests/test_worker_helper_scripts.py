@@ -59,7 +59,12 @@ def test_helper_exits_when_api_url_missing(monkeypatch):
 @pytest.mark.parametrize(
     ("task_type", "fetcher", "value", "field"),
     [
-        ("transcript", "fetch_transcript", [{"text": "hi"}], "transcript"),
+        (
+            "transcript",
+            "fetch_transcript",
+            {"transcript": [{"text": "hi"}], "transcript_language": "en"},
+            None,
+        ),
         ("metadata", "fetch_metadata", {"title": "hi"}, "metadata"),
     ],
 )
@@ -71,7 +76,8 @@ def test_video_tasks_build_result_payloads(
 
     payload = module.TASKS[task_type]({"video_id": "abc123DEF45"})
 
-    assert payload == {"video_id": "abc123DEF45", field: value}
+    fields = {field: value} if field else value
+    assert payload == {"video_id": "abc123DEF45", **fields}
 
 
 def test_helper_submits_result_payload(monkeypatch):
@@ -338,22 +344,69 @@ def test_resolve_title_raises_without_results(monkeypatch):
         module.resolve_title("Deep Focus")
 
 
-def test_transcript_fetch_renames_start_to_offset(monkeypatch):
-    module = _load_helper()
+class _FakeTrack:
+    def __init__(self, language_code):
+        self.language_code = language_code
+
+    def fetch(self):
+        return self
+
+    def to_raw_data(self):
+        return [{"text": "hi", "start": 1.5, "duration": 2}]
+
+
+def _fake_tracks(monkeypatch, module, codes):
+    """Offer caption tracks with the given language codes, matched exactly."""
+
+    class FakeTracks(list):
+        def find_transcript(self, languages):
+            for language in languages:
+                for track in self:
+                    if track.language_code == language:
+                        return track
+            raise module.NoTranscriptFound("abc123DEF45", languages, self)
 
     class FakeApi:
-        def fetch(self, video_id, languages):
-            assert languages == ["en", "hi"]
-            return self
-
-        def to_raw_data(self):
-            return [{"text": "hi", "start": 1.5, "duration": 2}]
+        def list(self, video_id):
+            return FakeTracks(_FakeTrack(code) for code in codes)
 
     monkeypatch.setattr(module, "YouTubeTranscriptApi", FakeApi)
 
-    assert module.fetch_transcript("abc123DEF45") == [
-        {"text": "hi", "duration": 2, "offset": 1.5}
-    ]
+
+def test_transcript_fetch_renames_start_to_offset(monkeypatch):
+    module = _load_helper()
+    _fake_tracks(monkeypatch, module, ["en"])
+
+    assert module.fetch_transcript("abc123DEF45") == {
+        "transcript": [{"text": "hi", "duration": 2, "offset": 1.5}],
+        "transcript_language": "en",
+    }
+
+
+@pytest.mark.parametrize(
+    ("codes", "expected"),
+    [
+        (["hi", "en"], "en"),
+        (["en-US", "hi"], "hi"),
+        (["fr", "en-GB"], "en-GB"),
+        (["hi-Latn", "en-GB"], "en-GB"),
+    ],
+)
+def test_transcript_fetch_prefers_exact_codes_then_variants(
+    codes, expected, monkeypatch
+):
+    module = _load_helper()
+    _fake_tracks(monkeypatch, module, codes)
+
+    assert module.fetch_transcript("abc123DEF45")["transcript_language"] == expected
+
+
+def test_transcript_fetch_fails_without_english_or_hindi(monkeypatch):
+    module = _load_helper()
+    _fake_tracks(monkeypatch, module, ["fr", "de"])
+
+    with pytest.raises(module.NoTranscriptFound):
+        module.fetch_transcript("abc123DEF45")
 
 
 def test_helper_backs_off_when_polling_fails(monkeypatch):

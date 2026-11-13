@@ -294,11 +294,13 @@ def test_transcript_task_success_queues_the_overview(
             video_id=video.video_id,
             success=True,
             transcript=[{"text": "hi", "offset": 0, "duration": 1}],
+            transcript_language="en-GB",
         ),
     )
 
     db_session.refresh(video)
     assert video.transcript_status == TranscriptStatus.READY
+    assert video.miscellaneous_data["transcript_language"] == "en-GB"
     assert video.overview_status == OverviewStatus.QUEUED
     assert overview_jobs == [{"video_id": "trsucc12345"}]
 
