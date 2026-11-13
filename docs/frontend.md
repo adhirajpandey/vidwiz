@@ -230,10 +230,12 @@ Workers.
   events, are skipped; malformed events of the older kinds still fail the
   answer. A `status` line replaces "Thinking…" until the answer has content
   and is never stored. A `digest` lists moments from a period under the
-  answer, grouped by video, with the true totals; it shows five videos and
-  folds the rest behind a control, and says when a video has more moments
-  than listed. Each moment opens its video at that time like a citation. A
-  `stats` part is a single video count or a small table of grouped counts.
+  answer, grouped by video, with the true totals; it shows five videos, and
+  five moments per video, and folds the rest behind controls. It says
+  separately when the server listed fewer moments than a video has, and skips
+  a digest whose dates are not real calendar days. Each moment opens its
+  video at that time like a citation. A `stats` part is a single video count
+  or a small table of grouped counts, and shows nothing when it has neither.
   Both render the same from history as from the stream.
 - **Guests**: the landing page starts a guest conversation for a pasted link
   and opens the workspace on the Ask tab, at the link's start time (`t`) when

@@ -1,11 +1,12 @@
 import { useState } from 'react';
 import type { DataMessagePartProps } from '@assistant-ui/react';
-import type { DigestPart, StatsPart } from '../../api/messageParts';
+import type { DigestPart, DigestVideo, StatsPart } from '../../api/messageParts';
 import { plural, videoTitle } from '../../lib/format';
 import { WatchMoment } from './WizCitation';
 
-/** Videos shown before the rest of a digest folds behind a control. */
+/** Videos, and moments per video, shown before the rest fold behind a control. */
 const VISIBLE_VIDEOS = 5;
+const VISIBLE_MOMENTS = 5;
 
 function day(value: string, withYear: boolean): string {
   return new Date(`${value}T00:00:00Z`).toLocaleDateString(undefined, {
@@ -16,6 +17,37 @@ function day(value: string, withYear: boolean): string {
 function period(since: string, until: string): string {
   if (since === until) return day(until, true);
   return `${day(since, since.slice(0, 4) !== until.slice(0, 4))} to ${day(until, true)}`;
+}
+
+function DigestVideoItem({ video }: { video: DigestVideo }) {
+  const [expanded, setExpanded] = useState(false);
+  const title = videoTitle(video.title, video.video_id);
+  const shown = expanded ? video.moments : video.moments.slice(0, VISIBLE_MOMENTS);
+  const folded = video.moments.length - shown.length;
+  // Moments the server left out of the part, as opposed to ones folded here.
+  const omitted = video.moment_count - video.moments.length;
+  return (
+    <li className="wiz-digest-video">
+      <p className="wiz-digest-title">
+        <span>{title}</span>
+        <span className="wiz-digest-count">{plural(video.moment_count, 'moment')}</span>
+      </p>
+      <ul>
+        {shown.map(moment => (
+          <li key={moment.id} className="wiz-digest-moment">
+            <WatchMoment videoId={video.video_id} video={title} seconds={moment.at_seconds} />
+            <span>{moment.text}</span>
+          </li>
+        ))}
+      </ul>
+      {folded > 0 && (
+        <button type="button" className="wiz-digest-more" onClick={() => setExpanded(true)}>
+          Show {plural(folded, 'more moment')}
+        </button>
+      )}
+      {omitted > 0 && <p className="wiz-digest-note">{plural(omitted, 'more moment')} not shown</p>}
+    </li>
+  );
 }
 
 /** Every moment captured in a period, grouped by video, under the answer. */
@@ -32,27 +64,7 @@ export function WizDigest(props: DataMessagePartProps<DigestPart>) {
         {plural(data.total_moments, 'moment')} from {plural(data.video_count, 'video')}, {period(data.since, data.until)}
       </p>
       <ul>
-        {shown.map(video => {
-          const title = videoTitle(video.title, video.video_id);
-          const missing = video.moment_count - video.moments.length;
-          return (
-            <li key={video.video_id} className="wiz-digest-video">
-              <p className="wiz-digest-title">
-                <span>{title}</span>
-                <span className="wiz-digest-count">{plural(video.moment_count, 'moment')}</span>
-              </p>
-              <ul>
-                {video.moments.map(moment => (
-                  <li key={moment.id} className="wiz-digest-moment">
-                    <WatchMoment videoId={video.video_id} video={title} seconds={moment.at_seconds} />
-                    <span>{moment.text}</span>
-                  </li>
-                ))}
-              </ul>
-              {missing > 0 && <p className="wiz-digest-note">{plural(missing, 'more moment')} not shown</p>}
-            </li>
-          );
-        })}
+        {shown.map(video => <DigestVideoItem key={video.video_id} video={video} />)}
       </ul>
       {folded > 0 && (
         <button type="button" className="wiz-digest-more" onClick={() => setExpanded(true)}>
@@ -81,5 +93,5 @@ export function WizStats(props: DataMessagePartProps<StatsPart>) {
       </table>
     );
   }
-  return <p className="wiz-stats-line">{plural(data.video_count ?? 0, 'video')}</p>;
+  return data.video_count === null ? null : <p className="wiz-stats-line">{plural(data.video_count, 'video')}</p>;
 }

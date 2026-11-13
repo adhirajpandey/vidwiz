@@ -216,6 +216,27 @@ describe('WizChat', () => {
     expect(rendered.container.querySelectorAll('button[aria-label^="Seek video"]')).toHaveLength(0);
   });
 
+  it('folds long moment lists locally, apart from moments the server omitted', async () => {
+    const user = userEvent.setup();
+    const moments = Array.from({ length: 200 }, (_, index) => ({ id: `m${index}`, at_seconds: index, text: `Moment ${index}` }));
+    const digest: DigestPart = { type: 'digest', since: '2026-11-14', until: '2026-11-14', total_moments: 250, video_count: 1,
+      videos: [{ video_id: 'video0', title: 'Long talk', moment_count: 250, moments }] };
+    const rendered = render(view(controller({ messages: [{ ...answer(''), parts: [digest] }] })));
+    expect(rendered.container.querySelectorAll('.wiz-digest-moment')).toHaveLength(5);
+    expect(screen.getByText('50 more moments not shown')).toBeTruthy();
+    await user.click(screen.getByRole('button', { name: 'Show 195 more moments' }));
+    expect(rendered.container.querySelectorAll('.wiz-digest-moment')).toHaveLength(200);
+    expect(screen.queryByRole('button', { name: /more moments/ })).toBeNull();
+    expect(screen.getByText('50 more moments not shown')).toBeTruthy();
+  });
+
+  it.each([null, []])('renders nothing for stats with no count and groups %o', groups => {
+    const stats: StatsPart = { type: 'stats', video_count: null, group_by: null, groups };
+    const rendered = render(view(controller({ messages: [{ ...answer('Counts'), parts: [{ type: 'text', text: 'Counts' }, stats] }] })));
+    expect(rendered.container.querySelector('.wiz-stats, .wiz-stats-line')).toBeNull();
+    expect(screen.queryByText(/videos?$/)).toBeNull();
+  });
+
   it('shows the latest status while an answer has no content', () => {
     const running: WizMessage = { id: 'answer', role: 'assistant', parts: [], createdAt: new Date(0), status: 'running', progress: 'Searching your library' };
     render(view(controller({ messages: [running], isRunning: true })));

@@ -26,6 +26,14 @@ describe('library stream kinds', () => {
     { ...stats, groups: [{ name: 'Talks', videos: 1.5 }] },
     { type: 'stats', video_count: 2 },
   ])('skips malformed new kind %o', event => expect(parseWizEvent(event)).toBeNull());
+  it.each(['2026-02-30', '2026-99-99', '2026-13-01', '2026-00-10', '2025-02-29', '2100-02-29'])('skips a digest dated %s in stream and history', date => {
+    expect(parseWizEvent({ ...digest, since: date })).toBeNull();
+    expect(parseWizEvent({ ...digest, until: date })).toBeNull();
+    expect(readStoredParts([{ ...digest, since: date }])).toEqual([]);
+  });
+  it.each(['2024-02-29', '2000-02-29', '2026-12-31'])('accepts the real day %s', date => {
+    expect(parseWizEvent({ ...digest, since: date, until: date })).toMatchObject({ since: date, until: date });
+  });
   it.each([{ type: 'video_list', videos: [] }, { type: 'tool' }, {}])('skips unknown kind %o', event => {
     expect(parseWizEvent(event)).toBeNull();
   });

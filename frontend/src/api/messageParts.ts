@@ -119,7 +119,12 @@ function newerPart(data: Record<string, unknown>): DigestPart | StatsPart | null
   return null;
 }
 
-const isDate = (value: unknown): value is string => typeof value === 'string' && /^\d{4}-\d{2}-\d{2}$/.test(value);
+/** A real calendar day as YYYY-MM-DD: it must survive a UTC round trip unchanged. */
+function isDate(value: unknown): value is string {
+  if (typeof value !== 'string' || !/^\d{4}-\d{2}-\d{2}$/.test(value)) return false;
+  const date = new Date(`${value}T00:00:00Z`);
+  return !Number.isNaN(date.getTime()) && date.toISOString().slice(0, 10) === value;
+}
 const isCount = (value: unknown): value is number => Number.isSafeInteger(value) && (value as number) >= 0;
 
 function validVideo(value: unknown): value is DigestVideo {
