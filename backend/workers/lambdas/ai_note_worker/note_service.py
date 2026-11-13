@@ -35,11 +35,19 @@ llm = OpenRouterClient(settings, logger, model=settings.ai_note_model)
 def process_job(moment: Moment, attempt: int) -> None:
     run_job(
         lambda: process_moment(moment),
-        lambda: api.save_moment_ai(moment.id, None),
+        lambda: (
+            api.save_moment_ai(moment.id, None, correlation_id=moment.correlation_id)
+            if moment.correlation_id
+            else api.save_moment_ai(moment.id, None)
+        ),
         attempt=attempt,
         max_attempts=settings.max_attempts,
         logger=logger,
-        extra={"moment_id": moment.id, "video_id": moment.video_id},
+        extra={
+            "moment_id": moment.id,
+            "video_id": moment.video_id,
+            "correlation_id": moment.correlation_id,
+        },
     )
 
 
@@ -49,7 +57,11 @@ def process_moment(moment: Moment) -> None:
     A missing transcript, empty context, or output that stays invalid is
     permanent. Model and network errors raise, so SQS retries the record.
     """
-    extra = {"moment_id": moment.id, "video_id": moment.video_id}
+    extra = {
+        "moment_id": moment.id,
+        "video_id": moment.video_id,
+        "correlation_id": moment.correlation_id,
+    }
     logger.info("Processing AI moment", extra=extra)
     transcript = transcripts.get(moment.video_id)
     context = (
@@ -60,10 +72,21 @@ def process_moment(moment: Moment) -> None:
     if context is None:
         raise PermanentError("No transcript context for the moment")
 
-    metadata = api.get_video(moment.video_id)
+    metadata = (
+        api.get_video(moment.video_id, moment.correlation_id)
+        if moment.correlation_id
+        else api.get_video(moment.video_id)
+    )
     title = metadata.get("title") if metadata else None
     ai_text = _valid_note(title, moment.at_seconds, format_context(context))
-    if not api.save_moment_ai(moment.id, ai_text, settings.ai_note_model):
+    saved = (
+        api.save_moment_ai(
+            moment.id, ai_text, settings.ai_note_model, moment.correlation_id
+        )
+        if moment.correlation_id
+        else api.save_moment_ai(moment.id, ai_text, settings.ai_note_model)
+    )
+    if not saved:
         raise RuntimeError(f"Failed to save AI moment {moment.id}")
     logger.info("AI moment saved", extra=extra)
 

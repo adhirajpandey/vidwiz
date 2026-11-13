@@ -63,31 +63,50 @@ llm = OpenRouterClient(settings, logger, model=settings.summary_model)
 KEY_POINT_MAX_CHARS = 200
 
 
-def process_job(video_id: str, attempt: int) -> None:
+def process_job(video_id: str, attempt: int, correlation_id: str | None = None) -> None:
     run_job(
-        lambda: process_summary(video_id),
-        lambda: api.fail_overview(video_id),
+        lambda: (
+            process_summary(video_id, correlation_id)
+            if correlation_id
+            else process_summary(video_id)
+        ),
+        lambda: (
+            api.fail_overview(video_id, correlation_id)
+            if correlation_id
+            else api.fail_overview(video_id)
+        ),
         attempt=attempt,
         max_attempts=settings.max_attempts,
         logger=logger,
-        extra={"video_id": video_id},
+        extra={"video_id": video_id, "correlation_id": correlation_id},
     )
 
 
-def process_summary(video_id: str) -> None:
+def process_summary(video_id: str, correlation_id: str | None = None) -> None:
     """Write and save the overview while the video's overview is queued.
 
     Any other state means the job is a duplicate delivery or was already
     settled, so it is skipped.
     """
-    logger.info("Processing AI summary", extra={"video_id": video_id})
-    video = api.get_video(video_id)
+    logger.info(
+        "Processing AI summary",
+        extra={"video_id": video_id, "correlation_id": correlation_id},
+    )
+    video = (
+        api.get_video(video_id, correlation_id)
+        if correlation_id
+        else api.get_video(video_id)
+    )
     if not video:
         raise RuntimeError("Could not fetch the video")
     if video.get("overview_status") != "queued":
         logger.info(
             "Overview is not queued; skipping",
-            extra={"video_id": video_id, "status": video.get("overview_status")},
+            extra={
+                "video_id": video_id,
+                "status": video.get("overview_status"),
+                "correlation_id": correlation_id,
+            },
         )
         return
     transcript = transcripts.get(video_id)
@@ -97,15 +116,24 @@ def process_summary(video_id: str) -> None:
     if not passages:
         raise PermanentError("Transcript has no usable passages")
     artifacts, key_points = _valid_artifacts(video.get("title"), passages)
-    if not api.update_summary(
+    summary_args = (
         video_id,
         artifacts.summary,
         artifacts.suggested_questions,
         [point.model_dump() for point in key_points],
         settings.summary_model,
-    ):
+    )
+    saved = (
+        api.update_summary(*summary_args, correlation_id)
+        if correlation_id
+        else api.update_summary(*summary_args)
+    )
+    if not saved:
         raise RuntimeError("Failed to persist AI summary")
-    logger.info("AI summary saved", extra={"video_id": video_id})
+    logger.info(
+        "AI summary saved",
+        extra={"video_id": video_id, "correlation_id": correlation_id},
+    )
 
 
 def _valid_artifacts(

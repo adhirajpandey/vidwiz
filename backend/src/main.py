@@ -1,3 +1,6 @@
+import asyncio
+from contextlib import asynccontextmanager
+
 from fastapi import FastAPI, HTTPException, Request, status
 from fastapi.exceptions import RequestValidationError
 from fastapi.middleware.cors import CORSMiddleware
@@ -10,7 +13,11 @@ from src.config import settings
 from src.conversations.router import router as conversations_router
 from src.exceptions import APIError, ErrorCode, HTTP_STATUS_CODE_MAP, RateLimitError
 from src.internal.router import router as internal_router
-from src.metrics import init_metrics
+from src.metrics import (
+    METRICS_QUERY_TIMEOUT_SECONDS,
+    METRICS_REFRESH_SECONDS,
+    init_metrics,
+)
 from src.payments.router import router as payments_router
 from src.models import ErrorDetail, ErrorPayload, ErrorResponse
 from src.library.router import router as library_router
@@ -102,6 +109,25 @@ def register_exception_handlers(app: FastAPI) -> None:
 
 def create_app() -> FastAPI:
     setup_logging(settings)
+
+    @asynccontextmanager
+    async def lifespan(app: FastAPI):
+        from src.database import SessionLocal
+
+        metrics_task = asyncio.create_task(
+            _metrics_snapshot_loop(app.state.metrics, SessionLocal)
+        )
+        app.state.metrics_task = metrics_task
+        try:
+            yield
+        finally:
+            metrics_task.cancel()
+            try:
+                await metrics_task
+            except asyncio.CancelledError:
+                pass
+            shutdown_logging()
+
     app = FastAPI(
         title="VidWiz API",
         description=(
@@ -111,6 +137,7 @@ def create_app() -> FastAPI:
         openapi_url="/openapi.json",
         docs_url="/docs",
         redoc_url=None,
+        lifespan=lifespan,
     )
     app.state.limiter = limiter
     app.add_middleware(SlowAPIMiddleware)
@@ -122,7 +149,7 @@ def create_app() -> FastAPI:
         allow_credentials=True,
         allow_methods=["*"],
         allow_headers=["*"],
-        expose_headers=["X-Request-ID", "Retry-After"],
+        expose_headers=["X-Request-ID", "X-Correlation-ID", "Retry-After"],
     )
 
     @app.middleware("http")
@@ -134,6 +161,14 @@ def create_app() -> FastAPI:
     @app.get("/health", include_in_schema=False)
     async def health() -> dict[str, str]:
         return {"status": "ok"}
+
+    @app.get("/ready", include_in_schema=False)
+    async def readiness(request: Request):
+        metrics = request.app.state.metrics
+        ready = metrics.is_database_ready()
+        if not ready:
+            return JSONResponse(status_code=503, content={"status": "not_ready"})
+        return {"status": "ready"}
 
     init_metrics(app)
 
@@ -148,11 +183,38 @@ def create_app() -> FastAPI:
 
     register_exception_handlers(app)
 
-    @app.on_event("shutdown")
-    async def shutdown_event() -> None:
-        shutdown_logging()
-
     return app
+
+
+async def _metrics_snapshot_loop(metrics, session_factory) -> None:
+    """Run one tracked DB thread at a time and drain it before shutdown."""
+    snapshot_task = None
+    try:
+        while True:
+            if snapshot_task is None:
+                snapshot_task = asyncio.create_task(
+                    asyncio.to_thread(metrics.collect_snapshot, session_factory)
+                )
+            done, _ = await asyncio.wait(
+                {snapshot_task}, timeout=METRICS_QUERY_TIMEOUT_SECONDS
+            )
+            if done:
+                try:
+                    snapshot_task.result()
+                except Exception:
+                    metrics.failed_snapshot()
+                snapshot_task = None
+            else:
+                # Thread cancellation is not supported; keep its handle and do
+                # not overlap another DB snapshot while it finishes.
+                metrics.failed_snapshot()
+            await asyncio.sleep(METRICS_REFRESH_SECONDS)
+    finally:
+        if snapshot_task is not None:
+            try:
+                await asyncio.shield(snapshot_task)
+            except Exception:
+                metrics.failed_snapshot()
 
 
 app = create_app()

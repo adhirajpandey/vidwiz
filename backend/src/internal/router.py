@@ -20,6 +20,7 @@ from src.internal.schemas import (
 from src.moments import service as moments_service
 from src.moments.models import Moment
 from src.moments.schemas import MomentRead
+from src.logging import current_correlation_id
 from src.shared.ratelimit import limiter
 from src.videos.dependencies import get_video_id_path
 from src.videos.schemas import VideoIdPath, VideoRead
@@ -100,7 +101,16 @@ def collect_pending_moments(
     moments = moments_service.collect_pending_ai(db, path.video_id)
     return PendingMomentsResponse(
         video_id=path.video_id,
-        moments=[PendingMoment.model_validate(moment) for moment in moments],
+        moments=[
+            PendingMoment(
+                id=moment.id,
+                video_id=moment.video_id,
+                at_seconds=moment.at_seconds,
+                user_id=moment.user_id,
+                correlation_id=current_correlation_id(),
+            )
+            for moment in moments
+        ],
     )
 
 

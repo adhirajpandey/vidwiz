@@ -4,6 +4,7 @@ from sqlalchemy import select
 from sqlalchemy.orm import Session
 
 from src import transcripts
+from src.metrics import record_workflow_event
 from src.videos import overview
 from src.videos.models import TranscriptStatus, Video
 from src.videos.schemas import TranscriptRead, TranscriptSegment
@@ -40,8 +41,11 @@ def get_or_create_video(db: Session, video_id: str, title: str | None = None) ->
 
 def mark_transcript_ready(db: Session, video: Video) -> None:
     """Record the stored transcript, commit, and queue the overview."""
+    changed = video.transcript_status != TranscriptStatus.READY
     video.transcript_status = TranscriptStatus.READY
     db.commit()
+    if changed:
+        record_workflow_event("transcript", "transcript_ready")
     overview.on_transcript_ready(db, video)
 
 

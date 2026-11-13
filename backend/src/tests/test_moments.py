@@ -732,14 +732,24 @@ async def test_pending_moments_charges_queues_and_flags_missing_credits(
 
     with caplog.at_level(logging.INFO):
         response = await client.post(
-            f"/v2/internal/videos/{VIDEO_ID}/pending-moments", headers=admin_headers()
+            f"/v2/internal/videos/{VIDEO_ID}/pending-moments",
+            headers={
+                **admin_headers(),
+                "X-Correlation-ID": "trace:abc-123",
+            },
         )
 
     assert response.status_code == 200
     assert response.json() == {
         "video_id": VIDEO_ID,
         "moments": [
-            {"id": mine.id, "video_id": VIDEO_ID, "at_seconds": 100, "user_id": user.id}
+            {
+                "id": mine.id,
+                "video_id": VIDEO_ID,
+                "at_seconds": 100,
+                "user_id": user.id,
+                "correlation_id": "trace:abc-123",
+            }
         ],
     }
     db_session.refresh(mine)
@@ -1352,3 +1362,34 @@ async def test_pending_transcript_returns_conflict_without_charging(
     )
     assert response.json()["moments"] == []
     assert len(charges(db_session, user)) == 1
+
+
+def test_title_resolution_does_not_repeat_waiting_event(db_session, user, monkeypatch):
+    events = []
+    monkeypatch.setattr(
+        moments_service,
+        "record_workflow_event",
+        lambda *args, **kwargs: events.append(args),
+    )
+    moment, _ = capture(db_session, user, video=None, title="Unknown Talk", ai=True)
+    assert moment.ai_status == AiStatus.WAITING_TRANSCRIPT
+    before = len(
+        [
+            event
+            for event in events
+            if event[:2] == ("ai_moment", "ai_waiting_transcript")
+        ]
+    )
+    assert before == 1
+    moments_service._attach_resolved_video(db_session, moment, VIDEO_ID, "Unknown Talk")
+    assert moment.ai_status == AiStatus.WAITING_TRANSCRIPT
+    assert (
+        len(
+            [
+                event
+                for event in events
+                if event[:2] == ("ai_moment", "ai_waiting_transcript")
+            ]
+        )
+        == before
+    )

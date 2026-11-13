@@ -3,6 +3,8 @@ from sqlalchemy.orm import Session
 
 from src.internal import constants as internal_constants
 from src.internal.models import Task, TaskStatus
+from src.logging import current_correlation_id
+from src.metrics import record_workflow_event
 from src.moments.models import AiStatus, Moment
 from src.videos import service as videos_service
 from src.videos.models import TranscriptStatus, Video
@@ -27,14 +29,25 @@ def create_task_idempotent(db: Session, task_type: str, video_id: str) -> Task:
         if task.task_details and task.task_details.get("video_id") == video_id:
             return task
 
+    correlation_id = current_correlation_id()
     new_task = Task(
         task_type=task_type,
         status=TaskStatus.PENDING,
-        task_details={"video_id": video_id},
+        task_details={
+            "video_id": video_id,
+            **({"correlation_id": correlation_id} if correlation_id else {}),
+        },
     )
     db.add(new_task)
     db.commit()
     db.refresh(new_task)
+    workflow = {
+        internal_constants.FETCH_METADATA_TASK_TYPE: "metadata",
+        internal_constants.FETCH_TRANSCRIPT_TASK_TYPE: "transcript",
+        internal_constants.RESOLVE_TITLE_TASK_TYPE: "title_resolution",
+    }.get(task_type)
+    if workflow:
+        record_workflow_event(workflow, "task_queued")
     return new_task
 
 

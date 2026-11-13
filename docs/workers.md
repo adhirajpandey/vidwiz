@@ -17,6 +17,10 @@ Describe background helpers and Lambdas used for transcript/metadata fetching an
     the results; at confidence 0.75 or above it sends `resolved: {video_id,
     title}`, below that or on failure it sends `candidates` for the user to pick
   - Submits results to `/v2/internal/tasks/{id}/result`
+  - Tasks may include an optional `correlation_id` in `task_details`. The helper
+    forwards it in the result payload and `X-Correlation-ID` callback header;
+    tasks without the field keep the legacy payload and callback shape.
+    Receipt, processing, result submission, and failure logs include the ID.
   - CLI args: task type, `--timeout`, and optional `--api-url`
   - Internal API base URL resolution: `--api-url` -> `VIDWIZ_INTERNAL_API_BASE_URL`; exits on startup if neither is set
 
@@ -28,7 +32,7 @@ or systemd unit manages parallel helper processes.
 - **AI Moment Lambda**: `backend/workers/lambdas/ai_note_worker`
   - `handler.py` parses SQS events and delegates to the functional
     `note_service.py` module.
-  - Triggered by SQS messages containing moment jobs: `{ id, video_id, at_seconds, user_id }`
+  - Triggered by SQS messages containing moment jobs: `{ id, video_id, at_seconds, user_id }`, with an optional `correlation_id`
   - Fetches transcript from S3 with retry/backoff
   - Extracts context around the timestamp (buffer + surrounding segments)
   - Generates a one-line note with length constraints and retries on length mismatch
@@ -45,7 +49,8 @@ or systemd unit manages parallel helper processes.
 - **AI Overview Lambda**: `backend/workers/lambdas/ai_summary_worker`
   - `handler.py` parses SQS events and delegates to the functional
     `summary_service.py` module.
-  - Triggered by SQS messages containing `{ video_id }`, sent only by the API
+  - Triggered by SQS messages containing `{ video_id }`, sent only by the API,
+    with an optional `correlation_id`
   - Generates only while the video's `overview_status` is `queued`; any other
     state means a duplicate delivery or a settled job, so it skips
   - Reads transcript from S3 with retry/backoff and groups it into ~45-second
@@ -133,6 +138,12 @@ payloads.
   (`vidwiz-v3-ai-note-dlq`, `vidwiz-v3-ai-summary-dlq`, 14-day retention): a
   message moves there only when its failure could not be recorded, for
   inspection.
+
+Correlation IDs are optional for existing SQS messages and task records. New API
+requests accept a bounded `X-Correlation-ID` header and pass it through task
+details and queue messages. Workers forward the value on their API callbacks.
+When an older worker omits it, the API starts a new correlation ID for that
+callback. Correlation IDs are log metadata and are not used as metric labels.
 
 ## Configuration (Common)
 - Internal API access: `VIDWIZ_INTERNAL_API_BASE_URL`, `VIDWIZ_INTERNAL_API_ADMIN_TOKEN`

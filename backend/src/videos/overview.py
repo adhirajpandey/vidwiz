@@ -20,6 +20,8 @@ from sqlalchemy.orm import Session
 from src.config import settings
 from src.exceptions import BadRequestError
 from src.logging import log_event
+from src.logging import current_correlation_id
+from src.metrics import record_workflow_event
 from src.shared.queues import send_job
 from src.moments.models import Moment
 from src.videos.models import OverviewStatus, TranscriptStatus, Video
@@ -43,8 +45,13 @@ def queue(db: Session, video: Video) -> None:
     """Mark the overview queued and send the job; a failed send marks it failed."""
     set_status(video, OverviewStatus.QUEUED)
     db.commit()
+    record_workflow_event("overview", "overview_queued")
     try:
-        send_job(settings.sqs_ai_summary_queue_url, {"video_id": video.video_id})
+        payload = {"video_id": video.video_id}
+        correlation_id = current_correlation_id()
+        if correlation_id:
+            payload["correlation_id"] = correlation_id
+        send_job(settings.sqs_ai_summary_queue_url, payload)
         logger.info("Queued overview", extra={"video_id": video.video_id})
     except Exception as exc:
         logger.error(
@@ -53,6 +60,7 @@ def queue(db: Session, video: Video) -> None:
         )
         set_status(video, OverviewStatus.FAILED)
         db.commit()
+        record_workflow_event("overview", "overview_failed", "queue_error")
     db.refresh(video)
 
 
@@ -113,6 +121,8 @@ def sweep(db: Session, older_than: timedelta) -> int:
         .all()
     )
     db.commit()
+    if failed:
+        record_workflow_event("overview", "overview_failed", "stale", len(failed))
     for video_id in failed:
         log_event("overview.failed", video_id=video_id, reason="stale")
     return len(failed)

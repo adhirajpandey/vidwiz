@@ -242,23 +242,41 @@ class TaskHelper:
             time.sleep(POLL_ERROR_BACKOFF_SECONDS)
             return None
 
-    def send_task_result(self, task_id: int, data: dict) -> bool:
+    def send_task_result(
+        self, task_id: int, data: dict, correlation_id: str | None = None
+    ) -> bool:
         """Send a result payload and return whether the API accepted it."""
         logger.info(
-            f"Sending task result for task_id={task_id}, success={data['success']}"
+            "Sending task result task_id=%s success=%s correlation_id=%r",
+            task_id,
+            data["success"],
+            correlation_id,
         )
         try:
             response = requests.post(
-                f"{self.tasks_url}/{task_id}/result", json=data, headers=self.headers
+                f"{self.tasks_url}/{task_id}/result",
+                json=data,
+                headers={
+                    **self.headers,
+                    **({"X-Correlation-ID": correlation_id} if correlation_id else {}),
+                },
             )
             response.raise_for_status()
             logger.info(
-                f"Task result submitted successfully: {response.json().get('status')}"
+                "Task result submitted task_id=%s status=%s correlation_id=%r",
+                task_id,
+                response.json().get("status"),
+                correlation_id,
             )
             return True
         except requests.RequestException as e:
             # The error names the URL and status; the response body may hold user data.
-            logger.error(f"Failed to submit result for task {task_id}: {e}")
+            logger.error(
+                "Failed to submit result task_id=%s correlation_id=%r: %s",
+                task_id,
+                correlation_id,
+                e,
+            )
             return False
 
     def run(self) -> None:
@@ -275,28 +293,56 @@ class TaskHelper:
 
                 task_id = task_data["task_id"]
                 details = task_data.get("task_details") or {}
-                logger.info(f"Received task: {task_id}, details: {sorted(details)}")
+                correlation_id = details.get("correlation_id")
+                logger.info(
+                    "Received task task_id=%s correlation_id=%r",
+                    task_id,
+                    correlation_id,
+                )
                 try:
                     result = self.fetch(details)
-                    if self.send_task_result(task_id, {**result, "success": True}):
-                        logger.info(f"Successfully processed task: {task_id}")
+                    result = {
+                        **result,
+                        "success": True,
+                        **(
+                            {"correlation_id": correlation_id} if correlation_id else {}
+                        ),
+                    }
+                    if correlation_id:
+                        accepted = self.send_task_result(
+                            task_id, result, correlation_id
+                        )
                     else:
-                        logger.error(f"Result not accepted for task: {task_id}")
+                        accepted = self.send_task_result(task_id, result)
+                    if accepted:
+                        logger.info(
+                            "Successfully processed task task_id=%s correlation_id=%r",
+                            task_id,
+                            correlation_id,
+                        )
+                    else:
+                        logger.error(
+                            "Result not accepted task_id=%s correlation_id=%r",
+                            task_id,
+                            correlation_id,
+                        )
                 except Exception as e:  # noqa: BLE001
                     logger.exception(
-                        "Failed to process task %s video_id=%s moment_id=%s",
+                        "Failed to process task %s video_id=%s moment_id=%s correlation_id=%r",
                         task_id,
                         details.get("video_id"),
                         details.get("moment_id"),
+                        correlation_id,
                     )
-                    self.send_task_result(
-                        task_id,
-                        {
-                            "video_id": details.get("video_id"),
-                            "success": False,
-                            "error_message": str(e),
-                        },
-                    )
+                    failure = {
+                        "video_id": details.get("video_id"),
+                        "success": False,
+                        "error_message": str(e),
+                    }
+                    if correlation_id:
+                        self.send_task_result(task_id, failure, correlation_id)
+                    else:
+                        self.send_task_result(task_id, failure)
             except Exception as e:  # noqa: BLE001
                 logger.error(f"Error in main loop: {e}")
                 time.sleep(5)  # Backoff on error

@@ -1,4 +1,5 @@
 from typing import Any
+import re
 
 import requests
 
@@ -13,18 +14,32 @@ class InternalApiClient:
         self._logger = logger
         self._session = session
 
-    @property
-    def _headers(self) -> dict[str, str]:
-        return {
+    def _headers(self, correlation_id: str | None = None) -> dict[str, str]:
+        headers = {
             "Content-Type": "application/json",
             "Authorization": f"Bearer {self._settings.internal_api_admin_token}",
         }
+        if (
+            correlation_id
+            and len(correlation_id) <= 128
+            and re.fullmatch(r"[A-Za-z0-9][A-Za-z0-9._:-]*", correlation_id)
+        ):
+            headers["X-Correlation-ID"] = correlation_id
+        return headers
 
-    def get_video(self, video_id: str) -> dict[str, Any] | None:
-        return self._request_json("get", f"/v2/internal/videos/{video_id}", video_id)
+    def get_video(
+        self, video_id: str, correlation_id: str | None = None
+    ) -> dict[str, Any] | None:
+        return self._request_json(
+            "get", f"/v2/internal/videos/{video_id}", video_id, correlation_id
+        )
 
     def save_moment_ai(
-        self, moment_id: int, ai_text: str | None, ai_model: str | None = None
+        self,
+        moment_id: int,
+        ai_text: str | None,
+        ai_model: str | None = None,
+        correlation_id: str | None = None,
     ) -> bool:
         """Store the AI line and its model, or null to mark the generation failed."""
         return self._request_success(
@@ -33,9 +48,10 @@ class InternalApiClient:
             {"ai_text": ai_text, "ai_model": ai_model},
             "moment_id",
             moment_id,
+            correlation_id,
         )
 
-    def fail_overview(self, video_id: str) -> bool:
+    def fail_overview(self, video_id: str, correlation_id: str | None = None) -> bool:
         """Mark the video's queued overview failed."""
         return self._request_success(
             "post",
@@ -43,6 +59,7 @@ class InternalApiClient:
             {},
             "video_id",
             video_id,
+            correlation_id,
         )
 
     def update_summary(
@@ -52,6 +69,7 @@ class InternalApiClient:
         suggested_questions: list[str],
         key_points: list[dict[str, Any]],
         overview_model: str,
+        correlation_id: str | None = None,
     ) -> bool:
         return self._request_success(
             "post",
@@ -66,15 +84,16 @@ class InternalApiClient:
             },
             "video_id",
             video_id,
+            correlation_id,
         )
 
     def _request_json(
-        self, method: str, path: str, video_id: str
+        self, method: str, path: str, video_id: str, correlation_id: str | None = None
     ) -> dict[str, Any] | None:
         try:
             response = getattr(self._session, method)(
                 f"{self._settings.internal_api_base_url}{path}",
-                headers=self._headers,
+                headers=self._headers(correlation_id),
                 timeout=self._settings.request_timeout,
             )
             if response.status_code == 200:
@@ -97,12 +116,13 @@ class InternalApiClient:
         payload: dict[str, Any],
         identifier_name: str,
         identifier: int | str,
+        correlation_id: str | None = None,
     ) -> bool:
         try:
             response = getattr(self._session, method)(
                 f"{self._settings.internal_api_base_url}{path}",
                 json=payload,
-                headers=self._headers,
+                headers=self._headers(correlation_id),
                 timeout=self._settings.request_timeout,
             )
             if response.status_code == 200:

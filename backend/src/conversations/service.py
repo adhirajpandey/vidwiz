@@ -1,5 +1,7 @@
 import json
 import logging
+import time
+import asyncio
 from collections import Counter
 from datetime import datetime, timedelta
 
@@ -40,6 +42,7 @@ from src.exceptions import (
 )
 from src.videos.models import Video
 from src.videos import service as videos_service
+from src.metrics import current_metrics, record_workflow_event
 
 DB_ROLE_USER = "user"
 DB_ROLE_ASSISTANT = "assistant"
@@ -373,6 +376,7 @@ def stream_wiz_response(
     conversation_id: int,
     db: Session,
     api_key: str,
+    scope: str = "video",
 ):
     """Answer about one video, citing its transcript segments."""
     _, references = transcript_context(transcript)
@@ -383,6 +387,7 @@ def stream_wiz_response(
         conversation_id=conversation_id,
         db=db,
         api_key=api_key,
+        scope=scope,
     )
 
 
@@ -401,6 +406,7 @@ def stream_answer(
     api_key: str,
     models: dict | None = None,
     time_range: dict | None = None,
+    scope: str = "video",
 ):
     """Stream a structured, cited answer and save it once complete.
 
@@ -411,6 +417,9 @@ def stream_answer(
         return f"data: {part.model_dump_json()}\n\n"
 
     response_stream = None
+    started_at = time.perf_counter()
+    outcome = "failed"
+    failure_reason = "model_error"
     try:
         messages = [{"role": "system", "content": system_prompt}]
         for msg in history:
@@ -467,6 +476,7 @@ def stream_answer(
                         resolved.append(part)
                         yield event(part)
         if not decoder.buffer:
+            failure_reason = "empty_response"
             yield event(
                 ErrorEvent(message="No response from AI model. Please try again.")
             )
@@ -483,6 +493,7 @@ def stream_answer(
             raise ValueError("Incomplete model response")
         content = text_projection(resolved)
         if not content.strip():
+            failure_reason = "empty_response"
             yield event(
                 ErrorEvent(message="No response from AI model. Please try again.")
             )
@@ -499,16 +510,51 @@ def stream_answer(
                 **({"time_range": time_range} if time_range else {}),
             },
         )
+        outcome = "completed"
         yield event(DoneEvent(message_id=message.id))
-    except Exception:
+    except (GeneratorExit, asyncio.CancelledError):
+        if outcome != "completed":
+            outcome = "interrupted"
+        raise
+    except Exception as exc:
+        failure_reason = (
+            "invalid_output"
+            if isinstance(exc, (ValueError, json.JSONDecodeError))
+            else "model_error"
+        )
         db.rollback()
         logger.exception(
-            "Wiz structured response failed", extra={"conversation_id": conversation_id}
+            "Wiz structured response failed",
+            extra={
+                "conversation_id": conversation_id,
+                "error_type": type(exc).__name__,
+            },
         )
-        yield event(ErrorEvent(message="Processing error"))
+        try:
+            yield event(ErrorEvent(message="Processing error"))
+        except (GeneratorExit, asyncio.CancelledError):
+            outcome = "interrupted"
+            raise
     finally:
-        if response_stream is not None and hasattr(response_stream, "close"):
-            response_stream.close()
+        try:
+            if response_stream is not None and hasattr(response_stream, "close"):
+                response_stream.close()
+        finally:
+            duration = time.perf_counter() - started_at
+            metrics = current_metrics()
+            if metrics is not None:
+                metrics.observe_wiz(scope, outcome, duration)
+            event_name = {
+                "completed": "wiz_completed",
+                "failed": "wiz_failed",
+                "interrupted": "wiz_interrupted",
+            }[outcome]
+            reason = {
+                "completed": "none",
+                "failed": failure_reason,
+                "interrupted": "interrupted",
+            }[outcome]
+            record_workflow_event("wiz_chat", event_name, reason)
 
 
 def ensure_openrouter_api_key() -> str:

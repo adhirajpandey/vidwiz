@@ -138,7 +138,7 @@ def test_rejected_result_is_not_reported_as_processed(monkeypatch, caplog):
         _run_one_task(helper, monkeypatch, {"video_id": "abc123DEF45"})
 
     messages = [record.getMessage() for record in caplog.records]
-    assert "Result not accepted for task: 7" in messages
+    assert "Result not accepted task_id=7 correlation_id=None" in messages
     assert not any("Successfully processed" in message for message in messages)
     assert not any("private response body" in message for message in messages)
 
@@ -164,7 +164,7 @@ def test_failed_task_logs_ids_and_traceback(monkeypatch, caplog):
     [record] = [record for record in caplog.records if record.levelname == "ERROR"]
     assert (
         record.getMessage()
-        == "Failed to process task 7 video_id=abc123DEF45 moment_id=9"
+        == "Failed to process task 7 video_id=abc123DEF45 moment_id=9 correlation_id=None"
     )
     assert record.exc_info is not None
     assert sent == [
