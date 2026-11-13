@@ -445,8 +445,8 @@ def _attach_resolved_video(
     moment.resolve_status = ResolveStatus.RESOLVED
     moment.pending_title = None
     moment.pending_channel = None
-    moment.ai_status = AiStatus.NOT_REQUESTED
     previous_ai_status = moment.ai_status
+    moment.ai_status = AiStatus.NOT_REQUESTED
     enqueue = _attach_transcript_work(db, moment, wants_ai)
     db.commit()
     record_workflow_event("title_resolution", "title_resolved")

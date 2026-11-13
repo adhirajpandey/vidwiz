@@ -20,6 +20,7 @@ Describe background helpers and Lambdas used for transcript/metadata fetching an
   - Tasks may include an optional `correlation_id` in `task_details`. The helper
     forwards it in the result payload and `X-Correlation-ID` callback header;
     tasks without the field keep the legacy payload and callback shape.
+    Receipt, processing, result submission, and failure logs include the ID.
   - CLI args: task type, `--timeout`, and optional `--api-url`
   - Internal API base URL resolution: `--api-url` -> `VIDWIZ_INTERNAL_API_BASE_URL`; exits on startup if neither is set
 

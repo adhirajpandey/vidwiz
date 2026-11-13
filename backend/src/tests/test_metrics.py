@@ -15,6 +15,7 @@ from src.logging import (
 )
 from src import main as main_module
 from src.main import create_app
+from src.database import engine as application_engine
 from src.metrics import Metrics, correlation_id_from_header
 
 
@@ -284,3 +285,16 @@ def test_failed_probe_with_failed_rollback_cannot_leave_readiness_green():
     assert metrics.database_ready._value.get() == 0
     assert metrics.snapshot_success._value.get() == 0
     assert not metrics.is_database_ready()
+
+
+def test_application_database_connection_accepts_socket_options(db_session):
+    from sqlalchemy import text
+
+    with application_engine.connect() as connection:
+        assert connection.scalar(text("SELECT 1")) == 1
+        parameters = connection.connection.driver_connection.get_dsn_parameters()
+        assert parameters["keepalives"] == "1"
+        assert parameters["keepalives_idle"] == "10"
+        assert parameters["keepalives_interval"] == "5"
+        assert parameters["keepalives_count"] == "3"
+        assert parameters["tcp_user_timeout"] == "20000"

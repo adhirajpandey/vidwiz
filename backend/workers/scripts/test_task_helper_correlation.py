@@ -1,6 +1,7 @@
 from importlib.util import module_from_spec, spec_from_file_location
 from pathlib import Path
 import uuid
+import logging
 
 import pytest
 
@@ -17,7 +18,11 @@ def _load_task_helper():
     return module
 
 
-def test_task_helper_returns_task_correlation_in_result_and_header(monkeypatch):
+@pytest.mark.parametrize("fail", [False, True])
+def test_task_helper_returns_task_correlation_in_result_and_header(
+    monkeypatch, caplog, fail
+):
+    caplog.set_level(logging.INFO, logger="vidwiz.task_helper")
     module = _load_task_helper()
     helper = module.TaskHelper("metadata", "token", 1, "https://api.example")
     responses = iter(
@@ -40,7 +45,13 @@ def test_task_helper_returns_task_correlation_in_result_and_header(monkeypatch):
 
     submitted = []
     monkeypatch.setattr(helper, "get_task", get_task)
-    monkeypatch.setattr(helper, "fetch", lambda _details: {"video_id": "video-id"})
+
+    def fetch(_details):
+        if fail:
+            raise ValueError("test failure")
+        return {"video_id": "video-id"}
+
+    monkeypatch.setattr(helper, "fetch", fetch)
     monkeypatch.setattr(
         helper,
         "send_task_result",
@@ -52,6 +63,27 @@ def test_task_helper_returns_task_correlation_in_result_and_header(monkeypatch):
     with pytest.raises(SystemExit):
         helper.run()
 
+    lifecycle = [
+        r.getMessage()
+        for r in caplog.records
+        if r.name == "vidwiz.task_helper"
+        and ("task_id=" in r.getMessage() or "Failed to process" in r.getMessage())
+    ]
+    assert len(lifecycle) >= 2
+    assert all("trace:abc-123" in message for message in lifecycle)
+    if fail:
+        assert submitted == [
+            (
+                7,
+                {
+                    "video_id": "video-id",
+                    "success": False,
+                    "error_message": "test failure",
+                },
+                "trace:abc-123",
+            )
+        ]
+        return
     assert submitted == [
         (
             7,
@@ -63,3 +95,32 @@ def test_task_helper_returns_task_correlation_in_result_and_header(monkeypatch):
             "trace:abc-123",
         )
     ]
+
+
+@pytest.mark.parametrize("fail", [False, True])
+def test_callback_logs_and_header_include_correlation(monkeypatch, caplog, fail):
+    module = _load_task_helper()
+    helper = module.TaskHelper("metadata", "token", 1, "https://api.example")
+    caplog.set_level(logging.INFO, logger="vidwiz.task_helper")
+
+    def post(url, **kwargs):
+        assert kwargs["headers"]["X-Correlation-ID"] == "trace:abc-123"
+        if fail:
+            raise module.requests.RequestException("test failure")
+
+        class Response:
+            def raise_for_status(self):
+                pass
+
+            def json(self):
+                return {"status": "accepted"}
+
+        return Response()
+
+    monkeypatch.setattr(module.requests, "post", post)
+    assert helper.send_task_result(7, {"success": True}, "trace:abc-123") is not fail
+    messages = [
+        r.getMessage() for r in caplog.records if r.name == "vidwiz.task_helper"
+    ]
+    assert len(messages) == 2
+    assert all("trace:abc-123" in message for message in messages)

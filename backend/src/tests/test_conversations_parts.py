@@ -413,7 +413,8 @@ def test_stream_persistence_and_history(db_session, monkeypatch, fail):
         assert history_parts(parts, {})[0]["references"] == []
 
 
-def test_stream_close_records_interrupted_outcome(db_session, monkeypatch, user):
+@pytest.mark.parametrize("after_done", [False, True])
+def test_stream_close_records_outcome(db_session, monkeypatch, user, after_done):
     from src.conversations.parts import transcript_context
 
     _, refs = transcript_context([{"text": "Source", "offset": 0, "duration": 1}])
@@ -446,6 +447,8 @@ def test_stream_close_records_interrupted_outcome(db_session, monkeypatch, user)
             api_key="test",
         )
         assert json.loads(next(stream).removeprefix("data: "))["type"] == "block"
+        if after_done:
+            assert json.loads(next(stream).removeprefix("data: "))["type"] == "done"
         stream.close()
     finally:
         unbind_metrics(token)
@@ -455,7 +458,7 @@ def test_stream_close_records_interrupted_outcome(db_session, monkeypatch, user)
         _metric_sample_value(
             metrics,
             "vidwiz_wiz_stream_duration_seconds_count",
-            {"scope": "video", "outcome": "interrupted"},
+            {"scope": "video", "outcome": "completed" if after_done else "interrupted"},
         )
         == 1
     )
@@ -465,13 +468,13 @@ def test_stream_close_records_interrupted_outcome(db_session, monkeypatch, user)
             "vidwiz_workflow_events_total",
             {
                 "workflow": "wiz_chat",
-                "event": "wiz_interrupted",
-                "reason": "interrupted",
+                "event": "wiz_completed" if after_done else "wiz_interrupted",
+                "reason": "none" if after_done else "interrupted",
             },
         )
         == 1
     )
-    assert service.list_messages(db_session, conversation.id) == []
+    assert len(service.list_messages(db_session, conversation.id)) == int(after_done)
 
 
 def test_decoder_atomic_and_model_cannot_supply_times():

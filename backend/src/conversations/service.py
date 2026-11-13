@@ -510,13 +510,11 @@ def stream_answer(
                 **({"time_range": time_range} if time_range else {}),
             },
         )
-        yield event(DoneEvent(message_id=message.id))
         outcome = "completed"
-    except GeneratorExit:
-        outcome = "interrupted"
-        raise
-    except asyncio.CancelledError:
-        outcome = "interrupted"
+        yield event(DoneEvent(message_id=message.id))
+    except (GeneratorExit, asyncio.CancelledError):
+        if outcome != "completed":
+            outcome = "interrupted"
         raise
     except Exception as exc:
         failure_reason = (

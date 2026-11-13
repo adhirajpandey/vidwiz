@@ -405,7 +405,11 @@ The API refreshes database aggregates in a background task immediately after
 startup and about every 60 seconds. Scraping `/v2/internal/metrics` only reads
 the in-memory registry. Aggregate statements have a five-second PostgreSQL
 statement timeout; pool checkout and connection establishment each time out
-after five seconds. A ten-second collector deadline marks a slow snapshot
+after five seconds. TCP connections enable keepalives after ten idle seconds,
+with five-second intervals and three missed probes. A 20-second TCP user timeout
+bounds unacknowledged data on supported systems. These libpq settings detect
+lost connections; they are not a deadline for a responsive server.
+A ten-second collector deadline marks a slow snapshot
 failed without cancelling its worker thread. The loop retains that thread and
 does not start another snapshot until it finishes. Shutdown drains any
 in-flight snapshot before logging shuts down. Each app instance owns a separate
