@@ -198,7 +198,8 @@ Describe the FastAPI backend: structure, auth rules, and the request/worker life
   five close names instead of videos.
 - `fetch` reads only source ids an earlier tool returned in the same request:
   a passage with one neighbour on each side, or a moment's parts with the
-  passages around its timestamp.
+  passages around its timestamp. `run_tool()` records each call's returned
+  source ids in the context; `moments_in` returns only the moments it lists.
 - `Source` (in `src/ask/sources.py`) is shared with the current pipeline.
 
 ### Conversations

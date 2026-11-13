@@ -247,8 +247,13 @@ def search(args: SearchArgs, context: ToolContext) -> ToolResult:
 
 def moments_in(args: MomentsInArgs, context: ToolContext) -> ToolResult:
     rows = context.db.execute(
-        select(Moment, Video.title, channel_column())
-        .join(Video, Video.video_id == Moment.video_id)
+        library_join(
+            select(Moment, Video.title, channel_column()).join(
+                Video, Video.video_id == Moment.video_id
+            ),
+            Moment.video_id,
+            context.user_id,
+        )
         .where(
             Moment.user_id == context.user_id,
             Moment.created_at >= local_start(args.since, context.time_zone),
@@ -258,7 +263,9 @@ def moments_in(args: MomentsInArgs, context: ToolContext) -> ToolResult:
         .order_by(Moment.created_at, Moment.id)
     ).all()
     videos: dict[str, dict] = {}
-    for moment, title, _ in rows:
+    # Only the moments listed in the result are its sources.
+    shown: list[Source] = []
+    for moment, title, channel in rows:
         entry = videos.setdefault(
             moment.video_id,
             {
@@ -278,16 +285,14 @@ def moments_in(args: MomentsInArgs, context: ToolContext) -> ToolResult:
                     "text": text[:MOMENT_TEXT_CHARS],
                 }
             )
+            shown.append(moment_source(moment, title, context.time_zone, channel))
     return ToolResult(
         {
             "total_moments": len(rows),
             "video_count": len(videos),
             "videos": list(videos.values()),
         },
-        [
-            moment_source(moment, title, context.time_zone, channel)
-            for moment, title, channel in rows
-        ],
+        shown,
     )
 
 
@@ -503,19 +508,27 @@ def run_tool(
 ) -> ToolResult:
     """Run a tool by name with the model's raw arguments; never raises.
 
-    Arguments may be a JSON object string, as models send them, or a dict.
+    Arguments may be a JSON object string, as models send them, or a dict;
+    missing, null or empty arguments mean {}. The ids of the sources a call
+    returns are added to `context.seen_ids`, so they can be fetched.
     """
     tool = TOOLS.get(name)
     if tool is None:
         return error(f"Unknown tool '{name}'.")
     try:
-        if isinstance(raw_arguments, str):
-            raw_arguments = json.loads(raw_arguments) if raw_arguments.strip() else {}
-        arguments = tool.arguments.model_validate(raw_arguments or {})
+        if isinstance(raw_arguments, str) and raw_arguments.strip():
+            raw_arguments = json.loads(raw_arguments)
+        if raw_arguments is None or (
+            isinstance(raw_arguments, str) and not raw_arguments.strip()
+        ):
+            raw_arguments = {}
+        if not isinstance(raw_arguments, dict):
+            raise ValueError("arguments must be a JSON object")
+        arguments = tool.arguments.model_validate(raw_arguments)
     except (ValueError, ValidationError) as exc:
         return error(f"Invalid arguments for {name}: {_reason(exc)}")
     try:
-        return tool.run(arguments, context)
+        result = tool.run(arguments, context)
     except SQLAlchemyError as exc:
         context.db.rollback()
         logger.warning(
@@ -527,6 +540,8 @@ def run_tool(
             "Ask tool failed", extra={"tool": name, "error": type(exc).__name__}
         )
         return error(f"{name} failed.")
+    context.seen_ids.update(source.source_id for source in result.sources)
+    return result
 
 
 def _reason(exc: Exception) -> str:

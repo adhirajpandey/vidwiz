@@ -511,9 +511,7 @@ def test_moments_in_uses_local_dates_and_the_users_moments(db_session, user, lib
     assert nov1.result["videos"][0]["moments"][0]["text"] == "Phone away"
 
 
-def test_moments_in_caps_listed_moments_but_returns_all_sources(
-    db_session, user, library
-):
+def test_moments_in_caps_listed_moments_and_their_sources(db_session, user, library):
     for second in range(8):
         add_moment(
             db_session,
@@ -524,18 +522,37 @@ def test_moments_in_caps_listed_moments_but_returns_all_sources(
             quote="q" * 300,
         )
 
-    result = run(
-        "moments_in",
-        {"since": "2026-08-01", "until": "2026-08-01"},
-        context(db_session, user),
-    )
+    ctx = context(db_session, user)
+    result = run("moments_in", {"since": "2026-08-01", "until": "2026-08-01"}, ctx)
 
     video = result.result["videos"][0]
     assert result.result["total_moments"] == 8
     assert video["moment_count"] == 8
     assert len(video["moments"]) == 6
     assert video["moments"][0]["text"] == "q" * 160
-    assert len(result.sources) == 8
+    # Only the listed moments are sources, and only they become fetchable.
+    shown = [moment["id"] for moment in video["moments"]]
+    assert ids(result.sources) == shown
+    assert ctx.seen_ids == set(shown)
+
+
+def test_moments_in_skips_moments_outside_the_library(db_session, user, library):
+    # The user owns a moment on a video they never saved.
+    stray = add_moment(
+        db_session, user, "eeeeeeeeeee", 0, utc(2026, 11, 1, 12), note="Stray"
+    )
+
+    result = run(
+        "moments_in",
+        {"since": "2026-11-01", "until": "2026-11-01"},
+        context(db_session, user),
+    )
+
+    assert f"m{stray.id}" not in ids(result.sources)
+    assert {video["video_id"] for video in result.result["videos"]} == {
+        "aaaaaaaaaaa",
+        "bbbbbbbbbbb",
+    }
 
 
 # ---- fetch ----
@@ -620,6 +637,24 @@ def test_search_tool_returns_results_and_sources(
     json.dumps(result.result)
 
 
+def test_search_then_fetch_on_one_context(db_session, user, library, query_vector):
+    ctx = context(db_session, user)
+
+    found = run("search", {"query": "phone", "video_ids": ["bbbbbbbbbbb"]}, ctx)
+    assert ctx.seen_ids == set(ids(found.sources))
+    passage = next(s for s in found.sources if s.kind == "transcript")
+
+    fetched = run("fetch", {"source_id": passage.source_id}, ctx)
+
+    assert fetched.result["status"] == "ok"
+    assert passage.source_id in ids(fetched.sources)
+    # Passages fetch returns are fetchable too; failed calls add nothing.
+    assert set(ids(fetched.sources)) <= ctx.seen_ids
+    before = set(ctx.seen_ids)
+    run("fetch", {"source_id": "c999999"}, ctx)
+    assert ctx.seen_ids == before
+
+
 def test_run_tool_reports_errors_without_raising(
     db_session, user, library, monkeypatch
 ):
@@ -628,6 +663,10 @@ def test_run_tool_reports_errors_without_raising(
     assert run("delete_everything", {}, ctx).result["error"].startswith("Unknown")
     assert "Invalid arguments" in run("search", "{not json", ctx).result["error"]
     assert "Invalid arguments" in run("search", "[1]", ctx).result["error"]
+    for falsy in ("[]", "false", "0", '""x', [], False, 0):
+        assert "Invalid arguments" in run("find_videos", falsy, ctx).result["error"]
+    for empty in (None, "", "  ", "null", '""', {}):
+        assert run("find_videos", empty, ctx).result["total"] == 3
     assert "query" in run("search", {}, ctx).result["error"]
     assert (
         "since"
