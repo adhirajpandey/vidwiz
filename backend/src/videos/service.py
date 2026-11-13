@@ -31,6 +31,7 @@ def get_or_create_video(db: Session, video_id: str, title: str | None = None) ->
         logger.debug("Creating video", extra={"video_id": video_id})
     elif title and not video.title:
         video.title = title
+        video.card_embedding = None
         logger.debug("Updating video title", extra={"video_id": video_id})
     else:
         return video

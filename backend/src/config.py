@@ -70,6 +70,10 @@ class Settings(BaseSettings):
     jev_relevance_threshold: float = Field(
         default=0.5, ge=0, le=1, alias="JEV_RELEVANCE_THRESHOLD"
     )
+    # Embeddings for meaning-based search, through OpenRouter.
+    embedding_model: Annotated[
+        str, StringConstraints(strip_whitespace=True, min_length=1)
+    ] = Field(default="qwen/qwen3-embedding-8b", alias="EMBEDDING_MODEL")
     s3_transcript_bucket_name: str | None = Field(
         default=None, alias="S3_TRANSCRIPT_BUCKET_NAME"
     )

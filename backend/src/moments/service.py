@@ -41,6 +41,9 @@ logger = logging.getLogger(__name__)
 # Captures this close to an existing moment on the same video join it.
 DEDUPE_WINDOW_SECONDS = 10
 
+# The text a moment's embedding is made from; changing it clears the embedding.
+MOMENT_TEXT_FIELDS = {"note", "ai_text", "quote"}
+
 # AI can be requested again from these states without a new charge.
 AI_REQUESTABLE = {
     AiStatus.NOT_REQUESTED,
@@ -194,6 +197,7 @@ def _merge(db: Session, moment: Moment, note: str | None, wants_ai: bool) -> boo
     logger.debug("Merging capture into moment", extra={"moment_id": moment.id})
     if note:
         moment.note = f"{moment.note}\n{note}" if moment.note else note
+        moment.embedding = None
     if wants_ai and moment.ai_status in AI_REQUESTABLE:
         return _request_ai(db, moment)
     return False
@@ -301,6 +305,8 @@ def save_passage(
 def apply_quote(moment: Moment, transcript: list) -> None:
     quote = transcripts.quote_for(transcript, moment.at_seconds)
     if quote:
+        if quote[0] != moment.quote:
+            moment.embedding = None
         moment.quote, moment.quote_start_seconds = quote
 
 
@@ -520,9 +526,12 @@ def on_transcript_stored(
     moments = db.execute(query).scalars().all()
     for moment in moments:
         updated_at = moment.updated_at
+        quote = moment.quote
         if recompute_all:
             moment.quote = moment.quote_start_seconds = None
         apply_quote(moment, transcript)
+        if moment.quote != quote:
+            moment.embedding = None
         moment.updated_at = updated_at
         # Setting the same value is not a change on its own; without this flag
         # the column's onupdate would stamp the current time.
@@ -619,6 +628,8 @@ def save_ai_text(
     was_queued = moment.ai_status == AiStatus.QUEUED
     ai_failed = not ai_text and was_queued
     if ai_text:
+        if ai_text != moment.ai_text:
+            moment.embedding = None
         moment.ai_text = ai_text
         moment.ai_model = ai_model
         moment.ai_status = AiStatus.READY
@@ -751,6 +762,8 @@ def update(db: Session, moment: Moment, fields: dict) -> Moment:
         "Updating moment", extra={"moment_id": moment.id, "fields": sorted(fields)}
     )
     for name, value in fields.items():
+        if name in MOMENT_TEXT_FIELDS and value != getattr(moment, name):
+            moment.embedding = None
         setattr(moment, name, value)
     db.commit()
     db.refresh(moment)

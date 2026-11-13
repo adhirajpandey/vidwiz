@@ -250,10 +250,14 @@ def _apply_transcript_state(db: Session, result: TaskResultRequest) -> None:
 
 
 def _apply_metadata(video: Video, metadata: dict) -> None:
+    # The channel is part of the video card, so a new one clears its embedding.
+    if metadata.get("uploader") != (video.video_metadata or {}).get("uploader"):
+        video.card_embedding = None
     video.video_metadata = metadata
     # Captures by ID carry no title; metadata supplies it.
     if not video.title and metadata.get("title"):
         video.title = metadata["title"]
+        video.card_embedding = None
 
 
 def _apply_final_failure(db: Session, task: Task) -> tuple[int, bool]:
@@ -314,9 +318,14 @@ def store_summary(
     video = videos_service.get_or_create_video(db, video_id)
     was_queued = video.overview_status.value == "queued"
     if summary is not None:
+        if summary != video.summary:
+            video.card_embedding = None
         video.summary = summary
         overview.complete(video)
     if miscellaneous_data:
+        old_points = (video.miscellaneous_data or {}).get("key_points")
+        if miscellaneous_data.get("key_points", old_points) != old_points:
+            video.card_embedding = None
         if miscellaneous_data.get("key_points"):
             miscellaneous_data["overview_generated_at"] = datetime.now(
                 timezone.utc
