@@ -65,6 +65,18 @@ export function WatchPassage({ passage }: { passage: Passage }) {
   );
 }
 
+/** A saved moment's time, opening its video there the same way a citation does. */
+export function WatchMoment({ videoId, video, seconds }: { videoId: string; video: string; seconds: number }) {
+  const { watch, watchHref } = useContext(PassageContext);
+  const passage: Passage = { chunk_ids: [], start_seconds: seconds, end_seconds: seconds, video_id: videoId };
+  const time = formatClock(seconds);
+  const href = watchHref?.(passage);
+  const label = `Watch ${video} from ${time}`;
+  return href
+    ? <Link to={href} className="wiz-moment-time" aria-label={label}>{time}</Link>
+    : <button type="button" className="wiz-moment-time" aria-label={label} onClick={() => watch(passage)}>{time}</button>;
+}
+
 /** Standalone citations from messages saved before block answers. */
 export default function WizCitation({ data }: DataMessagePartProps<CitationPart>) {
   const { watch } = useContext(PassageContext);

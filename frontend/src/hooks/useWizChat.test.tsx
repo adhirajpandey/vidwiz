@@ -83,6 +83,70 @@ describe('useWizChat', () => {
     expect(hook.result.current.messages[1]).toMatchObject({ parts, status: 'complete', serverMessageId: 123 });
   });
 
+  it('shows status until the first block, skips unknown kinds, and keeps digests', async () => {
+    const hook = await ready();
+    const response = stream();
+    vi.mocked(apiFetch).mockResolvedValue(response.response);
+    const block = { type: 'block', text: 'Here is your week.', citations: [] };
+    const digest = { type: 'digest', since: '2026-11-07', until: '2026-11-14', total_moments: 0, video_count: 0, videos: [] };
+    let sending!: Promise<void>;
+    act(() => { sending = hook.result.current.send('What did I save this week?'); });
+    await act(async () => response.write('{"type":"status","text":"Searching your library"}'));
+    expect(hook.result.current.messages[1]).toMatchObject({ parts: [], progress: 'Searching your library' });
+    await act(async () => { response.write('{"type":"video_list"}'); response.write('{"type":"status","text":"Writing"}'); });
+    expect(hook.result.current.messages[1]).toMatchObject({ parts: [], progress: 'Writing' });
+    await act(async () => response.write(JSON.stringify(block)));
+    expect(hook.result.current.messages[1].progress).toBeUndefined();
+    await act(async () => { response.write('{"type":"status","text":"Late"}'); response.write(JSON.stringify(digest)); });
+    expect(hook.result.current.messages[1].progress).toBeUndefined();
+    await act(async () => { response.write('{"type":"done","message_id":9}'); await sending; });
+    expect(hook.result.current.messages[1]).toMatchObject({ parts: [block, digest], status: 'complete' });
+  });
+
+  it('treats empty stats as no content: later status still shows, and done reports no response', async () => {
+    const hook = await ready();
+    const response = stream();
+    vi.mocked(apiFetch).mockResolvedValue(response.response);
+    const empty = { type: 'stats', video_count: null, group_by: null, groups: null };
+    let sending!: Promise<void>;
+    act(() => { sending = hook.result.current.send('How many videos?'); });
+    await act(async () => { response.write('{"type":"status","text":"Counting"}'); response.write(JSON.stringify(empty)); });
+    expect(hook.result.current.messages[1]).toMatchObject({ parts: [empty], progress: 'Counting' });
+    await act(async () => response.write('{"type":"status","text":"Still counting"}'));
+    expect(hook.result.current.messages[1].progress).toBe('Still counting');
+    await act(async () => { response.write('{"type":"done","message_id":9}'); await sending; });
+    expect(hook.result.current.messages[1]).toMatchObject({ status: 'error', progress: undefined });
+    expect(hook.result.current.messages[1].error?.message).toContain('interrupted');
+  });
+
+  it('completes an answer that is only a zero count', async () => {
+    const hook = await ready();
+    const response = stream();
+    vi.mocked(apiFetch).mockResolvedValue(response.response);
+    const zero = { type: 'stats', video_count: 0, group_by: null, groups: null };
+    await act(async () => {
+      const sending = hook.result.current.send('How many videos?');
+      response.write('{"type":"status","text":"Counting"}');
+      response.write(JSON.stringify(zero));
+      response.write('{"type":"done","message_id":9}');
+      await sending;
+    });
+    expect(hook.result.current.messages[1]).toMatchObject({ parts: [zero], status: 'complete', progress: undefined });
+  });
+
+  it('clears status when the stream fails', async () => {
+    const hook = await ready();
+    const response = stream();
+    vi.mocked(apiFetch).mockResolvedValue(response.response);
+    await act(async () => {
+      const sending = hook.result.current.send('Question');
+      response.write('{"type":"status","text":"Searching your library"}');
+      response.write('{"type":"error","message":"Processing error"}');
+      await sending;
+    });
+    expect(hook.result.current.messages[1]).toMatchObject({ status: 'error', progress: undefined });
+  });
+
   it.each([false, true])('retains complete v2 blocks when interrupted=%s', async interrupted => {
     const hook = await ready();
     const response = stream();
@@ -100,7 +164,7 @@ describe('useWizChat', () => {
 
   it.each([
     ['malformed', ['{bad'], 'invalid chat response'],
-    ['unknown type', ['{"type":"tool"}'], 'invalid chat response'],
+    ['only an unknown type', ['{"type":"tool"}', '{"type":"done","message_id":10}'], 'No response received'],
     ['invalid citation', ['{"type":"citation","chunk_id":"c","start_seconds":3,"end_seconds":1}'], 'invalid chat response'],
     ['missing citation time', ['{"type":"citation","chunk_id":"c"}'], 'invalid chat response'],
     ['invalid completion', ['{"type":"done","message_id":0}'], 'invalid chat response'],
@@ -267,5 +331,16 @@ describe('useWizChat', () => {
     expect(hook.result.current.conversationId).toBe(7);
     expect(hook.result.current.messages[1]).toMatchObject({ role: 'assistant', serverMessageId: 6, status: 'complete' });
     expect(hook.result.current.isSendDisabled).toBe(false);
+  });
+
+  it('reads stored digests and stats and ignores unknown stored parts', async () => {
+    const stats = { type: 'stats', video_count: 4, group_by: null, groups: null } as const;
+    vi.mocked(conversationsApi.listMessages).mockResolvedValue([
+      { id: 6, conversation_id: 7, role: 'assistant', content: 'A', created_at: '2026-01-01T00:00:01Z',
+        parts: [{ type: 'text', text: 'A' }, { type: 'video_list' } as never, stats] },
+    ]);
+    const hook = renderHook(() => useWizChat({ scope: 'library' }, true, { resumeId: 7 }));
+    await waitFor(() => expect(hook.result.current.messages).toHaveLength(1));
+    expect(hook.result.current.messages[0].parts).toEqual([{ type: 'text', text: 'A' }, stats]);
   });
 });

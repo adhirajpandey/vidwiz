@@ -26,3 +26,24 @@
 .wiz-save:hover:not(:disabled) { background: hsl(var(--muted)); color: hsl(var(--foreground)); }
 .wiz-save:disabled { color: hsl(var(--saved-foreground)); background: hsl(var(--saved)); cursor: default; }
 @media (pointer: coarse) { .wiz-watch, .wiz-save { min-height: 2.75rem; } }
+
+/* Library digests and counts, under the answer. */
+.wiz-digest { margin-top: 0.85rem; border-top: 1px solid hsl(var(--border)); padding-top: 0.75rem; font-size: 0.875rem; line-height: 1.5; }
+.wiz-digest-head { font-weight: 600; margin-bottom: 0.5rem; }
+.wiz-digest-video + .wiz-digest-video { margin-top: 0.75rem; }
+.wiz-digest-title { display: flex; align-items: baseline; justify-content: space-between; gap: 0.75rem; min-width: 0; font-weight: 600; }
+.wiz-digest-title > :first-child { overflow-wrap: anywhere; }
+.wiz-digest-count, .wiz-digest-note { color: hsl(var(--muted-foreground)); font-size: 0.78rem; font-weight: 400; }
+.wiz-digest-count { white-space: nowrap; }
+.wiz-digest-note { margin-top: 0.25rem; }
+.wiz-digest-moment { display: flex; align-items: baseline; gap: 0.5rem; margin-top: 0.3rem; overflow-wrap: anywhere; }
+.wiz-moment-time { flex-shrink: 0; border-radius: 0.3rem; background: hsl(var(--saved)); color: hsl(var(--saved-foreground)); padding: 0.05rem 0.35rem; font-size: 0.78rem; font-weight: 700; font-variant-numeric: tabular-nums; cursor: pointer; }
+.wiz-moment-time:hover { filter: brightness(1.05); }
+.wiz-digest-more { margin-top: 0.6rem; border-radius: 0.5rem; padding: 0.3rem 0.6rem; font-size: 0.78rem; font-weight: 600; color: hsl(var(--accent)); cursor: pointer; }
+.wiz-digest-more:hover { background: hsl(var(--muted)); }
+.wiz-stats { margin-top: 0.85rem; border-collapse: collapse; font-size: 0.875rem; }
+.wiz-stats :is(th, td) { border: 1px solid hsl(var(--border)); padding: 0.3rem 0.6rem; text-align: left; }
+.wiz-stats th { font-weight: 600; color: hsl(var(--muted-foreground)); }
+.wiz-stats td:last-child { text-align: right; font-variant-numeric: tabular-nums; }
+.wiz-stats-line { margin-top: 0.85rem; font-size: 0.875rem; font-weight: 600; }
+@media (pointer: coarse) { .wiz-moment-time, .wiz-digest-more { display: inline-flex; align-items: center; min-height: 2.75rem; } }

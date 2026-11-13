@@ -122,7 +122,7 @@ export default function AskPage() {
   const passages = usePassageActions({ signedIn: true, videoLabel });
   // A chat is named by its first question, so follow-ups and streaming keep the title.
   const firstQuestion = chat.messages.find(message => message.role === 'user')?.parts
-    .map(part => (part.type === 'citation' ? '' : part.text)).join(' ');
+    .map(part => ('text' in part ? part.text : '')).join(' ');
 
   const pick = (id: number) => { setConversation(id); chat.resume(id); };
   return (
