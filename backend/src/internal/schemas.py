@@ -64,6 +64,8 @@ class TaskResultRequest(ApiModel):
     candidates: list[CandidateVideo] | None = Field(default=None, max_length=10)
     success: bool
     transcript: Transcript | None = None
+    # The caption track's language code, such as "en", "hi" or "en-GB".
+    transcript_language: str | None = Field(default=None, max_length=35)
     metadata: dict | None = None
     error_message: str | None = None
 

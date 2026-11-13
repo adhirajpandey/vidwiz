@@ -7,7 +7,7 @@ Describe background helpers and Lambdas used for transcript/metadata fetching an
 ### Helpers (Long-Running)
 - **Task helper**: `backend/workers/scripts/task-helper.py {transcript|metadata|resolve_title}`
   - Polls `/v2/internal/tasks?type=<task type>` with long-poll timeout (default 30s)
-  - `transcript`: fetches transcripts via `youtube_transcript_api` (languages: `en`, `hi`)
+  - `transcript`: fetches transcripts via `youtube_transcript_api` (`en`, then `hi`, then a regional variant such as `en-GB`) and reports the track's language code, stored as `transcript_language` in the video's `miscellaneous_data`
     and renames each item's `start` to `offset`
   - `metadata`: fetches metadata via `yt_dlp`
   - `resolve_title`: finds the video for a title-only capture with a 5-result

@@ -194,6 +194,11 @@ def _apply_transcript_state(db: Session, result: TaskResultRequest) -> None:
     if video is None:
         return
     if result.transcript:
+        if result.transcript_language:
+            video.miscellaneous_data = {
+                **(video.miscellaneous_data or {}),
+                "transcript_language": result.transcript_language,
+            }
         videos_service.mark_transcript_ready(db, video)
         return
     # A successful fetch with no segments means the video has no transcript.
