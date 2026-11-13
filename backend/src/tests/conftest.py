@@ -91,6 +91,10 @@ def setup_settings() -> None:
 def mock_external_services(monkeypatch):
     # Clients are cached, so each test builds its own from its own fake.
     monkeypatch.setattr(aws, "_clients", {})
+    # The app's budget loop must never reach OpenRouter from a test.
+    from src.metrics import Metrics
+
+    monkeypatch.setattr(Metrics, "refresh_llm_budget", lambda *_args: None)
 
     class FakeS3Client:
         def get_object(self, *_args, **_kwargs):

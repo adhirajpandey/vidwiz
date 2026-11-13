@@ -14,6 +14,7 @@ from src.conversations.router import router as conversations_router
 from src.exceptions import APIError, ErrorCode, HTTP_STATUS_CODE_MAP, RateLimitError
 from src.internal.router import router as internal_router
 from src.metrics import (
+    LLM_BUDGET_REFRESH_SECONDS,
     METRICS_QUERY_TIMEOUT_SECONDS,
     METRICS_REFRESH_SECONDS,
     init_metrics,
@@ -118,9 +119,11 @@ def create_app() -> FastAPI:
             _metrics_snapshot_loop(app.state.metrics, SessionLocal)
         )
         app.state.metrics_task = metrics_task
+        budget_task = asyncio.create_task(_llm_budget_loop(app.state.metrics))
         try:
             yield
         finally:
+            budget_task.cancel()
             metrics_task.cancel()
             try:
                 await metrics_task
@@ -184,6 +187,17 @@ def create_app() -> FastAPI:
     register_exception_handlers(app)
 
     return app
+
+
+async def _llm_budget_loop(metrics) -> None:
+    """Poll the OpenRouter key's remaining budget; misses only leave it stale."""
+    while True:
+        await asyncio.to_thread(
+            metrics.refresh_llm_budget,
+            settings.openrouter_api_key,
+            settings.openrouter_base_url,
+        )
+        await asyncio.sleep(LLM_BUDGET_REFRESH_SECONDS)
 
 
 async def _metrics_snapshot_loop(metrics, session_factory) -> None:

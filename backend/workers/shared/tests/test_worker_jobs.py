@@ -70,3 +70,77 @@ def test_an_unrecorded_failure_goes_back_to_sqs():
 def test_receive_count_reads_the_sqs_attribute():
     record = SimpleNamespace(attributes=SimpleNamespace(ApproximateReceiveCount="3"))
     assert receive_count(record) == 3
+
+
+def _run_reporting(work, *, attempt):
+    from vidwiz_worker.jobs import run_job
+
+    reports = []
+    run_job(
+        work,
+        lambda: True,
+        attempt=attempt,
+        max_attempts=3,
+        logger=Logger(),
+        extra={},
+        report=lambda reason, attempt, final: reports.append((reason, attempt, final)),
+    )
+    return reports
+
+
+def test_failed_attempts_are_reported_with_the_provider_reason():
+    from vidwiz_worker.jobs import ProviderError
+
+    def work():
+        raise ProviderError("provider_quota")
+
+    reports = []
+    with pytest.raises(ProviderError):
+        from vidwiz_worker.jobs import run_job
+
+        run_job(
+            work,
+            lambda: True,
+            attempt=1,
+            max_attempts=3,
+            logger=Logger(),
+            extra={},
+            report=lambda *args: reports.append(args),
+        )
+    assert reports == [("provider_quota", 1, False)]
+    assert _run_reporting(work, attempt=3) == [("provider_quota", 3, True)]
+
+
+def test_invalid_output_is_reported_but_missing_transcript_is_not():
+    from vidwiz_worker.jobs import InvalidOutputError
+
+    def invalid():
+        raise InvalidOutputError("bad")
+
+    def missing():
+        raise PermanentError("no transcript")
+
+    assert _run_reporting(invalid, attempt=1) == [("invalid_output", 1, True)]
+    assert _run_reporting(missing, attempt=1) == []
+
+
+def test_a_failing_report_does_not_change_job_handling():
+    from vidwiz_worker.jobs import ProviderError
+
+    def work():
+        raise ProviderError("provider_error")
+
+    def report(*_args):
+        raise RuntimeError("API down")
+
+    gave_up = []
+    run_job(
+        work,
+        lambda: gave_up.append(True) or True,
+        attempt=3,
+        max_attempts=3,
+        logger=Logger(),
+        extra={},
+        report=report,
+    )
+    assert gave_up == [True]

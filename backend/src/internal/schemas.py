@@ -1,4 +1,4 @@
-from typing import Annotated
+from typing import Annotated, Literal
 
 from pydantic import (
     AfterValidator,
@@ -56,6 +56,24 @@ class CandidateVideo(ApiModel):
     channel: str | None = None
 
 
+TaskFailureKind = Literal[
+    "youtube_blocked",
+    "proxy_error",
+    "timeout",
+    "not_found",
+    "provider_error",
+    "worker_error",
+]
+AttemptFailureKind = Literal[
+    "provider_quota",
+    "provider_rate_limit",
+    "provider_error",
+    "timeout",
+    "invalid_output",
+    "worker_error",
+]
+
+
 class TaskResultRequest(ApiModel):
     # Video tasks send video_id. Title tasks send resolved when one video was
     # chosen confidently, or candidates when the user has to pick.
@@ -68,11 +86,21 @@ class TaskResultRequest(ApiModel):
     transcript_language: str | None = Field(default=None, max_length=35)
     metadata: dict | None = None
     error_message: str | None = None
+    # Which dependency broke, for metrics. Older helpers omit it.
+    error_kind: TaskFailureKind | None = None
     correlation_id: str | None = Field(
         default=None,
         max_length=128,
         pattern=r"^[A-Za-z0-9][A-Za-z0-9._:-]*$",
     )
+
+
+class AttemptFailure(ApiModel):
+    """A queue worker attempt that failed; SQS may still retry it."""
+
+    reason: AttemptFailureKind
+    attempt: int = Field(ge=1, le=100)
+    final: bool = False
 
 
 class TranscriptWrite(ApiModel):

@@ -5,7 +5,12 @@ from pydantic import ValidationError
 
 from vidwiz_worker.clients import InternalApiClient, OpenRouterClient
 from vidwiz_worker.config import WorkerSettings
-from vidwiz_worker.jobs import PermanentError, run_job
+from vidwiz_worker.jobs import (
+    InvalidOutputError,
+    PermanentError,
+    ProviderError,
+    run_job,
+)
 from vidwiz_worker.models import KeyPoint, SummaryArtifacts
 from vidwiz_worker.transcript import S3TranscriptRepository, transcript_passages
 
@@ -79,6 +84,9 @@ def process_job(video_id: str, attempt: int, correlation_id: str | None = None) 
         max_attempts=settings.max_attempts,
         logger=logger,
         extra={"video_id": video_id, "correlation_id": correlation_id},
+        report=lambda reason, attempt, final: api.report_attempt_failure(
+            "overview", reason, attempt, final, correlation_id
+        ),
     )
 
 
@@ -162,7 +170,9 @@ def _valid_artifacts(
         )
         if generated is None:
             # The request failed, not the output; SQS retries the job later.
-            raise RuntimeError("Model request failed")
+            raise ProviderError(
+                getattr(llm, "last_failure_kind", None) or "provider_error"
+            )
         try:
             artifacts = SummaryArtifacts.model_validate_json(generated)
             key_points = _resolve_key_points(artifacts, by_id)
@@ -177,7 +187,7 @@ def _valid_artifacts(
                 "max_retries": settings.max_retries,
             },
         )
-    raise PermanentError("Failed to generate a valid structured summary")
+    raise InvalidOutputError("Failed to generate a valid structured summary")
 
 
 def _resolve_key_points(

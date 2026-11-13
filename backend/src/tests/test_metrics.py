@@ -298,3 +298,200 @@ def test_application_database_connection_accepts_socket_options(db_session):
         assert parameters["keepalives_interval"] == "5"
         assert parameters["keepalives_count"] == "3"
         assert parameters["tcp_user_timeout"] == "20000"
+
+
+_REAL_REFRESH_LLM_BUDGET = Metrics.refresh_llm_budget
+
+
+def _event_value(metrics, workflow, event, reason):
+    return metrics.events.labels(workflow, event, reason)._value.get()
+
+
+def test_last_success_comes_from_the_database_and_starts_unknown(db_session):
+    from datetime import datetime
+
+    from src.internal import constants as internal_constants
+    from src.internal.models import Task, TaskStatus
+
+    metrics = Metrics()
+    assert str(metrics.last_success.labels("transcript")._value.get()) == "nan"
+
+    finished = datetime(2026, 11, 13, 10, 0, 0)
+    db_session.add(
+        Task(
+            task_type=internal_constants.FETCH_TRANSCRIPT_TASK_TYPE,
+            status=TaskStatus.COMPLETED,
+            task_details={"video_id": "abc123DEF45"},
+            completed_at=finished,
+        )
+    )
+    db_session.commit()
+    metrics.collect_snapshot(lambda: db_session)
+
+    assert metrics.snapshot_success._value.get() == 1
+    assert metrics.last_success.labels("transcript")._value.get() == pytest.approx(
+        finished.replace(tzinfo=__import__("datetime").timezone.utc).timestamp()
+    )
+    # No completed work yet stays unknown rather than looking like the epoch.
+    assert str(metrics.last_success.labels("metadata")._value.get()) == "nan"
+
+
+def test_helper_poll_records_liveness_per_task_type(db_session):
+    from src.internal import constants as internal_constants
+    from src.internal import service as internal_service
+    from src.metrics import bind_metrics, unbind_metrics
+
+    metrics = Metrics()
+    token = bind_metrics(metrics)
+    try:
+        internal_service.poll_for_task(
+            db_session, internal_constants.FETCH_METADATA_TASK_TYPE, 0
+        )
+    finally:
+        unbind_metrics(token)
+
+    assert metrics.helper_last_poll.labels("metadata")._value.get() > 0
+    assert str(metrics.helper_last_poll.labels("transcript")._value.get()) == "nan"
+
+
+@pytest.mark.parametrize(
+    ("retry_count", "event"), [(1, "task_retrying"), (99, "task_failed")]
+)
+def test_task_failures_are_counted_by_the_reported_kind(db_session, retry_count, event):
+    from src.internal import constants as internal_constants
+    from src.internal import service as internal_service
+    from src.internal.models import Task, TaskStatus
+    from src.internal.schemas import TaskResultRequest
+    from src.metrics import bind_metrics, unbind_metrics
+
+    task = Task(
+        task_type=internal_constants.FETCH_TRANSCRIPT_TASK_TYPE,
+        status=TaskStatus.IN_PROGRESS,
+        task_details={"video_id": "abc123DEF45"},
+        retry_count=retry_count,
+    )
+    db_session.add(task)
+    db_session.commit()
+    metrics = Metrics()
+    token = bind_metrics(metrics)
+    try:
+        internal_service.submit_task_result(
+            db_session,
+            task.id,
+            TaskResultRequest(
+                video_id="abc123DEF45",
+                success=False,
+                error_message="blocked",
+                error_kind="youtube_blocked",
+            ),
+        )
+    finally:
+        unbind_metrics(token)
+
+    assert _event_value(metrics, "transcript", event, "youtube_blocked") == 1
+    assert _event_value(metrics, "transcript", event, "worker_error") == 0
+
+
+def test_task_failure_without_a_kind_counts_as_worker_error():
+    metrics = Metrics()
+    metrics.event("metadata", "task_retrying", "retry")
+    assert _event_value(metrics, "metadata", "task_retrying", "worker_error") == 1
+
+
+@pytest.mark.asyncio
+async def test_attempt_failure_route_counts_bounded_reasons(client, app):
+    from src.config import settings
+
+    headers = {"Authorization": f"Bearer {settings.internal_api_admin_token}"}
+    metrics = app.state.metrics
+
+    response = await client.post(
+        "/v2/internal/workflows/ai_moment/attempt-failures",
+        json={"reason": "provider_quota", "attempt": 2, "final": False},
+        headers=headers,
+    )
+    assert response.status_code == 204
+    assert _event_value(metrics, "ai_moment", "attempt_failed", "provider_quota") == 1
+
+    unknown = await client.post(
+        "/v2/internal/workflows/transcript/attempt-failures",
+        json={"reason": "provider_quota", "attempt": 1},
+        headers=headers,
+    )
+    assert unknown.status_code == 404
+    invalid = await client.post(
+        "/v2/internal/workflows/overview/attempt-failures",
+        json={"reason": "anything", "attempt": 1},
+        headers=headers,
+    )
+    assert invalid.status_code == 422
+    unauthorized = await client.post(
+        "/v2/internal/workflows/overview/attempt-failures",
+        json={"reason": "provider_error", "attempt": 1},
+    )
+    assert unauthorized.status_code == 401
+
+
+def test_llm_budget_is_read_from_the_key_and_kept_on_failure(monkeypatch):
+    import requests
+
+    from src import metrics as metrics_module
+
+    metrics = Metrics()
+    payload = {"data": {"limit": 5, "limit_remaining": 3.25}}
+
+    class Response:
+        def raise_for_status(self):
+            pass
+
+        def json(self):
+            return payload
+
+    calls = []
+
+    def fake_get(url, **kwargs):
+        calls.append((url, kwargs["timeout"]))
+        return Response()
+
+    monkeypatch.setattr(requests, "get", fake_get)
+    _REAL_REFRESH_LLM_BUDGET(metrics, "key", "https://openrouter.example/api/v1/")
+
+    assert calls == [
+        (
+            "https://openrouter.example/api/v1/key",
+            metrics_module.LLM_BUDGET_TIMEOUT_SECONDS,
+        )
+    ]
+    assert metrics.llm_budget_limit._value.get() == 5
+    assert metrics.llm_budget_remaining._value.get() == 3.25
+    checked = metrics.llm_budget_checked._value.get()
+
+    def failing_get(*_args, **_kwargs):
+        raise requests.ConnectionError("down")
+
+    monkeypatch.setattr(requests, "get", failing_get)
+    _REAL_REFRESH_LLM_BUDGET(metrics, "key", "https://openrouter.example/api/v1")
+    assert metrics.llm_budget_remaining._value.get() == 3.25
+    assert metrics.llm_budget_checked._value.get() == checked
+
+    payload["data"] = {"limit": None, "limit_remaining": None}
+    monkeypatch.setattr(requests, "get", fake_get)
+    _REAL_REFRESH_LLM_BUDGET(metrics, "key", "https://openrouter.example/api/v1")
+    assert str(metrics.llm_budget_remaining._value.get()) == "nan"
+
+    calls.clear()
+    _REAL_REFRESH_LLM_BUDGET(metrics, None, "https://openrouter.example/api/v1")
+    assert calls == []
+
+
+def test_ai_last_success_prefers_an_observed_generation_over_row_edits(db_session):
+    import time as time_module
+
+    metrics = Metrics()
+    metrics.collect_snapshot(lambda: db_session)
+    assert str(metrics.last_success.labels("ai_moment")._value.get()) == "nan"
+
+    before = time_module.time()
+    metrics.event("ai_moment", "ai_ready")
+    metrics.collect_snapshot(lambda: db_session)
+    assert metrics.last_success.labels("ai_moment")._value.get() >= before

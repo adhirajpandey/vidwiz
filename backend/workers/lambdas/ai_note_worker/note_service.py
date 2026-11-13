@@ -2,7 +2,12 @@ from aws_lambda_powertools import Logger
 
 from vidwiz_worker.clients import InternalApiClient, OpenRouterClient
 from vidwiz_worker.config import WorkerSettings
-from vidwiz_worker.jobs import PermanentError, run_job
+from vidwiz_worker.jobs import (
+    InvalidOutputError,
+    PermanentError,
+    ProviderError,
+    run_job,
+)
 from vidwiz_worker.models import Moment
 from vidwiz_worker.transcript import (
     S3TranscriptRepository,
@@ -48,6 +53,9 @@ def process_job(moment: Moment, attempt: int) -> None:
             "video_id": moment.video_id,
             "correlation_id": moment.correlation_id,
         },
+        report=lambda reason, attempt, final: api.report_attempt_failure(
+            "ai_moment", reason, attempt, final, moment.correlation_id
+        ),
     )
 
 
@@ -103,7 +111,9 @@ def _valid_note(title: str | None, at_seconds: int, transcript: str) -> str:
         generated = llm.complete(prompt)
         if generated is None:
             # The request failed, not the output; SQS retries the job later.
-            raise RuntimeError("Model request failed")
+            raise ProviderError(
+                getattr(llm, "last_failure_kind", None) or "provider_error"
+            )
         generated = generated.strip().replace("\n", " ")
         if settings.min_note_length <= len(generated) <= settings.max_note_length:
             return generated
@@ -115,4 +125,4 @@ def _valid_note(title: str | None, at_seconds: int, transcript: str) -> str:
                 "generated_length": len(generated),
             },
         )
-    raise PermanentError("Generated AI notes kept an invalid length")
+    raise InvalidOutputError("Generated AI notes kept an invalid length")

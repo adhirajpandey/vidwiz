@@ -87,6 +87,37 @@ class InternalApiClient:
             correlation_id,
         )
 
+    def report_attempt_failure(
+        self,
+        workflow: str,
+        reason: str,
+        attempt: int,
+        final: bool,
+        correlation_id: str | None = None,
+    ) -> bool:
+        """Tell the API why an attempt failed, for its metrics."""
+        try:
+            response = self._session.post(
+                f"{self._settings.internal_api_base_url}"
+                f"/v2/internal/workflows/{workflow}/attempt-failures",
+                json={"reason": reason, "attempt": attempt, "final": final},
+                headers=self._headers(correlation_id),
+                timeout=self._settings.request_timeout,
+            )
+            if response.status_code == 204:
+                return True
+            self._logger.warning(
+                "Attempt report was rejected",
+                extra={"workflow": workflow, "status": response.status_code},
+            )
+            return False
+        except Exception as error:
+            self._logger.warning(
+                "Could not report failed attempt",
+                extra={"workflow": workflow, "error": str(error)},
+            )
+            return False
+
     def _request_json(
         self, method: str, path: str, video_id: str, correlation_id: str | None = None
     ) -> dict[str, Any] | None:
@@ -152,6 +183,8 @@ class OpenRouterClient:
         self._logger = logger
         self._model = model
         self._session = session
+        # Why the latest complete() call returned None, for attempt metrics.
+        self.last_failure_kind: str | None = None
 
     def complete(
         self,
@@ -169,6 +202,7 @@ class OpenRouterClient:
         if require_parameters:
             request_payload["provider"] = {"require_parameters": True}
 
+        self.last_failure_kind = None
         try:
             response = self._session.post(
                 self._settings.openrouter_endpoint,
@@ -196,18 +230,61 @@ class OpenRouterClient:
                         else {}
                     ),
                 )
+                self.last_failure_kind = provider_failure_kind(
+                    error_code, provider_error
+                )
                 return None
             choices = data.get("choices", [])
             message = choices[0].get("message") if choices else None
             return message.get("content") if message else None
         except Exception as error:
+            status_code = getattr(getattr(error, "response", None), "status_code", None)
             self._logger.error(
                 "OpenRouter API request failed",
                 extra={
                     "error_type": type(error).__name__,
-                    "status_code": getattr(
-                        getattr(error, "response", None), "status_code", None
-                    ),
+                    "status_code": status_code,
                 },
             )
+            self.last_failure_kind = (
+                "timeout"
+                if isinstance(error, requests.Timeout)
+                else provider_failure_kind(status_code, _error_body(error))
+            )
             return None
+
+
+def _error_body(error: Exception) -> Any:
+    """The provider's error object, or None. Used for classification only."""
+    try:
+        return error.response.json().get("error")
+    except Exception:
+        return None
+
+
+QUOTA_TERMS = ("limit", "credit", "budget", "quota", "afford")
+
+
+def provider_failure_kind(status_code: Any, provider_error: Any = None) -> str:
+    """402 means no credit and 429 is rate limiting. A 403 is a quota failure
+    only when the provider says a limit or credit caused it; moderation and
+    permission 403s are provider errors."""
+    try:
+        code = int(status_code)
+    except (TypeError, ValueError):
+        return "provider_error"
+    if code == 402:
+        return "provider_quota"
+    if code == 403:
+        detail = ""
+        if isinstance(provider_error, dict):
+            detail = f"{provider_error.get('message', '')} {provider_error.get('metadata', '')}"
+        detail = detail.lower()
+        return (
+            "provider_quota"
+            if any(term in detail for term in QUOTA_TERMS)
+            else "provider_error"
+        )
+    if code == 429:
+        return "provider_rate_limit"
+    return "provider_error"

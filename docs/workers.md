@@ -16,7 +16,9 @@ Describe background helpers and Lambdas used for transcript/metadata fetching an
     (`JEV_MODEL`, through OpenRouter with `OPENROUTER_API_KEY`) chooses among
     the results; at confidence 0.75 or above it sends `resolved: {video_id,
     title}`, below that or on failure it sends `candidates` for the user to pick
-  - Submits results to `/v2/internal/tasks/{id}/result`
+  - Submits results to `/v2/internal/tasks/{id}/result`; a failure carries an
+    `error_kind` naming the dependency that broke (`youtube_blocked`,
+    `proxy_error`, `timeout`, `not_found`, `provider_error`, `worker_error`)
   - Tasks may include an optional `correlation_id` in `task_details`. The helper
     forwards it in the result payload and `X-Correlation-ID` callback header;
     tasks without the field keep the legacy payload and callback shape.
@@ -41,6 +43,7 @@ or systemd unit manages parallel helper processes.
   - A missing transcript, empty context, or output that keeps an invalid
     length is permanent: the worker stores `ai_text: null`, which marks the
     moment `failed`
+  - Before each retry, and on a final model or invalid-output failure, reports the reason to the API's attempt-failure route for metrics
   - Model request and persistence failures fail the invocation so SQS retries
     the record; on the last delivery the worker marks the moment `failed`
   - Reads the video title from `/v2/internal/videos/{video_id}`
@@ -53,6 +56,8 @@ or systemd unit manages parallel helper processes.
     with an optional `correlation_id`
   - Generates only while the video's `overview_status` is `queued`; any other
     state means a duplicate delivery or a settled job, so it skips
+  - Reports each failed attempt's reason to the API's attempt-failure route, as
+    the AI note worker does
   - Reads transcript from S3 with retry/backoff and groups it into ~45-second
     passages with ids
   - Uses one OpenRouter structured-output request to generate the summary,

@@ -174,6 +174,7 @@ def test_failed_task_logs_ids_and_traceback(monkeypatch, caplog):
                 "video_id": "abc123DEF45",
                 "success": False,
                 "error_message": "fetch failed",
+                "error_kind": "worker_error",
             },
         )
     ]
