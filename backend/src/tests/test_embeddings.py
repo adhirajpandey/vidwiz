@@ -143,14 +143,29 @@ class InvalidJson(FakeResponse):
         ({"data": [{"index": 0}], "usage": {"total_tokens": 1}}, "short vector"),
         (
             {"data": [{"index": 0, "embedding": ["x"] * 1024}], "usage": {}},
-            "non-numeric",
+            "invalid vector component",
         ),
         (
             {
                 "data": [{"index": 0, "embedding": [float("nan")] * 1024}],
                 "usage": {"total_tokens": 1},
             },
-            "non-numeric",
+            "invalid vector component",
+        ),
+        # Too large for a float, then too large for pgvector's float32.
+        (
+            {
+                "data": [{"index": 0, "embedding": [10**400] + [0.1] * 1023}],
+                "usage": {"total_tokens": 1},
+            },
+            "invalid vector component",
+        ),
+        (
+            {
+                "data": [{"index": 0, "embedding": [0.1] * 1023 + [-1e40]}],
+                "usage": {"total_tokens": 1},
+            },
+            "invalid vector component",
         ),
         ({"data": [item(0)]}, "token usage"),
         ({"data": [item(0)], "usage": "lots"}, "token usage"),
@@ -163,6 +178,24 @@ def test_malformed_responses_raise_embedding_error(api, monkeypatch, payload, me
     respond(monkeypatch, payload)
     with pytest.raises(embeddings.EmbeddingError, match=message):
         embeddings.embed_documents(["a"])
+
+
+def test_largest_float32_component_is_accepted_and_stored(
+    api, monkeypatch, db_session, library
+):
+    edge = embeddings.FLOAT32_MAX
+    respond(
+        monkeypatch,
+        {
+            "data": [{"index": 0, "embedding": [edge, -edge] * 2048}],
+            "usage": {"total_tokens": 1},
+        },
+    )
+    (vector,), _ = embeddings.embed_documents(["a"])
+
+    library["chunk"].embedding = vector
+    db_session.flush()
+    assert embedding(db_session, library["chunk"]) is not None
 
 
 def test_invalid_json_raises_embedding_error(api, monkeypatch):

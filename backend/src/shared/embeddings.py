@@ -12,6 +12,8 @@ MAX_CHARS = 6000
 # The model returns 4096 numbers; the first 1024 are kept. Search uses cosine
 # distance, so the shortened vectors need no re-normalising.
 DIMENSIONS = 1024
+# pgvector stores float32; a larger component makes the database write fail.
+FLOAT32_MAX = 3.4028234663852886e38
 QUERY_PREFIX = (
     "Instruct: Given a question, retrieve transcript passages that answer it\nQuery: "
 )
@@ -54,11 +56,14 @@ def _is_int(value) -> bool:
 
 
 def _is_number(value) -> bool:
-    return (
-        isinstance(value, (int, float))
-        and not isinstance(value, bool)
-        and math.isfinite(value)
-    )
+    """A finite number that fits pgvector's float32 components."""
+    if not isinstance(value, (int, float)) or isinstance(value, bool):
+        return False
+    try:
+        number = float(value)
+    except OverflowError:
+        return False
+    return math.isfinite(number) and abs(number) <= FLOAT32_MAX
 
 
 def _parse(payload, count: int) -> tuple[list[list[float]], int]:
@@ -81,7 +86,7 @@ def _parse(payload, count: int) -> tuple[list[list[float]], int]:
             raise EmbeddingError("Embedding API returned a short vector")
         vector = vector[:DIMENSIONS]
         if not all(_is_number(value) for value in vector):
-            raise EmbeddingError("Embedding API returned a non-numeric vector")
+            raise EmbeddingError("Embedding API returned an invalid vector component")
         by_index[index] = [float(value) for value in vector]
     usage = payload.get("usage")
     tokens = usage.get("total_tokens") if isinstance(usage, dict) else None
