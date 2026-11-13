@@ -223,3 +223,70 @@ def test_fail_overview_posts_to_the_internal_route():
     assert calls == [
         ("https://api.example/v2/internal/videos/abc123DEF45/overview/failed", {})
     ]
+
+
+@pytest.mark.parametrize(
+    ("status_code", "kind"),
+    [
+        (403, "provider_quota"),
+        (402, "provider_quota"),
+        (429, "provider_rate_limit"),
+        (500, "provider_error"),
+    ],
+)
+def test_openrouter_client_names_why_a_request_failed(settings, status_code, kind):
+    import requests
+
+    class Response:
+        def raise_for_status(self):
+            error = requests.HTTPError("rejected")
+            error.response = self
+            raise error
+
+    Response.status_code = status_code
+
+    class Session:
+        def post(self, *_args, **_kwargs):
+            return Response()
+
+    client = OpenRouterClient(settings, FakeLogger(), model="m", session=Session())
+
+    assert client.complete("prompt") is None
+    assert client.last_failure_kind == kind
+
+
+def test_openrouter_client_names_timeouts(settings):
+    import requests
+
+    class Session:
+        def post(self, *_args, **_kwargs):
+            raise requests.Timeout("slow")
+
+    client = OpenRouterClient(settings, FakeLogger(), model="m", session=Session())
+
+    assert client.complete("prompt") is None
+    assert client.last_failure_kind == "timeout"
+
+
+def test_report_attempt_failure_posts_bounded_fields(settings):
+    from types import SimpleNamespace
+
+    calls = []
+
+    class Session:
+        def post(self, url, **kwargs):
+            calls.append(
+                (url, kwargs["json"], kwargs["headers"].get("X-Correlation-ID"))
+            )
+            return SimpleNamespace(status_code=204)
+
+    client = InternalApiClient(settings, FakeLogger(), session=Session())
+
+    assert client.report_attempt_failure("ai_moment", "provider_quota", 2, False, "c-1")
+    assert calls == [
+        (
+            "https://internal.example/v2/internal/workflows/ai_moment/attempt-failures",
+            {"reason": "provider_quota", "attempt": 2, "final": False},
+            "c-1",
+        )
+    ]
