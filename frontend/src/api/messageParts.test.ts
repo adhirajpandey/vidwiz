@@ -42,6 +42,10 @@ describe('library stream kinds', () => {
   });
   it('counts digests and stats as answer content', () => {
     expect(hasContent(digest as never)).toBe(true);
+    expect(hasContent({ type: 'stats', video_count: 0, group_by: null, groups: null })).toBe(true);
+    expect(hasContent({ type: 'stats', video_count: null, group_by: 'month', groups: [{ name: 'November 2026', videos: 2 }] })).toBe(true);
+    expect(hasContent({ type: 'stats', video_count: null, group_by: null, groups: null })).toBe(false);
+    expect(hasContent({ type: 'stats', video_count: null, group_by: 'channel', groups: [] })).toBe(false);
     expect(hasContent({ type: 'text', text: '  ' })).toBe(false);
     expect(hasContent({ type: 'citation', chunk_id: 'c', start_seconds: 0, end_seconds: 1 })).toBe(false);
   });

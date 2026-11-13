@@ -242,6 +242,15 @@ describe('WizChat', () => {
     render(view(controller({ messages: [running], isRunning: true })));
     expect(screen.getByRole('status').textContent).toBe('Searching your library');
   });
+
+  it('shows Answering while a structured answer streams, and offers no copy without text', () => {
+    const stats: StatsPart = { type: 'stats', video_count: 3, group_by: null, groups: null };
+    const running: WizMessage = { id: 'answer', role: 'assistant', parts: [stats], createdAt: new Date(0), status: 'running' };
+    const rendered = render(view(controller({ messages: [running], isRunning: true })));
+    expect(screen.getByRole('status').textContent).toBe('Answering…');
+    rendered.rerender(view(controller({ messages: [{ ...running, status: 'complete' }] })));
+    expect(screen.queryByRole('button', { name: 'Copy answer' })).toBeNull();
+  });
 });
 
 

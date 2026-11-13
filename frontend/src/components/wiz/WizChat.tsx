@@ -7,7 +7,7 @@ import {
 import type { AppendMessage, ThreadMessageLike } from '@assistant-ui/react';
 import { ArrowDown, ArrowUp, Check, Copy, MessageSquarePlus, Sparkles } from 'lucide-react';
 import type { WizChatController, WizMessage } from '../../hooks/useWizChat';
-import type { MessagePart } from '../../api/messageParts';
+import { hasContent, type MessagePart } from '../../api/messageParts';
 import { WizDigest, WizStats } from './WizLibraryParts';
 import ErrorState from '../ui/ErrorState';
 import { Tooltip } from '../ui/Tooltip';
@@ -41,7 +41,9 @@ function convertMessage(message: WizMessage): ThreadMessageLike {
         : message.status === 'error' ? { type: 'incomplete' as const, reason: 'error' as const }
         : { type: 'complete' as const, reason: 'stop' as const },
     } : {}),
-    metadata: { custom: { displayError: message.error ?? null, progress: message.progress ?? null } },
+    metadata: { custom: {
+      displayError: message.error ?? null, progress: message.progress ?? null, hasContent: message.parts.some(hasContent),
+    } },
   };
 }
 
@@ -58,12 +60,14 @@ function AssistantMessage() {
   const running = useAuiState(s => s.message.status?.type === 'running');
   const hasText = useAuiState(s => s.message.content.some(part => part.type === 'text' && part.text.length > 0));
   const error = useAuiState(s => s.message.metadata.custom.displayError) as WizMessage['error'];
+  // Any visible answer, including a digest or stats; hasText alone decides copying.
+  const visible = useAuiState(s => s.message.metadata.custom.hasContent === true);
   const progress = useAuiState(s => s.message.metadata.custom.progress) as string | null;
   const copied = useAuiState(s => s.message.isCopied);
   return <MessagePrimitive.Root className="py-3 min-w-0">
     <div className="flex items-center gap-2 mb-2 text-xs font-medium text-muted-foreground">
       <Sparkles className="size-3.5" />Wiz
-      {running && <span role="status" className="font-normal motion-safe:animate-pulse">{hasText ? 'Answering…' : progress ?? 'Thinking…'}</span>}
+      {running && <span role="status" className="font-normal motion-safe:animate-pulse">{visible ? 'Answering…' : progress ?? 'Thinking…'}</span>}
     </div>
     <MessagePrimitive.Parts components={{ Text: WizMarkdown, data: { by_name: { citation: WizCitation, digest: WizDigest, stats: WizStats } } }} />
     {error && <div role="alert" className="mt-3 rounded-lg border border-destructive/25 bg-destructive/5 p-3 text-sm text-foreground">

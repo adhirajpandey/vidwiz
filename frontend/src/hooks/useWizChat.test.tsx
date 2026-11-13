@@ -103,6 +103,37 @@ describe('useWizChat', () => {
     expect(hook.result.current.messages[1]).toMatchObject({ parts: [block, digest], status: 'complete' });
   });
 
+  it('treats empty stats as no content: later status still shows, and done reports no response', async () => {
+    const hook = await ready();
+    const response = stream();
+    vi.mocked(apiFetch).mockResolvedValue(response.response);
+    const empty = { type: 'stats', video_count: null, group_by: null, groups: null };
+    let sending!: Promise<void>;
+    act(() => { sending = hook.result.current.send('How many videos?'); });
+    await act(async () => { response.write('{"type":"status","text":"Counting"}'); response.write(JSON.stringify(empty)); });
+    expect(hook.result.current.messages[1]).toMatchObject({ parts: [empty], progress: 'Counting' });
+    await act(async () => response.write('{"type":"status","text":"Still counting"}'));
+    expect(hook.result.current.messages[1].progress).toBe('Still counting');
+    await act(async () => { response.write('{"type":"done","message_id":9}'); await sending; });
+    expect(hook.result.current.messages[1]).toMatchObject({ status: 'error', progress: undefined });
+    expect(hook.result.current.messages[1].error?.message).toContain('interrupted');
+  });
+
+  it('completes an answer that is only a zero count', async () => {
+    const hook = await ready();
+    const response = stream();
+    vi.mocked(apiFetch).mockResolvedValue(response.response);
+    const zero = { type: 'stats', video_count: 0, group_by: null, groups: null };
+    await act(async () => {
+      const sending = hook.result.current.send('How many videos?');
+      response.write('{"type":"status","text":"Counting"}');
+      response.write(JSON.stringify(zero));
+      response.write('{"type":"done","message_id":9}');
+      await sending;
+    });
+    expect(hook.result.current.messages[1]).toMatchObject({ parts: [zero], status: 'complete', progress: undefined });
+  });
+
   it('clears status when the stream fails', async () => {
     const hook = await ready();
     const response = stream();

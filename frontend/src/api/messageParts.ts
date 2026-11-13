@@ -41,9 +41,11 @@ export type WizStreamEvent = MessagePart | StatusEvent
   | { type: 'done'; message_id: number }
   | { type: 'error'; message: string };
 
-/** Whether a part gives the answer content, as opposed to a bare legacy citation. */
+/** Whether a part shows the answer something, as opposed to a bare legacy citation or empty stats. */
 export function hasContent(part: MessagePart): boolean {
-  return part.type === 'digest' || part.type === 'stats' || (part.type !== 'citation' && part.text.trim().length > 0);
+  if (part.type === 'digest') return true;
+  if (part.type === 'stats') return part.video_count !== null || (part.groups?.length ?? 0) > 0;
+  return part.type !== 'citation' && part.text.trim().length > 0;
 }
 
 /**
