@@ -130,8 +130,10 @@ Describe the FastAPI backend: structure, auth rules, and the request/worker life
 - `src/shared/embeddings.py` calls OpenRouter's `/embeddings` endpoint with
   `EMBEDDING_MODEL` (default `qwen/qwen3-embedding-8b`), pinned to the Nebius
   and DeepInfra providers without fallbacks. Inputs are clipped to 6000
-  characters and sent 48 per request with a 20-second timeout. The first 1024
-  of the model's 4096 numbers are kept. Queries get an instruction prefix;
+  characters and sent 48 per request with a 20-second timeout. Vectors are
+  requested as base64 little-endian float32, about a quarter the size of a
+  JSON array of numbers; a plain list is still accepted if a provider ignores
+  the setting. The first 1024 of the model's 4096 numbers are kept. Queries get an instruction prefix;
   documents are sent as they are.
 - What is embedded: a passage's text; a moment's note, AI line and quote, one
   per line; a video card's title, `Channel: <name>`, summary and key points.
