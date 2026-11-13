@@ -114,6 +114,17 @@ def test_producer_payloads_validate_against_worker_model():
         validated = Moment.model_validate_json(json.dumps(payload))
         assert validated == Moment(id=42, video_id="abc123", at_seconds=83, user_id=7)
 
+    correlated = Moment.model_validate(
+        {
+            "id": 42,
+            "video_id": "abc123",
+            "at_seconds": 83,
+            "user_id": 7,
+            "correlation_id": "trace:abc-123",
+        }
+    )
+    assert correlated.correlation_id == "trace:abc-123"
+
 
 def test_process_moment_uses_video_title_and_persists(monkeypatch):
     note_service = _load_module("note_service.py", monkeypatch)
@@ -150,7 +161,7 @@ def test_process_moment_uses_video_title_and_persists(monkeypatch):
     assert note_service.logger.records[-1] == (
         "info",
         "AI moment saved",
-        {"moment_id": 12, "video_id": "video-id"},
+        {"moment_id": 12, "video_id": "video-id", "correlation_id": None},
     )
 
 
@@ -315,3 +326,20 @@ def test_handler_passes_each_record_and_its_receive_count(monkeypatch):
 
     assert calls == [(12, 1)]
     assert FakeLogger.inject_options == {"log_event": False}
+
+
+def test_job_log_context_contains_correlation(monkeypatch):
+    service = _load_module("note_service.py", monkeypatch)
+    seen = {}
+    monkeypatch.setattr(service, "run_job", lambda *args, **kwargs: seen.update(kwargs))
+    service.process_job(
+        Moment(
+            id=12,
+            video_id="video-id",
+            at_seconds=60,
+            user_id=2,
+            correlation_id="task:12",
+        ),
+        1,
+    )
+    assert seen["extra"]["correlation_id"] == "task:12"

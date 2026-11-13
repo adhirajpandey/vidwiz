@@ -12,7 +12,13 @@ from fastapi.responses import JSONResponse
 
 from src.exceptions import ErrorCode
 from src.models import ErrorPayload, ErrorResponse
-from src.logging import RequestAuth, request_auth_var, request_id_var
+from src.logging import (
+    RequestAuth,
+    correlation_id_var,
+    request_auth_var,
+    request_id_var,
+)
+from src.metrics import bind_metrics, correlation_id_from_header, unbind_metrics
 
 
 # These routes carry credentials, chats, notes, transcripts, or payment details,
@@ -273,6 +279,10 @@ class RequestLoggingMiddleware:
         }
         request_id = headers.get("x-request-id") or uuid4().hex
         token = request_id_var.set(request_id)
+        correlation_id = correlation_id_from_header(headers.get("x-correlation-id"))
+        correlation_id = correlation_id or uuid4().hex
+        correlation_token = correlation_id_var.set(correlation_id)
+        metrics_token = bind_metrics(getattr(scope.get("app").state, "metrics", None))
         auth = RequestAuth()
         auth_token = request_auth_var.set(auth)
 
@@ -312,6 +322,9 @@ class RequestLoggingMiddleware:
                     header[0].lower() == b"x-request-id" for header in headers_list
                 ):
                     headers_list.append((b"x-request-id", request_id.encode("latin-1")))
+                headers_list.append(
+                    (b"x-correlation-id", correlation_id.encode("ascii"))
+                )
                 message["headers"] = headers_list
                 response_headers = {
                     key.decode("latin-1").lower(): value.decode("latin-1")
@@ -379,7 +392,10 @@ class RequestLoggingMiddleware:
             response = JSONResponse(
                 status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
                 content=error.model_dump(mode="json"),
-                headers={"X-Request-ID": request_id},
+                headers={
+                    "X-Request-ID": request_id,
+                    "X-Correlation-ID": correlation_id,
+                },
             )
             await response(scope, receive_with_body, send)
             return
@@ -432,4 +448,6 @@ class RequestLoggingMiddleware:
             )
         finally:
             request_auth_var.reset(auth_token)
+            unbind_metrics(metrics_token)
+            correlation_id_var.reset(correlation_token)
             request_id_var.reset(token)

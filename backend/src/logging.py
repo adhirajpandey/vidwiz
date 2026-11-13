@@ -13,6 +13,9 @@ from typing import Any, Literal
 request_id_var: contextvars.ContextVar[str | None] = contextvars.ContextVar(
     "request_id", default=None
 )
+correlation_id_var: contextvars.ContextVar[str | None] = contextvars.ContextVar(
+    "correlation_id", default=None
+)
 
 AuthKind = Literal["jwt", "api_token", "guest", "admin", "anonymous", "invalid_token"]
 
@@ -67,6 +70,10 @@ def record_request_auth(
     auth.api_token_id = api_token_id
 
 
+def current_correlation_id() -> str | None:
+    return correlation_id_var.get()
+
+
 def log_event(event: str, **fields: Any) -> None:
     """Log a named business event. Fields must be IDs or labels, never content."""
     present = {key: value for key, value in fields.items() if value is not None}
@@ -105,6 +112,7 @@ _EXTRA_EXCLUDE_KEYS = {
     "endpoint_file",
     "endpoint_line",
     "request_id",
+    "correlation_id",
     "user_id",
     "message",
     "event",
@@ -125,6 +133,7 @@ _EXTRA_EXCLUDE_KEYS = {
 class RequestIdFilter(logging.Filter):
     def filter(self, record: logging.LogRecord) -> bool:
         record.request_id = request_id_var.get()
+        record.correlation_id = correlation_id_var.get()
         return True
 
 
@@ -150,6 +159,9 @@ class JsonFormatter(logging.Formatter):
         request_id = getattr(record, "request_id", None)
         if request_id:
             payload["request_id"] = request_id
+        correlation_id = getattr(record, "correlation_id", None)
+        if correlation_id:
+            payload["correlation_id"] = correlation_id
         user_id = getattr(record, "user_id", None)
         if user_id is not None:
             payload["user_id"] = user_id

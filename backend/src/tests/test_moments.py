@@ -732,14 +732,24 @@ async def test_pending_moments_charges_queues_and_flags_missing_credits(
 
     with caplog.at_level(logging.INFO):
         response = await client.post(
-            f"/v2/internal/videos/{VIDEO_ID}/pending-moments", headers=admin_headers()
+            f"/v2/internal/videos/{VIDEO_ID}/pending-moments",
+            headers={
+                **admin_headers(),
+                "X-Correlation-ID": "trace:abc-123",
+            },
         )
 
     assert response.status_code == 200
     assert response.json() == {
         "video_id": VIDEO_ID,
         "moments": [
-            {"id": mine.id, "video_id": VIDEO_ID, "at_seconds": 100, "user_id": user.id}
+            {
+                "id": mine.id,
+                "video_id": VIDEO_ID,
+                "at_seconds": 100,
+                "user_id": user.id,
+                "correlation_id": "trace:abc-123",
+            }
         ],
     }
     db_session.refresh(mine)

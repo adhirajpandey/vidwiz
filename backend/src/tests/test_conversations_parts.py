@@ -2,6 +2,8 @@ import json
 from types import SimpleNamespace
 
 import pytest
+from prometheus_client import generate_latest
+from prometheus_client.parser import text_string_to_metric_families
 from pydantic import ValidationError
 
 from src.config import settings
@@ -14,6 +16,18 @@ from src.conversations.parts import (
     transcript_context,
 )
 from src.conversations.schemas import MessageRead
+from src.metrics import Metrics, bind_metrics, unbind_metrics
+
+
+def _metric_sample_value(metrics, sample_name, labels):
+    return next(
+        sample.value
+        for family in text_string_to_metric_families(
+            generate_latest(metrics.registry).decode()
+        )
+        for sample in family.samples
+        if sample.name == sample_name and sample.labels == labels
+    )
 
 
 def test_transcript_ids_and_timing():
@@ -347,7 +361,12 @@ def test_stream_persistence_and_history(db_session, monkeypatch, fail):
     captured, closed = fake_provider(
         monkeypatch, json.dumps({"parts": [block]}), fail=fail
     )
-    events, messages = run_stream(db_session)
+    metrics = Metrics()
+    token = bind_metrics(metrics)
+    try:
+        events, messages = run_stream(db_session)
+    finally:
+        unbind_metrics(token)
     assert events[0]["type"] == "block"
     assert events[0]["citations"][0]["passages"] == [
         {
@@ -358,6 +377,27 @@ def test_stream_persistence_and_history(db_session, monkeypatch, fail):
         }
     ]
     assert closed == [True]
+    outcome = "failed" if fail else "completed"
+    assert (
+        _metric_sample_value(
+            metrics,
+            "vidwiz_wiz_stream_duration_seconds_count",
+            {"scope": "video", "outcome": outcome},
+        )
+        == 1
+    )
+    assert (
+        _metric_sample_value(
+            metrics,
+            "vidwiz_workflow_events_total",
+            {
+                "workflow": "wiz_chat",
+                "event": "wiz_failed" if fail else "wiz_completed",
+                "reason": "model_error" if fail else "none",
+            },
+        )
+        == 1
+    )
     if fail:
         assert events[-1]["type"] == "error"
         assert messages == []
@@ -371,6 +411,67 @@ def test_stream_persistence_and_history(db_session, monkeypatch, fail):
         parts = stored_parts(read.content, read.metadata)
         assert history_parts(parts, refs)[0]["references"][0]["chunk_ids"] == [key]
         assert history_parts(parts, {})[0]["references"] == []
+
+
+def test_stream_close_records_interrupted_outcome(db_session, monkeypatch, user):
+    from src.conversations.parts import transcript_context
+
+    _, refs = transcript_context([{"text": "Source", "offset": 0, "duration": 1}])
+    key = next(iter(refs))
+    payload = json.dumps(
+        {
+            "parts": [
+                {
+                    "type": "block",
+                    "text": "Answer",
+                    "references": [{"list_item_index": None, "chunk_ids": [key]}],
+                }
+            ]
+        }
+    )
+    _, closed = fake_provider(monkeypatch, payload)
+    conversation = Conversation(video_id="abc123DEF45", user_id=user.id)
+    db_session.add(conversation)
+    db_session.commit()
+
+    metrics = Metrics()
+    token = bind_metrics(metrics)
+    try:
+        stream = service.stream_wiz_response(
+            video_title="Test",
+            transcript=[{"text": "Source", "offset": 0, "duration": 1}],
+            history=[],
+            conversation_id=conversation.id,
+            db=db_session,
+            api_key="test",
+        )
+        assert json.loads(next(stream).removeprefix("data: "))["type"] == "block"
+        stream.close()
+    finally:
+        unbind_metrics(token)
+
+    assert closed == [True]
+    assert (
+        _metric_sample_value(
+            metrics,
+            "vidwiz_wiz_stream_duration_seconds_count",
+            {"scope": "video", "outcome": "interrupted"},
+        )
+        == 1
+    )
+    assert (
+        _metric_sample_value(
+            metrics,
+            "vidwiz_workflow_events_total",
+            {
+                "workflow": "wiz_chat",
+                "event": "wiz_interrupted",
+                "reason": "interrupted",
+            },
+        )
+        == 1
+    )
+    assert service.list_messages(db_session, conversation.id) == []
 
 
 def test_decoder_atomic_and_model_cannot_supply_times():

@@ -110,6 +110,26 @@ def test_internal_api_client_saves_moment_ai(settings):
     assert calls[1][1]["json"] == {"ai_text": None, "ai_model": None}
 
 
+def test_internal_api_client_propagates_only_bounded_correlation_ids(settings):
+    calls = []
+
+    class Response:
+        status_code = 200
+
+    class Session:
+        def put(self, *args, **kwargs):
+            calls.append((args, kwargs))
+            return Response()
+
+    client = InternalApiClient(settings, FakeLogger(), session=Session())
+
+    assert client.save_moment_ai(12, "Generated note", correlation_id="trace:abc-123")
+    assert calls[0][1]["headers"]["X-Correlation-ID"] == "trace:abc-123"
+
+    assert client.save_moment_ai(12, None, correlation_id="bad value")
+    assert "X-Correlation-ID" not in calls[1][1]["headers"]
+
+
 def test_internal_api_client_updates_overview(settings):
     calls = []
 

@@ -18,8 +18,17 @@ from src.videos import overview
 from src.videos import service as videos_service
 from src.videos.models import Video
 from src import transcripts
+from src.metrics import record_workflow_event
 
 logger = logging.getLogger(__name__)
+
+
+def _workflow(task_type: str) -> str:
+    return {
+        internal_constants.RESOLVE_TITLE_TASK_TYPE: "title_resolution",
+        internal_constants.FETCH_METADATA_TASK_TYPE: "metadata",
+        internal_constants.FETCH_TRANSCRIPT_TASK_TYPE: "transcript",
+    }[task_type]
 
 
 def poll_for_task(
@@ -67,6 +76,7 @@ def poll_for_task(
             task.retry_count = (task.retry_count or 0) + 1
             db.commit()
             db.refresh(task)
+            record_workflow_event(_workflow(task_type), "task_claimed")
             return task
 
         # End the read transaction so the connection is not held idle while waiting.
@@ -108,6 +118,8 @@ def submit_task_result(
         raise BadRequestError("Unsupported task type")
 
     task.completed_at = datetime.utcnow()
+    no_transcript_moments = 0
+    transcript_became_unavailable = False
     if result.success:
         task.status = TaskStatus.COMPLETED
         _apply_success(db, task, result)
@@ -115,7 +127,9 @@ def submit_task_result(
         final = task.retry_count >= internal_constants.TASK_MAX_RETRIES
         if final:
             task.status = TaskStatus.FAILED
-            _apply_final_failure(db, task)
+            no_transcript_moments, transcript_became_unavailable = _apply_final_failure(
+                db, task
+            )
         else:
             task.status = TaskStatus.PENDING
             task.started_at = None
@@ -126,6 +140,21 @@ def submit_task_result(
         }
 
     db.commit()
+    if transcript_became_unavailable:
+        record_workflow_event("transcript", "transcript_unavailable", "worker_error")
+    workflow = _workflow(task_type)
+    if result.success:
+        record_workflow_event(workflow, "task_completed")
+    elif task.status == TaskStatus.FAILED:
+        record_workflow_event(workflow, "task_failed", "worker_error")
+        record_workflow_event(
+            "ai_moment",
+            "ai_no_transcript",
+            "no_transcript",
+            no_transcript_moments,
+        )
+    else:
+        record_workflow_event(workflow, "task_retrying", "retry")
     if result.success and task_type == internal_constants.FETCH_TRANSCRIPT_TASK_TYPE:
         _apply_transcript_state(db, result)
     db.refresh(task)
@@ -202,9 +231,20 @@ def _apply_transcript_state(db: Session, result: TaskResultRequest) -> None:
         videos_service.mark_transcript_ready(db, video)
         return
     # A successful fetch with no segments means the video has no transcript.
-    moments_service.on_transcript_unavailable(db, result.video_id)
+    was_unavailable = video.transcript_status.value == "unavailable"
+    no_transcript_moments = moments_service.on_transcript_unavailable(
+        db, result.video_id
+    )
     videos_service.mark_transcript_unavailable(video)
     db.commit()
+    if not was_unavailable:
+        record_workflow_event("transcript", "transcript_unavailable", "no_transcript")
+    record_workflow_event(
+        "ai_moment",
+        "ai_no_transcript",
+        "no_transcript",
+        no_transcript_moments,
+    )
 
 
 def _apply_metadata(video: Video, metadata: dict) -> None:
@@ -214,7 +254,9 @@ def _apply_metadata(video: Video, metadata: dict) -> None:
         video.title = metadata["title"]
 
 
-def _apply_final_failure(db: Session, task: Task) -> None:
+def _apply_final_failure(db: Session, task: Task) -> tuple[int, bool]:
+    no_transcript_moments = 0
+    transcript_became_unavailable = False
     if task.task_type == internal_constants.RESOLVE_TITLE_TASK_TYPE:
         moment = _task_moment(db, task)
         if moment is not None and moment.resolve_status == ResolveStatus.RESOLVING:
@@ -222,10 +264,16 @@ def _apply_final_failure(db: Session, task: Task) -> None:
     elif task.task_type == internal_constants.FETCH_TRANSCRIPT_TASK_TYPE:
         video_id = (task.task_details or {}).get("video_id")
         if video_id:
-            moments_service.on_transcript_unavailable(db, video_id)
+            no_transcript_moments = moments_service.on_transcript_unavailable(
+                db, video_id
+            )
             video = videos_service.get_video_by_id(db, video_id)
             if video and not video.has_transcript:
+                was_unavailable = video.transcript_status.value == "unavailable"
                 videos_service.mark_transcript_unavailable(video)
+                if not was_unavailable:
+                    transcript_became_unavailable = True
+    return no_transcript_moments, transcript_became_unavailable
 
 
 store_transcript_in_s3 = transcripts.store_transcript
@@ -262,6 +310,7 @@ def store_summary(
         extra={"video_id": video_id, "has_summary": summary is not None},
     )
     video = videos_service.get_or_create_video(db, video_id)
+    was_queued = video.overview_status.value == "queued"
     if summary is not None:
         video.summary = summary
         overview.complete(video)
@@ -276,6 +325,8 @@ def store_summary(
         }
     db.commit()
     db.refresh(video)
+    if summary is not None and was_queued and video.overview_status.value == "ready":
+        record_workflow_event("overview", "overview_ready")
     return video
 
 
@@ -283,9 +334,12 @@ def fail_overview(db: Session, video_id: str) -> Video:
     video = videos_service.get_video_by_id(db, video_id)
     if not video:
         raise NotFoundError("Video not found")
+    was_queued = video.overview_status.value == "queued"
     overview.fail(video)
     db.commit()
     db.refresh(video)
+    if was_queued and video.overview_status.value == "failed":
+        record_workflow_event("overview", "overview_failed", "worker_error")
     logger.info(
         "Overview failed",
         extra={"video_id": video_id, "status": video.overview_status.value},

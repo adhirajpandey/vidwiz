@@ -1,4 +1,5 @@
 import logging
+from collections import Counter
 from collections.abc import Callable
 from datetime import timedelta
 
@@ -18,7 +19,8 @@ from src.internal.models import Task, TaskStatus
 from src.internal.scheduling import prepare_video
 from src.library import service as library_service
 from src.library.models import LibraryItem
-from src.logging import log_event
+from src.logging import current_correlation_id, log_event
+from src.metrics import record_workflow_event
 from src.shared.queues import send_job
 from src.moments.models import AiStatus, CaptureSource, Moment, ResolveStatus
 from src.moments.schemas import (
@@ -80,9 +82,11 @@ def capture(
 
     existing = _find_nearby(db, user_id, video_id, payload.at)
     if existing is not None:
+        previous_ai_status = existing.ai_status
         enqueue = _merge(db, existing, payload.note, wants_ai)
         db.commit()
         db.refresh(existing)
+        _record_ai_request_outcome(existing, wants_ai, enqueue, previous_ai_status)
         if enqueue:
             run_later(send_ai_job, queue_payload(existing))
         return existing, True
@@ -98,9 +102,11 @@ def capture(
     )
     db.add(moment)
     db.flush()
+    previous_ai_status = moment.ai_status
     enqueue = _attach_transcript_work(db, moment, wants_ai)
     db.commit()
     db.refresh(moment)
+    _record_ai_request_outcome(moment, wants_ai, enqueue, previous_ai_status)
     if enqueue:
         run_later(send_ai_job, queue_payload(moment))
     return moment, False
@@ -151,11 +157,19 @@ def _capture_unresolved(
                 "moment_id": moment.id,
                 "title": payload.title,
                 "channel": payload.channel,
+                **(
+                    {"correlation_id": current_correlation_id()}
+                    if current_correlation_id()
+                    else {}
+                ),
             },
         )
     )
     db.commit()
     db.refresh(moment)
+    record_workflow_event("title_resolution", "task_queued")
+    if wants_ai:
+        record_workflow_event("ai_moment", "ai_waiting_transcript")
     logger.debug("Queued title resolution", extra={"moment_id": moment.id})
     return moment
 
@@ -216,6 +230,31 @@ def _request_ai(db: Session, moment: Moment) -> bool:
     return True
 
 
+def _record_ai_request_outcome(
+    moment: Moment,
+    requested: bool,
+    enqueue: bool,
+    previous_status: AiStatus,
+) -> None:
+    """Count one committed AI status transition, never a repeated unchanged state."""
+    if not requested:
+        return
+    if enqueue:
+        record_workflow_event("ai_moment", "ai_queued")
+    elif moment.ai_status != previous_status:
+        events = {
+            AiStatus.WAITING_TRANSCRIPT: ("ai_waiting_transcript", "none"),
+            AiStatus.INSUFFICIENT_CREDITS: (
+                "ai_insufficient_credits",
+                "insufficient_credits",
+            ),
+            AiStatus.NO_TRANSCRIPT: ("ai_no_transcript", "no_transcript"),
+        }
+        event = events.get(moment.ai_status)
+        if event:
+            record_workflow_event("ai_moment", event[0], event[1])
+
+
 def save_passage(
     db: Session, user_id: int, payload: PassageSave
 ) -> tuple[Moment, bool]:
@@ -267,12 +306,16 @@ def apply_quote(moment: Moment, transcript: list) -> None:
 
 def queue_payload(moment: Moment) -> dict:
     """The AI moment job, shared with the dispatcher's pending-moments reply."""
-    return {
+    payload = {
         "id": moment.id,
         "video_id": moment.video_id,
         "at_seconds": moment.at_seconds,
         "user_id": moment.user_id,
     }
+    correlation_id = current_correlation_id()
+    if correlation_id:
+        payload["correlation_id"] = correlation_id
+    return payload
 
 
 def push_moment_to_sqs(db: Session, moment: Moment) -> None:
@@ -294,6 +337,7 @@ def push_moment_to_sqs(db: Session, moment: Moment) -> None:
         )
         moment.ai_status = AiStatus.FAILED
         db.commit()
+        record_workflow_event("ai_moment", "ai_failed", "queue_error")
 
 
 def send_ai_job(payload: dict) -> None:
@@ -318,12 +362,14 @@ def send_ai_job(payload: dict) -> None:
         )
         db = database.SessionLocal()
         try:
-            db.execute(
+            result = db.execute(
                 sql_update(Moment)
                 .where(Moment.id == payload["id"], Moment.ai_status == AiStatus.QUEUED)
                 .values(ai_status=AiStatus.FAILED)
             )
             db.commit()
+            if result.rowcount:
+                record_workflow_event("ai_moment", "ai_failed", "queue_error")
         finally:
             db.close()
 
@@ -333,9 +379,11 @@ def request_ai(db: Session, moment: Moment) -> Moment:
         raise BadRequestError("The video for this moment is not resolved yet")
     if moment.ai_status not in AI_REQUESTABLE:
         raise BadRequestError("An AI line is already requested or ready")
+    previous_ai_status = moment.ai_status
     enqueue = _request_ai(db, moment)
     db.commit()
     db.refresh(moment)
+    _record_ai_request_outcome(moment, True, enqueue, previous_ai_status)
     if enqueue:
         push_moment_to_sqs(db, moment)
         db.refresh(moment)
@@ -383,9 +431,12 @@ def _attach_resolved_video(
 
     existing = _find_nearby(db, moment.user_id, video_id, moment.at_seconds)
     if existing is not None:
+        previous_ai_status = existing.ai_status
         enqueue = _merge(db, existing, moment.note, wants_ai)
         db.delete(moment)
         db.commit()
+        record_workflow_event("title_resolution", "title_resolved")
+        _record_ai_request_outcome(existing, wants_ai, enqueue, previous_ai_status)
         if enqueue:
             push_moment_to_sqs(db, existing)
         return
@@ -395,8 +446,11 @@ def _attach_resolved_video(
     moment.pending_title = None
     moment.pending_channel = None
     moment.ai_status = AiStatus.NOT_REQUESTED
+    previous_ai_status = moment.ai_status
     enqueue = _attach_transcript_work(db, moment, wants_ai)
     db.commit()
+    record_workflow_event("title_resolution", "title_resolved")
+    _record_ai_request_outcome(moment, wants_ai, enqueue, previous_ai_status)
     if enqueue:
         push_moment_to_sqs(db, moment)
 
@@ -410,6 +464,7 @@ def offer_candidates(db: Session, moment: Moment, candidates: list[dict]) -> Non
     moment.resolve_status = ResolveStatus.UNRESOLVED
     moment.resolve_candidates = candidates
     db.commit()
+    record_workflow_event("title_resolution", "title_candidates_offered")
 
 
 def choose_candidate(db: Session, moment: Moment, video_id: str) -> Moment:
@@ -440,7 +495,9 @@ def fail_resolution(db: Session, moment: Moment) -> None:
         moment.ai_status = AiStatus.FAILED
     user_id, moment_id = moment.user_id, moment.id
     db.commit()
+    record_workflow_event("title_resolution", "title_failed", "title_unresolved")
     if ai_failed:
+        record_workflow_event("ai_moment", "ai_failed", "title_unresolved")
         log_event(
             "moment_ai.failed",
             user_id=user_id,
@@ -475,7 +532,7 @@ def on_transcript_stored(
     )
 
 
-def on_transcript_unavailable(db: Session, video_id: str) -> None:
+def on_transcript_unavailable(db: Session, video_id: str) -> int:
     waiting = (
         db.execute(
             select(Moment).where(
@@ -492,6 +549,7 @@ def on_transcript_unavailable(db: Session, video_id: str) -> None:
         "Marked moments without transcript",
         extra={"video_id": video_id, "count": len(waiting)},
     )
+    return len(waiting)
 
 
 def collect_pending_ai(db: Session, video_id: str) -> list[Moment]:
@@ -521,16 +579,36 @@ def collect_pending_ai(db: Session, video_id: str) -> list[Moment]:
     )
     queued = []
     newly_queued = []
+    newly_unavailable: Counter = Counter()
     for moment in waiting:
         if moment.ai_status == AiStatus.QUEUED:
             queued.append(moment)
-        elif _request_ai(db, moment):
-            queued.append(moment)
-            newly_queued.append((moment.user_id, moment.id))
+        else:
+            previous_ai_status = moment.ai_status
+            if _request_ai(db, moment):
+                queued.append(moment)
+                newly_queued.append((moment.user_id, moment.id))
+            elif moment.ai_status != previous_ai_status:
+                newly_unavailable[moment.ai_status] += 1
     db.commit()
     # Moments that were already queued got their event when they were queued.
     for user_id, moment_id in newly_queued:
         log_event("moment_ai.queued", user_id=user_id, moment_id=moment_id)
+        record_workflow_event("ai_moment", "ai_queued")
+    if newly_unavailable[AiStatus.INSUFFICIENT_CREDITS]:
+        record_workflow_event(
+            "ai_moment",
+            "ai_insufficient_credits",
+            "insufficient_credits",
+            newly_unavailable[AiStatus.INSUFFICIENT_CREDITS],
+        )
+    if newly_unavailable[AiStatus.NO_TRANSCRIPT]:
+        record_workflow_event(
+            "ai_moment",
+            "ai_no_transcript",
+            "no_transcript",
+            newly_unavailable[AiStatus.NO_TRANSCRIPT],
+        )
     return queued
 
 
@@ -538,7 +616,8 @@ def save_ai_text(
     db: Session, moment: Moment, ai_text: str | None, ai_model: str | None = None
 ) -> Moment:
     """Store the worker result; null marks a queued generation as failed."""
-    ai_failed = not ai_text and moment.ai_status == AiStatus.QUEUED
+    was_queued = moment.ai_status == AiStatus.QUEUED
+    ai_failed = not ai_text and was_queued
     if ai_text:
         moment.ai_text = ai_text
         moment.ai_model = ai_model
@@ -547,6 +626,10 @@ def save_ai_text(
         moment.ai_status = AiStatus.FAILED
     db.commit()
     db.refresh(moment)
+    if was_queued and ai_text:
+        record_workflow_event("ai_moment", "ai_ready")
+    elif ai_failed:
+        record_workflow_event("ai_moment", "ai_failed", "worker_error")
     if ai_text:
         log_event(
             "moment_ai.completed",
@@ -580,6 +663,8 @@ def sweep_stale_ai(db: Session, older_than: timedelta) -> int:
         .returning(Moment.id, Moment.user_id)
     ).all()
     db.commit()
+    if failed:
+        record_workflow_event("ai_moment", "ai_failed", "stale", len(failed))
     for moment_id, user_id in failed:
         log_event(
             "moment_ai.failed", user_id=user_id, moment_id=moment_id, reason="stale"

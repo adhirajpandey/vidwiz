@@ -327,6 +327,26 @@ def test_handler_passes_each_record_and_its_receive_count(monkeypatch):
     assert FakeLogger.inject_options == {"log_event": False}
 
 
+def test_handler_forwards_optional_correlation_id(monkeypatch):
+    handler = _load_module("handler.py", monkeypatch)
+    calls = []
+    monkeypatch.setattr(
+        handler.summary_service,
+        "process_job",
+        lambda video_id, attempt, correlation_id: calls.append(
+            (video_id, attempt, correlation_id)
+        ),
+    )
+    record = SimpleNamespace(
+        body='{"video_id": "abc123DEF45", "correlation_id": "trace:abc-123"}',
+        attributes=SimpleNamespace(ApproximateReceiveCount="2"),
+    )
+
+    handler.lambda_handler(SimpleNamespace(Records=[record]), object())
+
+    assert calls == [("abc123DEF45", 2, "trace:abc-123")]
+
+
 @pytest.mark.parametrize("persisted", [True, False])
 def test_process_summary_persists_overview(monkeypatch, persisted):
     summary_service = _load_module("summary_service.py", monkeypatch)
@@ -370,3 +390,11 @@ def test_process_summary_persists_overview(monkeypatch, persisted):
         [{"text": "Point", "start_seconds": 50.0, "end_seconds": 55.0}],
         summary_service.settings.summary_model,
     )
+
+
+def test_job_log_context_contains_correlation(monkeypatch):
+    service = _load_module("summary_service.py", monkeypatch)
+    seen = {}
+    monkeypatch.setattr(service, "run_job", lambda *args, **kwargs: seen.update(kwargs))
+    service.process_job("video-id", 1, "overview:video-id")
+    assert seen["extra"]["correlation_id"] == "overview:video-id"

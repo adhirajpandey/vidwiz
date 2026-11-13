@@ -22,6 +22,7 @@ from src.videos.utils import normalize_youtube_video_id
 from src.internal.scheduling import prepare_video
 from src.database import get_db
 from src.shared.ratelimit import limiter
+from src.metrics import record_workflow_event
 
 
 router = APIRouter(prefix="/v2/conversations", tags=["Conversations"])
@@ -140,6 +141,7 @@ def create_message(
                 api_key=api_key,
                 models=models,
                 time_range=time_range,
+                scope="library",
             ),
             media_type="text/event-stream",
             headers={"Cache-Control": "no-cache"},
@@ -149,6 +151,7 @@ def create_message(
         conversations_service.prepare_chat(db, conversation, viewer, payload.message)
     )
     if transcript is None or video is None or api_key is None:
+        record_workflow_event("wiz_chat", "wiz_processing")
         response = ChatProcessingResponse(
             status="processing",
             message="Transcript processing",
@@ -166,6 +169,7 @@ def create_message(
             conversation_id=conversation.id,
             db=db,
             api_key=api_key,
+            scope="video",
         ),
         media_type="text/event-stream",
         headers={"Cache-Control": "no-cache"},

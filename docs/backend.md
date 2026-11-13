@@ -390,13 +390,82 @@ a transcript is replaced.
   credentials.
 - `DB_URL` must point to PostgreSQL in every environment. Migrations and search
   use PostgreSQL features, so other databases are not supported.
-- CORS allows all origins with credentials enabled and exposes `X-Request-ID`
-  and `Retry-After` to browser clients; browsers will reject credentialed
+- CORS allows all origins with credentials enabled and exposes `X-Request-ID`,
+  `X-Correlation-ID`, and `Retry-After` to browser clients; browsers will reject credentialed
   requests with wildcard origins.
 - Rate limiting uses SlowAPI with an in-memory store by default and IP-only keys.
   - Env vars: `RATE_LIMIT_ENABLED`, `RATE_LIMIT_DEFAULT`, `RATE_LIMIT_AUTH`, `RATE_LIMIT_CONVERSATIONS`, `RATE_LIMIT_VIDEOS`.
   - `/v2/internal/*` endpoints are exempt.
 - Prometheus metrics are exposed at `GET /v2/internal/metrics` and require the admin token.
+  `/health` is a liveness check; `/ready` reports the last observed database connectivity.
+
+## Metrics and correlation
+
+The API refreshes database aggregates in a background task immediately after
+startup and about every 60 seconds. Scraping `/v2/internal/metrics` only reads
+the in-memory registry. Aggregate statements have a five-second PostgreSQL
+statement timeout; pool checkout and connection establishment each time out
+after five seconds. A ten-second collector deadline marks a slow snapshot
+failed without cancelling its worker thread. The loop retains that thread and
+does not start another snapshot until it finishes. Shutdown drains any
+in-flight snapshot before logging shuts down. Each app instance owns a separate
+registry with Python GC, platform, and process collectors for runtime metrics.
+
+The application metrics have bounded label values:
+
+| Metric | Labels | Values / meaning |
+| --- | --- | --- |
+| `vidwiz_workflow_backlog` | `workflow`, `state` | `title_resolution`: `resolving`, `awaiting_user`, `failed`; `metadata`: `pending`, `in_progress`, `failed`; `transcript`: `pending`; `ai_moment`: `waiting_transcript`, `queued`, `failed`; `overview`: `pending`, `queued`, `failed`. Wiz has no persisted backlog and is omitted. |
+| `vidwiz_workflow_oldest_age_seconds` | `workflow`, `state` | Age for the corresponding backlog series. Zero means no rows after a successful snapshot. |
+| `vidwiz_workflow_events_total` | `workflow`, `event`, `reason` | `workflow`: `title_resolution`, `metadata`, `transcript`, `ai_moment`, `overview`, `wiz_chat`. `event`: `task_queued`, `task_claimed`, `task_retrying`, `task_completed`, `task_failed`, `title_candidates_offered`, `title_resolved`, `title_failed`, `transcript_ready`, `transcript_unavailable`, `overview_queued`, `overview_ready`, `overview_failed`, `ai_queued`, `ai_ready`, `ai_failed`, `ai_waiting_transcript`, `ai_insufficient_credits`, `ai_no_transcript`, `wiz_processing`, `wiz_completed`, `wiz_failed`, `wiz_interrupted`. `reason`: `none`, `retry`, `queue_error`, `worker_error`, `stale`, `no_transcript`, `insufficient_credits`, `invalid_output`, `empty_response`, `model_error`, `title_unresolved`, `interrupted`, only in valid event combinations. |
+| `vidwiz_wiz_stream_duration_seconds` | `scope`, `outcome` | `scope`: `video`, `library`; `outcome`: `completed`, `failed`, `interrupted`. Explicit finite bucket boundaries are 0.5, 1, 2, 5, 10, 20, 30, 60, 120, and 300 seconds. |
+| `vidwiz_database_ready` | none | `-1` unknown, `0` last connectivity check failed, `1` `SELECT 1` succeeded. |
+| `vidwiz_metrics_snapshot_success` | none | `-1` unknown, `0` latest aggregate snapshot failed, `1` latest snapshot completed. |
+| `vidwiz_metrics_snapshot_timestamp_seconds` | none | Unix timestamp of last successful snapshot. |
+
+Backlog and age values start as `NaN`; snapshot success starts at `-1`, and the
+snapshot timestamp starts as `NaN`. Dashboards should gate these series on
+`vidwiz_metrics_snapshot_success == 1` and use the timestamp to assess
+freshness. Failed snapshots retain the prior values and timestamp while
+setting snapshot success to zero. The success gauge is also zeroed while a
+completed snapshot is being published, so scrapes during that short update are
+gated out. A snapshot query/code failure does not by
+itself mark the database unavailable: connectivity is checked separately, and
+database readiness changes only when that check fails or the DB driver reports
+an invalidated connection. `/ready` reflects that last connectivity check;
+`/health` remains an independent liveness response.
+
+Readiness rejects database checks older than 120 seconds. Database checks use
+a statement timeout; rollback failure cannot preserve a ready result. Wiz
+histogram combinations are initialized before the first stream.
+
+Oldest-age precision follows the current schema. Tasks use `created_at` while
+pending and `started_at` while in progress or failed. Title resolution and AI
+moment ages use row `created_at`, since those states have no transition time.
+An old moment retried today can therefore overstate time queued. Do not use
+this age as an exact queue-latency measurement.
+Transcript pending age uses `videos.updated_at`, which can change for other
+video updates. Overview age uses the exact `overview_status_at` transition
+timestamp. Candidate-bearing unresolved titles appear as `awaiting_user`, not
+failure. Retried tasks remain `pending` in the database; retries are visible
+as `task_retrying` events and are not terminal failures.
+
+The aggregate HTTP latency histogram has finite bucket bounds through 300
+seconds; the route histogram has bounds through 30 seconds and exclude time after response headers for streaming
+responses. Wiz's histogram measures full stream duration independently. A
+stream can finish with a `200` HTTP response while emitting an SSE error, so
+its outcome must be read from the Wiz histogram/events rather than inferred
+from HTTP status. A `202` waiting-for-transcript response emits
+`wiz_processing`; it has no stream duration.
+
+`X-Correlation-ID` is distinct from `X-Request-ID`. The API accepts only
+1–128 ASCII letters, digits, `.`, `_`, `:`, or `-` in an incoming correlation
+header, otherwise generates a new value. It is echoed in the response and
+propagated as optional metadata through task details, SQS messages, worker
+callbacks, and structured logs. The identifier is not a metric label. Existing
+helpers and queued messages without it remain valid; no database migration is
+needed. During a mixed-version rollout, old workers may start a new correlation
+chain at their callback because they do not return the optional field.
 
 ## Logging
 - API requests log a single structured entry with request/response metadata.

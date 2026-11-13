@@ -14,10 +14,16 @@ class Moment(BaseModel):
     video_id: str
     at_seconds: int = Field(ge=0)
     user_id: int
+    correlation_id: str | None = Field(
+        default=None, max_length=128, pattern=r"^[A-Za-z0-9][A-Za-z0-9._:-]*$"
+    )
 
 
 class SummaryRequest(BaseModel):
     video_id: str
+    correlation_id: str | None = Field(
+        default=None, max_length=128, pattern=r"^[A-Za-z0-9][A-Za-z0-9._:-]*$"
+    )
 
 
 class ModelKeyPoint(BaseModel):

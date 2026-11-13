@@ -68,6 +68,11 @@ class TaskResultRequest(ApiModel):
     transcript_language: str | None = Field(default=None, max_length=35)
     metadata: dict | None = None
     error_message: str | None = None
+    correlation_id: str | None = Field(
+        default=None,
+        max_length=128,
+        pattern=r"^[A-Za-z0-9][A-Za-z0-9._:-]*$",
+    )
 
 
 class TranscriptWrite(ApiModel):
@@ -124,6 +129,7 @@ class PendingMoment(ApiModel):
     video_id: str
     at_seconds: int
     user_id: int
+    correlation_id: str | None = Field(default=None, max_length=128)
 
 
 class PendingMomentsResponse(ApiModel):

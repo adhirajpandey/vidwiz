@@ -15,4 +15,9 @@ def lambda_handler(event: SqsModel, context: LambdaContext) -> None:
     del context
     for record in event.Records:
         request = SummaryRequest.model_validate_json(record.body)
-        summary_service.process_job(request.video_id, receive_count(record))
+        if request.correlation_id:
+            summary_service.process_job(
+                request.video_id, receive_count(record), request.correlation_id
+            )
+        else:
+            summary_service.process_job(request.video_id, receive_count(record))
