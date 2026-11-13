@@ -44,7 +44,7 @@ from src.videos.models import OverviewStatus, TranscriptStatus, Video
 
 logger = logging.getLogger("vidwiz.backfill")
 
-# Rows of each kind per round; tokens are checked between rounds.
+# Rows of each kind per round; tokens are checked before every request.
 EMBED_ROUND = 96
 DEFAULT_MAX_TOKENS = 30_000_000
 
@@ -136,45 +136,41 @@ def backfill_quotes(recompute_all: bool = False) -> None:
 
 def backfill_embeddings(max_tokens: int = DEFAULT_MAX_TOKENS) -> EmbedCounts:
     db = database.SessionLocal()
+    # Filled batch by batch, so it is accurate even after a failure.
     total = EmbedCounts()
+
+    def summary() -> str:
+        return (
+            f"chunks={total.chunks} moments={total.moments} "
+            f"videos={total.videos} tokens={total.tokens}"
+        )
+
     try:
         while True:
+            before = total.rows
             try:
-                counts = embed_pending(db, EMBED_ROUND)
+                embed_pending(db, EMBED_ROUND, total, max_tokens)
             except EmbeddingError as exc:
                 db.rollback()
                 logger.error(
-                    "Stopped: %s. Finished batches are kept; run again to "
-                    "continue. tokens=%d",
+                    "Stopped: %s. Finished batches are kept; run again to continue. %s",
                     exc,
-                    total.tokens,
+                    summary(),
                 )
                 return total
-            total.add(counts)
-            if not counts.rows:
-                break
-            logger.info(
-                "Embedded so far: chunks=%d moments=%d videos=%d tokens=%d",
-                total.chunks,
-                total.moments,
-                total.videos,
-                total.tokens,
-            )
+            if total.rows > before:
+                logger.info("Embedded so far: %s", summary())
             if total.tokens > max_tokens:
                 logger.warning(
-                    "Stopped: used %d tokens, past --max-tokens %d. "
-                    "Run again to continue.",
-                    total.tokens,
+                    "Stopped: tokens used passed --max-tokens %d. Run again to "
+                    "continue. %s",
                     max_tokens,
+                    summary(),
                 )
                 return total
-        logger.info(
-            "Embedding backfill done: chunks=%d moments=%d videos=%d tokens=%d",
-            total.chunks,
-            total.moments,
-            total.videos,
-            total.tokens,
-        )
+            if total.rows == before:
+                break
+        logger.info("Embedding backfill done: %s", summary())
         return total
     finally:
         db.close()

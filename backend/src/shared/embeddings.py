@@ -1,5 +1,7 @@
 """Text embeddings through OpenRouter, for meaning-based search."""
 
+import math
+
 import requests
 
 from src.config import settings
@@ -40,18 +42,52 @@ def _request(texts: list[str]) -> tuple[list[list[float]], int]:
         raise EmbeddingError(f"Embedding request failed: {type(exc).__name__}") from exc
     if not response.ok:
         raise EmbeddingError(f"Embedding API returned HTTP {response.status_code}")
-    payload = response.json()
+    try:
+        payload = response.json()
+    except ValueError as exc:
+        raise EmbeddingError("Embedding API returned invalid JSON") from exc
+    return _parse(payload, len(texts))
+
+
+def _is_int(value) -> bool:
+    return isinstance(value, int) and not isinstance(value, bool)
+
+
+def _is_number(value) -> bool:
+    return (
+        isinstance(value, (int, float))
+        and not isinstance(value, bool)
+        and math.isfinite(value)
+    )
+
+
+def _parse(payload, count: int) -> tuple[list[list[float]], int]:
+    """Check the whole response before returning any of it."""
+    if not isinstance(payload, dict):
+        raise EmbeddingError("Embedding API returned a non-object response")
     data = payload.get("data")
-    if not isinstance(data, list) or len(data) != len(texts):
+    if not isinstance(data, list) or len(data) != count:
         raise EmbeddingError("Embedding API returned the wrong number of vectors")
-    vectors = []
-    for item in sorted(data, key=lambda item: item.get("index", 0)):
+    by_index: dict[int, list[float]] = {}
+    for item in data:
+        if not isinstance(item, dict):
+            raise EmbeddingError("Embedding API returned a non-object item")
+        index = item.get("index")
+        # Every input exactly once, so no vector lands on the wrong text.
+        if not _is_int(index) or not 0 <= index < count or index in by_index:
+            raise EmbeddingError("Embedding API returned invalid indices")
         vector = item.get("embedding")
         if not isinstance(vector, list) or len(vector) < DIMENSIONS:
             raise EmbeddingError("Embedding API returned a short vector")
-        vectors.append(vector[:DIMENSIONS])
-    tokens = (payload.get("usage") or {}).get("total_tokens") or 0
-    return vectors, int(tokens)
+        vector = vector[:DIMENSIONS]
+        if not all(_is_number(value) for value in vector):
+            raise EmbeddingError("Embedding API returned a non-numeric vector")
+        by_index[index] = [float(value) for value in vector]
+    usage = payload.get("usage")
+    tokens = usage.get("total_tokens") if isinstance(usage, dict) else None
+    if not _is_int(tokens) or tokens < 0:
+        raise EmbeddingError("Embedding API returned invalid token usage")
+    return [by_index[index] for index in range(count)], tokens
 
 
 def _embed(texts: list[str]) -> tuple[list[list[float]], int]:

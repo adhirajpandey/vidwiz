@@ -1,3 +1,4 @@
+import logging
 from datetime import datetime, timezone
 
 import pytest
@@ -101,6 +102,73 @@ def test_embedding_errors(api, monkeypatch):
 
     monkeypatch.setattr(settings, "openrouter_api_key", None)
     with pytest.raises(embeddings.EmbeddingError, match="not configured"):
+        embeddings.embed_documents(["a"])
+
+
+def respond(monkeypatch, payload):
+    response = FakeResponse(payload)
+    monkeypatch.setattr(embeddings.requests, "post", lambda *a, **k: response)
+
+
+def item(index, length=4096):
+    return {"index": index, "embedding": [0.1] * length}
+
+
+@pytest.mark.parametrize(
+    "indices", [[0, 0], [1, 2], [None, 1], ["0", 1], [True, 1], [0.0, 1]]
+)
+def test_invalid_indices_are_rejected(api, monkeypatch, indices):
+    respond(
+        monkeypatch,
+        {
+            "data": [{"index": i, "embedding": [0.1] * 4096} for i in indices],
+            "usage": {"total_tokens": 3},
+        },
+    )
+    with pytest.raises(embeddings.EmbeddingError, match="invalid indices"):
+        embeddings.embed_documents(["a", "b"])
+
+
+class InvalidJson(FakeResponse):
+    def json(self):
+        raise ValueError("Expecting value")
+
+
+@pytest.mark.parametrize(
+    "payload, message",
+    [
+        (["not", "an", "object"], "non-object response"),
+        ({"data": ["x"], "usage": {"total_tokens": 1}}, "non-object item"),
+        ({"data": [item(0, 1023)], "usage": {"total_tokens": 1}}, "short vector"),
+        ({"data": [{"index": 0}], "usage": {"total_tokens": 1}}, "short vector"),
+        (
+            {"data": [{"index": 0, "embedding": ["x"] * 1024}], "usage": {}},
+            "non-numeric",
+        ),
+        (
+            {
+                "data": [{"index": 0, "embedding": [float("nan")] * 1024}],
+                "usage": {"total_tokens": 1},
+            },
+            "non-numeric",
+        ),
+        ({"data": [item(0)]}, "token usage"),
+        ({"data": [item(0)], "usage": "lots"}, "token usage"),
+        ({"data": [item(0)], "usage": {"total_tokens": "12"}}, "token usage"),
+        ({"data": [item(0)], "usage": {"total_tokens": -1}}, "token usage"),
+        ({"data": [], "usage": {"total_tokens": 1}}, "wrong number"),
+    ],
+)
+def test_malformed_responses_raise_embedding_error(api, monkeypatch, payload, message):
+    respond(monkeypatch, payload)
+    with pytest.raises(embeddings.EmbeddingError, match=message):
+        embeddings.embed_documents(["a"])
+
+
+def test_invalid_json_raises_embedding_error(api, monkeypatch):
+    response = InvalidJson(None)
+    monkeypatch.setattr(embeddings.requests, "post", lambda *a, **k: response)
+    with pytest.raises(embeddings.EmbeddingError, match="invalid JSON"):
         embeddings.embed_documents(["a"])
 
 
@@ -306,9 +374,7 @@ def test_sweep_embeds_a_bounded_batch(db_session, monkeypatch):
     monkeypatch.setattr(settings, "openrouter_api_key", "test-openrouter-key")
     calls = []
     monkeypatch.setattr(
-        sweep,
-        "embed_pending",
-        lambda db, limit: calls.append(limit) or upkeep.EmbedCounts(chunks=1),
+        sweep, "embed_pending", lambda db, limit, counts: calls.append(limit)
     )
 
     sweep.sweep_once()
@@ -323,16 +389,20 @@ def test_sweep_survives_an_embedding_failure(db_session, monkeypatch, caplog):
     monkeypatch.setattr(database, "SessionLocal", lambda: SweepSession(db_session))
     monkeypatch.setattr(settings, "openrouter_api_key", "test-openrouter-key")
 
-    def fail(db, limit):
+    def fail(db, limit, counts):
+        counts.chunks, counts.tokens = 3, 9
         raise embeddings.EmbeddingError("Embedding API returned HTTP 502")
 
     monkeypatch.setattr(sweep, "embed_pending", fail)
+    caplog.set_level(logging.INFO, logger="vidwiz.sweep")
 
     sweep.sweep_once()
     assert "Embedding pass failed" in caplog.text
+    # Batches committed before the failure are still reported.
+    assert "chunks=3 moments=0 videos=0 tokens=9" in caplog.text
 
 
-def test_backfill_stops_past_max_tokens_and_resumes(
+def test_backfill_stops_sending_once_past_max_tokens_and_resumes(
     db_session, fake_embed, library, monkeypatch, caplog
 ):
     db_session.add_all(
@@ -344,19 +414,93 @@ def test_backfill_stops_past_max_tokens_and_resumes(
     db_session.flush()
     monkeypatch.setattr(database, "SessionLocal", lambda: SweepSession(db_session))
     monkeypatch.setattr(backfill, "EMBED_ROUND", 2)
+    monkeypatch.setattr(embeddings, "BATCH_SIZE", 1)
 
-    first = backfill.backfill_embeddings(max_tokens=3)
-    # One round: two chunks, one moment, one video, one token each.
-    assert first.tokens == 4
-    assert "past --max-tokens 3" in caplog.text
+    first = backfill.backfill_embeddings(max_tokens=1)
+    # One token per request: the second request passes the limit, so no third
+    # request is sent, not even for moments or videos.
+    assert len(fake_embed) == 2
+    assert (first.chunks, first.moments, first.videos, first.tokens) == (2, 0, 0, 2)
+    assert "passed --max-tokens 1" in caplog.text
     pending = db_session.query(TranscriptChunk).filter(
         TranscriptChunk.embedding.is_(None)
     )
     assert pending.count() == 4
 
     rest = backfill.backfill_embeddings()
-    assert (rest.chunks, rest.moments, rest.videos) == (4, 0, 0)
+    assert (rest.chunks, rest.moments, rest.videos) == (4, 1, 1)
     assert pending.count() == 0
+
+
+def test_backfill_reports_finished_batches_after_a_failure(
+    db_session, library, monkeypatch, caplog
+):
+    db_session.add(
+        TranscriptChunk(
+            video_id="aaaaaaaaaaa", idx=1, start_seconds=0, end_seconds=1, text="t"
+        )
+    )
+    db_session.flush()
+    monkeypatch.setattr(database, "SessionLocal", lambda: SweepSession(db_session))
+    monkeypatch.setattr(embeddings, "BATCH_SIZE", 1)
+    calls = []
+
+    def embed_documents(texts):
+        calls.append(texts)
+        if len(calls) == 2:
+            raise embeddings.EmbeddingError("Embedding API returned HTTP 502")
+        return [VECTOR for _ in texts], 5
+
+    monkeypatch.setattr(embeddings, "embed_documents", embed_documents)
+
+    total = backfill.backfill_embeddings()
+    assert (total.chunks, total.tokens) == (1, 5)
+    assert "HTTP 502" in caplog.text
+    assert "chunks=1 moments=0 videos=0 tokens=5" in caplog.text
+
+
+def test_blank_rows_do_not_hold_back_older_pending_rows(
+    db_session, fake_embed, library
+):
+    # Older valid rows come first in the fixture; these newer ones are blank.
+    db_session.add_all(
+        [
+            Video(
+                video_id="ccccccccccc",
+                video_metadata={"uploader": "Someone"},
+                miscellaneous_data={"key_points": [{"text": " \n"}, {"text": 3}]},
+            ),
+            Moment(
+                user_id=library["written"].user_id,
+                video_id="aaaaaaaaaaa",
+                at_seconds=90,
+                note="\n\t",
+                ai_text=" ",
+                source=CaptureSource.WEB,
+            ),
+        ]
+    )
+    db_session.query(TranscriptChunk).delete()
+    db_session.flush()
+
+    counts = upkeep.embed_pending(db_session, 1)
+
+    assert (counts.moments, counts.videos) == (1, 1)
+    assert embedding(db_session, library["written"]) is not None
+    assert embedding(db_session, library["carded"], "card_embedding") is not None
+
+
+def test_key_point_only_card_is_embedded(db_session, fake_embed):
+    db_session.add(
+        Video(
+            video_id="ddddddddddd",
+            miscellaneous_data={"key_points": [{"text": ""}, {"text": " Point "}]},
+        )
+    )
+    db_session.flush()
+
+    assert upkeep.embed_pending(db_session, 5).videos == 1
+    assert fake_embed == ["Point"]
 
 
 def test_an_edit_during_the_call_keeps_the_embedding_null(

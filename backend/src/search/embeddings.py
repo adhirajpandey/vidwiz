@@ -20,6 +20,14 @@ from src.videos.models import Video
 
 logger = logging.getLogger(__name__)
 
+# Text that is only these characters counts as empty, in Python and SQL alike,
+# so rows the SQL selects always produce text.
+WHITESPACE = " \t\n\r\f\v"
+KEY_POINT_TEXTS = '$.key_points[*].text ? (@.type() == "string")'
+NONBLANK_KEY_POINT = (
+    r'$.key_points[*].text ? (@.type() == "string" && @ like_regex "[^ \t\n\r\f\v]")'
+)
+
 
 @dataclass
 class EmbedCounts:
@@ -32,84 +40,87 @@ class EmbedCounts:
     def rows(self) -> int:
         return self.chunks + self.moments + self.videos
 
-    def add(self, other: "EmbedCounts") -> None:
-        self.chunks += other.chunks
-        self.moments += other.moments
-        self.videos += other.videos
-        self.tokens += other.tokens
-
 
 def moment_text(note: str | None, ai_text: str | None, quote: str | None) -> str:
-    return "\n".join(
-        part.strip() for part in (note, ai_text, quote) if part and part.strip()
-    )
+    return _join("\n", note, ai_text, quote)
 
 
 def video_card_text(
     title: str | None,
-    metadata: dict | None,
+    channel: str | None,
     summary: str | None,
-    miscellaneous_data: dict | None,
+    key_points: list[str],
 ) -> str:
     """Title, channel, summary and key points; empty without title, summary or
     key points, since a channel alone says nothing about the video."""
-    points = (miscellaneous_data or {}).get("key_points")
-    point_texts = [
-        point.get("text")
-        for point in (points if isinstance(points, list) else [])
-        if isinstance(point, dict) and isinstance(point.get("text"), str)
-    ]
-    content = [part for part in (title, summary, *point_texts) if part and part.strip()]
-    if not content:
+    if not _join("", title, summary, *key_points):
         return ""
-    channel = (metadata or {}).get("uploader")
-    parts = [title, f"Channel: {channel}" if channel else None, summary, *point_texts]
-    return " ".join(part.strip() for part in parts if part and part.strip())
+    return _join(
+        " ", title, f"Channel: {channel}" if channel else None, summary, *key_points
+    )
+
+
+def _join(separator: str, *parts: str | None) -> str:
+    stripped = (part.strip(WHITESPACE) for part in parts if isinstance(part, str))
+    return separator.join(part for part in stripped if part)
 
 
 def _has_text(*columns):
-    return func.length(func.trim(func.concat_ws("", *columns))) > 0
+    return func.btrim(func.concat_ws("", *columns), WHITESPACE) != ""
 
 
 def _embed_rows(
-    db: Session, rows: Sequence, texts: list[str], write
-) -> tuple[int, int]:
-    """Embed in API-sized batches, committing each, so a stopped run keeps its
-    work. Returns rows written and tokens used."""
-    written = tokens = 0
+    db: Session,
+    rows: Sequence,
+    texts: list[str],
+    write,
+    kind: str,
+    counts: "EmbedCounts",
+    max_tokens: int | None,
+) -> None:
+    """Embed in API-sized batches, committing each and adding it to `counts`,
+    so a stopped or failed run keeps its work and its count. No request is
+    sent once `counts.tokens` is past `max_tokens`."""
     for start in range(0, len(rows), embeddings.BATCH_SIZE):
+        if max_tokens is not None and counts.tokens > max_tokens:
+            return
         batch = rows[start : start + embeddings.BATCH_SIZE]
         vectors, used = embeddings.embed_documents(
             texts[start : start + embeddings.BATCH_SIZE]
         )
-        tokens += used
-        for row, vector in zip(batch, vectors):
-            written += db.execute(write(row, vector)).rowcount
+        written = sum(
+            db.execute(write(row, vector)).rowcount
+            for row, vector in zip(batch, vectors)
+        )
         db.commit()
-    return written, tokens
+        counts.tokens += used
+        setattr(counts, kind, getattr(counts, kind) + written)
 
 
-def _embed_chunks(db: Session, limit: int) -> tuple[int, int]:
+def _embed_chunks(db: Session, limit: int, counts, max_tokens) -> None:
     rows = db.execute(
         select(TranscriptChunk.id, TranscriptChunk.text)
-        .where(TranscriptChunk.embedding.is_(None))
+        .where(TranscriptChunk.embedding.is_(None), _has_text(TranscriptChunk.text))
         .order_by(TranscriptChunk.id.desc())
         .limit(limit)
     ).all()
     # Passages are replaced, never edited, so a missing id is the only race.
-    return _embed_rows(
+    _embed_rows(
         db,
         rows,
-        [row.text for row in rows],
+        [row.text.strip(WHITESPACE) for row in rows],
         lambda row, vector: (
             update(TranscriptChunk)
             .where(TranscriptChunk.id == row.id, TranscriptChunk.embedding.is_(None))
             .values(embedding=vector)
         ),
+        "chunks",
+        counts,
+        max_tokens,
     )
 
 
-def _embed_moments(db: Session, limit: int) -> tuple[int, int]:
+def _embed_moments(db: Session, limit: int, counts, max_tokens) -> None:
     # Moments without any text are never selected, so they are not retried;
     # once text is added they qualify.
     rows = db.execute(
@@ -123,7 +134,7 @@ def _embed_moments(db: Session, limit: int) -> tuple[int, int]:
     ).all()
     # The text must still match, so an edit during the call is not overwritten
     # with a stale vector.
-    return _embed_rows(
+    _embed_rows(
         db,
         rows,
         [moment_text(row.note, row.ai_text, row.quote) for row in rows],
@@ -139,19 +150,25 @@ def _embed_moments(db: Session, limit: int) -> tuple[int, int]:
             # Embedding is upkeep, not activity: updated_at keeps its value.
             .values(embedding=vector, updated_at=Moment.updated_at)
         ),
+        "moments",
+        counts,
+        max_tokens,
     )
 
 
-def _embed_videos(db: Session, limit: int) -> tuple[int, int]:
+def _embed_videos(db: Session, limit: int, counts, max_tokens) -> None:
     metadata_text = cast(Video.video_metadata, Text)
     misc_text = cast(Video.miscellaneous_data, Text)
+    misc = cast(Video.miscellaneous_data, JSONB)
+    # The filter and the card text read the same key point strings with the
+    # same blank rule, so every selected video has card text.
     rows = db.execute(
         select(
             Video.id,
             Video.title,
             Video.summary,
-            Video.video_metadata,
-            Video.miscellaneous_data,
+            Video.video_metadata["uploader"].as_string().label("channel"),
+            func.jsonb_path_query_array(misc, KEY_POINT_TEXTS).label("key_points"),
             metadata_text.label("metadata_text"),
             misc_text.label("misc_text"),
         )
@@ -159,25 +176,19 @@ def _embed_videos(db: Session, limit: int) -> tuple[int, int]:
             Video.card_embedding.is_(None),
             or_(
                 _has_text(Video.title, Video.summary),
-                func.jsonb_path_exists(
-                    cast(Video.miscellaneous_data, JSONB), "$.key_points[*].text"
-                ),
+                func.jsonb_path_exists(misc, NONBLANK_KEY_POINT),
             ),
         )
         .order_by(Video.id.desc())
         .limit(limit)
     ).all()
-    texts = [
-        video_card_text(
-            row.title, row.video_metadata, row.summary, row.miscellaneous_data
-        )
-        for row in rows
-    ]
-    kept = [(row, text) for row, text in zip(rows, texts) if text]
-    return _embed_rows(
+    _embed_rows(
         db,
-        [row for row, _ in kept],
-        [text for _, text in kept],
+        rows,
+        [
+            video_card_text(row.title, row.channel, row.summary, row.key_points)
+            for row in rows
+        ],
         lambda row, vector: (
             update(Video)
             .where(
@@ -191,16 +202,26 @@ def _embed_videos(db: Session, limit: int) -> tuple[int, int]:
             # Embedding is upkeep, not activity: updated_at keeps its value.
             .values(card_embedding=vector, updated_at=Video.updated_at)
         ),
+        "videos",
+        counts,
+        max_tokens,
     )
 
 
-def embed_pending(db: Session, limit: int) -> EmbedCounts:
-    """Embed up to `limit` rows of each kind that have no embedding yet."""
-    counts = EmbedCounts()
-    counts.chunks, tokens = _embed_chunks(db, limit)
-    counts.tokens += tokens
-    counts.moments, tokens = _embed_moments(db, limit)
-    counts.tokens += tokens
-    counts.videos, tokens = _embed_videos(db, limit)
-    counts.tokens += tokens
+def embed_pending(
+    db: Session,
+    limit: int,
+    counts: EmbedCounts | None = None,
+    max_tokens: int | None = None,
+) -> EmbedCounts:
+    """Embed up to `limit` rows of each kind that have no embedding yet.
+
+    Each committed batch is added to `counts` as it lands, so a caller that
+    passes its own counts still has them when a later batch raises. No request
+    is sent once `counts.tokens` is past `max_tokens`.
+    """
+    counts = counts if counts is not None else EmbedCounts()
+    _embed_chunks(db, limit, counts, max_tokens)
+    _embed_moments(db, limit, counts, max_tokens)
+    _embed_videos(db, limit, counts, max_tokens)
     return counts

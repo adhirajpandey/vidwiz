@@ -21,7 +21,7 @@ from src.config import settings
 from src.conversations import service as conversations_service
 from src.model_registry import import_models
 from src.moments import service as moments_service
-from src.search.embeddings import embed_pending
+from src.search.embeddings import EmbedCounts, embed_pending
 from src.videos import overview
 
 logger = logging.getLogger("vidwiz.sweep")
@@ -57,13 +57,14 @@ def embed(db) -> None:
     """Embed a batch; a failure is logged and the next pass tries again."""
     if not settings.openrouter_api_key:
         return
+    # Filled batch by batch, so a failure still reports the finished batches.
+    counts = EmbedCounts()
     try:
-        counts = embed_pending(db, EMBED_LIMIT)
+        embed_pending(db, EMBED_LIMIT, counts)
     except Exception:
         db.rollback()
         logger.exception("Embedding pass failed")
-        return
-    if counts.rows:
+    if counts.rows or counts.tokens:
         logger.info(
             "Embedded: chunks=%d moments=%d videos=%d tokens=%d",
             counts.chunks,

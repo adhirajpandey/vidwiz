@@ -135,8 +135,11 @@ Describe the FastAPI backend: structure, auth rules, and the request/worker life
   documents are sent as they are.
 - What is embedded: a passage's text; a moment's note, AI line and quote, one
   per line; a video card's title, `Channel: <name>`, summary and key points.
-  Moments with no text, and videos without a title, summary or key points, are
-  not selected, so they are never retried; they qualify once text arrives.
+  Text that is only whitespace counts as none. Moments with no text, and videos
+  without a title, summary or key point text, are not selected, so they are
+  never retried and never hold back other rows; they qualify once text arrives.
+  A response is used only when every input has exactly one valid vector and the
+  token usage is a number; anything else is an embedding error.
 - A change to a moment's note, AI line or quote, or a video's title, channel,
   summary or key points, sets its embedding back to null. Replaced passages are
   new rows. These write paths never call the embedding API; only the sweep and
@@ -249,7 +252,7 @@ Describe the FastAPI backend: structure, auth rules, and the request/worker life
   video chat again: the unlock is the `wiz_chat` credits ledger entry for the
   video. A message saved during the sweep makes the delete fail on the
   messages foreign key, and the next pass tries again.
-- **Backfills**: `python -m src.management.backfill chunks [--missing-only]` stores search passages; `python -m src.management.backfill overviews --limit N` queues up to N overviews that are missing, failed, or older than key points, most recently used videos first. `python -m src.management.backfill quotes` fills missing moment quotes on transcript-ready videos; use it for bulk imports whose moments arrive after their transcripts. Add `--all` to recompute existing quotes with the current window while preserving each moment's `updated_at`. `python -m src.management.backfill embeddings [--max-tokens N]` embeds everything pending, committing each batch, so it is safe to stop and rerun. It logs progress and tokens, and stops once the tokens used pass `--max-tokens` (default 30,000,000).
+- **Backfills**: `python -m src.management.backfill chunks [--missing-only]` stores search passages; `python -m src.management.backfill overviews --limit N` queues up to N overviews that are missing, failed, or older than key points, most recently used videos first. `python -m src.management.backfill quotes` fills missing moment quotes on transcript-ready videos; use it for bulk imports whose moments arrive after their transcripts. Add `--all` to recompute existing quotes with the current window while preserving each moment's `updated_at`. `python -m src.management.backfill embeddings [--max-tokens N]` embeds everything pending, committing each batch, so it is safe to stop and rerun. It logs progress and tokens, checks the tokens used after every request, and sends no more once they pass `--max-tokens` (default 30,000,000). A failed request stops it with a message that still counts the batches already saved.
 - **Wiz chat**: Requires S3 transcript access and `OPENROUTER_API_KEY`. If transcript is not ready, `POST /v2/conversations/{id}/messages` returns `202 Accepted` with `status=processing`. If the transcript flag is set but S3 data is missing, the request errors with `Transcript data missing`.
 
 ## Streaming (SSE)
