@@ -261,7 +261,9 @@ def test_database_readiness_expires_and_histograms_exist_before_chat():
     assert metrics.is_database_ready()
     metrics._database_checked_at -= 121
     assert not metrics.is_database_ready()
-    assert b"vidwiz_wiz_stream_duration_seconds_bucket" in generate_latest(metrics.registry)
+    assert b"vidwiz_wiz_stream_duration_seconds_bucket" in generate_latest(
+        metrics.registry
+    )
 
 
 def test_failed_probe_with_failed_rollback_cannot_leave_readiness_green():
