@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { apiFetch, conversationsApi, normalizeApiError, normalizeFetchError, readSseEvents } from '../api';
 import type { NormalizedApiError } from '../api/errors';
-import { parseWizEvent, type MessagePart, type WizStreamEvent } from '../api/messageParts';
+import { hasContent, parseWizEvent, readStoredParts, type MessagePart, type WizStreamEvent } from '../api/messageParts';
 import type { MessageRead } from '../api/types';
 import { getToken } from '../lib/authUtils';
 
@@ -12,6 +12,8 @@ export interface WizMessage {
   serverMessageId?: number;
   createdAt: Date;
   status?: 'running' | 'complete' | 'error';
+  /** The latest streamed progress line, while the answer has no content yet. */
+  progress?: string;
   error?: { message: string; requestId?: string };
 }
 
@@ -51,7 +53,7 @@ function fromServer(message: MessageRead): WizMessage {
   return {
     id: `server-${message.id}`,
     role: message.role,
-    parts: message.parts,
+    parts: readStoredParts(message.parts),
     serverMessageId: message.role === 'assistant' ? message.id : undefined,
     createdAt: new Date(message.created_at),
     status: 'complete',
@@ -244,14 +246,19 @@ export function useWizChat(
       let done = false;
       for await (const event of readSseEvents(response.body)) {
         if (!isCurrent()) return;
-        let data: WizStreamEvent;
+        let data: WizStreamEvent | null;
         try { data = parseWizEvent(JSON.parse(event.data)); } catch {
           displayError = { message: 'The server returned an invalid chat response.', requestId };
           throw new Error('Invalid stream event');
         }
+        if (data === null) continue;
+        if (data.type === 'status') {
+          if (!parts.some(hasContent)) update({ progress: data.text });
+          continue;
+        }
         if (data.type === 'done') {
           done = true;
-          update({ serverMessageId: data.message_id });
+          update({ serverMessageId: data.message_id, progress: undefined });
           break;
         }
         if (data.type === 'error') {
@@ -259,17 +266,16 @@ export function useWizChat(
           throw new Error('Stream error');
         }
         parts.push(data);
-        update({ parts: [...parts] });
+        update({ parts: [...parts], ...(hasContent(data) ? { progress: undefined } : {}) });
       }
-      const hasText = parts.some(part => part.type !== 'citation' && part.text.trim());
-      if (!hasText || !done) {
-        update({ status: 'error', error: {
+      if (!parts.some(hasContent) || !done) {
+        update({ status: 'error', progress: undefined, error: {
           message: parts.length ? 'The response was interrupted. Please try again.' : 'No response received. Please try again.',
           requestId,
         } });
       } else update({ status: 'complete' });
     } catch {
-      update({ status: 'error', error: displayError ?? {
+      update({ status: 'error', progress: undefined, error: displayError ?? {
         message: 'The chat connection failed. Please try again.', requestId,
       } });
     } finally {

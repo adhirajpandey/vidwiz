@@ -225,6 +225,16 @@ Workers.
   /videos/{id}/ask-status`), so opening the tab never charges. Citations in
   library answers carry `video_id`; they show the video title and open that
   video at the time. Every citation can be saved as a moment.
+- **Answer parts**: `api/messageParts.ts` validates streamed events and
+  stored parts. Unknown kinds, and malformed `status`, `digest`, or `stats`
+  events, are skipped; malformed events of the older kinds still fail the
+  answer. A `status` line replaces "Thinking…" until the answer has content
+  and is never stored. A `digest` lists moments from a period under the
+  answer, grouped by video, with the true totals; it shows five videos and
+  folds the rest behind a control, and says when a video has more moments
+  than listed. Each moment opens its video at that time like a citation. A
+  `stats` part is a single video count or a small table of grouped counts.
+  Both render the same from history as from the stream.
 - **Guests**: the landing page starts a guest conversation for a pasted link
   and opens the workspace on the Ask tab, at the link's start time (`t`) when
   it has one.
