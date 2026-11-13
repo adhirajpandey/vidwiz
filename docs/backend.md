@@ -421,11 +421,26 @@ The application metrics have bounded label values:
 | --- | --- | --- |
 | `vidwiz_workflow_backlog` | `workflow`, `state` | `title_resolution`: `resolving`, `awaiting_user`, `failed`; `metadata`: `pending`, `in_progress`, `failed`; `transcript`: `pending`; `ai_moment`: `waiting_transcript`, `queued`, `failed`; `overview`: `pending`, `queued`, `failed`. Wiz has no persisted backlog and is omitted. |
 | `vidwiz_workflow_oldest_age_seconds` | `workflow`, `state` | Age for the corresponding backlog series. Zero means no rows after a successful snapshot. |
-| `vidwiz_workflow_events_total` | `workflow`, `event`, `reason` | `workflow`: `title_resolution`, `metadata`, `transcript`, `ai_moment`, `overview`, `wiz_chat`. `event`: `task_queued`, `task_claimed`, `task_retrying`, `task_completed`, `task_failed`, `title_candidates_offered`, `title_resolved`, `title_failed`, `transcript_ready`, `transcript_unavailable`, `overview_queued`, `overview_ready`, `overview_failed`, `ai_queued`, `ai_ready`, `ai_failed`, `ai_waiting_transcript`, `ai_insufficient_credits`, `ai_no_transcript`, `wiz_processing`, `wiz_completed`, `wiz_failed`, `wiz_interrupted`. `reason`: `none`, `retry`, `queue_error`, `worker_error`, `stale`, `no_transcript`, `insufficient_credits`, `invalid_output`, `empty_response`, `model_error`, `title_unresolved`, `interrupted`, only in valid event combinations. |
+| `vidwiz_workflow_events_total` | `workflow`, `event`, `reason` | `workflow`: `title_resolution`, `metadata`, `transcript`, `ai_moment`, `overview`, `wiz_chat`. `event`: `task_queued`, `task_claimed`, `task_retrying`, `task_completed`, `task_failed`, `title_candidates_offered`, `title_resolved`, `title_failed`, `transcript_ready`, `transcript_unavailable`, `overview_queued`, `overview_ready`, `overview_failed`, `ai_queued`, `ai_ready`, `ai_failed`, `ai_waiting_transcript`, `ai_insufficient_credits`, `ai_no_transcript`, `wiz_processing`, `wiz_completed`, `wiz_failed`, `wiz_interrupted`, `attempt_failed`. `reason`: `none`, `queue_error`, `worker_error`, `stale`, `no_transcript`, `insufficient_credits`, `invalid_output`, `empty_response`, `model_error`, `title_unresolved`, `interrupted`, plus the dependency reasons below, only in valid event combinations. |
 | `vidwiz_wiz_stream_duration_seconds` | `scope`, `outcome` | `scope`: `video`, `library`; `outcome`: `completed`, `failed`, `interrupted`. Explicit finite bucket boundaries are 0.5, 1, 2, 5, 10, 20, 30, 60, 120, and 300 seconds. |
 | `vidwiz_database_ready` | none | `-1` unknown, `0` last connectivity check failed, `1` `SELECT 1` succeeded. |
 | `vidwiz_metrics_snapshot_success` | none | `-1` unknown, `0` latest aggregate snapshot failed, `1` latest snapshot completed. |
 | `vidwiz_metrics_snapshot_timestamp_seconds` | none | Unix timestamp of last successful snapshot. |
+| `vidwiz_workflow_last_success_timestamp_seconds` | `workflow` | Latest completion per workflow, read from the database in each snapshot so it survives restarts. `NaN` until a snapshot finds one. Tasks use `completed_at`, overviews `overview_status_at`, Wiz the newest assistant message, and AI moments the row's `updated_at`, which other edits can move forward. |
+| `vidwiz_helper_last_poll_timestamp_seconds` | `workflow` | When a helper of this task type (`title_resolution`, `metadata`, `transcript`) last asked for work. Helpers long-poll, so a healthy helper refreshes it about every 30 seconds. Per API process. |
+| `vidwiz_llm_budget_limit_usd`, `vidwiz_llm_budget_remaining_usd` | none | The OpenRouter key's spending limit and what remains in the current period, read every 5 minutes from OpenRouter's key endpoint. `NaN` when unknown or when the key has no limit. A failed read keeps the last values. The API and the AI workers share this key. |
+| `vidwiz_llm_budget_checked_timestamp_seconds` | none | When the budget was last read successfully. |
+
+Failure reasons name the dependency that broke. Helpers send an `error_kind`
+with each failed task result, recorded as the reason on `task_retrying` and
+`task_failed`: `youtube_blocked`, `proxy_error`, `timeout`, `not_found`,
+`provider_error`, or `worker_error` when unknown or sent by an older helper.
+The AI note and overview workers report each failed attempt to
+`POST /v2/internal/workflows/{ai_moment|overview}/attempt-failures` before SQS
+retries it; the API counts it as `attempt_failed` with `provider_quota`
+(OpenRouter 402/403, the key is out of budget or credit),
+`provider_rate_limit` (429), `provider_error`, `timeout`, `invalid_output`, or
+`worker_error`. Reporting never changes how the job is handled.
 
 Backlog and age values start as `NaN`; snapshot success starts at `-1`, and the
 snapshot timestamp starts as `NaN`. Dashboards should gate these series on

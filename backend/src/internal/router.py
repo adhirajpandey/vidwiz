@@ -6,6 +6,7 @@ from src.exceptions import NotFoundError
 from src.internal import service as internal_service
 from src.internal.dependencies import get_task_poll_params, require_admin_token
 from src.internal.schemas import (
+    AttemptFailure,
     MetadataWrite,
     SummaryWrite,
     TaskPollParams,
@@ -78,6 +79,24 @@ def submit_task_result(
         task_id=task.id,
         status=task.status.value,
     )
+
+
+@router.post(
+    "/workflows/{workflow}/attempt-failures",
+    status_code=status.HTTP_204_NO_CONTENT,
+    description=(
+        "Record a failed queue worker attempt for metrics. Called by the AI "
+        "workers before SQS retries a job; it does not change the item."
+    ),
+)
+@limiter.exempt
+def record_attempt_failure(
+    workflow: str,
+    payload: AttemptFailure,
+    _: None = Depends(require_admin_token),
+) -> Response:
+    internal_service.record_attempt_failure(workflow, payload)
+    return Response(status_code=status.HTTP_204_NO_CONTENT)
 
 
 @router.post(

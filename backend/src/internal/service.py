@@ -13,12 +13,12 @@ from src.internal.models import Task, TaskStatus
 from src.moments import service as moments_service
 from src.moments.models import Moment, ResolveStatus
 from src.search.chunks import replace_chunks
-from src.internal.schemas import TaskResultRequest
+from src.internal.schemas import AttemptFailure, TaskResultRequest
 from src.videos import overview
 from src.videos import service as videos_service
 from src.videos.models import Video
 from src import transcripts
-from src.metrics import record_workflow_event
+from src.metrics import record_helper_poll, record_workflow_event
 
 logger = logging.getLogger(__name__)
 
@@ -41,6 +41,7 @@ def poll_for_task(
         "Polling for task",
         extra={"task_type": task_type, "timeout": timeout},
     )
+    record_helper_poll(_workflow(task_type))
     start_time = time.time()
 
     while time.time() - start_time < timeout:
@@ -143,10 +144,11 @@ def submit_task_result(
     if transcript_became_unavailable:
         record_workflow_event("transcript", "transcript_unavailable", "worker_error")
     workflow = _workflow(task_type)
+    failure_reason = result.error_kind or "worker_error"
     if result.success:
         record_workflow_event(workflow, "task_completed")
     elif task.status == TaskStatus.FAILED:
-        record_workflow_event(workflow, "task_failed", "worker_error")
+        record_workflow_event(workflow, "task_failed", failure_reason)
         record_workflow_event(
             "ai_moment",
             "ai_no_transcript",
@@ -154,7 +156,7 @@ def submit_task_result(
             no_transcript_moments,
         )
     else:
-        record_workflow_event(workflow, "task_retrying", "retry")
+        record_workflow_event(workflow, "task_retrying", failure_reason)
     if result.success and task_type == internal_constants.FETCH_TRANSCRIPT_TASK_TYPE:
         _apply_transcript_state(db, result)
     db.refresh(task)
@@ -345,6 +347,25 @@ def fail_overview(db: Session, video_id: str) -> Video:
         extra={"video_id": video_id, "status": video.overview_status.value},
     )
     return video
+
+
+ATTEMPT_WORKFLOWS = {"ai_moment", "overview"}
+
+
+def record_attempt_failure(workflow: str, failure: AttemptFailure) -> None:
+    """Count one failed queue worker attempt; the item's state is unchanged."""
+    if workflow not in ATTEMPT_WORKFLOWS:
+        raise NotFoundError("Unknown workflow")
+    record_workflow_event(workflow, "attempt_failed", failure.reason)
+    logger.info(
+        "Worker attempt failed",
+        extra={
+            "workflow": workflow,
+            "reason": failure.reason,
+            "attempt": failure.attempt,
+            "final": failure.final,
+        },
+    )
 
 
 def get_video(db: Session, video_id: str) -> Video | None:
