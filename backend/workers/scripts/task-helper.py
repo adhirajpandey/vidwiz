@@ -191,6 +191,33 @@ TASKS = {
 }
 
 
+def error_kind(error: Exception) -> str:
+    """Name the dependency that broke, using the API's bounded failure kinds."""
+    name = type(error).__name__
+    if name in ("IpBlocked", "RequestBlocked", "AgeRestricted") or (
+        "Sign in to confirm" in str(error)
+    ):
+        return "youtube_blocked"
+    text = str(error)
+    if isinstance(error, requests.exceptions.ProxyError) or (
+        "ProxyError" in text or "Unable to connect to proxy" in text
+    ):
+        return "proxy_error"
+    if isinstance(error, (requests.exceptions.Timeout, TimeoutError)):
+        return "timeout"
+    if isinstance(error, LookupError) or name in (
+        "VideoUnavailable",
+        "VideoUnplayable",
+        "InvalidVideoId",
+        "TranscriptsDisabled",
+        "NoTranscriptFound",
+    ):
+        return "not_found"
+    if isinstance(error, requests.exceptions.HTTPError):
+        return "provider_error"
+    return "worker_error"
+
+
 def get_auth_token() -> str:
     """Load the internal API admin token. Fail fast if missing."""
     token = os.environ.get(INTERNAL_API_TOKEN_ENV_VAR)
@@ -338,6 +365,7 @@ class TaskHelper:
                         "video_id": details.get("video_id"),
                         "success": False,
                         "error_message": str(e),
+                        "error_kind": error_kind(e),
                     }
                     if correlation_id:
                         self.send_task_result(task_id, failure, correlation_id)

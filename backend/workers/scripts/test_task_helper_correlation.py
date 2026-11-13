@@ -79,6 +79,7 @@ def test_task_helper_returns_task_correlation_in_result_and_header(
                     "video_id": "video-id",
                     "success": False,
                     "error_message": "test failure",
+                    "error_kind": "worker_error",
                 },
                 "trace:abc-123",
             )
@@ -124,3 +125,26 @@ def test_callback_logs_and_header_include_correlation(monkeypatch, caplog, fail)
     ]
     assert len(messages) == 2
     assert all("trace:abc-123" in message for message in messages)
+
+
+def test_error_kind_names_the_broken_dependency():
+    import requests
+
+    module = _load_task_helper()
+
+    class IpBlocked(Exception):
+        pass
+
+    class NoTranscriptFound(Exception):
+        pass
+
+    assert module.error_kind(IpBlocked("vid")) == "youtube_blocked"
+    assert (
+        module.error_kind(Exception("ERROR: Sign in to confirm you're not a bot"))
+        == "youtube_blocked"
+    )
+    assert module.error_kind(requests.exceptions.ProxyError("x")) == "proxy_error"
+    assert module.error_kind(requests.exceptions.ReadTimeout("x")) == "timeout"
+    assert module.error_kind(LookupError("No YouTube results")) == "not_found"
+    assert module.error_kind(NoTranscriptFound("x")) == "not_found"
+    assert module.error_kind(ValueError("other")) == "worker_error"
