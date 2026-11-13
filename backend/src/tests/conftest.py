@@ -57,6 +57,7 @@ from src.database import get_db  # noqa: E402
 from src.main import create_app  # noqa: E402
 from src.config import CreditProductConfig, settings  # noqa: E402
 from src.shared import aws  # noqa: E402
+from src.shared import embeddings  # noqa: E402
 
 BACKEND_DIR = Path(__file__).resolve().parents[2]
 
@@ -129,6 +130,7 @@ def mock_external_services(monkeypatch):
     monkeypatch.setattr(boto3, "client", fake_boto3_client)
     monkeypatch.setattr(conversations_service, "OpenAI", blocked_client)
     monkeypatch.setattr(auth_service, "verify_google_token", blocked_client)
+    monkeypatch.setattr(embeddings, "_request", blocked_client)
 
 
 @pytest.fixture(scope="session")

@@ -118,6 +118,30 @@ Describe the FastAPI backend: structure, auth rules, and the request/worker life
   similarity (threshold 0.45) tolerates typos and the response says
   `match: fuzzy`; `none` means nothing matched. `video_id` limits the search to
   one video.
+- Videos have a generated `card_search` tsvector with a GIN index over the
+  video card: title and channel (weighted higher), summary, and key point text.
+  Search does not use it yet.
+
+### Embeddings
+- `transcript_chunks.embedding`, `moments.embedding` and
+  `videos.card_embedding` are nullable pgvector `vector(1024)` columns. Null
+  means not embedded yet. There is no vector index, so scans are exact. Search
+  and Ask do not use them yet.
+- `src/shared/embeddings.py` calls OpenRouter's `/embeddings` endpoint with
+  `EMBEDDING_MODEL` (default `qwen/qwen3-embedding-8b`), pinned to the Nebius
+  and DeepInfra providers without fallbacks. Inputs are clipped to 6000
+  characters and sent 48 per request with a 20-second timeout. The first 1024
+  of the model's 4096 numbers are kept. Queries get an instruction prefix;
+  documents are sent as they are.
+- What is embedded: a passage's text; a moment's note, AI line and quote, one
+  per line; a video card's title, `Channel: <name>`, summary and key points.
+  Moments with no text, and videos without a title, summary or key points, are
+  not selected, so they are never retried; they qualify once text arrives.
+- A change to a moment's note, AI line or quote, or a video's title, channel,
+  summary or key points, sets its embedding back to null. Replaced passages are
+  new rows. These write paths never call the embedding API; only the sweep and
+  the backfill do. Writing an embedding keeps `updated_at`, and is skipped if
+  the row's text changed while the request was in flight.
 
 ### Library Ask
 - `POST /v2/conversations` with `{"scope": "library"}` (no `video_id`) starts a
@@ -216,13 +240,16 @@ Describe the FastAPI backend: structure, auth rules, and the request/worker life
 - **Task lifecycle**: On claim, a task is marked `in_progress`, `started_at` is set, and `retry_count` increments. Stale `in_progress` tasks can be reclaimed after a timeout.
 - **Transcript storage**: Transcripts are written to S3 when `S3_TRANSCRIPT_BUCKET_NAME` is configured, using the application's required AWS credentials; the transcript is still marked `ready` when the bucket is not configured.
 - **Sweep**: `python -m src.management.sweep --every 600` runs beside the API and fails jobs that stayed queued past the limits above.
+  Each pass also embeds up to 144 pending passages, moments and video cards
+  each. It skips this without `OPENROUTER_API_KEY`; a failure is logged and the
+  next pass tries again.
   It also deletes conversations created over 7 days ago that have no
   messages. Opening Ask creates a conversation before the first question, so
   abandoned opens would otherwise pile up. Deleting one does not lock a paid
   video chat again: the unlock is the `wiz_chat` credits ledger entry for the
   video. A message saved during the sweep makes the delete fail on the
   messages foreign key, and the next pass tries again.
-- **Backfills**: `python -m src.management.backfill chunks [--missing-only]` stores search passages; `python -m src.management.backfill overviews --limit N` queues up to N overviews that are missing, failed, or older than key points, most recently used videos first. `python -m src.management.backfill quotes` fills missing moment quotes on transcript-ready videos; use it for bulk imports whose moments arrive after their transcripts. Add `--all` to recompute existing quotes with the current window while preserving each moment's `updated_at`.
+- **Backfills**: `python -m src.management.backfill chunks [--missing-only]` stores search passages; `python -m src.management.backfill overviews --limit N` queues up to N overviews that are missing, failed, or older than key points, most recently used videos first. `python -m src.management.backfill quotes` fills missing moment quotes on transcript-ready videos; use it for bulk imports whose moments arrive after their transcripts. Add `--all` to recompute existing quotes with the current window while preserving each moment's `updated_at`. `python -m src.management.backfill embeddings [--max-tokens N]` embeds everything pending, committing each batch, so it is safe to stop and rerun. It logs progress and tokens, and stops once the tokens used pass `--max-tokens` (default 30,000,000).
 - **Wiz chat**: Requires S3 transcript access and `OPENROUTER_API_KEY`. If transcript is not ready, `POST /v2/conversations/{id}/messages` returns `202 Accepted` with `status=processing`. If the transcript flag is set but S3 data is missing, the request errors with `Transcript data missing`.
 
 ## Streaming (SSE)

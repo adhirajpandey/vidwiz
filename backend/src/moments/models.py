@@ -1,6 +1,7 @@
 import enum
 from datetime import datetime
 
+from pgvector.sqlalchemy import Vector
 from sqlalchemy import Computed, ForeignKey, Text, func
 from sqlalchemy.dialects.postgresql import JSONB, TSVECTOR
 from sqlalchemy.orm import Mapped, deferred, mapped_column, relationship
@@ -80,6 +81,12 @@ class Moment(Base):
                 persisted=True,
             ),
         )
+    )
+
+    # Null until the sweep embeds it; a change to the note, AI line or quote
+    # clears it.
+    embedding: Mapped[list[float] | None] = deferred(
+        mapped_column(Vector(1024), nullable=True)
     )
 
     video = relationship("Video", back_populates="moments")

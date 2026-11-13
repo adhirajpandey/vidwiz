@@ -1,3 +1,4 @@
+from pgvector.sqlalchemy import Vector
 from sqlalchemy import Computed, ForeignKey, Text
 from sqlalchemy.dialects.postgresql import TSVECTOR
 from sqlalchemy.orm import Mapped, deferred, mapped_column
@@ -22,4 +23,8 @@ class TranscriptChunk(Base):
         mapped_column(
             TSVECTOR, Computed("to_tsvector('english', text)", persisted=True)
         )
+    )
+    # Null until the sweep embeds it; new passages start null.
+    embedding: Mapped[list[float] | None] = deferred(
+        mapped_column(Vector(1024), nullable=True)
     )

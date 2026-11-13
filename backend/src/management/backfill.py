@@ -5,6 +5,7 @@ Usage, from the backend directory with the deployment's environment:
     python -m src.management.backfill chunks [--missing-only]
     python -m src.management.backfill overviews --limit N
     python -m src.management.backfill quotes [--all]
+    python -m src.management.backfill embeddings [--max-tokens N]
 
 `chunks` reads each transcript-ready video's transcript from S3 and stores its
 searchable passages. With --missing-only, videos that already have passages
@@ -19,6 +20,10 @@ usage, so batches stay small.
 video. Moments imported from v2 arrive after their transcripts, so the
 transcript-stored hook never filled them. Run it after each data import.
 With --all, recompute existing quotes too. Neither mode changes updated_at.
+
+`embeddings` embeds every passage, moment and video card that has no embedding
+yet. Each batch is committed, so it is safe to stop and run again. It stops
+once the tokens used pass --max-tokens (default 30,000,000).
 """
 
 import argparse
@@ -31,11 +36,17 @@ from src.model_registry import import_models
 from src.moments import service as moments_service
 from src.moments.models import Moment
 from src.search.chunks import replace_chunks
+from src.search.embeddings import EmbedCounts, embed_pending
 from src.search.models import TranscriptChunk
+from src.shared.embeddings import EmbeddingError
 from src.videos import overview
 from src.videos.models import OverviewStatus, TranscriptStatus, Video
 
 logger = logging.getLogger("vidwiz.backfill")
+
+# Rows of each kind per round; tokens are checked between rounds.
+EMBED_ROUND = 96
+DEFAULT_MAX_TOKENS = 30_000_000
 
 
 def backfill_chunks(missing_only: bool) -> None:
@@ -123,6 +134,52 @@ def backfill_quotes(recompute_all: bool = False) -> None:
         db.close()
 
 
+def backfill_embeddings(max_tokens: int = DEFAULT_MAX_TOKENS) -> EmbedCounts:
+    db = database.SessionLocal()
+    total = EmbedCounts()
+    try:
+        while True:
+            try:
+                counts = embed_pending(db, EMBED_ROUND)
+            except EmbeddingError as exc:
+                db.rollback()
+                logger.error(
+                    "Stopped: %s. Finished batches are kept; run again to "
+                    "continue. tokens=%d",
+                    exc,
+                    total.tokens,
+                )
+                return total
+            total.add(counts)
+            if not counts.rows:
+                break
+            logger.info(
+                "Embedded so far: chunks=%d moments=%d videos=%d tokens=%d",
+                total.chunks,
+                total.moments,
+                total.videos,
+                total.tokens,
+            )
+            if total.tokens > max_tokens:
+                logger.warning(
+                    "Stopped: used %d tokens, past --max-tokens %d. "
+                    "Run again to continue.",
+                    total.tokens,
+                    max_tokens,
+                )
+                return total
+        logger.info(
+            "Embedding backfill done: chunks=%d moments=%d videos=%d tokens=%d",
+            total.chunks,
+            total.moments,
+            total.videos,
+            total.tokens,
+        )
+        return total
+    finally:
+        db.close()
+
+
 def main() -> None:
     parser = argparse.ArgumentParser(description="VidWiz v3 backfills")
     commands = parser.add_subparsers(dest="command", required=True)
@@ -134,6 +191,15 @@ def main() -> None:
     quotes.add_argument(
         "--all", action="store_true", help="Recompute existing quotes too"
     )
+    embeddings = commands.add_parser(
+        "embeddings", help="Embed passages, moments and video cards"
+    )
+    embeddings.add_argument(
+        "--max-tokens",
+        type=int,
+        default=DEFAULT_MAX_TOKENS,
+        help="Stop once this many tokens are used",
+    )
     args = parser.parse_args()
 
     logging.basicConfig(level=logging.INFO, format="%(levelname)s %(message)s")
@@ -144,6 +210,8 @@ def main() -> None:
         backfill_overviews(args.limit)
     elif args.command == "quotes":
         backfill_quotes(recompute_all=args.all)
+    elif args.command == "embeddings":
+        backfill_embeddings(args.max_tokens)
 
 
 if __name__ == "__main__":
