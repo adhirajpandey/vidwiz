@@ -147,12 +147,34 @@ def mark_relevance(question: str, result: dict, sources: list[Source]) -> bool:
 
 
 class _Round:
-    """One streamed completion: tool calls accumulated, content decoded."""
+    """One streamed completion: tool calls accumulated, content decoded.
+
+    Content only becomes the answer when the round has no tool calls, so a
+    decoding error is kept until the round ends instead of raised.
+    """
 
     def __init__(self):
         self.decoder = PartsDecoder()
         self.calls: dict[int, dict] = {}
         self.finish_reason = None
+        self.blocks: list[BlockPart] = []
+        self.sent = 0
+        self.error: Exception | None = None
+
+    def feed(self, content: str, references: dict[str, CitationPart]) -> None:
+        if self.error is not None:
+            return
+        try:
+            for block in self.decoder.feed(content):
+                for item in split_block(block).blocks:
+                    self.blocks.append(resolve_block(item, references))
+        except (ValueError, json.JSONDecodeError) as exc:
+            self.error = exc
+
+    def unsent(self) -> list[BlockPart]:
+        pending = self.blocks[self.sent :]
+        self.sent = len(self.blocks)
+        return pending
 
     def add_tool_calls(self, deltas) -> None:
         for delta in deltas:
@@ -281,15 +303,16 @@ def run_ask(
                 if getattr(delta, "tool_calls", None):
                     current.add_tool_calls(delta.tool_calls)
                 if delta.content:
-                    for block in current.decoder.feed(delta.content):
-                        for item in split_block(block).blocks:
-                            part = resolve_block(item, references)
-                            blocks.append(part)
-                            yield part
+                    current.feed(delta.content, references)
+                    # Blocks stream as they complete, unless the round has
+                    # already called tools; then its content is not the answer.
+                    if not current.calls:
+                        yield from current.unsent()
             response_stream.close()
             response_stream = None
 
-            if current.calls and not final and not current.decoder.buffer.strip():
+            if current.calls and not final:
+                # Content beside tool calls is ignored, even a valid answer.
                 calls = [current.calls[index] for index in sorted(current.calls)]
                 for index, call in enumerate(calls):
                     call["id"] = call["id"] or f"call_{stats.rounds}_{index}"
@@ -348,6 +371,10 @@ def run_ask(
                     )
                 continue
 
+            blocks.extend(current.blocks)
+            yield from current.unsent()
+            if current.error is not None:
+                raise current.error
             if not current.decoder.buffer:
                 outcome = "empty_response"
                 yield ErrorEvent(message=NO_RESPONSE)

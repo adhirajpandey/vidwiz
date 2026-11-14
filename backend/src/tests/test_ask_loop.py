@@ -398,6 +398,59 @@ def test_tool_calls_in_the_forced_round_are_not_run(
 
 
 @pytest.mark.parametrize(
+    "content",
+    [
+        "Let me search your library first.",
+        json.dumps({"parts": []}),
+    ],
+)
+def test_content_beside_tool_calls_is_ignored(
+    db_session, user, library, monkeypatch, content
+):
+    talking = [chunk(content=content[i : i + 5]) for i in range(0, len(content), 5)]
+    model = FakeModel(
+        monkeypatch,
+        [
+            [*talking, *tool_round(("library_stats", {}))],
+            answer_round(block("**You have two videos.**")),
+        ],
+    )
+
+    events, result = run(db_session, user)
+
+    assert result.failure is None
+    assert len(model.requests) == 2
+    assert tool_messages(model.requests[1]) == [{"video_count": 2}]
+    blocks = [e for e in events if isinstance(e, BlockPart)]
+    assert [b.text for b in blocks] == ["**You have two videos.**"]
+    assert result.blocks == blocks
+
+
+def test_answer_streamed_before_tool_calls_is_not_kept(
+    db_session, user, library, monkeypatch
+):
+    # Tool calls arrive after the content, so blocks already streamed cannot
+    # be held back; the tools still run and the answer keeps only later blocks.
+    content = json.dumps({"parts": [block("A premature answer.")]})
+    FakeModel(
+        monkeypatch,
+        [
+            [chunk(content=content), *tool_round(("library_stats", {}))],
+            answer_round(block("**You have two videos.**")),
+        ],
+    )
+
+    events, result = run(db_session, user)
+
+    assert result.failure is None
+    assert [b.text for b in result.blocks] == ["**You have two videos.**"]
+    assert [e.text for e in events if isinstance(e, BlockPart)] == [
+        "A premature answer.",
+        "**You have two videos.**",
+    ]
+
+
+@pytest.mark.parametrize(
     ("final_round", "failure"),
     [
         (answer_round(raw=""), "empty_response"),
