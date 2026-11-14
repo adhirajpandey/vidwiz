@@ -16,6 +16,7 @@ class AiStatus(str, enum.Enum):
     QUEUED = "queued"
     READY = "ready"
     FAILED = "failed"
+    INVALID_TIMESTAMP = "invalid_timestamp"
     NO_TRANSCRIPT = "no_transcript"
     INSUFFICIENT_CREDITS = "insufficient_credits"
 

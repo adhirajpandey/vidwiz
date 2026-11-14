@@ -343,3 +343,31 @@ def test_job_log_context_contains_correlation(monkeypatch):
         1,
     )
     assert seen["extra"]["correlation_id"] == "task:12"
+
+
+def test_late_metadata_stops_generation_for_past_end_capture(monkeypatch):
+    service = _load_module("note_service.py", monkeypatch)
+    monkeypatch.setattr(
+        service,
+        "transcripts",
+        SimpleNamespace(get=lambda _: [{"offset": 888, "text": "context"}]),
+    )
+    monkeypatch.setattr(service, "relevant_context", lambda *args: object())
+    saved = []
+    monkeypatch.setattr(
+        service,
+        "api",
+        SimpleNamespace(
+            get_video=lambda _: {"video_metadata": {"duration": 715}},
+            save_moment_ai=lambda *args, **kwargs: saved.append(args) or True,
+        ),
+    )
+    monkeypatch.setattr(
+        service,
+        "_valid_note",
+        lambda *args: pytest.fail("Invalid capture must not call the model"),
+    )
+    service.process_moment(
+        Moment(id=12, video_id="video-id", at_seconds=888, user_id=2)
+    )
+    assert saved == [(12, None)]

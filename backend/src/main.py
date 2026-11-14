@@ -1,4 +1,6 @@
 import asyncio
+import os
+import re
 from contextlib import asynccontextmanager
 
 from fastapi import FastAPI, HTTPException, Request, status
@@ -26,7 +28,7 @@ from src.moments.router import router as moments_router
 from src.search.router import router as search_router
 from src.shared.ratelimit import limiter
 from src.videos.router import router as videos_router
-from src.logging import setup_logging, shutdown_logging
+from src.logging import setup_logging, shutdown_logging, log_event
 from src.middleware.request_logging import RequestLoggingMiddleware
 
 
@@ -115,6 +117,9 @@ def create_app() -> FastAPI:
     async def lifespan(app: FastAPI):
         from src.database import SessionLocal
 
+        revision = os.environ.get("APP_REVISION", "")
+        revision = revision if re.fullmatch(r"[0-9a-f]{7,40}", revision) else "unknown"
+        log_event("service.started", revision=revision)
         metrics_task = asyncio.create_task(
             _metrics_snapshot_loop(app.state.metrics, SessionLocal)
         )
@@ -129,6 +134,7 @@ def create_app() -> FastAPI:
                 await metrics_task
             except asyncio.CancelledError:
                 pass
+            log_event("service.stopping", revision=revision)
             shutdown_logging()
 
     app = FastAPI(

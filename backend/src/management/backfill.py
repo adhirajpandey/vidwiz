@@ -3,7 +3,7 @@
 Usage, from the backend directory with the deployment's environment:
 
     python -m src.management.backfill chunks [--missing-only]
-    python -m src.management.backfill overviews --limit N
+    python -m src.management.backfill overviews --limit N --estimate-usd-per-overview COST --reserve-usd RESERVE [--apply]
     python -m src.management.backfill quotes [--all]
     python -m src.management.backfill embeddings [--max-tokens N]
 
@@ -11,7 +11,7 @@ Usage, from the backend directory with the deployment's environment:
 searchable passages. With --missing-only, videos that already have passages
 are skipped, so an interrupted run can resume.
 
-`overviews` queues up to N overviews, most recently used videos first: those
+`overviews` plans (or with --apply, queues) up to N overviews, most recently used videos first: those
 never written, failed, or written before key points existed. Videos whose
 transcript is not in the bucket yet are skipped. Each overview costs model
 usage, so batches stay small.
@@ -32,6 +32,8 @@ import logging
 from sqlalchemy import exists, select
 
 from src import database, transcripts
+from src.config import settings
+from src.llm_budget import read_budget, check_batch_budget
 from src.model_registry import import_models
 from src.moments import service as moments_service
 from src.moments.models import Moment
@@ -81,11 +83,28 @@ def backfill_chunks(missing_only: bool) -> None:
         db.close()
 
 
-def backfill_overviews(limit: int) -> None:
+def backfill_overviews(
+    limit: int, estimate_each: float, reserve: float, *, apply: bool = False
+) -> None:
     db = database.SessionLocal()
     try:
+        if limit <= 0:
+            raise ValueError("Limit must be positive")
+        candidates = overview.backfill_candidates(db, limit)
+        budget = read_budget(settings.openrouter_api_key, settings.openrouter_base_url)
+        estimate = check_batch_budget(budget, len(candidates), estimate_each, reserve)
+        logger.info(
+            "Overview batch plan: candidates=%d estimated_usd=%.4f available_usd=%.4f reserve_usd=%.4f apply=%s",
+            len(candidates),
+            estimate,
+            budget.available,
+            reserve,
+            apply,
+        )
+        if not apply:
+            return
         queued = missing = 0
-        for video in overview.backfill_candidates(db, limit):
+        for video in candidates:
             if not transcripts.load_transcript(video.video_id):
                 missing += 1
                 continue
@@ -183,6 +202,23 @@ def main() -> None:
     chunks.add_argument("--missing-only", action="store_true")
     overviews = commands.add_parser("overviews", help="Queue overviews in a batch")
     overviews.add_argument("--limit", type=int, required=True)
+    overviews.add_argument(
+        "--estimate-usd-per-overview",
+        type=float,
+        required=True,
+        help="Measured cost estimate for the selected model and inputs",
+    )
+    overviews.add_argument(
+        "--reserve-usd",
+        type=float,
+        required=True,
+        help="Budget to leave for normal use after the estimated batch",
+    )
+    overviews.add_argument(
+        "--apply",
+        action="store_true",
+        help="Queue the batch after the budget check; default is plan only",
+    )
     quotes = commands.add_parser("quotes", help="Fill missing moment quotes")
     quotes.add_argument(
         "--all", action="store_true", help="Recompute existing quotes too"
@@ -203,7 +239,12 @@ def main() -> None:
     if args.command == "chunks":
         backfill_chunks(args.missing_only)
     elif args.command == "overviews":
-        backfill_overviews(args.limit)
+        backfill_overviews(
+            args.limit,
+            args.estimate_usd_per_overview,
+            args.reserve_usd,
+            apply=args.apply,
+        )
     elif args.command == "quotes":
         backfill_quotes(recompute_all=args.all)
     elif args.command == "embeddings":

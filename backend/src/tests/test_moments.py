@@ -1393,3 +1393,66 @@ def test_title_resolution_does_not_repeat_waiting_event(db_session, user, monkey
         )
         == before
     )
+
+
+@pytest.mark.asyncio
+async def test_capture_past_known_end_rejects_before_save_or_charge(
+    client, db_session, user, transcript_ready, sent_jobs
+):
+    video = db_session.query(Video).filter_by(video_id=VIDEO_ID).one()
+    video.video_metadata = {"duration": 715}
+    db_session.commit()
+    response = await client.post(
+        "/v2/captures",
+        headers=auth_headers(user),
+        json={"video": VIDEO_ID, "at": 888, "ai": True},
+    )
+    assert response.status_code == 400
+    assert "past the video's end" in response.json()["error"]["message"]
+    assert db_session.query(Moment).count() == 0
+    assert not sent_jobs
+
+
+def test_late_metadata_flags_capture_and_late_callback_cannot_revive_it(
+    db_session, user
+):
+    from src.internal import service as internal_service
+
+    video = Video(video_id=VIDEO_ID, transcript_status=TranscriptStatus.READY)
+    db_session.add(video)
+    db_session.flush()
+    moment = Moment(
+        user_id=user.id,
+        video_id=VIDEO_ID,
+        at_seconds=888,
+        source=CaptureSource.API,
+        ai_status=AiStatus.QUEUED,
+        note="keep this",
+    )
+    db_session.add(moment)
+    db_session.commit()
+    internal_service.store_metadata(db_session, VIDEO_ID, {"duration": 715})
+    db_session.refresh(moment)
+    assert moment.ai_status == AiStatus.INVALID_TIMESTAMP
+    assert moments_service.collect_pending_ai(db_session, VIDEO_ID) == []
+    moments_service.save_ai_text(db_session, moment, "A late result")
+    assert moment.ai_status == AiStatus.INVALID_TIMESTAMP
+    assert moment.ai_text is None
+    assert moment.at_seconds == 888
+    assert moment.note == "keep this"
+
+
+@pytest.mark.parametrize(
+    "duration", [None, 0, -1, "unknown", float("nan"), float("inf"), True]
+)
+def test_unknown_video_duration_does_not_reject_capture(duration):
+    from src.videos.utils import capture_past_end
+
+    assert not capture_past_end({"duration": duration}, 888)
+
+
+def test_capture_exactly_at_end_is_allowed():
+    from src.videos.utils import capture_past_end
+
+    assert not capture_past_end({"duration": 715}, 715)
+    assert capture_past_end({"duration": "715"}, 716)

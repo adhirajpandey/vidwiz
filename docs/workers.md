@@ -173,3 +173,11 @@ charge, so a retry can recover jobs after a lost response or failed send.
 Delivery is at least once: a retry may resend jobs still being processed.
 Completed moments are excluded from collection.
 Deploy the dispatcher before the API so it can handle the new 409 response.
+
+## Failure classification and capture validation
+
+Helpers report and persist `unavailable` for confirmed inaccessible content and
+`no_transcript` for missing captions. Bot blocks, proxy failures, timeouts, and
+unknown failures remain separate. The AI note worker checks known video duration
+before model generation. See [workflow health](workflow-health.md) for rollout
+order, dashboard semantics, and budget checks before overview backfills.

@@ -24,7 +24,7 @@ Describe the FastAPI backend: structure, auth rules, and the request/worker life
 
 ## Validation Rules (Selected)
 - **video_id**: Normalized from YouTube IDs or URLs; supports `youtube.com/watch`, `/shorts/`, `/live/`, `/embed/`, and `youtu.be`. Playlist URLs are rejected. An invalid ID in a route path returns `422 VALIDATION_ERROR`, after any auth check.
-- **Capture time (`at`)**: Seconds, `m:ss`, or `h:mm:ss`; never negative.
+- **Capture time (`at`)**: Seconds, `m:ss`, or `h:mm:ss`; never negative. Times beyond a known video duration are rejected. See [workflow health](workflow-health.md) for delayed metadata and invalid captures.
 - **Moment text**: Empty/whitespace notes are normalized to `null`.
 - **Chat message**: Must be non-empty after trimming.
 - **Transcript payload**: Items must be dicts containing at least `text`.
@@ -59,7 +59,7 @@ Describe the FastAPI backend: structure, auth rules, and the request/worker life
   Recovery uses the same attachment and merge rules and resumes any original
   AI request, including requests marked `failed` by title-lookup failure.
 - **AI status** is explicit: `not_requested`, `waiting_transcript`, `queued`,
-  `ready`, `failed`, `no_transcript`, or `insufficient_credits`.
+  `ready`, `failed`, `invalid_timestamp`, `no_transcript`, or `insufficient_credits`.
   - With a transcript, a request charges `AI_MOMENT_COST` once per moment and
     queues the job (`queued`). Without credits the moment is kept as
     `insufficient_credits`.
@@ -482,6 +482,11 @@ a transcript is replaced.
 
 ## Metrics and correlation
 
+See [workflow health](workflow-health.md) for current-item classification,
+budget safeguards, capture validation, and lifecycle markers. The snapshot now
+separates unavailable content, unknown history, user choices, and blocked work.
+
+
 The API refreshes database aggregates in a background task immediately after
 startup and about every 60 seconds. Scraping `/v2/internal/metrics` only reads
 the in-memory registry. Aggregate statements have a five-second PostgreSQL
@@ -500,7 +505,7 @@ The application metrics have bounded label values:
 
 | Metric | Labels | Values / meaning |
 | --- | --- | --- |
-| `vidwiz_workflow_backlog` | `workflow`, `state` | `title_resolution`: `resolving`, `awaiting_user`, `failed`; `metadata`: `pending`, `in_progress`, `failed`; `transcript`: `pending`; `ai_moment`: `waiting_transcript`, `queued`, `failed`; `overview`: `pending`, `queued`, `failed`. Wiz has no persisted backlog and is omitted. |
+| `vidwiz_workflow_backlog` | `workflow`, `state` | `title_resolution`: `resolving`, `awaiting_user`, `not_found`, `failed`; `metadata`: `pending`, `in_progress`, `failed`, `unavailable`; `transcript`: `pending`, `failed`, `unavailable`, `unknown`; `ai_moment`: `waiting_transcript`, `queued`, `failed`, `invalid_timestamp`, `waiting_title`, `blocked`; `overview`: `pending`, `queued`, `failed`, `blocked`. Wiz has no persisted backlog and is omitted. |
 | `vidwiz_workflow_oldest_age_seconds` | `workflow`, `state` | Age for the corresponding backlog series. Zero means no rows after a successful snapshot. |
 | `vidwiz_workflow_events_total` | `workflow`, `event`, `reason` | `workflow`: `title_resolution`, `metadata`, `transcript`, `ai_moment`, `overview`, `wiz_chat`. `event`: `task_queued`, `task_claimed`, `task_retrying`, `task_completed`, `task_failed`, `title_candidates_offered`, `title_resolved`, `title_failed`, `transcript_ready`, `transcript_unavailable`, `overview_queued`, `overview_ready`, `overview_failed`, `ai_queued`, `ai_ready`, `ai_failed`, `ai_waiting_transcript`, `ai_insufficient_credits`, `ai_no_transcript`, `wiz_processing`, `wiz_completed`, `wiz_failed`, `wiz_interrupted`, `attempt_failed`. `reason`: `none`, `queue_error`, `worker_error`, `stale`, `no_transcript`, `insufficient_credits`, `invalid_output`, `empty_response`, `model_error`, `title_unresolved`, `interrupted`, plus the dependency reasons below, only in valid event combinations. |
 | `vidwiz_wiz_stream_duration_seconds` | `scope`, `outcome` | `scope`: `video`, `library`; `outcome`: `completed`, `failed`, `interrupted`. Explicit finite bucket boundaries are 0.5, 1, 2, 5, 10, 20, 30, 60, 120, and 300 seconds. |

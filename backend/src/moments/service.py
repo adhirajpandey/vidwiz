@@ -35,6 +35,7 @@ from src.moments.schemas import (
 )
 from src.videos import service as videos_service
 from src.videos.models import TranscriptStatus, Video
+from src.videos.utils import capture_past_end, video_duration
 
 logger = logging.getLogger(__name__)
 
@@ -80,6 +81,9 @@ def capture(
         moment = _capture_unresolved(db, user_id, payload, wants_ai)
         return moment, False
 
+    known_video = videos_service.get_video_by_id(db, video_id)
+    if known_video:
+        validate_capture_time(known_video, payload.at)
     prepare_video(db, video_id, payload.title)
     library_service.save_video(db, user_id, video_id)
 
@@ -215,9 +219,46 @@ def _attach_transcript_work(db: Session, moment: Moment, wants_ai: bool) -> bool
     return False
 
 
+def validate_capture_time(video: Video, at_seconds: float) -> None:
+    if capture_past_end(video.video_metadata, at_seconds):
+        raise BadRequestError(
+            f"Capture time {at_seconds:g}s is past the video's end "
+            f"({video_duration(video.video_metadata):g}s). Choose a time within the video."
+        )
+
+
+def flag_invalid_captures(db: Session, video: Video) -> int:
+    """Metadata can arrive after capture. Keep the note and stop pending AI."""
+    duration = video_duration(video.video_metadata)
+    if duration is None:
+        return 0
+    result = db.execute(
+        sql_update(Moment)
+        .where(
+            Moment.video_id == video.video_id,
+            Moment.at_seconds > duration,
+            Moment.ai_status.in_(
+                [
+                    AiStatus.NOT_REQUESTED,
+                    AiStatus.WAITING_TRANSCRIPT,
+                    AiStatus.QUEUED,
+                    AiStatus.FAILED,
+                    AiStatus.NO_TRANSCRIPT,
+                    AiStatus.INSUFFICIENT_CREDITS,
+                ]
+            ),
+        )
+        .values(ai_status=AiStatus.INVALID_TIMESTAMP, updated_at=Moment.updated_at)
+    )
+    return result.rowcount
+
+
 def _request_ai(db: Session, moment: Moment) -> bool:
     """Set the AI status for a request. Returns True when the job should be sent."""
     video = videos_service.get_video_by_id(db, moment.video_id)
+    if video is not None and capture_past_end(video.video_metadata, moment.at_seconds):
+        moment.ai_status = AiStatus.INVALID_TIMESTAMP
+        return False
     if video is not None and video.transcript_status == TranscriptStatus.UNAVAILABLE:
         moment.ai_status = AiStatus.NO_TRANSCRIPT
         return False
@@ -266,6 +307,7 @@ def save_passage(
     video = videos_service.get_video_by_id(db, payload.video_id)
     if video is None:
         raise NotFoundError("Video not found")
+    validate_capture_time(video, payload.end_seconds)
     start = int(payload.start_seconds)
     library_service.save_video(db, user_id, payload.video_id)
     existing = _find_nearby(db, user_id, payload.video_id, start)
@@ -435,7 +477,15 @@ def _attach_resolved_video(
     prepare_video(db, video_id, title)
     library_service.save_video(db, moment.user_id, video_id)
 
-    existing = _find_nearby(db, moment.user_id, video_id, moment.at_seconds)
+    video = videos_service.get_video_by_id(db, video_id)
+    invalid = video is not None and capture_past_end(
+        video.video_metadata, moment.at_seconds
+    )
+    existing = (
+        None
+        if invalid
+        else _find_nearby(db, moment.user_id, video_id, moment.at_seconds)
+    )
     if existing is not None:
         previous_ai_status = existing.ai_status
         enqueue = _merge(db, existing, moment.note, wants_ai)
@@ -454,6 +504,8 @@ def _attach_resolved_video(
     previous_ai_status = moment.ai_status
     moment.ai_status = AiStatus.NOT_REQUESTED
     enqueue = _attach_transcript_work(db, moment, wants_ai)
+    if invalid:
+        moment.ai_status = AiStatus.INVALID_TIMESTAMP
     db.commit()
     record_workflow_event("title_resolution", "title_resolved")
     _record_ai_request_outcome(moment, wants_ai, enqueue, previous_ai_status)
@@ -586,10 +638,14 @@ def collect_pending_ai(db: Session, video_id: str) -> list[Moment]:
         .scalars()
         .all()
     )
+    if video:
+        flag_invalid_captures(db, video)
     queued = []
     newly_queued = []
     newly_unavailable: Counter = Counter()
     for moment in waiting:
+        if moment.ai_status == AiStatus.INVALID_TIMESTAMP:
+            continue
         if moment.ai_status == AiStatus.QUEUED:
             queued.append(moment)
         else:
@@ -625,6 +681,16 @@ def save_ai_text(
     db: Session, moment: Moment, ai_text: str | None, ai_model: str | None = None
 ) -> Moment:
     """Store the worker result; null marks a queued generation as failed."""
+    video = videos_service.get_video_by_id(db, moment.video_id)
+    if moment.ai_status == AiStatus.INVALID_TIMESTAMP or (
+        moment.ai_status != AiStatus.READY
+        and video is not None
+        and capture_past_end(video.video_metadata, moment.at_seconds)
+    ):
+        moment.ai_status = AiStatus.INVALID_TIMESTAMP
+        db.commit()
+        db.refresh(moment)
+        return moment
     was_queued = moment.ai_status == AiStatus.QUEUED
     ai_failed = not ai_text and was_queued
     if ai_text:

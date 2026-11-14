@@ -237,6 +237,8 @@ jobs:
         with:
           context: .
           file: backend/Dockerfile
+          build-args: |
+            APP_REVISION=${{ github.sha }}
           platforms: linux/amd64,linux/arm64
           push: true
           tags: |
