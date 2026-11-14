@@ -1,4 +1,6 @@
+import base64
 import logging
+import struct
 from datetime import datetime, timezone
 
 import pytest
@@ -22,6 +24,11 @@ REAL_REQUEST = embeddings._request
 VECTOR = [0.5] * 1024
 
 
+def b64(values):
+    """Encode numbers the way OpenRouter does for encoding_format=base64."""
+    return base64.b64encode(struct.pack(f"<{len(values)}f", *values)).decode()
+
+
 class FakeResponse:
     def __init__(self, payload, status=200):
         self.payload = payload
@@ -42,7 +49,7 @@ def api(monkeypatch):
     def post(url, json, headers, timeout):
         calls.append({"url": url, "json": json, "headers": headers, "timeout": timeout})
         data = [
-            {"index": index, "embedding": [float(index)] * 4096}
+            {"index": index, "embedding": b64([float(index)] * 4096)}
             for index in range(len(json["input"]))
         ]
         # Out of order, to check vectors follow their index.
@@ -70,6 +77,7 @@ def test_embed_documents_batches_clips_and_truncates(api):
         "order": ["Nebius", "DeepInfra"],
         "allow_fallbacks": False,
     }
+    assert first["json"]["encoding_format"] == "base64"
     assert first["json"]["input"][0] == "text 0"
     assert first["headers"]["Authorization"] == "Bearer test-openrouter-key"
     assert first["timeout"] == 20
@@ -176,6 +184,57 @@ class InvalidJson(FakeResponse):
 )
 def test_malformed_responses_raise_embedding_error(api, monkeypatch, payload, message):
     respond(monkeypatch, payload)
+    with pytest.raises(embeddings.EmbeddingError, match=message):
+        embeddings.embed_documents(["a"])
+
+
+def test_base64_vector_is_decoded_little_endian(api, monkeypatch):
+    values = [0.25, -1.5, 3.0] + [0.1] * 4093
+    # Big-endian bytes would decode to different numbers.
+    assert struct.pack("<f", 0.25) != struct.pack(">f", 0.25)
+    respond(
+        monkeypatch,
+        {
+            "data": [{"index": 0, "embedding": b64(values)}],
+            "usage": {"total_tokens": 1},
+        },
+    )
+    (vector,), tokens = embeddings.embed_documents(["a"])
+
+    assert tokens == 1 and len(vector) == 1024
+    assert vector[:3] == [0.25, -1.5, 3.0]
+    assert vector[3] == struct.unpack("<f", struct.pack("<f", 0.1))[0]
+
+
+def test_list_vector_is_still_accepted(api, monkeypatch):
+    respond(monkeypatch, {"data": [item(0)], "usage": {"total_tokens": 2}})
+    (vector,), tokens = embeddings.embed_documents(["a"])
+
+    assert vector == [0.1] * 1024 and tokens == 2
+
+
+@pytest.mark.parametrize(
+    "encoded, message",
+    [
+        ("not base64!", "invalid base64"),
+        ("QUJD=", "invalid base64"),
+        ("é" * 8, "invalid base64"),
+        (base64.b64encode(b"\0" * 4098).decode(), "partial float32"),
+        (b64([0.1] * 1023), "short vector"),
+        ("", "short vector"),
+        (b64([float("nan")] + [0.1] * 4095), "invalid vector component"),
+        (b64([0.1] * 1023 + [float("inf")]), "invalid vector component"),
+        (b64([float("-inf")] * 4096), "invalid vector component"),
+        (12345, "short vector"),
+    ],
+)
+def test_malformed_base64_vectors_raise_embedding_error(
+    api, monkeypatch, encoded, message
+):
+    respond(
+        monkeypatch,
+        {"data": [{"index": 0, "embedding": encoded}], "usage": {"total_tokens": 1}},
+    )
     with pytest.raises(embeddings.EmbeddingError, match=message):
         embeddings.embed_documents(["a"])
 
