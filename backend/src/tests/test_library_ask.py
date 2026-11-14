@@ -139,7 +139,7 @@ def test_retrieve_without_candidates_returns_nothing(
 def test_jev_relevance_batches_and_validates(monkeypatch):
     calls = []
 
-    def fake_decide(state, questions):
+    def fake_decide(state, questions, timeout):
         calls.append(len(state["passages"]))
         return {key: {"type": "noul", "noul": 0.5} for key in questions}
 
@@ -147,7 +147,7 @@ def test_jev_relevance_batches_and_validates(monkeypatch):
     assert jev.relevance("q", ["text"] * 30) == [0.5] * 30
     assert sorted(calls) == [6, 12, 12]
 
-    monkeypatch.setattr(jev, "decide", lambda state, questions: {})
+    monkeypatch.setattr(jev, "decide", lambda state, questions, timeout: {})
     with pytest.raises(jev.JevError):
         jev.relevance("q", ["text"])
 
