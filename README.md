@@ -20,9 +20,10 @@ with citations that play the source.
 - **Revisit**: ranked full-text search over moments and transcripts, with
   typo tolerance, highlighted excerpts, and links that open the video at the
   second it was said. Each video has an overview with timestamped key points.
-- **Ask**: ask about one video or the whole library. Answers are grounded in
-  transcripts and moments, and every citation can be played or saved as a
-  moment.
+- **Ask**: ask about one video or the whole library. Library questions are
+  answered by a model that searches, lists, and counts your videos and moments
+  with tools before it answers. Answers are grounded in transcripts and
+  moments, and every citation can be played or saved as a moment.
 
 The platform is built with:
 - **Frontend**: React (Vite), TypeScript, Tailwind CSS, TanStack Query

@@ -49,16 +49,13 @@ class Settings(BaseSettings):
     wiz_user_daily_quota: int = Field(default=20, alias="WIZ_USER_DAILY_QUOTA")
     wiz_guest_daily_quota: int = Field(default=5, alias="WIZ_GUEST_DAILY_QUOTA")
     wiz_max_tokens: int = Field(default=8192, alias="WIZ_MAX_TOKENS")
-    # Library Ask: a small model turns the question into search terms, full-text
-    # search gathers candidates, and Jev scores each candidate's relevance.
-    ask_query_model: Annotated[
+    # Library Ask: a model answers with a short loop of library tool calls, and
+    # Jev marks how well each search result matches the question.
+    ask_model: Annotated[
         str, StringConstraints(strip_whitespace=True, min_length=1)
-    ] = Field(default="z-ai/glm-5.3-flash", alias="ASK_QUERY_MODEL")
-    ask_candidates: int = Field(default=48, ge=1, le=200, alias="ASK_CANDIDATES")
-    ask_max_sources: int = Field(default=8, ge=1, le=30, alias="ASK_MAX_SOURCES")
-    # A question only about a period ("this week") reads its newest moments.
-    ask_time_range_max_sources: int = Field(
-        default=25, ge=1, le=50, alias="ASK_TIME_RANGE_MAX_SOURCES"
+    ] = Field(default="z-ai/glm-5.3-flash", alias="ASK_MODEL")
+    ask_relevance_threshold: float = Field(
+        default=0.5, ge=0, le=1, alias="ASK_RELEVANCE_THRESHOLD"
     )
     jev_enabled: bool = Field(default=True, alias="JEV_ENABLED")
     jev_model: Annotated[
@@ -66,9 +63,6 @@ class Settings(BaseSettings):
     ] = Field(default="typesafe/jev-1.14-20261014", alias="JEV_MODEL")
     jev_decisions_url: str = Field(
         default="https://openrouter.ai/api/alpha/decisions", alias="JEV_DECISIONS_URL"
-    )
-    jev_relevance_threshold: float = Field(
-        default=0.5, ge=0, le=1, alias="JEV_RELEVANCE_THRESHOLD"
     )
     # Embeddings for meaning-based search, through OpenRouter.
     embedding_model: Annotated[

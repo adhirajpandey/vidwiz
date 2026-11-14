@@ -1,7 +1,7 @@
 """Jev decisions through OpenRouter: bounded choices and probabilities, no text."""
 
 import logging
-from concurrent.futures import ThreadPoolExecutor
+from concurrent.futures import ThreadPoolExecutor, wait
 
 import requests
 
@@ -19,7 +19,7 @@ class JevError(Exception):
     pass
 
 
-def decide(state: dict, questions: dict) -> dict:
+def decide(state: dict, questions: dict, timeout: float = TIMEOUT_SECONDS) -> dict:
     """Send one decisions request and return its raw answers."""
     if not settings.openrouter_api_key:
         raise JevError("OPENROUTER_API_KEY is not configured")
@@ -31,7 +31,7 @@ def decide(state: dict, questions: dict) -> dict:
                 "Authorization": f"Bearer {settings.openrouter_api_key}",
                 "X-Title": "VidWiz",
             },
-            timeout=TIMEOUT_SECONDS,
+            timeout=timeout,
         )
     except requests.RequestException as exc:
         raise JevError(f"Jev request failed: {type(exc).__name__}") from exc
@@ -49,7 +49,9 @@ def _clip(text: str) -> str:
     return text if len(text) <= PASSAGE_MAX_CHARS else text[:PASSAGE_MAX_CHARS] + " …"
 
 
-def _relevance_batch(question: str, passages: list[str]) -> list[float]:
+def _relevance_batch(
+    question: str, passages: list[str], timeout: float = TIMEOUT_SECONDS
+) -> list[float]:
     keys = [f"p{index}" for index in range(len(passages))]
     answers = decide(
         {
@@ -66,6 +68,7 @@ def _relevance_batch(question: str, passages: list[str]) -> list[float]:
             }
             for key in keys
         },
+        timeout,
     )
     scores = []
     for key in keys:
@@ -76,18 +79,28 @@ def _relevance_batch(question: str, passages: list[str]) -> list[float]:
     return scores
 
 
-def relevance(question: str, passages: list[str]) -> list[float]:
+def relevance(
+    question: str, passages: list[str], timeout: float = TIMEOUT_SECONDS
+) -> list[float]:
     """Probability that each passage helps answer the question.
 
     Passages are scored in parallel batches, so each request stays small; Jev
-    loses accuracy on long, mostly irrelevant state.
+    loses accuracy on long, mostly irrelevant state. Raises JevError when the
+    scores are not all back within ``timeout`` seconds; requests still running
+    then finish in the background.
     """
     batches = [
         passages[start : start + BATCH_SIZE]
         for start in range(0, len(passages), BATCH_SIZE)
     ]
-    with ThreadPoolExecutor(max_workers=MAX_WORKERS) as pool:
-        results = list(
-            pool.map(lambda batch: _relevance_batch(question, batch), batches)
-        )
-    return [score for batch in results for score in batch]
+    pool = ThreadPoolExecutor(max_workers=MAX_WORKERS)
+    try:
+        futures = [
+            pool.submit(_relevance_batch, question, batch, timeout) for batch in batches
+        ]
+        _, pending = wait(futures, timeout=timeout)
+        if pending:
+            raise JevError(f"Jev took longer than {timeout} seconds")
+        return [score for future in futures for score in future.result()]
+    finally:
+        pool.shutdown(wait=False, cancel_futures=True)

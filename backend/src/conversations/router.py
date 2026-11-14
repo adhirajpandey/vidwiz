@@ -126,22 +126,17 @@ def create_message(
     viewer: ViewerContext = Depends(get_viewer_context),
 ):
     if conversation.scope == ConversationScope.LIBRARY:
-        system_prompt, references, history, api_key, models, time_range = (
-            conversations_service.prepare_library_chat(
-                db, conversation, payload.message, payload.time_zone
-            )
+        history, api_key = conversations_service.prepare_library_chat(
+            db, conversation, payload.message
         )
         return StreamingResponse(
-            conversations_service.stream_answer(
-                system_prompt=system_prompt,
-                references=references,
-                history=history,
-                conversation_id=conversation.id,
+            conversations_service.stream_library_answer(
                 db=db,
+                conversation=conversation,
+                question=payload.message,
+                history=history,
+                time_zone=payload.time_zone,
                 api_key=api_key,
-                models=models,
-                time_range=time_range,
-                scope="library",
             ),
             media_type="text/event-stream",
             headers={"Cache-Control": "no-cache"},
