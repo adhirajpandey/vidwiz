@@ -512,6 +512,20 @@ def test_failures_end_with_an_error(
     assert not any(isinstance(e, StatsPart) for e in events)
 
 
+def test_prompt_dates_periods_without_a_year(monkeypatch):
+    class Thursday(datetime):
+        @classmethod
+        def now(cls, tz=None):
+            return datetime(2026, 11, 12, 12, tzinfo=tz)
+
+    monkeypatch.setattr(loop, "datetime", Thursday)
+
+    prompt = loop.system_prompt("Asia/Kolkata")
+
+    assert "Today is Thursday, 2026-11-12" in prompt
+    assert "without a year means the latest one on or before today" in prompt
+
+
 # ---- relevance ----
 
 
