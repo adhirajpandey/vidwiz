@@ -12,7 +12,11 @@ from zoneinfo import ZoneInfo
 from openai import OpenAI
 from sqlalchemy.orm import Session
 
-from src.ask.prompts import ASK_SYSTEM_PROMPT_TEMPLATE, FINAL_ROUND_MESSAGE
+from src.ask.prompts import (
+    ASK_SYSTEM_PROMPT_TEMPLATE,
+    FINAL_ROUND_MESSAGE,
+    LOOK_UP_MESSAGE,
+)
 from src.ask.sources import Source
 from src.ask.tools import TOOL_SPECS, ToolContext, run_tool
 from src.config import settings
@@ -41,6 +45,9 @@ MAX_TOOL_CALLS = 6
 MAX_SEARCHES = 4
 MAX_TOKENS = 2500
 RELEVANCE_TIMEOUT_SECONDS = 3
+# Characters of a tool round's reply, without tool calls, read before it is
+# treated as finished.
+DRAFT_CHARS = 400
 NO_RESPONSE = "No response from AI model. Please try again."
 STATUS_TEXT = {
     "find_videos": "Looking through your videos",
@@ -146,35 +153,21 @@ def mark_relevance(question: str, result: dict, sources: list[Source]) -> bool:
     return True
 
 
-class _Round:
-    """One streamed completion: tool calls accumulated, content decoded.
+def looked_up(stats: LoopStats) -> bool:
+    """Whether a tool that reads the library's content has run.
 
-    Content only becomes the answer when the round has no tool calls, so a
-    decoding error is kept until the round ends instead of raised.
+    find_videos alone only lists videos, so an answer after it is usually a
+    note that the model will look inside them next.
     """
+    return any(name != "find_videos" for name, _ in stats.tools)
+
+
+class _Round:
+    """Tool calls accumulated from one streamed tool round."""
 
     def __init__(self):
-        self.decoder = PartsDecoder()
         self.calls: dict[int, dict] = {}
-        self.finish_reason = None
-        self.blocks: list[BlockPart] = []
-        self.sent = 0
-        self.error: Exception | None = None
-
-    def feed(self, content: str, references: dict[str, CitationPart]) -> None:
-        if self.error is not None:
-            return
-        try:
-            for block in self.decoder.feed(content):
-                for item in split_block(block).blocks:
-                    self.blocks.append(resolve_block(item, references))
-        except (ValueError, json.JSONDecodeError) as exc:
-            self.error = exc
-
-    def unsent(self) -> list[BlockPart]:
-        pending = self.blocks[self.sent :]
-        self.sent = len(self.blocks)
-        return pending
+        self.text_chars = 0
 
     def add_tool_calls(self, deltas) -> None:
         for delta in deltas:
@@ -257,146 +250,167 @@ def run_ask(
     ]
     try:
         client = OpenAI(api_key=api_key, base_url=settings.openrouter_base_url)
+        answer_now = False
         while True:
             stats.rounds += 1
-            final = stats.rounds >= MAX_ROUNDS or len(stats.tools) >= MAX_TOOL_CALLS
-            stats.limit_reached |= final
+            forced = stats.rounds >= MAX_ROUNDS or len(stats.tools) >= MAX_TOOL_CALLS
+            stats.limit_reached |= forced
             request = {
                 "model": settings.ask_model,
                 "messages": messages,
                 "temperature": 0,
                 "max_tokens": MAX_TOKENS,
                 "stream": True,
-                "response_format": {
-                    "type": "json_schema",
-                    "json_schema": {
-                        "name": "wiz_response",
-                        "strict": True,
-                        "schema": ModelResponse.model_json_schema(),
-                    },
-                },
                 "extra_body": {
                     "reasoning": {"effort": "low"},
                     "provider": {"require_parameters": True},
                 },
             }
-            if final:
-                request["messages"] = [
-                    *messages,
-                    {"role": "user", "content": FINAL_ROUND_MESSAGE},
-                ]
-            else:
-                request["tools"] = TOOL_SPECS
+            if forced or answer_now:
+                break
+            # A tool round offers the tools without the answer schema: offered
+            # both, the model often answers before looking anything up, or
+            # with a note that it will search next, and the schema is not
+            # enforced beside tools.
+            request["tools"] = TOOL_SPECS
+            if not looked_up(stats):
+                request["tool_choice"] = "required"
             response_stream = client.chat.completions.create(**request)
             current = _Round()
             for chunk in response_stream:
                 if not chunk.choices:
                     continue
-                choice = chunk.choices[0]
-                if getattr(choice, "finish_reason", None):
-                    current.finish_reason = choice.finish_reason
-                delta = choice.delta
+                delta = chunk.choices[0].delta
                 if delta is None:
                     continue
-                if getattr(delta, "refusal", None):
-                    raise ValueError("Model refused structured response")
                 if getattr(delta, "tool_calls", None):
                     current.add_tool_calls(delta.tool_calls)
                 if delta.content:
-                    current.feed(delta.content, references)
-                    # Blocks stream as they complete, unless the round has
-                    # already called tools; then its content is not the answer.
-                    if not current.calls:
-                        yield from current.unsent()
+                    current.text_chars += len(delta.content)
+                    # A long reply without tool calls is a draft answer that
+                    # is never shown; stop paying for it.
+                    if not current.calls and current.text_chars > DRAFT_CHARS:
+                        break
             response_stream.close()
             response_stream = None
 
-            if current.calls and not final:
-                # Content beside tool calls is ignored, even a valid answer.
-                calls = [current.calls[index] for index in sorted(current.calls)]
-                for index, call in enumerate(calls):
-                    call["id"] = call["id"] or f"call_{stats.rounds}_{index}"
-                messages.append(
-                    {
-                        "role": "assistant",
-                        "content": None,
-                        "tool_calls": [
-                            {
-                                "id": call["id"],
-                                "type": "function",
-                                "function": {
-                                    "name": call["name"],
-                                    "arguments": call["arguments"],
-                                },
-                            }
-                            for call in calls
-                        ],
-                    }
-                )
-                for call in calls:
-                    name = call["name"]
-                    if len(stats.tools) >= MAX_TOOL_CALLS:
-                        stats.limit_reached = True
-                        output = {"error": TOOL_LIMIT_ERROR}
-                    elif name == "search" and stats.searches >= MAX_SEARCHES:
-                        stats.limit_reached = True
-                        output = {"error": SEARCH_LIMIT_ERROR}
-                    else:
-                        if name in STATUS_TEXT:
-                            yield StatusEvent(text=STATUS_TEXT[name])
-                        started = time.perf_counter()
-                        ran = run_tool(name, call["arguments"], context)
-                        output = ran.result
-                        for source in ran.sources:
-                            references[source.source_id] = source.citation()
-                            sources[source.source_id] = source
-                            context.seen_ids.add(source.source_id)
-                        if name == "search":
-                            stats.searches += 1
-                            if relevance and "results" in output:
-                                relevance_used |= mark_relevance(
-                                    question, output, ran.sources
-                                )
-                        if ran.display is not None and name in DISPLAY_PARTS:
-                            displays[name] = ran.display
-                        stats.tools.append((name, time.perf_counter() - started))
-                    messages.append(
-                        {
-                            "role": "tool",
-                            "tool_call_id": call["id"],
-                            "content": json.dumps(
-                                output, ensure_ascii=False, default=str
-                            ),
-                        }
-                    )
+            if not current.calls:
+                if looked_up(stats):
+                    # Done looking things up: write the answer next round.
+                    answer_now = True
+                elif messages[-1]["content"] != LOOK_UP_MESSAGE:
+                    # Text before reading anything is a guess, or a note that
+                    # the model will search; ask for the lookup instead.
+                    messages.append({"role": "user", "content": LOOK_UP_MESSAGE})
                 continue
 
-            blocks.extend(current.blocks)
-            yield from current.unsent()
-            if current.error is not None:
-                raise current.error
-            if not current.decoder.buffer:
-                outcome = "empty_response"
-                yield ErrorEvent(message=NO_RESPONSE)
-                yield result("empty_response")
-                return
-            current.decoder.finish()
-            if current.finish_reason != "stop":
-                raise ValueError("Incomplete model response")
-            typed_parts = [
-                DISPLAY_PARTS[name].model_validate(displays[name])
-                for name in DISPLAY_PARTS
-                if name in displays
-            ]
-            if not text_projection([*blocks, *typed_parts]).strip():
-                outcome = "empty_response"
-                yield ErrorEvent(message=NO_RESPONSE)
-                yield result("empty_response")
-                return
-            yield from typed_parts
-            outcome = "completed"
-            yield result(typed_parts=typed_parts)
+            calls = [current.calls[index] for index in sorted(current.calls)]
+            for index, call in enumerate(calls):
+                call["id"] = call["id"] or f"call_{stats.rounds}_{index}"
+            messages.append(
+                {
+                    "role": "assistant",
+                    "content": None,
+                    "tool_calls": [
+                        {
+                            "id": call["id"],
+                            "type": "function",
+                            "function": {
+                                "name": call["name"],
+                                "arguments": call["arguments"],
+                            },
+                        }
+                        for call in calls
+                    ],
+                }
+            )
+            for call in calls:
+                name = call["name"]
+                if len(stats.tools) >= MAX_TOOL_CALLS:
+                    stats.limit_reached = True
+                    output = {"error": TOOL_LIMIT_ERROR}
+                elif name == "search" and stats.searches >= MAX_SEARCHES:
+                    stats.limit_reached = True
+                    output = {"error": SEARCH_LIMIT_ERROR}
+                else:
+                    if name in STATUS_TEXT:
+                        yield StatusEvent(text=STATUS_TEXT[name])
+                    started = time.perf_counter()
+                    ran = run_tool(name, call["arguments"], context)
+                    output = ran.result
+                    for source in ran.sources:
+                        references[source.source_id] = source.citation()
+                        sources[source.source_id] = source
+                        context.seen_ids.add(source.source_id)
+                    if name == "search":
+                        stats.searches += 1
+                        if relevance and "results" in output:
+                            relevance_used |= mark_relevance(
+                                question, output, ran.sources
+                            )
+                    if ran.display is not None and name in DISPLAY_PARTS:
+                        displays[name] = ran.display
+                    stats.tools.append((name, time.perf_counter() - started))
+                messages.append(
+                    {
+                        "role": "tool",
+                        "tool_call_id": call["id"],
+                        "content": json.dumps(output, ensure_ascii=False, default=str),
+                    }
+                )
+
+        # The answer round: the schema, no tools, streamed as blocks complete.
+        request["messages"] = [
+            *messages,
+            {"role": "user", "content": FINAL_ROUND_MESSAGE},
+        ]
+        request["response_format"] = {
+            "type": "json_schema",
+            "json_schema": {
+                "name": "wiz_response",
+                "strict": True,
+                "schema": ModelResponse.model_json_schema(),
+            },
+        }
+        response_stream = client.chat.completions.create(**request)
+        decoder = PartsDecoder()
+        finish_reason = None
+        for chunk in response_stream:
+            if not chunk.choices:
+                continue
+            choice = chunk.choices[0]
+            if getattr(choice, "finish_reason", None):
+                finish_reason = choice.finish_reason
+            delta = choice.delta
+            if getattr(delta, "refusal", None):
+                raise ValueError("Model refused structured response")
+            if delta and delta.content:
+                for block in decoder.feed(delta.content):
+                    for item in split_block(block).blocks:
+                        part = resolve_block(item, references)
+                        blocks.append(part)
+                        yield part
+        if not decoder.buffer:
+            outcome = "empty_response"
+            yield ErrorEvent(message=NO_RESPONSE)
+            yield result("empty_response")
             return
+        decoder.finish()
+        if finish_reason != "stop":
+            raise ValueError("Incomplete model response")
+        typed_parts = [
+            DISPLAY_PARTS[name].model_validate(displays[name])
+            for name in DISPLAY_PARTS
+            if name in displays
+        ]
+        if not text_projection([*blocks, *typed_parts]).strip():
+            outcome = "empty_response"
+            yield ErrorEvent(message=NO_RESPONSE)
+            yield result("empty_response")
+            return
+        yield from typed_parts
+        outcome = "completed"
+        yield result(typed_parts=typed_parts)
     except (GeneratorExit, asyncio.CancelledError):
         raise
     except Exception as exc:

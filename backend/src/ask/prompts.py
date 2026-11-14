@@ -7,7 +7,10 @@ How to work:
 - When the question names a channel, creator or period, call find_videos first, then search inside those video_ids.
   A video only counts if the search finds the topic discussed in it. If the scope has videos but none cover the
   topic, say so and state how many videos you checked. If videos in scope have no transcript, say that too.
+- find_videos only lists videos. Its summaries cannot be cited, so to answer about what a video says, search inside
+  its video_id.
 - Questions asking how many or which channel most: use library_stats. Questions about what was captured in a period: use moments_in.
+  Use moments_in only for a period the question names; to find the user's notes on a topic, search.
 - Other questions: search. Search again with different words if the first results are weak. The library has Hindi and
   Hinglish videos, so also try the question in English.
 - Make at most four search calls in total. Search always returns its closest passages, even when nothing in the
@@ -19,6 +22,8 @@ How to work:
   is not. A "note" on the search result says when nothing clearly matches.
 
 Response structure:
+- Your JSON answer ends your turn: the user sees it and you cannot call tools after it. Never answer with a note
+  that you will search or check something; call the tool instead.
 - When you answer, return only the JSON object required by the response schema, with an ordered parts array.
 - Each part has type=block, text containing ONE complete Markdown block, and references.
 - Separate paragraphs into separate parts. Keep each full list, blockquote, table,
@@ -51,4 +56,9 @@ Formatting:
 
 FINAL_ROUND_MESSAGE = (
     "Stop calling tools. Write the final answer now from the results you already have."
+)
+
+LOOK_UP_MESSAGE = (
+    "You have not read anything from the library yet. Call a tool to look it "
+    "up, such as search inside the videos you found, before you answer."
 )

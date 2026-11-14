@@ -158,13 +158,19 @@ Describe the FastAPI backend: structure, auth rules, and the request/worker life
   the user's time zone), the last ten messages before the question, and the
   question. The message's optional `time_zone` (an IANA name; the web app sends
   the browser's, and unknown or missing zones use UTC) decides local dates.
-- Up to five rounds. Each is one streamed completion carrying both the tools
-  below and the strict answer schema. A round returns either tool calls, which
-  are run and fed back, or the JSON answer, which is decoded, split and cited
-  exactly like video chat. At most six tool calls and four `search` calls run
-  per question; a call past a limit gets an error result telling the model to
-  answer. Round five, or any round after six calls, is sent without tools and
-  with a user message telling the model to answer now.
+- Up to five streamed completions. Tool rounds carry the tools below and no
+  answer schema; their tool calls are run and fed back, and their text is
+  never shown (a reply over 400 characters without tool calls is cut off).
+  Until a tool other than `find_videos` has run, a tool round requires a tool
+  call, and text instead of one gets a user message asking for a lookup. A
+  tool round that ends without tool calls, after something was read, leads to
+  the answer round: the strict answer schema, no tools, and a user message to
+  answer now. Its JSON is decoded, split, cited and streamed exactly like video
+  chat. Offered tools and the schema together, the model often answered before
+  looking anything up, and the schema was not enforced beside tools.
+- At most six tool calls and four `search` calls run per question; a call past
+  a limit gets an error result telling the model to answer. Round five, or
+  any round after six calls, is the answer round.
 - After each `search` call, Jev (`JEV_MODEL`, a pinned dated version, through
   OpenRouter's decisions endpoint) scores every returned source against the
   user's question. Each result gets `"match": "strong"` (at or above

@@ -8,7 +8,7 @@ import pytest
 from sqlalchemy import select
 
 from src.ask import loop
-from src.ask.prompts import FINAL_ROUND_MESSAGE
+from src.ask.prompts import FINAL_ROUND_MESSAGE, LOOK_UP_MESSAGE
 from src.config import settings
 from src.conversations import service as conversations_service
 from src.conversations.models import Conversation, ConversationScope
@@ -142,6 +142,11 @@ def tool_round(*calls):
     return chunks
 
 
+def done_round(text="I have what I need."):
+    """A tool round that ends with text and no tool calls."""
+    return [chunk(content=text), chunk(finish="stop")]
+
+
 def answer_round(*blocks, finish="stop", raw=None):
     payload = raw if raw is not None else json.dumps({"parts": list(blocks)})
     chunks = [chunk(content=payload[i : i + 7]) for i in range(0, len(payload), 7)]
@@ -231,6 +236,7 @@ def test_answers_after_tool_calls_with_citations(
         monkeypatch,
         [
             tool_round(("search", {"query": "phone focus"})),
+            done_round(),
             answer_round(
                 block("**Keep your phone away.**", source_id),
                 block("Invented.", "c999999"),
@@ -241,13 +247,20 @@ def test_answers_after_tool_calls_with_citations(
     events, result = run(db_session, user)
 
     assert result.failure is None
-    first, second = model.requests
+    first, second, answer = model.requests
     assert first["model"] == settings.ask_model == "z-ai/glm-5.3-flash"
     assert first["temperature"] == 0
     assert first["max_tokens"] == 2500
     assert first["stream"] is True
     assert first["tools"] == loop.TOOL_SPECS
-    assert first["response_format"]["json_schema"]["strict"] is True
+    # The first round must call a tool; later rounds may answer.
+    assert first["tool_choice"] == "required"
+    assert "tool_choice" not in second
+    # Tool rounds carry no schema; the answer round has no tools.
+    assert "response_format" not in first
+    assert "tools" not in answer
+    assert answer["response_format"]["json_schema"]["strict"] is True
+    assert answer["messages"][-1]["content"] == FINAL_ROUND_MESSAGE
     assert first["extra_body"] == {
         "reasoning": {"effort": "low"},
         "provider": {"require_parameters": True},
@@ -272,10 +285,10 @@ def test_answers_after_tool_calls_with_citations(
     # An id the tools never returned is dropped.
     assert blocks[1].citations == []
     assert [s.source_id for s in result.cited] == [source_id]
-    assert result.stats.rounds == 2
+    assert result.stats.rounds == 3
     assert result.stats.searches == 1
     assert result.stats.limit_reached is False
-    assert model.closed == 2
+    assert model.closed == 3
 
 
 def test_status_events_name_each_tool(db_session, user, library, strong, monkeypatch):
@@ -289,6 +302,7 @@ def test_status_events_name_each_tool(db_session, user, library, strong, monkeyp
                 ("library_stats", {}),
                 ("not_a_tool", {}),
             ),
+            done_round(),
             answer_round(block("Done.")),
         ],
     )
@@ -308,6 +322,7 @@ def test_tool_error_result_reaches_the_model(db_session, user, library, monkeypa
         monkeypatch,
         [
             tool_round(("fetch", {"source_id": "c1"})),
+            done_round(),
             answer_round(block("Not in your library.")),
         ],
     )
@@ -349,6 +364,7 @@ def test_search_limit(db_session, user, library, strong, monkeypatch):
         monkeypatch,
         [
             tool_round(*[("search", {"query": f"phone {i}"}) for i in range(5)]),
+            done_round(),
             answer_round(block("Done.")),
         ],
     )
@@ -397,21 +413,13 @@ def test_tool_calls_in_the_forced_round_are_not_run(
     assert isinstance(events[-1], ErrorEvent)
 
 
-@pytest.mark.parametrize(
-    "content",
-    [
-        "Let me search your library first.",
-        json.dumps({"parts": []}),
-    ],
-)
-def test_content_beside_tool_calls_is_ignored(
-    db_session, user, library, monkeypatch, content
-):
-    talking = [chunk(content=content[i : i + 5]) for i in range(0, len(content), 5)]
+def test_tool_rounds_never_show_their_text(db_session, user, library, monkeypatch):
+    long_draft = "A draft answer that is never shown. " * 30
     model = FakeModel(
         monkeypatch,
         [
-            [*talking, *tool_round(("library_stats", {}))],
+            [chunk(content="Let me check."), *tool_round(("library_stats", {}))],
+            [chunk(content=long_draft[i : i + 20]) for i in range(0, 1000, 20)],
             answer_round(block("**You have two videos.**")),
         ],
     )
@@ -419,35 +427,66 @@ def test_content_beside_tool_calls_is_ignored(
     events, result = run(db_session, user)
 
     assert result.failure is None
-    assert len(model.requests) == 2
-    assert tool_messages(model.requests[1]) == [{"video_count": 2}]
-    blocks = [e for e in events if isinstance(e, BlockPart)]
-    assert [b.text for b in blocks] == ["**You have two videos.**"]
-    assert result.blocks == blocks
+    assert [e.text for e in events if isinstance(e, BlockPart)] == [
+        "**You have two videos.**"
+    ]
+    tool_request, draft_request, answer_request = model.requests
+    for request in (tool_request, draft_request):
+        assert request["tools"] == loop.TOOL_SPECS
+        assert "response_format" not in request
+    assert "tools" not in answer_request
+    assert answer_request["response_format"]["json_schema"]["strict"] is True
+    assert answer_request["messages"][-1]["content"] == FINAL_ROUND_MESSAGE
+    # The long draft was cut off instead of read to the end.
+    assert model.closed == 3
+    assert result.stats.limit_reached is False
 
 
-def test_answer_streamed_before_tool_calls_is_not_kept(
-    db_session, user, library, monkeypatch
-):
-    # Tool calls arrive after the content, so blocks already streamed cannot
-    # be held back; the tools still run and the answer keeps only later blocks.
-    content = json.dumps({"parts": [block("A premature answer.")]})
-    FakeModel(
+def test_text_before_any_lookup_is_sent_back(db_session, user, library, monkeypatch):
+    model = FakeModel(
         monkeypatch,
         [
-            [chunk(content=content), *tool_round(("library_stats", {}))],
+            done_round("Let me search your library first."),
+            tool_round(("library_stats", {})),
+            done_round(),
             answer_round(block("**You have two videos.**")),
         ],
     )
 
-    events, result = run(db_session, user)
+    _, result = run(db_session, user)
 
     assert result.failure is None
-    assert [b.text for b in result.blocks] == ["**You have two videos.**"]
-    assert [e.text for e in events if isinstance(e, BlockPart)] == [
-        "A premature answer.",
-        "**You have two videos.**",
-    ]
+    nudged = model.requests[1]
+    assert nudged["messages"][-1] == {"role": "user", "content": LOOK_UP_MESSAGE}
+    assert nudged["tool_choice"] == "required"
+    assert "tool_choice" not in model.requests[2]
+    assert result.stats.rounds == 4
+
+
+def test_find_videos_alone_is_not_enough_to_answer(
+    db_session, user, library, monkeypatch
+):
+    model = FakeModel(
+        monkeypatch,
+        [
+            tool_round(("find_videos", {})),
+            done_round("Found it, let me look inside."),
+            done_round("Found it, let me look inside."),
+            tool_round(("search", {"query": "phone"})),
+            answer_round(block("**Deep focus covers it.**")),
+        ],
+    )
+
+    _, result = run(db_session, user)
+
+    assert result.failure is None
+    # Lookups stay required until something was read; one nudge is enough.
+    assert all(r["tool_choice"] == "required" for r in model.requests[:4])
+    contents = [m.get("content") for m in model.requests[3]["messages"]]
+    assert contents.count(LOOK_UP_MESSAGE) == 1
+    # The search ran in round four, so round five is the forced answer.
+    assert result.stats.rounds == 5
+    assert [b.text for b in result.blocks] == ["**Deep focus covers it.**"]
 
 
 @pytest.mark.parametrize(
@@ -462,7 +501,9 @@ def test_answer_streamed_before_tool_calls_is_not_kept(
 def test_failures_end_with_an_error(
     db_session, user, library, final_round, failure, monkeypatch
 ):
-    FakeModel(monkeypatch, [tool_round(("library_stats", {})), final_round])
+    FakeModel(
+        monkeypatch, [tool_round(("library_stats", {})), done_round(), final_round]
+    )
 
     events, result = run(db_session, user)
 
@@ -484,7 +525,11 @@ def test_marks_use_the_question_not_the_query(db_session, user, library, monkeyp
     monkeypatch.setattr(jev, "relevance", relevance)
     model = FakeModel(
         monkeypatch,
-        [tool_round(("search", {"query": "phone"})), answer_round(block("Done."))],
+        [
+            tool_round(("search", {"query": "phone"})),
+            done_round(),
+            answer_round(block("Done.")),
+        ],
     )
 
     _, result = run(db_session, user)
@@ -508,7 +553,11 @@ def test_no_strong_match_adds_a_note(db_session, user, library, monkeypatch):
     monkeypatch.setattr(jev, "relevance", lambda q, p, timeout: [0.2] * len(p))
     model = FakeModel(
         monkeypatch,
-        [tool_round(("search", {"query": "phone"})), answer_round(block("Done."))],
+        [
+            tool_round(("search", {"query": "phone"})),
+            done_round(),
+            answer_round(block("Done.")),
+        ],
     )
 
     run(db_session, user)
@@ -526,7 +575,11 @@ def test_jev_failure_sends_results_unmarked(db_session, user, library, monkeypat
     monkeypatch.setattr(jev, "relevance", broken)
     model = FakeModel(
         monkeypatch,
-        [tool_round(("search", {"query": "phone"})), answer_round(block("Done."))],
+        [
+            tool_round(("search", {"query": "phone"})),
+            done_round(),
+            answer_round(block("Done.")),
+        ],
     )
 
     _, result = run(db_session, user)
@@ -548,7 +601,11 @@ def test_slow_jev_times_out(db_session, user, library, monkeypatch):
     monkeypatch.setattr(loop, "RELEVANCE_TIMEOUT_SECONDS", 0.05)
     model = FakeModel(
         monkeypatch,
-        [tool_round(("search", {"query": "phone"})), answer_round(block("Done."))],
+        [
+            tool_round(("search", {"query": "phone"})),
+            done_round(),
+            answer_round(block("Done.")),
+        ],
     )
 
     started = time.perf_counter()
@@ -567,7 +624,11 @@ def test_relevance_can_be_turned_off(db_session, user, library, monkeypatch):
     monkeypatch.setattr(jev, "relevance", never)
     model = FakeModel(
         monkeypatch,
-        [tool_round(("search", {"query": "phone"})), answer_round(block("Done."))],
+        [
+            tool_round(("search", {"query": "phone"})),
+            done_round(),
+            answer_round(block("Done.")),
+        ],
     )
 
     answer = loop.ask(db_session, user.id, QUESTION, relevance=False, api_key="k")
@@ -608,6 +669,7 @@ def test_digest_and_stats_follow_the_blocks(db_session, user, library, monkeypat
                 ("moments_in", {"since": "2026-09-01", "until": "2026-09-30"}),
                 ("library_stats", {"group_by": "channel"}),
             ),
+            done_round(),
             answer_round(block("**You saved two moments.**")),
         ],
     )
@@ -646,6 +708,7 @@ def test_digest_carries_more_than_the_model_sees(
         monkeypatch,
         [
             tool_round(("moments_in", {"since": "2026-10-01", "until": "2026-10-01"})),
+            done_round(),
             answer_round(block("Ten moments.")),
         ],
     )
@@ -667,6 +730,7 @@ def test_last_successful_stats_call_wins(db_session, user, library, monkeypatch)
                 ("library_stats", {}),
                 ("library_stats", {"channel": "zzzz nobody"}),
             ),
+            done_round(),
             answer_round(raw='{"parts": []}'),
         ],
     )
@@ -714,7 +778,14 @@ def test_typed_part_text_forms():
 def test_history_replays_earlier_answers_with_typed_parts(
     db_session, user, library, monkeypatch
 ):
-    model = FakeModel(monkeypatch, [answer_round(block("Again."))])
+    model = FakeModel(
+        monkeypatch,
+        [
+            tool_round(("library_stats", {})),
+            done_round(),
+            answer_round(block("Again.")),
+        ],
+    )
     history = [
         {"role": "user", "content": "How many videos?", "metadata": None},
         {
@@ -809,6 +880,7 @@ async def test_route_streams_and_saves_the_answer(
                 ("search", {"query": "phone"}),
                 ("moments_in", {"since": "2026-09-01", "until": "2026-09-30"}),
             ),
+            done_round(),
             answer_round(block("**Keep your phone away.**", source_id)),
         ],
     )
@@ -867,7 +939,17 @@ async def test_route_passes_the_time_zone_and_prior_history(
         return real(db, user_id, question, history, time_zone, api_key, relevance)
 
     monkeypatch.setattr(loop, "run_ask", spy)
-    FakeModel(monkeypatch, [answer_round(block("One.")), answer_round(block("Two."))])
+    FakeModel(
+        monkeypatch,
+        [
+            tool_round(("library_stats", {})),
+            done_round(),
+            answer_round(block("One.")),
+            tool_round(("library_stats", {})),
+            done_round(),
+            answer_round(block("Two.")),
+        ],
+    )
 
     for message in ("First?", "Second?"):
         response = await client.post(
@@ -881,7 +963,7 @@ async def test_route_passes_the_time_zone_and_prior_history(
     assert seen["question"] == "Second?"
     assert [(m["role"], m["content"]) for m in seen["history"]] == [
         ("user", "First?"),
-        ("assistant", "One."),
+        ("assistant", "One.\n\nStats: 2 videos"),
     ]
 
 
@@ -893,7 +975,11 @@ async def test_route_quota_counts_one_question(
     monkeypatch.setattr(settings, "wiz_user_daily_quota", 1)
     model = FakeModel(
         monkeypatch,
-        [tool_round(("library_stats", {})), answer_round(block("Two videos."))],
+        [
+            tool_round(("library_stats", {})),
+            done_round(),
+            answer_round(block("Two videos.")),
+        ],
     )
 
     first = await client.post(
@@ -910,7 +996,7 @@ async def test_route_quota_counts_one_question(
     assert first.status_code == 200
     assert sse(first.text)[-1]["type"] == "done"
     assert second.status_code == 429
-    assert len(model.requests) == 2
+    assert len(model.requests) == 3
 
 
 @pytest.mark.asyncio
@@ -945,6 +1031,7 @@ def test_disconnect_stops_the_loop_and_saves_nothing(
         monkeypatch,
         [
             tool_round(("library_stats", {}), ("find_videos", {})),
+            done_round(),
             answer_round(block("Never sent.")),
         ],
     )
