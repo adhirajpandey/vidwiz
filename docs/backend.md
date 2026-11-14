@@ -177,6 +177,33 @@ Describe the FastAPI backend: structure, auth rules, and the request/worker life
   retrieval:` line with the model, candidate count, kept count, threshold, and
   top scores.
 
+### Library Ask tools (not wired in yet)
+- `src/ask/search.py` `search()` is a hybrid search for a tool-calling answer
+  model. A keyword ranking (any query word as a prefix, stop words dropped, at
+  most 20 terms; top 40 passages from saved videos and top 40 of the user's
+  moments, moments weighted ×1.5) and an embedding ranking (cosine distance to
+  the query's embedding, top 40 embedded passages and moments) are merged with
+  reciprocal rank fusion (k = 60), at most two sources per video. Video cards
+  are ranked the same way from `card_search` and `card_embedding`, top 3.
+  Without an embedding (no API key, or the call failed) only the keyword
+  rankings are used. Rows with a null embedding never match by meaning.
+- `src/ask/tools.py` defines five tools with OpenAI-style specs
+  (`TOOL_SPECS`): `find_videos`, `search`, `moments_in`, `library_stats` and
+  `fetch`. `run_tool()` runs one by name with the model's raw arguments and
+  returns the result plus the sources it showed. Bad arguments, an unknown
+  tool or a failure become `{"error": ...}`; a database error rolls the
+  session back. Everything is scoped to the signed-in user's library and
+  moments, and dates are local dates in the given time zone.
+- Channel filters compare names lowercased with only letters and digits; a
+  channel matches when either name contains the other. A name that normalises
+  to nothing matches nothing. With no match the tool returns a note with up to
+  five close names instead of videos.
+- `fetch` reads only source ids an earlier tool returned in the same request:
+  a passage with one neighbour on each side, or a moment's parts with the
+  passages around its timestamp. `run_tool()` records each call's returned
+  source ids in the context; `moments_in` returns only the moments it lists.
+- `Source` (in `src/ask/sources.py`) is shared with the current pipeline.
+
 ### Conversations
 - `GET /v2/conversations` lists the user's conversations that have at least one
   question, latest first, with the first question as a title. Filter by

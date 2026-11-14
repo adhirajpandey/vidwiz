@@ -11,10 +11,10 @@ from sqlalchemy import select
 from sqlalchemy.orm import Session
 
 from src.ask.prompts import QUERY_PLAN_PROMPT
+from src.ask.sources import Source, moment_source
 from src.config import settings
 from src.conversations.parts import CitationPart
 from src.moments.models import Moment
-from src.moments.schemas import MomentRead
 from src.search import service as search_service
 from src.search.schemas import MomentResult
 from src.shared import jev
@@ -67,40 +67,6 @@ class QueryPlan:
     has_topic: bool
     # False when the model call failed and only the question itself is searched.
     planned: bool
-
-
-@dataclass(frozen=True)
-class Source:
-    source_id: str
-    video_id: str
-    video_title: str | None
-    kind: str
-    start_seconds: float
-    end_seconds: float
-    text: str
-    # The user's local capture date; moments only.
-    captured: date | None = None
-
-    def citation(self) -> CitationPart:
-        return CitationPart(
-            type="citation",
-            chunk_id=self.source_id,
-            start_seconds=self.start_seconds,
-            end_seconds=self.end_seconds,
-            video_id=self.video_id,
-        )
-
-    def context(self) -> dict:
-        context = {
-            "id": self.source_id,
-            "kind": self.kind,
-            "video": self.video_title or self.video_id,
-            "start_seconds": self.start_seconds,
-            "text": self.text,
-        }
-        if self.captured:
-            context["captured"] = self.captured.isoformat()
-        return context
 
 
 def local_today(time_zone: str) -> date:
@@ -187,30 +153,10 @@ def plan_query(question: str, history: list[str], time_zone: str) -> QueryPlan:
     )
 
 
-def _moment_source(
-    moment: MomentRead | Moment, video_title: str | None, time_zone: str
-) -> Source:
-    lines = [
-        f"User note: {moment.note}" if moment.note else None,
-        f"AI line: {moment.ai_text}" if moment.ai_text else None,
-        f"Said in the video: {moment.quote}" if moment.quote else None,
-    ]
-    return Source(
-        source_id=f"m{moment.id}",
-        video_id=moment.video_id,
-        video_title=video_title,
-        kind="moment",
-        start_seconds=moment.at_seconds,
-        end_seconds=moment.at_seconds,
-        text="\n".join(line for line in lines if line),
-        captured=moment.created_at.astimezone(ZoneInfo(time_zone)).date(),
-    )
-
-
 def _source(hit: search_service.Hit, time_zone: str) -> Source:
     result = hit.result
     if isinstance(result, MomentResult):
-        return _moment_source(result.moment, result.video.title, time_zone)
+        return moment_source(result.moment, result.video.title, time_zone)
     return Source(
         source_id=f"c{result.chunk_id}",
         video_id=result.video.video_id,
@@ -237,7 +183,7 @@ def captured_in(db: Session, user_id: int, time_range: TimeRange) -> list[Source
         .limit(settings.ask_time_range_max_sources)
     ).all()
     return [
-        _moment_source(moment, title, time_range.time_zone) for moment, title in rows
+        moment_source(moment, title, time_range.time_zone) for moment, title in rows
     ]
 
 
