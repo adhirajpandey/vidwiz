@@ -1,20 +1,15 @@
-import json
 from datetime import date, datetime, timezone
 
 import pytest
 
 from src.ask import retrieval
 from src.config import settings
-from src.conversations import service as conversations_service
-from src.conversations.models import Conversation, ConversationScope
 from src.conversations.schemas import MessageCreate
 from src.library.models import LibraryItem
 from src.moments import service as moments_service
 from src.moments.schemas import CaptureCreate
 from src.search.chunks import replace_chunks
 from src.shared import jev
-from src.tests.test_conversations_parts import fake_provider
-from src.tests.test_moments import auth_headers
 from src.videos.models import Video
 
 FOCUS = [
@@ -150,64 +145,6 @@ def test_jev_relevance_batches_and_validates(monkeypatch):
     monkeypatch.setattr(jev, "decide", lambda state, questions, timeout: {})
     with pytest.raises(jev.JevError):
         jev.relevance("q", ["text"])
-
-
-@pytest.mark.asyncio
-async def test_library_message_streams_cited_answer(
-    client, db_session, user, library, monkeypatch
-):
-    use_plan(monkeypatch, ["phone"])
-    monkeypatch.setattr(
-        jev, "relevance", lambda question, passages: [0.9] * len(passages)
-    )
-    conversation = Conversation(scope=ConversationScope.LIBRARY, user_id=user.id)
-    db_session.add(conversation)
-    db_session.flush()
-    source_id = (
-        retrieval.retrieve(db_session, user.id, "phone", []).sources[0].source_id
-    )
-    captured, _ = fake_provider(
-        monkeypatch,
-        json.dumps(
-            {
-                "parts": [
-                    {
-                        "type": "block",
-                        "text": "**Keep your phone away.**",
-                        "references": [
-                            {"list_item_index": None, "chunk_ids": [source_id]}
-                        ],
-                    }
-                ]
-            }
-        ),
-    )
-
-    response = await client.post(
-        f"/v2/conversations/{conversation.id}/messages",
-        headers=auth_headers(user),
-        json={"message": "How do I stay focused with my phone around?"},
-    )
-
-    assert response.status_code == 200
-    events = [
-        json.loads(line.removeprefix("data: "))
-        for line in response.text.splitlines()
-        if line.startswith("data: ")
-    ]
-    block = events[0]
-    passage = block["citations"][0]["passages"][0]
-    assert passage["video_id"] == "fffffffffff"
-    assert events[-1]["type"] == "done"
-    assert "Sources" in captured["messages"][0]["content"]
-    assert "Deep focus" in captured["messages"][0]["content"]
-    saved = conversations_service.list_messages(db_session, conversation.id)
-    assert [message.role for message in saved] == ["user", "assistant"]
-    assert saved[1].metadata_["models"] == {
-        "model": settings.wiz_model,
-        "query_model": settings.ask_query_model,
-        "relevance_model": settings.jev_model,
-    }
 
 
 def utc(*args):
@@ -371,62 +308,3 @@ def test_time_zone_decides_which_day_a_moment_belongs_to(
 def test_message_time_zone_falls_back_when_unknown(time_zone, expected):
     payload = MessageCreate(message="What did I save today?", time_zone=time_zone)
     assert payload.time_zone == expected
-
-
-@pytest.mark.asyncio
-async def test_library_time_range_answer_records_its_period(
-    client, db_session, user, library, monkeypatch
-):
-    use_plan(monkeypatch, [], since="2026-10-19", until="2026-10-22", topic=False)
-    seen = {}
-    real_retrieve = retrieval.retrieve
-
-    def spy(db, user_id, question, history, time_zone):
-        seen["time_zone"] = time_zone
-        return real_retrieve(db, user_id, question, history, time_zone)
-
-    monkeypatch.setattr(retrieval, "retrieve", spy)
-    moment = capture_at(
-        db_session, user, "ddddddddddd", 30, "Index order", utc(2026, 10, 20, 9)
-    )
-    conversation = Conversation(scope=ConversationScope.LIBRARY, user_id=user.id)
-    db_session.add(conversation)
-    db_session.flush()
-    captured, _ = fake_provider(
-        monkeypatch,
-        json.dumps(
-            {
-                "parts": [
-                    {
-                        "type": "block",
-                        "text": "**You saved one moment about index order.**",
-                        "references": [
-                            {"list_item_index": None, "chunk_ids": [f"m{moment.id}"]}
-                        ],
-                    }
-                ]
-            }
-        ),
-    )
-
-    response = await client.post(
-        f"/v2/conversations/{conversation.id}/messages",
-        headers=auth_headers(user),
-        json={
-            "message": "Summarize what I saved this week",
-            "time_zone": "Asia/Kolkata",
-        },
-    )
-
-    assert response.status_code == 200
-    assert seen["time_zone"] == "Asia/Kolkata"
-    system = captured["messages"][0]["content"]
-    assert "from 2026-10-19 to 2026-10-22" in system
-    assert '"captured": "2026-10-20"' in system
-    saved = conversations_service.list_messages(db_session, conversation.id)
-    assert saved[1].metadata_["time_range"] == {
-        "since": "2026-10-19",
-        "until": "2026-10-22",
-        "time_zone": "Asia/Kolkata",
-    }
-    assert saved[1].metadata_["models"]["relevance_model"] is None

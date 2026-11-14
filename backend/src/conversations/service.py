@@ -30,8 +30,7 @@ from src.conversations.parts import (
     split_block,
     history_parts,
 )
-from src.ask import retrieval as ask_retrieval
-from src.ask.prompts import LIBRARY_SYSTEM_PROMPT_TEMPLATE, TIME_SCOPE_TEMPLATE
+from src.ask import loop as ask_loop
 from src.conversations.prompts import WIZ_SYSTEM_PROMPT_TEMPLATE
 from src.conversations.schemas import ConversationList, ConversationSummary
 from src.exceptions import (
@@ -391,9 +390,33 @@ def stream_wiz_response(
     )
 
 
-def answer_models(retrieval: dict | None = None) -> dict:
-    """Models behind a saved answer, stored in the message metadata."""
-    return {"model": settings.wiz_model, **(retrieval or {})}
+def answer_models() -> dict:
+    """Models behind a saved video answer, stored in the message metadata."""
+    return {"model": settings.wiz_model}
+
+
+def event(part) -> str:
+    return f"data: {part.model_dump_json()}\n\n"
+
+
+def record_answer_outcome(
+    scope: str, outcome: str, failure_reason: str, started_at: float
+) -> None:
+    duration = time.perf_counter() - started_at
+    metrics = current_metrics()
+    if metrics is not None:
+        metrics.observe_wiz(scope, outcome, duration)
+    event_name = {
+        "completed": "wiz_completed",
+        "failed": "wiz_failed",
+        "interrupted": "wiz_interrupted",
+    }[outcome]
+    reason = {
+        "completed": "none",
+        "failed": failure_reason,
+        "interrupted": "interrupted",
+    }[outcome]
+    record_workflow_event("wiz_chat", event_name, reason)
 
 
 def stream_answer(
@@ -404,18 +427,9 @@ def stream_answer(
     conversation_id: int,
     db: Session,
     api_key: str,
-    models: dict | None = None,
-    time_range: dict | None = None,
     scope: str = "video",
 ):
-    """Stream a structured, cited answer and save it once complete.
-
-    ``time_range`` records the period a library question was limited to.
-    """
-
-    def event(part):
-        return f"data: {part.model_dump_json()}\n\n"
-
+    """Stream a structured, cited answer and save it once complete."""
     response_stream = None
     started_at = time.perf_counter()
     outcome = "failed"
@@ -506,8 +520,7 @@ def stream_answer(
             metadata={
                 "parts_version": 2,
                 "parts": [part.model_dump() for part in resolved],
-                "models": models or answer_models(),
-                **({"time_range": time_range} if time_range else {}),
+                "models": answer_models(),
             },
         )
         outcome = "completed"
@@ -540,21 +553,7 @@ def stream_answer(
             if response_stream is not None and hasattr(response_stream, "close"):
                 response_stream.close()
         finally:
-            duration = time.perf_counter() - started_at
-            metrics = current_metrics()
-            if metrics is not None:
-                metrics.observe_wiz(scope, outcome, duration)
-            event_name = {
-                "completed": "wiz_completed",
-                "failed": "wiz_failed",
-                "interrupted": "wiz_interrupted",
-            }[outcome]
-            reason = {
-                "completed": "none",
-                "failed": failure_reason,
-                "interrupted": "interrupted",
-            }[outcome]
-            record_workflow_event("wiz_chat", event_name, reason)
+            record_answer_outcome(scope, outcome, failure_reason, started_at)
 
 
 def ensure_openrouter_api_key() -> str:
@@ -606,15 +605,11 @@ def prepare_chat(
 
 
 def prepare_library_chat(
-    db: Session,
-    conversation: Conversation,
-    message: str,
-    time_zone: str | None = None,
-) -> tuple[str, dict[str, CitationPart], list[dict], str, dict, dict | None]:
-    """Retrieve library sources for the question and build the answer context.
+    db: Session, conversation: Conversation, message: str
+) -> tuple[list[dict], str]:
+    """Check the quota, save the question, and return the earlier messages.
 
-    Also returns the models used and any time range the question was limited
-    to, for the saved answer's metadata.
+    The history is the last ten messages before this question.
     """
     logger.debug(
         "Preparing library chat",
@@ -622,46 +617,77 @@ def prepare_library_chat(
     )
     check_daily_quota(db, conversation.user_id, None)
     api_key = ensure_openrouter_api_key()
-    earlier_questions = [
-        msg.content
-        for msg in fetch_recent_history(db, conversation.id, limit=6)
-        if msg.role == DB_ROLE_USER
-    ]
-    retrieval = ask_retrieval.retrieve(
-        db,
-        conversation.user_id,
-        message,
-        earlier_questions,
-        time_zone or ask_retrieval.DEFAULT_TIME_ZONE,
-    )
-    sources = retrieval.sources
-    save_chat_message(db, conversation.id, DB_ROLE_USER, message)
     history = [
         {"role": msg.role, "content": msg.content, "metadata": msg.metadata_}
         for msg in fetch_recent_history(db, conversation.id, limit=10)
     ]
-    time_range = retrieval.time_range
-    system_prompt = LIBRARY_SYSTEM_PROMPT_TEMPLATE.format(
-        time_scope=(
-            TIME_SCOPE_TEMPLATE.format(
-                since=time_range.since.isoformat(), until=time_range.until.isoformat()
-            )
-            if time_range
-            else ""
-        ),
-        sources=ask_retrieval.sources_json(sources),
-    )
-    models = answer_models(
-        {
-            "query_model": retrieval.query_model,
-            "relevance_model": retrieval.relevance_model,
-        }
-    )
-    return (
-        system_prompt,
-        ask_retrieval.build_references(sources),
+    save_chat_message(db, conversation.id, DB_ROLE_USER, message)
+    return history, api_key
+
+
+def stream_library_answer(
+    *,
+    db: Session,
+    conversation: Conversation,
+    question: str,
+    history: list[dict],
+    time_zone: str | None,
+    api_key: str,
+):
+    """Run the Library Ask loop as server-sent events and save its answer."""
+    started_at = time.perf_counter()
+    outcome = "failed"
+    failure_reason = "model_error"
+    events = ask_loop.run_ask(
+        db,
+        conversation.user_id,
+        question,
         history,
+        time_zone or ask_loop.DEFAULT_TIME_ZONE,
         api_key,
-        models,
-        time_range.as_metadata() if time_range else None,
     )
+    try:
+        for item in events:
+            if not isinstance(item, ask_loop.LoopResult):
+                yield event(item)
+                continue
+            if item.failure:
+                failure_reason = item.failure
+                return
+            message = save_chat_message(
+                db,
+                conversation.id,
+                DB_ROLE_ASSISTANT,
+                text_projection(item.parts),
+                metadata={
+                    "parts_version": 2,
+                    "parts": [part.model_dump() for part in item.parts],
+                    "models": item.models,
+                },
+            )
+            outcome = "completed"
+            yield event(DoneEvent(message_id=message.id))
+            return
+    except (GeneratorExit, asyncio.CancelledError):
+        if outcome != "completed":
+            outcome = "interrupted"
+        raise
+    except Exception as exc:
+        db.rollback()
+        logger.exception(
+            "Library answer failed",
+            extra={
+                "conversation_id": conversation.id,
+                "error_type": type(exc).__name__,
+            },
+        )
+        try:
+            yield event(ErrorEvent(message="Processing error"))
+        except (GeneratorExit, asyncio.CancelledError):
+            outcome = "interrupted"
+            raise
+    finally:
+        try:
+            events.close()
+        finally:
+            record_answer_outcome("library", outcome, failure_reason, started_at)
