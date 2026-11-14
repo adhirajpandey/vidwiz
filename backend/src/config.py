@@ -57,17 +57,6 @@ class Settings(BaseSettings):
     ask_relevance_threshold: float = Field(
         default=0.5, ge=0, le=1, alias="ASK_RELEVANCE_THRESHOLD"
     )
-    ask_query_model: Annotated[
-        str, StringConstraints(strip_whitespace=True, min_length=1)
-    ] = Field(default="z-ai/glm-5.3-flash", alias="ASK_QUERY_MODEL")
-    ask_candidates: int = Field(default=48, ge=1, le=200, alias="ASK_CANDIDATES")
-    ask_max_sources: int = Field(default=8, ge=1, le=30, alias="ASK_MAX_SOURCES")
-    ask_time_range_max_sources: int = Field(
-        default=25, ge=1, le=50, alias="ASK_TIME_RANGE_MAX_SOURCES"
-    )
-    jev_relevance_threshold: float = Field(
-        default=0.5, ge=0, le=1, alias="JEV_RELEVANCE_THRESHOLD"
-    )
     jev_enabled: bool = Field(default=True, alias="JEV_ENABLED")
     jev_model: Annotated[
         str, StringConstraints(strip_whitespace=True, min_length=1)

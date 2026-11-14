@@ -125,8 +125,8 @@ Describe the FastAPI backend: structure, auth rules, and the request/worker life
 ### Embeddings
 - `transcript_chunks.embedding`, `moments.embedding` and
   `videos.card_embedding` are nullable pgvector `vector(1024)` columns. Null
-  means not embedded yet. There is no vector index, so scans are exact. Search
-  and Ask do not use them yet.
+  means not embedded yet. There is no vector index, so scans are exact. Library
+  Ask's search uses them; the search page does not.
 - `src/shared/embeddings.py` calls OpenRouter's `/embeddings` endpoint with
   `EMBEDDING_MODEL` (default `qwen/qwen3-embedding-8b`), pinned to the Nebius
   and DeepInfra providers without fallbacks. Inputs are clipped to 6000
@@ -151,35 +151,50 @@ Describe the FastAPI backend: structure, auth rules, and the request/worker life
 ### Library Ask
 - `POST /v2/conversations` with `{"scope": "library"}` (no `video_id`) starts a
   library conversation for a signed-in user. It is free within the daily
-  message quota.
-- Each question: `ASK_QUERY_MODEL` (default `z-ai/glm-5.3-flash`) plans it as
-  search terms and synonyms, plus an optional period of local capture dates
-  ("this week", "yesterday") and whether it has a topic. The message's optional
-  `time_zone` (an IANA name; the web app sends the browser's, and unknown or
-  missing zones use UTC) decides today's date and day boundaries. Full-text
-  search in any-term mode gathers up to `ASK_CANDIDATES` (48) moments and
-  passages; Jev (`JEV_MODEL`, a pinned dated
-  version, through OpenRouter's decisions endpoint) scores each candidate's
-  relevance in parallel batches; up to `ASK_MAX_SOURCES` (8) candidates at or
-  above `JEV_RELEVANCE_THRESHOLD` (0.5) become the answer's sources. With
-  `JEV_ENABLED=false` or a Jev failure, the full-text order is used.
-- A question only about a period ("Summarize what I saved this week") skips
-  search and Jev: its sources are the newest moments captured in that period,
-  up to `ASK_TIME_RANGE_MAX_SOURCES` (25). A period with a topic searches only
-  moments captured then, since transcript passages have no capture time. With
-  no sources, the answer says it found no matching moments from that period,
-  and it never counts moments, since sources can be capped. Moment sources
-  carry their local capture date, and the saved answer's metadata records
-  `time_range` (`since`, `until`, `time_zone`).
-- Answers use the same structured block stream as video chat. Source ids are
-  `m<moment id>` or `c<chunk id>`, and resolved citations carry `video_id`
-  (null in video conversations). Each question logs one `Library Ask
-  retrieval:` line with the model, candidate count, kept count, threshold, and
-  top scores.
+  message quota; one question is one message, however many tool calls it makes.
+- Each question runs a short tool loop (`src/ask/loop.py` `run_ask()`) with
+  `ASK_MODEL` (default `z-ai/glm-5.3-flash`, temperature 0, 2500 tokens, low
+  reasoning effort). The messages are the system prompt (with today's date in
+  the user's time zone), the last ten messages before the question, and the
+  question. The message's optional `time_zone` (an IANA name; the web app sends
+  the browser's, and unknown or missing zones use UTC) decides local dates.
+- Up to five rounds. Each is one streamed completion carrying both the tools
+  below and the strict answer schema. A round returns either tool calls, which
+  are run and fed back, or the JSON answer, which is decoded, split and cited
+  exactly like video chat. At most six tool calls and four `search` calls run
+  per question; a call past a limit gets an error result telling the model to
+  answer. Round five, or any round after six calls, is sent without tools and
+  with a user message telling the model to answer now.
+- After each `search` call, Jev (`JEV_MODEL`, a pinned dated version, through
+  OpenRouter's decisions endpoint) scores every returned source against the
+  user's question. Each result gets `"match": "strong"` (at or above
+  `ASK_RELEVANCE_THRESHOLD`, 0.5) or `"weak"`, and a `note` says when nothing
+  is strong. Results are never dropped. With `JEV_ENABLED=false`, a Jev
+  failure, or no reply within three seconds, results go unmarked.
+- Stream events: `status` (`{"type": "status", "text": ...}`) when a tool
+  starts, never stored; `block` parts as they complete; then `digest` (from
+  the last successful `moments_in`: true counts, up to 50 moments per video
+  and 100 videos, moment ids `m<id>`) and `stats` (from the last successful
+  `library_stats`: `video_count`, or `group_by` with `groups`); then `done`
+  or `error`. Digest and stats parts are stored after the blocks, and their
+  short text forms ("Digest: 79 moments in 17 videos, ...", "Stats: 649
+  videos") go into the saved text and the replayed history. An answer of
+  only those parts is valid.
+- Source ids are `m<moment id>` or `c<chunk id>`, and resolved citations carry
+  `video_id` (null in video conversations). An id no tool returned in this
+  question is dropped. Earlier answers replay without their citations.
+- No content, an incomplete or invalid answer, or a failed completion in any
+  round sends an `error` event and saves no answer. A client disconnect stops
+  the loop and saves nothing. Each question logs one `Library Ask loop:` line
+  with the outcome, rounds, each tool with its duration, the number of
+  searches, and whether a limit was reached.
+- `src/ask/loop.py` `ask()` runs the same loop without a stream or a
+  conversation and returns the answer text, cited sources, events and result.
+  Its `relevance=False` skips the Jev marks.
 
-### Library Ask tools (not wired in yet)
-- `src/ask/search.py` `search()` is a hybrid search for a tool-calling answer
-  model. A keyword ranking (any query word as a prefix, stop words dropped, at
+### Library Ask tools
+- `src/ask/search.py` `search()` is the hybrid search behind the `search`
+  tool. A keyword ranking (any query word as a prefix, stop words dropped, at
   most 20 terms; top 40 passages from saved videos and top 40 of the user's
   moments, moments weighted ×1.5) and an embedding ranking (cosine distance to
   the query's embedding, top 40 embedded passages and moments) are merged with
@@ -202,7 +217,8 @@ Describe the FastAPI backend: structure, auth rules, and the request/worker life
   a passage with one neighbour on each side, or a moment's parts with the
   passages around its timestamp. `run_tool()` records each call's returned
   source ids in the context; `moments_in` returns only the moments it lists.
-- `Source` (in `src/ask/sources.py`) is shared with the current pipeline.
+- `moments_in` and `library_stats` also return the digest or stats the app
+  shows under the answer.
 
 ### Conversations
 - `GET /v2/conversations` lists the user's conversations that have at least one
@@ -242,8 +258,8 @@ Describe the FastAPI backend: structure, auth rules, and the request/worker life
 - **Models are recorded on every AI output**: `moments.ai_model` for AI
   lines, `miscellaneous_data.overview_model` and `overview_generated_at` for
   overviews (`VideoRead.overview_model`), and a `models` object in saved
-  answer metadata (`model`, plus `query_model` and `relevance_model` for
-  library answers; null when that step was skipped).
+  answer metadata (`model`, plus `relevance_model` for library answers;
+  null when no search was scored).
 - `VideoRead.key_points` exposes the overview's key points
   (`text`, `start_seconds`, `end_seconds`), stored in
   `miscellaneous_data.key_points`. Writes that omit key points keep the

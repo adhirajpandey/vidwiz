@@ -12,6 +12,7 @@ from src.ask.prompts import FINAL_ROUND_MESSAGE
 from src.config import settings
 from src.conversations import service as conversations_service
 from src.conversations.models import Conversation, ConversationScope
+from src.conversations.schemas import MessageCreate
 from src.conversations.parts import (
     BlockPart,
     DigestPart,
@@ -711,6 +712,20 @@ def test_history_replays_earlier_answers_with_typed_parts(
 
 
 # ---- the route ----
+
+
+@pytest.mark.parametrize(
+    ("time_zone", "expected"),
+    [
+        ("Asia/Kolkata", "Asia/Kolkata"),
+        ("Mars/Olympus", None),
+        ("", None),
+        (None, None),
+    ],
+)
+def test_message_time_zone_falls_back_when_unknown(time_zone, expected):
+    payload = MessageCreate(message="What did I save today?", time_zone=time_zone)
+    assert payload.time_zone == expected
 
 
 def library_conversation(db_session, user):

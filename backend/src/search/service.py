@@ -3,7 +3,6 @@
 import logging
 import re
 from dataclasses import dataclass
-from datetime import datetime
 from typing import Literal
 
 from sqlalchemy import Float, cast, func, literal, select
@@ -91,27 +90,19 @@ def find(
     mode: Mode = "all",
     limit: int = 20,
     video_id: str | None = None,
-    include_passages: bool = True,
-    captured_between: tuple[datetime, datetime] | None = None,
 ) -> list[Hit]:
-    """Return ranked full-text hits; used by search and by library Ask.
-
-    ``captured_between`` (start, exclusive end) limits moments to that period.
-    """
+    """Return ranked full-text hits."""
     terms = search_terms(query)
     if not terms:
         return []
     tsquery = func.to_tsquery("english", to_tsquery_text(terms, mode))
-    hits = _moment_hits(db, user_id, tsquery, limit, video_id, captured_between)
-    if include_passages:
-        hits += _passage_hits(db, user_id, tsquery, limit, video_id)
+    hits = _moment_hits(db, user_id, tsquery, limit, video_id)
+    hits += _passage_hits(db, user_id, tsquery, limit, video_id)
     hits.sort(key=lambda hit: hit.result.score, reverse=True)
     return hits[:limit]
 
 
-def _moment_hits(
-    db, user_id, tsquery, limit, video_id, captured_between=None
-) -> list[Hit]:
+def _moment_hits(db, user_id, tsquery, limit, video_id) -> list[Hit]:
     score = cast(func.ts_rank_cd(Moment.search, tsquery), Float) * MOMENT_BOOST
     headline = func.ts_headline("english", _moment_text(), tsquery, HEADLINE_OPTIONS)
     query = (
@@ -123,9 +114,6 @@ def _moment_hits(
     )
     if video_id:
         query = query.where(Moment.video_id == video_id)
-    if captured_between:
-        start, end = captured_between
-        query = query.where(Moment.created_at >= start, Moment.created_at < end)
     return [
         Hit(
             result=MomentResult(
