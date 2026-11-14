@@ -298,7 +298,9 @@ def run_ask(
                 if looked_up(stats):
                     # Done looking things up: write the answer next round.
                     answer_now = True
-                elif messages[-1]["content"] != LOOK_UP_MESSAGE:
+                elif not any(
+                    message.get("content") == LOOK_UP_MESSAGE for message in messages
+                ):
                     # Text before reading anything is a guess, or a note that
                     # the model will search; ask for the lookup instead.
                     messages.append({"role": "user", "content": LOOK_UP_MESSAGE})

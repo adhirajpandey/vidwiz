@@ -413,13 +413,21 @@ def test_tool_calls_in_the_forced_round_are_not_run(
     assert isinstance(events[-1], ErrorEvent)
 
 
+def draft_stream(text):
+    """Stream text in 20-character chunks, failing if read past the cutoff."""
+    for start in range(0, len(text), 20):
+        if start > loop.DRAFT_CHARS + 20:
+            raise AssertionError("draft read past the cutoff")
+        yield chunk(content=text[start : start + 20])
+
+
 def test_tool_rounds_never_show_their_text(db_session, user, library, monkeypatch):
     long_draft = "A draft answer that is never shown. " * 30
     model = FakeModel(
         monkeypatch,
         [
             [chunk(content="Let me check."), *tool_round(("library_stats", {}))],
-            [chunk(content=long_draft[i : i + 20]) for i in range(0, 1000, 20)],
+            draft_stream(long_draft),
             answer_round(block("**You have two videos.**")),
         ],
     )
@@ -487,6 +495,27 @@ def test_find_videos_alone_is_not_enough_to_answer(
     # The search ran in round four, so round five is the forced answer.
     assert result.stats.rounds == 5
     assert [b.text for b in result.blocks] == ["**Deep focus covers it.**"]
+
+
+def test_nudge_is_sent_once_across_a_find_videos_round(
+    db_session, user, library, monkeypatch
+):
+    model = FakeModel(
+        monkeypatch,
+        [
+            done_round("Let me search."),
+            tool_round(("find_videos", {})),
+            done_round("Found it, let me look inside."),
+            tool_round(("search", {"query": "phone"})),
+            answer_round(block("**Deep focus covers it.**")),
+        ],
+    )
+
+    _, result = run(db_session, user)
+
+    assert result.failure is None
+    contents = [m.get("content") for m in model.requests[3]["messages"]]
+    assert contents.count(LOOK_UP_MESSAGE) == 1
 
 
 @pytest.mark.parametrize(
