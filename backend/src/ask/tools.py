@@ -34,6 +34,10 @@ MAX_VIDEOS = 40
 MAX_GROUPS = 15
 MOMENTS_PER_VIDEO = 6
 MOMENT_TEXT_CHARS = 160
+# The digest shown under an answer is larger than what the model reads.
+DIGEST_MOMENTS_PER_VIDEO = 50
+DIGEST_VIDEOS = 100
+UNKNOWN_CHANNEL = "Unknown channel"
 SUMMARY_CHARS = 200
 CLOSE_NAMES = 5
 CLOSE_CUTOFF = 0.5
@@ -54,6 +58,8 @@ class ToolContext:
 class ToolResult:
     result: dict
     sources: list[Source] = field(default_factory=list)
+    # What the app shows under the answer, for moments_in and library_stats.
+    display: dict | None = None
 
 
 def error(message: str) -> ToolResult:
@@ -265,7 +271,23 @@ def moments_in(args: MomentsInArgs, context: ToolContext) -> ToolResult:
     videos: dict[str, dict] = {}
     # Only the moments listed in the result are its sources.
     shown: list[Source] = []
+    digest: dict[str, dict] = {}
     for moment, title, channel in rows:
+        text = moment.note or moment.ai_text or moment.quote or ""
+        shelf = digest.setdefault(
+            moment.video_id,
+            {
+                "video_id": moment.video_id,
+                "title": title,
+                "moment_count": 0,
+                "moments": [],
+            },
+        )
+        shelf["moment_count"] += 1
+        if len(shelf["moments"]) < DIGEST_MOMENTS_PER_VIDEO:
+            shelf["moments"].append(
+                {"id": f"m{moment.id}", "at_seconds": moment.at_seconds, "text": text}
+            )
         entry = videos.setdefault(
             moment.video_id,
             {
@@ -277,7 +299,6 @@ def moments_in(args: MomentsInArgs, context: ToolContext) -> ToolResult:
         )
         entry["moment_count"] += 1
         if len(entry["moments"]) < MOMENTS_PER_VIDEO:
-            text = moment.note or moment.ai_text or moment.quote or ""
             entry["moments"].append(
                 {
                     "id": f"m{moment.id}",
@@ -293,6 +314,14 @@ def moments_in(args: MomentsInArgs, context: ToolContext) -> ToolResult:
             "videos": list(videos.values()),
         },
         shown,
+        {
+            "type": "digest",
+            "since": args.since.isoformat(),
+            "until": args.until.isoformat(),
+            "total_moments": len(rows),
+            "video_count": len(digest),
+            "videos": list(digest.values())[:DIGEST_VIDEOS],
+        },
     )
 
 
@@ -311,12 +340,30 @@ def library_stats(args: LibraryStatsArgs, context: ToolContext) -> ToolResult:
     if note:
         return ToolResult({"note": note})
     if group is None:
-        return ToolResult({"video_count": context.db.execute(query).scalar_one()})
+        video_count = context.db.execute(query).scalar_one()
+        return ToolResult(
+            {"video_count": video_count},
+            display={
+                "type": "stats",
+                "video_count": video_count,
+                "group_by": None,
+                "groups": None,
+            },
+        )
     rows = context.db.execute(
         query.group_by(group).order_by(count.desc(), group).limit(MAX_GROUPS)
     ).all()
     return ToolResult(
-        {"groups": [{"name": name, "videos": videos} for name, videos in rows]}
+        {"groups": [{"name": name, "videos": videos} for name, videos in rows]},
+        display={
+            "type": "stats",
+            "video_count": None,
+            "group_by": args.group_by,
+            "groups": [
+                {"name": name or UNKNOWN_CHANNEL, "videos": videos}
+                for name, videos in rows
+            ],
+        },
     )
 
 

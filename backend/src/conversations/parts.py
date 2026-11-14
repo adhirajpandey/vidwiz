@@ -75,8 +75,69 @@ class BlockPart(StrictModel):
     citations: list[BlockCitation]
 
 
+def _count(number: int | None, noun: str) -> str:
+    return f"{number} {noun}" if number == 1 else f"{number} {noun}s"
+
+
+class DigestMoment(StrictModel):
+    id: str
+    at_seconds: int
+    text: str
+
+
+class DigestVideo(StrictModel):
+    video_id: str
+    title: str | None
+    moment_count: int
+    moments: list[DigestMoment]
+
+
+class DigestPart(StrictModel):
+    """Moments captured in a period, built by the server from a moments_in call."""
+
+    type: Literal["digest"]
+    since: str
+    until: str
+    total_moments: int
+    video_count: int
+    videos: list[DigestVideo]
+
+    def summary(self) -> str:
+        return (
+            f"Digest: {_count(self.total_moments, 'moment')} in "
+            f"{_count(self.video_count, 'video')}, {self.since} to {self.until}"
+        )
+
+
+class StatsGroup(StrictModel):
+    name: str
+    videos: int
+
+
+STATS_SUMMARY_GROUPS = 5
+
+
+class StatsPart(StrictModel):
+    """Library counts, built by the server from a library_stats call."""
+
+    type: Literal["stats"]
+    video_count: int | None
+    group_by: Literal["channel", "month"] | None
+    groups: list[StatsGroup] | None
+
+    def summary(self) -> str:
+        if self.groups is None:
+            return f"Stats: {_count(self.video_count, 'video')}"
+        top = ", ".join(
+            f"{group.name} ({group.videos})"
+            for group in self.groups[:STATS_SUMMARY_GROUPS]
+        )
+        return f"Stats by {self.group_by}: {top or 'no videos'}"
+
+
 MessagePart = Annotated[
-    TextPart | CitationPart | BlockPart, Field(discriminator="type")
+    TextPart | CitationPart | BlockPart | DigestPart | StatsPart,
+    Field(discriminator="type"),
 ]
 message_parts_adapter = TypeAdapter(list[MessagePart])
 
@@ -274,9 +335,11 @@ def history_parts(
                     references=[s for s in sources if s.chunk_ids],
                 ).model_dump()
             )
-        elif isinstance(part, TextPart):
+        elif isinstance(part, (TextPart, DigestPart, StatsPart)):
             result.append(
-                ModelBlock(type="block", text=part.text, references=[]).model_dump()
+                ModelBlock(
+                    type="block", text=part_text(part), references=[]
+                ).model_dump()
             )
         # Legacy citations have no explicit block association. Do not invent one.
     return result
@@ -292,16 +355,30 @@ class ErrorEvent(StrictModel):
     message: str
 
 
+class StatusEvent(StrictModel):
+    """What a library answer is doing; streamed only, never stored."""
+
+    type: Literal["status"] = "status"
+    text: str
+
+
 def stored_parts(content: str, metadata: dict | None) -> list[MessagePart]:
     if metadata and metadata.get("parts_version") in (1, 2):
         return message_parts_adapter.validate_python(metadata["parts"])
     return [TextPart(type="text", text=content)]
 
 
+def part_text(part: MessagePart) -> str | None:
+    """A part's plain text; digests and stats give a short summary."""
+    if isinstance(part, (TextPart, BlockPart)):
+        return part.text
+    if isinstance(part, (DigestPart, StatsPart)):
+        return part.summary()
+    return None
+
+
 def text_projection(parts: list[MessagePart]) -> str:
-    return "\n\n".join(
-        part.text for part in parts if isinstance(part, (TextPart, BlockPart))
-    )
+    return "\n\n".join(text for part in parts if (text := part_text(part)) is not None)
 
 
 def _seconds(value) -> float | None:
