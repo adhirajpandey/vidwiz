@@ -1,3 +1,5 @@
+import math
+
 from aws_lambda_powertools import Logger
 
 from vidwiz_worker.clients import InternalApiClient, OpenRouterClient
@@ -85,6 +87,19 @@ def process_moment(moment: Moment) -> None:
         if moment.correlation_id
         else api.get_video(moment.video_id)
     )
+    raw_duration = ((metadata or {}).get("video_metadata") or {}).get("duration")
+    try:
+        duration = float(raw_duration) if not isinstance(raw_duration, bool) else 0
+    except (ValueError, TypeError, OverflowError):
+        duration = 0
+    if math.isfinite(duration) and duration > 0 and moment.at_seconds > duration:
+        saved = api.save_moment_ai(
+            moment.id, None, correlation_id=moment.correlation_id
+        )
+        if not saved:
+            raise RuntimeError("Could not flag invalid capture timestamp")
+        logger.info("Skipped capture past video end", extra=extra)
+        return
     title = metadata.get("title") if metadata else None
     ai_text = _valid_note(title, moment.at_seconds, format_context(context))
     saved = (

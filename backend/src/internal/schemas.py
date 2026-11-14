@@ -61,6 +61,8 @@ TaskFailureKind = Literal[
     "proxy_error",
     "timeout",
     "not_found",
+    "unavailable",
+    "no_transcript",
     "provider_error",
     "worker_error",
 ]
