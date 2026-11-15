@@ -8,6 +8,7 @@ from src.metrics import record_workflow_event
 from src.moments.models import AiStatus, Moment
 from src.videos import service as videos_service
 from src.videos.models import TranscriptStatus, Video
+from src.videos.utils import YOUTUBE_VIDEO_ID_PATTERN
 
 
 def create_task_idempotent(db: Session, task_type: str, video_id: str) -> Task:
@@ -51,8 +52,31 @@ def create_task_idempotent(db: Session, task_type: str, video_id: str) -> Task:
     return new_task
 
 
-def schedule_video_tasks(db: Session, video: Video) -> None:
+def _needs_metadata(db: Session, video: Video) -> bool:
     if not video.video_metadata:
+        return True
+    uploader = video.video_metadata.get("uploader")
+    if isinstance(uploader, str) and uploader.strip():
+        return False
+    # A fetch without the channel name is tried again, unless the latest
+    # fetch already failed after all its retries (private, deleted, ...).
+    latest_status = db.execute(
+        select(Task.status)
+        .where(
+            Task.task_type == internal_constants.FETCH_METADATA_TASK_TYPE,
+            Task.task_details["video_id"].as_string() == video.video_id,
+        )
+        .order_by(Task.id.desc())
+        .limit(1)
+    ).scalar()
+    return latest_status != TaskStatus.FAILED
+
+
+def schedule_video_tasks(db: Session, video: Video) -> None:
+    # Workers can never fetch anything for an ID that is not a YouTube ID.
+    if not YOUTUBE_VIDEO_ID_PATTERN.match(video.video_id):
+        return
+    if _needs_metadata(db, video):
         create_task_idempotent(
             db, internal_constants.FETCH_METADATA_TASK_TYPE, video.video_id
         )
