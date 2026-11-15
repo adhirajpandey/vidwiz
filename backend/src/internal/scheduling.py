@@ -67,6 +67,8 @@ def _needs_metadata(db: Session, video: Video) -> bool:
                 Task.task_details["video_id"].as_string() == video.video_id,
             )
             .order_by(Task.id.desc())
+            # The latest status and whether the cap is reached need no more.
+            .limit(internal_constants.METADATA_MAX_FETCHES)
         )
         .scalars()
         .all()
