@@ -18,6 +18,8 @@ export default function MomentStatus({ moment, onRequestAi, requesting }: {
       return <p className={line}><Loader2 className="size-3.5 animate-spin" />Writing the AI line…</p>;
     case 'waiting_transcript':
       return <p className={line}><Clock className="size-3.5" />AI line waits for the transcript</p>;
+    case 'invalid_timestamp':
+      return <p className={line}><AlertCircle className="size-3.5" />This capture is past the end of the video. Capture again at the correct time.</p>;
     case 'no_transcript':
       return <p className={line}><AlertCircle className="size-3.5" />Transcript unavailable, so there is no AI line</p>;
     case 'insufficient_credits':

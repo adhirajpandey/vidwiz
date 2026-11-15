@@ -220,13 +220,20 @@ def _kind(error: Exception) -> str | None:
         "timed out" in text.lower()
     ):
         return "timeout"
-    if isinstance(error, LookupError) or name in (
-        "VideoUnavailable",
-        "VideoUnplayable",
-        "InvalidVideoId",
-        "TranscriptsDisabled",
-        "NoTranscriptFound",
+    if name in ("TranscriptsDisabled", "NoTranscriptFound"):
+        return "no_transcript"
+    if name == "VideoUnavailable" or any(
+        phrase in text.lower()
+        for phrase in (
+            "private video",
+            "video has been removed",
+            "video has been deleted",
+            "video unavailable",
+        )
     ):
+        return "unavailable"
+    # Generic VideoUnplayable may be a transient restriction. Keep it retryable.
+    if isinstance(error, LookupError) or name == "InvalidVideoId":
         return "not_found"
     if isinstance(error, requests.exceptions.HTTPError):
         return "provider_error"
@@ -235,11 +242,12 @@ def _kind(error: Exception) -> str | None:
 
 def error_kind(error: Exception) -> str:
     """Name the dependency that broke, using the API's bounded failure kinds."""
-    for cause in _causes(error):
-        kind = _kind(cause)
-        if kind is not None:
-            return kind
-    return "worker_error"
+    kinds = [_kind(cause) for cause in _causes(error)]
+    # Inspect all bounded causes before accepting a wrapper's unavailable text.
+    for transient in ("youtube_blocked", "proxy_error", "timeout", "provider_error"):
+        if transient in kinds:
+            return transient
+    return next((kind for kind in kinds if kind is not None), "worker_error")
 
 
 def get_auth_token() -> str:

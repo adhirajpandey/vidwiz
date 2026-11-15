@@ -44,3 +44,22 @@ def normalize_youtube_video_id(value: str) -> str:
             return video_id
 
     raise ValueError("video_id must be a valid YouTube video ID")
+
+
+def video_duration(metadata: dict | None) -> float | None:
+    """Only finite, positive durations are useful for capture validation."""
+    import math
+
+    value = (metadata or {}).get("duration")
+    if isinstance(value, bool):
+        return None
+    try:
+        duration = float(value)
+    except (ValueError, TypeError, OverflowError):
+        return None
+    return duration if math.isfinite(duration) and duration > 0 else None
+
+
+def capture_past_end(metadata: dict | None, at_seconds: float) -> bool:
+    duration = video_duration(metadata)
+    return duration is not None and at_seconds > duration

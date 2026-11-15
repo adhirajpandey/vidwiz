@@ -34,6 +34,9 @@ RUN groupadd --system --gid 10001 app && \
     useradd --system --uid 10001 --gid app --home-dir /app app && \
     chown -R app:app /app
 
+ARG APP_REVISION
+ENV APP_REVISION=${APP_REVISION}
+
 USER app
 
 EXPOSE 5000

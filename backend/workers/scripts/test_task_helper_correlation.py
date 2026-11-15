@@ -146,7 +146,7 @@ def test_error_kind_names_the_broken_dependency():
     assert module.error_kind(requests.exceptions.ProxyError("x")) == "proxy_error"
     assert module.error_kind(requests.exceptions.ReadTimeout("x")) == "timeout"
     assert module.error_kind(LookupError("No YouTube results")) == "not_found"
-    assert module.error_kind(NoTranscriptFound("x")) == "not_found"
+    assert module.error_kind(NoTranscriptFound("x")) == "no_transcript"
     assert module.error_kind(ValueError("other")) == "worker_error"
 
 
@@ -171,3 +171,37 @@ def test_error_kind_reads_errors_wrapped_by_yt_dlp():
             raise RuntimeError("fetch failed") from cause
     except RuntimeError as chained:
         assert module.error_kind(chained) == "proxy_error"
+
+
+def test_unavailable_classification_does_not_hide_transient_failures():
+    module = _load_task_helper()
+    assert module.error_kind(Exception("Private video")) == "unavailable"
+    assert (
+        module.error_kind(
+            Exception("Video unavailable: Sign in to confirm you're not a bot")
+        )
+        == "youtube_blocked"
+    )
+    assert (
+        module.error_kind(Exception("Video unavailable: request timed out"))
+        == "timeout"
+    )
+
+    class VideoUnplayable(Exception):
+        pass
+
+    assert module.error_kind(VideoUnplayable("temporary restriction")) == "worker_error"
+
+
+def test_unavailable_wrapper_preserves_transient_cause():
+    import requests
+
+    module = _load_task_helper()
+    for cause, expected in [
+        (requests.exceptions.ReadTimeout("read"), "timeout"),
+        (requests.exceptions.ProxyError("proxy"), "proxy_error"),
+        (Exception("Sign in to confirm"), "youtube_blocked"),
+    ]:
+        wrapped = RuntimeError("Video unavailable")
+        wrapped.__cause__ = cause
+        assert module.error_kind(wrapped) == expected

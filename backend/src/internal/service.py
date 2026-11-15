@@ -138,6 +138,7 @@ def submit_task_result(
             **(task.worker_details or {}),
             "error_message": result.error_message or "Unknown error occurred",
             "retry_attempt": task.retry_count,
+            "error_kind": result.error_kind or "worker_error",
         }
 
     db.commit()
@@ -218,6 +219,7 @@ def _apply_success(db: Session, task: Task, result: TaskResultRequest) -> None:
     video = videos_service.get_video_by_id(db, result.video_id)
     if video and result.metadata:
         _apply_metadata(video, result.metadata)
+        moments_service.flag_invalid_captures(db, video)
 
 
 def _apply_transcript_state(db: Session, result: TaskResultRequest) -> None:
@@ -300,6 +302,7 @@ def store_metadata(db: Session, video_id: str, metadata: dict) -> Video:
     logger.debug("Storing metadata", extra={"video_id": video_id})
     video = videos_service.get_or_create_video(db, video_id)
     _apply_metadata(video, metadata)
+    moments_service.flag_invalid_captures(db, video)
     db.commit()
     db.refresh(video)
     return video

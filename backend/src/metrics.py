@@ -43,11 +43,18 @@ WORKFLOWS = (
     "wiz_chat",
 )
 WORKFLOW_STATES = {
-    "title_resolution": ("resolving", "awaiting_user", "failed"),
-    "metadata": ("pending", "in_progress", "failed"),
-    "transcript": ("pending",),
-    "ai_moment": ("waiting_transcript", "queued", "failed"),
-    "overview": ("pending", "queued", "failed"),
+    "title_resolution": ("resolving", "awaiting_user", "not_found", "failed"),
+    "metadata": ("pending", "in_progress", "failed", "unavailable"),
+    "transcript": ("pending", "failed", "unavailable", "unknown"),
+    "ai_moment": (
+        "waiting_transcript",
+        "queued",
+        "failed",
+        "invalid_timestamp",
+        "waiting_title",
+        "blocked",
+    ),
+    "overview": ("pending", "queued", "failed", "blocked"),
 }
 EVENTS = (
     "task_queued",
@@ -83,6 +90,8 @@ TASK_FAILURE_REASONS = (
     "proxy_error",
     "timeout",
     "not_found",
+    "unavailable",
+    "no_transcript",
     "provider_error",
     "worker_error",
 )
@@ -238,6 +247,11 @@ class Metrics:
             "Unix time the OpenRouter key status was last read successfully.",
             registry=self.registry,
         )
+        self.llm_budget_reset = Gauge(
+            "vidwiz_llm_budget_reset_timestamp_seconds",
+            "Next key-budget reset at a documented UTC boundary; NaN if unknown or no reset.",
+            registry=self.registry,
+        )
         for workflow in SUCCESS_WORKFLOWS:
             self.last_success.labels(workflow).set(float("nan"))
         for workflow in HELPER_WORKFLOWS:
@@ -246,6 +260,7 @@ class Metrics:
             self.llm_budget_limit,
             self.llm_budget_remaining,
             self.llm_budget_checked,
+            self.llm_budget_reset,
         ):
             gauge.set(float("nan"))
         # AI moments have no completion timestamp; user edits move updated_at.
@@ -280,33 +295,28 @@ class Metrics:
         if workflow in HELPER_WORKFLOWS:
             self.helper_last_poll.labels(workflow).set(time.time())
 
-    def record_llm_budget(self, limit: float | None, remaining: float | None) -> None:
+    def record_llm_budget(
+        self,
+        limit: float | None,
+        remaining: float | None,
+        resets_at: float | None = None,
+    ) -> None:
         """Publish the key's budget; None means no limit is set."""
         nan = float("nan")
         self.llm_budget_limit.set(nan if limit is None else limit)
         self.llm_budget_remaining.set(nan if remaining is None else remaining)
+        self.llm_budget_reset.set(nan if resets_at is None else resets_at)
         self.llm_budget_checked.set(time.time())
 
     def refresh_llm_budget(self, api_key: str | None, base_url: str) -> None:
         """Read the OpenRouter key's limit; a failed read keeps the last values."""
         if not api_key:
             return
-        import requests
+        from src.llm_budget import read_budget
 
         try:
-            response = requests.get(
-                f"{base_url.rstrip('/')}/key",
-                headers={"Authorization": f"Bearer {api_key}"},
-                timeout=LLM_BUDGET_TIMEOUT_SECONDS,
-            )
-            response.raise_for_status()
-            data = response.json().get("data") or {}
-            limit = data.get("limit")
-            remaining = data.get("limit_remaining")
-            self.record_llm_budget(
-                float(limit) if limit is not None else None,
-                float(remaining) if remaining is not None else None,
-            )
+            budget = read_budget(api_key, base_url, LLM_BUDGET_TIMEOUT_SECONDS)
+            self.record_llm_budget(budget.limit, budget.remaining, budget.resets_at)
         except Exception as exc:
             # The response body is not logged; it describes the key.
             logger.warning(
@@ -393,8 +403,8 @@ class Metrics:
             RESOLVE_TITLE_TASK_TYPE,
         )
         from src.internal.models import Task, TaskStatus
-        from src.moments.models import AiStatus, Moment, ResolveStatus
-        from src.videos.models import OverviewStatus, TranscriptStatus, Video
+        from src.moments.models import AiStatus, Moment
+        from src.videos.models import OverviewStatus, Video
 
         db = None
         connectivity_checked = False
@@ -421,138 +431,20 @@ class Metrics:
                         age = max(0, (now - oldest).total_seconds())
                     snapshot[(workflow, state)] = (count, age)
 
-            task_types = {
-                "metadata": FETCH_METADATA_TASK_TYPE,
-            }
-            for workflow, task_type in task_types.items():
-                rows = db.execute(
-                    select(
-                        Task.status,
-                        func.count(Task.id),
-                        func.min(func.coalesce(Task.started_at, Task.created_at)),
-                    )
-                    .where(
-                        Task.task_type == task_type,
-                        Task.status.in_(
-                            (
-                                TaskStatus.PENDING,
-                                TaskStatus.IN_PROGRESS,
-                                TaskStatus.FAILED,
-                            )
-                        ),
-                    )
-                    .group_by(Task.status)
-                ).all()
+            from src.workflow_snapshot import current_workflow_rows
+
+            rows = current_workflow_rows(db)
+            for workflow, states in WORKFLOW_STATES.items():
                 stage_rows(
                     workflow,
-                    [(row[0].value, row[1], row[2]) for row in rows],
-                    WORKFLOW_STATES[workflow],
+                    [
+                        (state, count, oldest)
+                        for stage, state, count, oldest in rows
+                        if stage == workflow
+                    ],
+                    states,
                 )
 
-            title_rows = db.execute(
-                select(
-                    Moment.resolve_status,
-                    func.count(Moment.id),
-                    func.min(Moment.created_at),
-                )
-                .where(
-                    Moment.resolve_status.in_(
-                        (ResolveStatus.RESOLVING, ResolveStatus.UNRESOLVED)
-                    )
-                )
-                .group_by(Moment.resolve_status)
-            ).all()
-            title_values = []
-            for status, count, oldest in title_rows:
-                if status == ResolveStatus.RESOLVING:
-                    title_values.append(("resolving", count, oldest))
-                else:
-                    candidates = db.execute(
-                        select(
-                            func.count(Moment.id), func.min(Moment.created_at)
-                        ).where(
-                            Moment.resolve_status == ResolveStatus.UNRESOLVED,
-                            Moment.resolve_candidates.is_not(None),
-                        )
-                    ).one()
-                    failed = db.execute(
-                        select(
-                            func.count(Moment.id), func.min(Moment.created_at)
-                        ).where(
-                            Moment.resolve_status == ResolveStatus.UNRESOLVED,
-                            Moment.resolve_candidates.is_(None),
-                        )
-                    ).one()
-                    title_values.extend(
-                        (
-                            ("awaiting_user", candidates[0], candidates[1]),
-                            ("failed", failed[0], failed[1]),
-                        )
-                    )
-            stage_rows(
-                "title_resolution", title_values, WORKFLOW_STATES["title_resolution"]
-            )
-
-            ai_rows = db.execute(
-                select(
-                    Moment.ai_status, func.count(Moment.id), func.min(Moment.created_at)
-                )
-                .where(
-                    Moment.ai_status.in_(
-                        (AiStatus.WAITING_TRANSCRIPT, AiStatus.QUEUED, AiStatus.FAILED)
-                    )
-                )
-                .group_by(Moment.ai_status)
-            ).all()
-            stage_rows(
-                "ai_moment",
-                [(status.value, count, oldest) for status, count, oldest in ai_rows],
-                WORKFLOW_STATES["ai_moment"],
-            )
-
-            transcript_rows = db.execute(
-                select(
-                    Video.transcript_status,
-                    func.count(Video.id),
-                    func.min(Video.updated_at),
-                )
-                .where(Video.transcript_status == TranscriptStatus.PENDING)
-                .group_by(Video.transcript_status)
-            ).all()
-            stage_rows(
-                "transcript",
-                [
-                    (status.value, count, oldest)
-                    for status, count, oldest in transcript_rows
-                ],
-                WORKFLOW_STATES["transcript"],
-            )
-
-            overview_rows = db.execute(
-                select(
-                    Video.overview_status,
-                    func.count(Video.id),
-                    func.min(Video.overview_status_at),
-                )
-                .where(
-                    Video.overview_status.in_(
-                        (
-                            OverviewStatus.PENDING,
-                            OverviewStatus.QUEUED,
-                            OverviewStatus.FAILED,
-                        )
-                    )
-                )
-                .group_by(Video.overview_status)
-            ).all()
-            stage_rows(
-                "overview",
-                [
-                    (status.value, count, oldest)
-                    for status, count, oldest in overview_rows
-                ],
-                WORKFLOW_STATES["overview"],
-            )
             last_success = self._last_success_times(
                 db,
                 Task,

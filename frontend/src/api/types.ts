@@ -122,6 +122,7 @@ export type AiStatus =
   | 'queued'
   | 'ready'
   | 'failed'
+  | 'invalid_timestamp'
   | 'no_transcript'
   | 'insufficient_credits';
 
