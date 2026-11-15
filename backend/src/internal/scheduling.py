@@ -8,6 +8,7 @@ from src.metrics import record_workflow_event
 from src.moments.models import AiStatus, Moment
 from src.videos import service as videos_service
 from src.videos.models import TranscriptStatus, Video
+from src.videos.utils import YOUTUBE_VIDEO_ID_PATTERN
 
 
 def create_task_idempotent(db: Session, task_type: str, video_id: str) -> Task:
@@ -51,8 +52,37 @@ def create_task_idempotent(db: Session, task_type: str, video_id: str) -> Task:
     return new_task
 
 
+def _needs_metadata(db: Session, video: Video) -> bool:
+    uploader = (video.video_metadata or {}).get("uploader")
+    if isinstance(uploader, str) and uploader.strip():
+        return False
+    # Missing metadata or channel name is fetched again, but a video whose
+    # latest fetch failed after its retries (private, deleted, ...), or that
+    # has used up its fetches, is left alone.
+    statuses = (
+        db.execute(
+            select(Task.status)
+            .where(
+                Task.task_type == internal_constants.FETCH_METADATA_TASK_TYPE,
+                Task.task_details["video_id"].as_string() == video.video_id,
+            )
+            .order_by(Task.id.desc())
+            # The latest status and whether the cap is reached need no more.
+            .limit(internal_constants.METADATA_MAX_FETCHES)
+        )
+        .scalars()
+        .all()
+    )
+    if statuses and statuses[0] == TaskStatus.FAILED:
+        return False
+    return len(statuses) < internal_constants.METADATA_MAX_FETCHES
+
+
 def schedule_video_tasks(db: Session, video: Video) -> None:
-    if not video.video_metadata:
+    # Workers can never fetch anything for an ID that is not a YouTube ID.
+    if not YOUTUBE_VIDEO_ID_PATTERN.match(video.video_id):
+        return
+    if _needs_metadata(db, video):
         create_task_idempotent(
             db, internal_constants.FETCH_METADATA_TASK_TYPE, video.video_id
         )
