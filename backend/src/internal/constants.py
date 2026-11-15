@@ -2,6 +2,8 @@ TASK_REQUEST_DEFAULT_TIMEOUT = 30
 TASK_REQUEST_MAX_TIMEOUT = 60
 TASK_POLL_INTERVAL = 2
 TASK_MAX_RETRIES = 3
+# Metadata tasks one video may get in total, whatever their outcome.
+METADATA_MAX_FETCHES = 3
 TASK_IN_PROGRESS_TIMEOUT = 120
 
 FETCH_TRANSCRIPT_TASK_TYPE = "fetch_transcript"

@@ -306,21 +306,18 @@ def test_metadata_with_uploader_is_not_fetched_again(db_session):
     assert _metadata_tasks(db_session, "hasupload12") == []
 
 
-def test_missing_uploader_after_final_failure_is_not_fetched_again(db_session):
+@pytest.mark.parametrize("metadata", [None, {}, {"title": "Talk"}])
+def test_missing_metadata_after_final_failure_is_not_fetched_again(
+    db_session, metadata
+):
     video = Video(
         video_id="gonevideo12",
-        video_metadata={"title": "Talk"},
+        video_metadata=metadata,
         transcript_status=TranscriptStatus.READY,
     )
     db_session.add_all(
         [
             video,
-            Task(
-                task_type=internal_constants.FETCH_METADATA_TASK_TYPE,
-                status=TaskStatus.COMPLETED,
-                task_details={"video_id": "gonevideo12"},
-                retry_count=1,
-            ),
             Task(
                 task_type=internal_constants.FETCH_METADATA_TASK_TYPE,
                 status=TaskStatus.FAILED,
@@ -334,7 +331,45 @@ def test_missing_uploader_after_final_failure_is_not_fetched_again(db_session):
     internal_scheduling.schedule_video_tasks(db_session, video)
 
     statuses = [task.status for task in _metadata_tasks(db_session, "gonevideo12")]
-    assert statuses == [TaskStatus.COMPLETED, TaskStatus.FAILED]
+    assert statuses == [TaskStatus.FAILED]
+
+
+def test_empty_metadata_without_tasks_is_fetched(db_session):
+    video = Video(
+        video_id="emptymeta12",
+        video_metadata={},
+        transcript_status=TranscriptStatus.READY,
+    )
+    db_session.add(video)
+    db_session.commit()
+
+    internal_scheduling.schedule_video_tasks(db_session, video)
+
+    statuses = [task.status for task in _metadata_tasks(db_session, "emptymeta12")]
+    assert statuses == [TaskStatus.PENDING]
+
+
+def test_metadata_without_uploader_stops_at_the_fetch_cap(db_session):
+    video = Video(
+        video_id="nevercha123",
+        video_metadata={"title": "Talk"},
+        transcript_status=TranscriptStatus.READY,
+    )
+    db_session.add(video)
+    db_session.commit()
+
+    for _ in range(internal_constants.METADATA_MAX_FETCHES):
+        internal_scheduling.schedule_video_tasks(db_session, video)
+        tasks = _metadata_tasks(db_session, "nevercha123")
+        assert tasks[-1].status == TaskStatus.PENDING
+        # The worker completes the fetch, again without an uploader.
+        tasks[-1].status = TaskStatus.COMPLETED
+        db_session.commit()
+
+    internal_scheduling.schedule_video_tasks(db_session, video)
+
+    statuses = [task.status for task in _metadata_tasks(db_session, "nevercha123")]
+    assert statuses == [TaskStatus.COMPLETED] * internal_constants.METADATA_MAX_FETCHES
 
 
 def test_invalid_video_id_is_not_scheduled(db_session):

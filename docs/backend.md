@@ -32,7 +32,7 @@ Describe the FastAPI backend: structure, auth rules, and the request/worker life
 ## Key Behavior
 - **Video lookup**: `GET /v2/videos/{video_id}` is JWT-only but is not scoped to the user; it returns the video if it exists.
 - **Task scheduling**: Capturing, saving, or starting a conversation upserts the video and schedules transcript/metadata tasks when missing.
-  Metadata without a non-blank `uploader` (channel name) counts as missing, unless the latest metadata task for the video already failed after its retries. IDs that are not 11-character YouTube IDs get no tasks.
+  Metadata without a non-blank `uploader` (channel name) counts as missing. Missing metadata is not fetched again when the latest metadata task for the video failed after its retries (private, deleted or unavailable), or once the video has had `METADATA_MAX_FETCHES` (3) metadata tasks in total. This also applies to videos with no metadata at all, which earlier got a new task on every capture after a final failure. IDs that are not 11-character YouTube IDs get no tasks.
 - **Wiz quotas**: Daily message limits enforced separately for users and guests via `WIZ_USER_DAILY_QUOTA` and `WIZ_GUEST_DAILY_QUOTA`.
 - **Wiz token budget**: `WIZ_MAX_TOKENS` (default 8192) controls the max completion tokens per Wiz response, including model reasoning. The larger ceiling accommodates structured evidence on long transcripts; explicit environment overrides remain authoritative.
 

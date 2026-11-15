@@ -53,23 +53,27 @@ def create_task_idempotent(db: Session, task_type: str, video_id: str) -> Task:
 
 
 def _needs_metadata(db: Session, video: Video) -> bool:
-    if not video.video_metadata:
-        return True
-    uploader = video.video_metadata.get("uploader")
+    uploader = (video.video_metadata or {}).get("uploader")
     if isinstance(uploader, str) and uploader.strip():
         return False
-    # A fetch without the channel name is tried again, unless the latest
-    # fetch already failed after all its retries (private, deleted, ...).
-    latest_status = db.execute(
-        select(Task.status)
-        .where(
-            Task.task_type == internal_constants.FETCH_METADATA_TASK_TYPE,
-            Task.task_details["video_id"].as_string() == video.video_id,
+    # Missing metadata or channel name is fetched again, but a video whose
+    # latest fetch failed after its retries (private, deleted, ...), or that
+    # has used up its fetches, is left alone.
+    statuses = (
+        db.execute(
+            select(Task.status)
+            .where(
+                Task.task_type == internal_constants.FETCH_METADATA_TASK_TYPE,
+                Task.task_details["video_id"].as_string() == video.video_id,
+            )
+            .order_by(Task.id.desc())
         )
-        .order_by(Task.id.desc())
-        .limit(1)
-    ).scalar()
-    return latest_status != TaskStatus.FAILED
+        .scalars()
+        .all()
+    )
+    if statuses and statuses[0] == TaskStatus.FAILED:
+        return False
+    return len(statuses) < internal_constants.METADATA_MAX_FETCHES
 
 
 def schedule_video_tasks(db: Session, video: Video) -> None:
