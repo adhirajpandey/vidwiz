@@ -191,3 +191,17 @@ def test_unavailable_classification_does_not_hide_transient_failures():
         pass
 
     assert module.error_kind(VideoUnplayable("temporary restriction")) == "worker_error"
+
+
+def test_unavailable_wrapper_preserves_transient_cause():
+    import requests
+
+    module = _load_task_helper()
+    for cause, expected in [
+        (requests.exceptions.ReadTimeout("read"), "timeout"),
+        (requests.exceptions.ProxyError("proxy"), "proxy_error"),
+        (Exception("Sign in to confirm"), "youtube_blocked"),
+    ]:
+        wrapped = RuntimeError("Video unavailable")
+        wrapped.__cause__ = cause
+        assert module.error_kind(wrapped) == expected

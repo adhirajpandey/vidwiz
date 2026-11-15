@@ -1456,3 +1456,67 @@ def test_capture_exactly_at_end_is_allowed():
 
     assert not capture_past_end({"duration": 715}, 715)
     assert capture_past_end({"duration": "715"}, 716)
+
+
+def test_nearby_merge_excludes_invalid_destinations(db_session, user):
+    video = Video(video_id=VIDEO_ID, video_metadata={"duration": 715})
+    db_session.add(video)
+    db_session.flush()
+    invalid = Moment(
+        user_id=user.id,
+        video_id=VIDEO_ID,
+        at_seconds=720,
+        source=CaptureSource.API,
+        ai_status=AiStatus.INVALID_TIMESTAMP,
+    )
+    unflagged = Moment(
+        user_id=user.id,
+        video_id=VIDEO_ID,
+        at_seconds=716,
+        source=CaptureSource.API,
+        ai_status=AiStatus.NOT_REQUESTED,
+    )
+    valid = Moment(
+        user_id=user.id,
+        video_id=VIDEO_ID,
+        at_seconds=705,
+        source=CaptureSource.API,
+        ai_status=AiStatus.NOT_REQUESTED,
+    )
+    db_session.add_all([invalid, unflagged, valid])
+    db_session.flush()
+    assert moments_service._find_nearby(db_session, user.id, VIDEO_ID, 710) is valid
+
+
+def test_ai_callback_refreshes_stale_identity_before_saving(db_session, user):
+    from sqlalchemy import update
+
+    video = Video(video_id=VIDEO_ID, transcript_status=TranscriptStatus.READY)
+    db_session.add(video)
+    db_session.flush()
+    moment = Moment(
+        user_id=user.id,
+        video_id=VIDEO_ID,
+        at_seconds=888,
+        source=CaptureSource.API,
+        ai_status=AiStatus.QUEUED,
+    )
+    db_session.add(moment)
+    db_session.flush()
+    # Simulate committed data newer than the objects loaded by the request.
+    db_session.execute(
+        update(Video)
+        .where(Video.id == video.id)
+        .values(video_metadata={"duration": 715})
+        .execution_options(synchronize_session=False)
+    )
+    db_session.execute(
+        update(Moment)
+        .where(Moment.id == moment.id)
+        .values(ai_status=AiStatus.INVALID_TIMESTAMP)
+        .execution_options(synchronize_session=False)
+    )
+    assert moment.ai_status == AiStatus.QUEUED
+    moments_service.save_ai_text(db_session, moment, "Late generated result")
+    assert moment.ai_status == AiStatus.INVALID_TIMESTAMP
+    assert moment.ai_text is None

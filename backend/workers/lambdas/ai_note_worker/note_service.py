@@ -87,7 +87,7 @@ def process_moment(moment: Moment) -> None:
         if moment.correlation_id
         else api.get_video(moment.video_id)
     )
-    raw_duration = ((metadata or {}).get("video_metadata") or {}).get("duration")
+    raw_duration = ((metadata or {}).get("metadata") or {}).get("duration")
     try:
         duration = float(raw_duration) if not isinstance(raw_duration, bool) else 0
     except (ValueError, TypeError, OverflowError):

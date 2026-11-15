@@ -358,7 +358,7 @@ def test_late_metadata_stops_generation_for_past_end_capture(monkeypatch):
         service,
         "api",
         SimpleNamespace(
-            get_video=lambda _: {"video_metadata": {"duration": 715}},
+            get_video=lambda _: {"metadata": {"duration": 715}},
             save_moment_ai=lambda *args, **kwargs: saved.append(args) or True,
         ),
     )

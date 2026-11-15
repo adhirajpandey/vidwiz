@@ -242,11 +242,12 @@ def _kind(error: Exception) -> str | None:
 
 def error_kind(error: Exception) -> str:
     """Name the dependency that broke, using the API's bounded failure kinds."""
-    for cause in _causes(error):
-        kind = _kind(cause)
-        if kind is not None:
-            return kind
-    return "worker_error"
+    kinds = [_kind(cause) for cause in _causes(error)]
+    # Inspect all bounded causes before accepting a wrapper's unavailable text.
+    for transient in ("youtube_blocked", "proxy_error", "timeout", "provider_error"):
+        if transient in kinds:
+            return transient
+    return next((kind for kind in kinds if kind is not None), "worker_error")
 
 
 def get_auth_token() -> str:

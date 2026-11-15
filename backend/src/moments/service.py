@@ -185,12 +185,16 @@ def _find_nearby(
     db: Session, user_id: int, video_id: str, at_seconds: int
 ) -> Moment | None:
     distance = func.abs(Moment.at_seconds - at_seconds)
+    video = videos_service.get_video_by_id(db, video_id)
+    duration = video_duration(video.video_metadata) if video else None
     return db.execute(
         select(Moment)
         .where(
             Moment.user_id == user_id,
             Moment.video_id == video_id,
             distance <= DEDUPE_WINDOW_SECONDS,
+            Moment.ai_status != AiStatus.INVALID_TIMESTAMP,
+            Moment.at_seconds <= duration if duration is not None else True,
         )
         .order_by(distance, Moment.id)
         .limit(1)
@@ -681,7 +685,19 @@ def save_ai_text(
     db: Session, moment: Moment, ai_text: str | None, ai_model: str | None = None
 ) -> Moment:
     """Store the worker result; null marks a queued generation as failed."""
-    video = videos_service.get_video_by_id(db, moment.video_id)
+    # Refresh after acquiring the same row lock used by metadata invalidation.
+    # The request dependency may have loaded the moment before that committed.
+    moment = db.execute(
+        select(Moment)
+        .where(Moment.id == moment.id)
+        .with_for_update()
+        .execution_options(populate_existing=True)
+    ).scalar_one()
+    video = db.execute(
+        select(Video)
+        .where(Video.video_id == moment.video_id)
+        .execution_options(populate_existing=True)
+    ).scalar_one_or_none()
     if moment.ai_status == AiStatus.INVALID_TIMESTAMP or (
         moment.ai_status != AiStatus.READY
         and video is not None
